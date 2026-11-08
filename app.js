@@ -12,7 +12,7 @@
   const STORAGE_KEY = 'pet-gestao:prefs:v1';
   const routeTitles = {
     inicio:'Visão geral', demandas:'Demandas', cronograma:'Cronograma',
-    comissoes:'Comissões', reunioes:'Reuniões e memórias',
+    comissoes:'Comissões', reunioes:'Reuniões',
     'minhas-pendencias':'Minhas pendências', atividade:'Atividade'
   };
   const emptyData = () => ({tasks:[],committees:[],meetings:[],users:[],events:[],session:null});
@@ -109,7 +109,6 @@
   }
   function renderHome(){
     return `
-      <div class="hero"><div><div class="eyebrow" style="color:#e6dcff;margin-bottom:10px">ORGANIZAÇÃO COLETIVA</div><h2>Seu PET, mais conectado.</h2><p>Demandas, cronogramas, comissões e memórias com uma estrutura única, clara e organizada.</p></div><div class="hero-side">${icon('spark')}</div></div>
       ${connectNotice()}${renderStats()}
       <div class="dashboard-grid"><div class="stack">
         <section class="card card-pad"><div class="section-head"><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div>${renderUpcomingCompact()}</section>
@@ -176,24 +175,42 @@
       <div class="day-summary">${icon('calendar')} Semana ${state.week} · ${currentWeek().label}</div>${calendarWeekDetails()}
       ${renderPrefs()}</section>`;
   }
+
+  function deadlineOverdue(deadline, now = new Date()){
+    if(!deadline || deadline.completedAt || !deadline.dueAt) return false;
+    const due = dateFrom(deadline.dueAt);
+    if(!due) return false;
+    if(String(deadline.dueAt).length === 10) due.setHours(23,59,59,999);
+    return due.getTime() < now.getTime();
+  }
+  function commissionMetrics(id){
+    const own=tasks().filter(t=>String(t.committeeId)===String(id));
+    const open=own.filter(t=>!isCompleted(t));
+    return {pending:open.length,late:open.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d))).length,completed:own.length-open.length};
+  }
+  function commissionCounters(id){
+    if(!available()) return '<div class="commission-counters"><span>Pendentes <strong>—</strong></span><span>Atrasadas <strong>—</strong></span><span>Concluídas <strong>—</strong></span></div>';
+    const m=commissionMetrics(id);
+    return `<div class="commission-counters"><span>Pendentes <strong>${m.pending}</strong></span><span>Atrasadas <strong>${m.late}</strong></span><span>Concluídas <strong>${m.completed}</strong></span></div>`;
+  }
   function renderComissoes(){const all=state.data.committees;
     return `${header('Trabalho em equipe','Comissões','Todas utilizam a mesma estrutura de atividades, prazos, responsáveis, cronogramas e histórico.',newButton('Nova comissão'))}${connectNotice()}
       <div class="committee-info"><div class="info-tile">${icon('users')}<strong>Integrantes vinculados</strong><p>Responsáveis da comissão aparecem primeiro no seletor, sem impedir a escolha de outros integrantes.</p></div><div class="info-tile">${icon('calendar')}<strong>Mesmo cronograma</strong><p>Mês, ano, semanas, etapas e múltiplos prazos seguem a mesma estrutura em todas as comissões.</p></div><div class="info-tile">${icon('book')}<strong>Registro centralizado</strong><p>Atividades podem ser relacionadas a reuniões sem duplicar informações.</p></div></div>
-      <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização por equipes</p></div>${available()?tag(all.length+' comissões','soft'):''}</div>${all.length?all.map(c=>`<a class="placeholder-row" href="#/comissoes/${safeHref(c.id)}"><div><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes · ${tasks().filter(t=>String(t.committeeId)===String(c.id)).length} atividades</small></div>${icon('arrow')}</a>`).join(''):empty('users','Nenhuma comissão cadastrada','Assim que as equipes forem cadastradas, todas aparecerão aqui com a mesma organização.')}</section>`;
+      <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização por equipes</p></div>${available()?tag(all.length+' comissões','soft'):''}</div>${all.length?all.map(c=>`<a class="placeholder-row" href="#/comissoes/${safeHref(c.id)}"><div><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes</small>${commissionCounters(c.id)}</div>${icon('arrow')}</a>`).join(''):empty('users','Nenhuma comissão cadastrada','Assim que as equipes forem cadastradas, todas aparecerão aqui com a mesma organização.')}</section>`;
   }
   function renderCommitteeDetail(id){const c=state.data.committees.find(c=>String(c.id)===String(id));if(!c)return notFound();
     const related=tasks().filter(t=>String(t.committeeId)===String(c.id));
     return `${header('Comissões',c.name,'Atividades, integrantes e cronograma seguem o padrão compartilhado por todas as comissões.',newButton('Nova atividade'))}${connectNotice()}
-      <div class="card card-pad"><div class="section-head"><h2>Atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?related.map(renderTaskCard).join(''):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
+      <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section><div class="card card-pad"><div class="section-head"><h2>Atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?related.map(renderTaskCard).join(''):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
   }
   function renderReunioes(){const all=state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-    return `${header('Registro coletivo','Reuniões e memórias','Guarde as memórias originais e vincule as decisões às demandas, sem cadastrar tarefas duplicadas.',newButton('Nova memória'))}${connectNotice()}
+    return `${header('Registro coletivo','Reuniões','',newButton('Nova memória'))}${connectNotice()}
       <section class="card card-pad"><div class="section-head"><div><h2>Memórias registradas</h2><p>Histórico por data da reunião</p></div>${available()?tag(all.length+' reuniões','soft'):''}</div>
       ${all.length?all.map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)} · ${Array.isArray(m.taskIds)?m.taskIds.length:0} demandas vinculadas</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma memória registrada','Os encontros poderão reunir texto original, decisões, responsáveis, prazos e demandas vinculadas.')}</section>`;
   }
   function renderMeetingDetail(id){const m=state.data.meetings.find(m=>String(m.id)===String(id));if(!m)return notFound();
     const linked=tasks().filter(t=>String(t.meetingId)===String(id)||(Array.isArray(m.taskIds)&&m.taskIds.map(String).includes(String(t.id))));
-    return `${header('Reuniões e memórias',m.title||'Memória da reunião',formatDate(m.date))}${connectNotice()}<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><h2>Memória original</h2></div><p style="white-space:pre-wrap;line-height:1.8;font-size:12.5px;color:#5d5a72">${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></section><section class="card card-pad"><div class="section-head"><h2>Demandas vinculadas</h2></div>${linked.length?linked.map(renderTaskCard).join(''):empty('list','Nenhuma demanda vinculada','As atividades extraídas da reunião aparecerão aqui.',true)}</section></div>`;
+    return `${header('Reuniões',m.title||'Memória da reunião',formatDate(m.date))}${connectNotice()}<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><h2>Memória original</h2></div><p style="white-space:pre-wrap;line-height:1.8;font-size:12.5px;color:#5d5a72">${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></section><section class="card card-pad"><div class="section-head"><h2>Demandas vinculadas</h2></div>${linked.length?linked.map(renderTaskCard).join(''):empty('list','Nenhuma demanda vinculada','As atividades extraídas da reunião aparecerão aqui.',true)}</section></div>`;
   }
   function renderMyTasks(){const user=sessionUser(),mine=user?tasks().filter(t=>!isCompleted(t)&&isAssigned(t,user.id)):[];
     return `${header('Área pessoal','Minhas pendências','Todas as atividades atribuídas a você, reunidas de diferentes comissões e períodos.')}${!user?`<div class="private-lock">${icon('lock')}<div><strong>Acesso pessoal ainda não ativado</strong><p>A identificação por conta e as pendências individuais serão disponibilizadas após a implantação da autenticação segura.</p></div></div>`:`<section class="card card-pad"><div class="section-head"><h2>Atividades atribuídas</h2>${tag(String(mine.length)+' abertas','soft')}</div>${mine.length?mine.map(renderTaskCard).join(''):empty('checklist','Nenhuma pendência em seu nome','As atividades concluídas permanecem disponíveis no histórico geral.')}</section>`}`;
