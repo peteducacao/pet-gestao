@@ -690,6 +690,98 @@
     if(saveLocalDemoWrites()){showToast('Prazos salvos neste navegador.');}
     else showToast('Não foi possível salvar os prazos.');
   }
+
+  // Anexos locais de demonstração: não são enviados a servidores e não são compartilhados.
+  const ATTACHMENT_MAX_BYTES=1024*1024;
+  const ATTACHMENT_TOTAL_BYTES=2*1024*1024;
+  const ATTACHMENT_MAX_ITEMS=6;
+  const ATTACHMENT_EXTENSIONS=new Set(['pdf','png','jpg','jpeg','webp','txt','doc','docx','xls','xlsx']);
+  function attachmentAllowed(filename){
+    const ext=String(filename||'').split('.').pop().toLowerCase();
+    return ATTACHMENT_EXTENSIONS.has(ext);
+  }
+  function safeAttachmentURL(value){
+    const url=String(value||'');
+    return /^data:[\w.+/-]+;base64,[A-Za-z0-9+/=]+$/.test(url)&&url.length<=ATTACHMENT_MAX_BYTES*1.5+500?url:'';
+  }
+  function readableSize(size){return (Math.round((Number(size)||0)/102.4)/10).toLocaleString('pt-BR')+' KB';}
+  function renderAttachmentList(t,editable=false){
+    const items=Array.isArray(t?.attachments)?t.attachments:[];
+    return items.length?`<div class="attachment-items">${items.map(a=>{
+      const url=safeAttachmentURL(a.dataUrl);
+      if(!url)return '';
+      return `<div class="attachment-item"><div class="attachment-name">${icon('folder')}<span><strong>${escapeText(a.name)}</strong><small>${readableSize(a.size)} · ${escapeText(a.addedBy||'Integrante')}</small></span></div>
+        <div class="attachment-actions"><a class="button ghost small-action" href="${escapeText(url)}" download="${escapeText(a.name)}">Baixar</a>${editable?`<button type="button" data-action="remove-attachment" data-task-id="${escapeText(t.id)}" data-attachment-id="${escapeText(a.id)}" class="button subtle-danger small-action">Excluir</button>`:''}</div></div>`;
+    }).join('')}</div>`:'<p class="attachment-empty">Nenhum arquivo anexado.</p>';
+  }
+  function renderAttachmentEditor(t){
+    return `<section class="edit-copy-section attachment-editor"><div class="edit-section-title"><h2>Anexos</h2><p>Arquivos de apoio da demanda. Nesta prévia, ficam somente neste navegador e não são compartilhados.</p></div>
+      <div id="edit-attachment-list">${renderAttachmentList(t,true)}</div>
+      ${t?`<label class="attachment-input-label" for="task-attachment-input">${icon('plus')} Anexar arquivos</label>
+        <input id="task-attachment-input" type="file" data-task-id="${escapeText(t.id)}" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx,.xls,.xlsx" multiple>
+        <small>Até 1 MB por arquivo, 2 MB no total e 6 arquivos por demanda. Sem envio de e-mail.</small>`:
+        '<p class="notice-line">Salve a demanda para habilitar o envio de anexos.</p>'}
+      </section>`;
+  }
+  function addLocalAttachmentData(taskId,file){
+    if(!state.demo)return {ok:false,reason:'Disponível somente na demonstração local.'};
+    const t=tasks().find(t=>String(t.id)===String(taskId));
+    if(!t)return {ok:false,reason:'Salve a demanda antes de anexar.'};
+    const name=String(file?.name||'').trim().replace(/[\\/]/g,'').slice(0,160);
+    const size=Number(file?.size),url=safeAttachmentURL(file?.dataUrl);
+    if(!name||!attachmentAllowed(name)||!Number.isInteger(size)||size<1||size>ATTACHMENT_MAX_BYTES||!url)
+      return {ok:false,reason:'Arquivo inválido ou superior a 1 MB. Formatos: PDF, imagem, texto ou Office.'};
+    const items=Array.isArray(t.attachments)?t.attachments:[];
+    if(items.length>=ATTACHMENT_MAX_ITEMS||items.reduce((a,b)=>a+(Number(b.size)||0),0)+size>ATTACHMENT_TOTAL_BYTES)
+      return {ok:false,reason:'Limite de anexos atingido (6 arquivos ou 2 MB no total).'};
+    const backup=JSON.parse(JSON.stringify(t)),now=new Date().toISOString(),who=actorDemo()?.name||'Integrante';
+    const id='file-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+    t.attachments=[...items,{id,name,size,type:String(file?.type||''),dataUrl:url,addedBy:who,addedAt:now}];
+    t.revisions=[...(t.revisions||[]),{action:'Arquivo anexado: '+name,actorName:who,at:now}];
+    t.lastEditedBy=who;t.lastEditedAt=now;
+    if(!saveLocalDemoWrites()){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,backup);return {ok:false,reason:'Não há espaço de armazenamento para este arquivo.'};}
+    return {ok:true,id};
+  }
+  function removeLocalAttachment(taskId,attachmentId){
+    if(!state.demo)return false;
+    const t=tasks().find(t=>String(t.id)===String(taskId));
+    if(!t||!Array.isArray(t.attachments))return false;
+    const file=t.attachments.find(a=>String(a.id)===String(attachmentId));
+    if(!file||!window.confirm('Excluir o anexo "'+file.name+'"?'))return false;
+    const backup=JSON.parse(JSON.stringify(t)),who=actorDemo()?.name||'Integrante',now=new Date().toISOString();
+    t.attachments=t.attachments.filter(a=>String(a.id)!==String(attachmentId));
+    t.revisions=[...(t.revisions||[]),{action:'Anexo excluído: '+file.name,actorName:who,at:now}];
+    t.lastEditedBy=who;t.lastEditedAt=now;
+    if(!saveLocalDemoWrites()){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,backup);return false;}
+    return true;
+  }
+  function refreshAttachmentList(taskId){
+    const t=tasks().find(t=>String(t.id)===String(taskId));
+    const box=document.querySelector('#edit-attachment-list');
+    if(t&&box)box.innerHTML=renderAttachmentList(t,true);
+  }
+  async function uploadDemoFiles(input){
+    const taskId=String(input.dataset.taskId||'');
+    const files=[...(input.files||[])];
+    if(typeof FileReader==='undefined'){showToast('Leitura de arquivos indisponível neste navegador.');return;}
+    let success=0;
+    for(const file of files){
+      if(!attachmentAllowed(file.name)||file.size>ATTACHMENT_MAX_BYTES||file.size<1){
+        showToast('Arquivo ignorado: formato inválido ou tamanho superior a 1 MB.');continue;
+      }
+      const dataUrl=await new Promise(resolve=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(typeof reader.result==='string'?reader.result:'');
+        reader.onerror=()=>resolve('');
+        try{reader.readAsDataURL(file);}catch{resolve('');}
+      });
+      const result=addLocalAttachmentData(taskId,{name:file.name,size:file.size,type:file.type,dataUrl});
+      if(result.ok)success++;else showToast(result.reason);
+    }
+    input.value='';
+    refreshAttachmentList(taskId);
+    if(success)showToast(success+' '+(success===1?'arquivo anexado':'arquivos anexados')+' neste navegador.');
+  }
   function renderRegister(){
     const id=getRoute().id||'';
     const fromCommission=id.startsWith('novo/')?id.slice(5):null;
@@ -721,6 +813,7 @@
       <div class="observation-editor-head"><label for="edit-caption-text">Texto da atividade (opcional)</label><button type="button" class="button ghost copy-observations" data-action="copy-observations" title="Copiar observações">${icon('copy')} Copiar</button></div>
       <textarea name="captionText" id="edit-caption-text" rows="6" placeholder="Escreva as observações desta atividade...">${escapeText(task.captionText||'')}</textarea>
       </section>`:''}
+    ${renderAttachmentEditor(task)}
     <div class="form-actions demand-form-actions">${task?`<button type="button" class="button subtle-danger" data-action="delete-task" data-id="${escapeText(task.id)}">${icon('close')} Excluir demanda</button>`:'' }<button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
     return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda com prazos, comissão e responsáveis.')}${connectNotice()}
       <section class="card card-pad register-page">${taskForm}
@@ -930,6 +1023,7 @@
         <section class="card card-pad"><h2>Prazos e etapas</h2>${deadlines}</section>
         <section class="card card-pad"><div class="section-head observations-title-row"><h2>Observações</h2><div class="observations-title-actions">${t.observationsEditedAt?`<span class="observations-author-badge">Última alteração: <strong>${escapeText(t.observationsEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt)?'<small>'+formatDate(t.observationsEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</small>':''}</span>`:''}<button type="button" class="button ghost copy-observations" data-action="copy-observations">${icon('copy')} Copiar</button></div></div>
         ${value?`<p class="saved-activity-text" id="saved-observations-text">${escapeText(value)}</p>`:'<p class="notice-line">Nenhuma observação registrada.</p>'}${olderNotes}</section>
+        <section class="card card-pad"><h2>Anexos</h2>${renderAttachmentList(t,false)}</section>
       </div><div class="stack">
         <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}</section>
         <section class="card card-pad"><h2>Histórico de alterações</h2>${history}</section>
@@ -1014,6 +1108,10 @@
         }
         case 'delete-commission':deleteDemoCommission(b.dataset.id);break;
         case 'quick-task-status':saveQuickTaskStatus(b.dataset.id,b.dataset.status);break;
+        case 'remove-attachment':{
+          if(removeLocalAttachment(b.dataset.taskId,b.dataset.attachmentId)){refreshAttachmentList(b.dataset.taskId);showToast('Anexo excluído neste navegador.');}
+          break;
+        }
         case 'delete-task':deleteDemoRecord('task',b.dataset.id);break;
         case 'delete-meeting':deleteDemoRecord('meeting',b.dataset.id);break;
       }
@@ -1028,6 +1126,7 @@
     });
     document.addEventListener('change',e=>{
       const el=e.target;
+      if(el.id==='task-attachment-input'){uploadDemoFiles(el);return;}
       if(el.name?.startsWith('deadline-assignee-')&&el.type==='checkbox'){
         const picker=el.closest('.deadline-assignee-picker');
         if(picker){
