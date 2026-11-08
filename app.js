@@ -22,7 +22,7 @@
     year:!prefs.autoMonth&&Number.isInteger(prefs.savedYear)&&prefs.savedYear>=2000&&prefs.savedYear<=2100?prefs.savedYear:TODAY.getFullYear(),
     month:!prefs.autoMonth&&Number.isInteger(prefs.savedMonth)&&prefs.savedMonth>=0&&prefs.savedMonth<=11?prefs.savedMonth:TODAY.getMonth(), week:1,
     selectedDay:TODAY.getDate(),
-    demandMode:'mensal', committeeId:null, commissionWeek:'all', demoMineUserId:'andreza', assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, demoActor:'petiano', demoEditing:false, formDeadlineCount:1, ...prefs
+    demandMode:'mensal', cronogramaView:'todas', committeeId:null, commissionWeek:'all', demoMineUserId:'andreza', assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, demoActor:'petiano', demoEditing:false, formDeadlineCount:1, ...prefs
   };
   state.week = !prefs.autoWeek&&Number.isInteger(prefs.savedWeek)?Math.min(Math.max(1,prefs.savedWeek),getWeeks(state.year,state.month).length) : (state.year===TODAY.getFullYear()&&state.month===TODAY.getMonth()?weekForDay(state.year,state.month,TODAY.getDate()):1);
   let toastTimer;
@@ -112,13 +112,17 @@
     return `<span class="task-assignee-label" title="${escapeText(names.join(', ')||'A definir')}"><strong>${names.length===1?'Responsável':'Responsáveis'}:</strong> ${escapeText(names.join(', ')||'A definir')}</span>`;
   }
   function upcomingDeadlines(){
-    const now=new Date();
-    return tasks().filter(t=>!isCompleted(t)).map(task=>{
+    // Uma atividade aparece só uma vez, pelo prazo não cumprido mais próximo.
+    const now=new Date(),startToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const all=tasks().filter(t=>!isCompleted(t)).map(task=>{
       const deadlines=taskDeadlines(task).filter(d=>!d.completedAt&&dateFrom(d.dueAt))
-        .map(deadline=>({deadline,date:dateFrom(deadline.dueAt)}))
-        .filter(x=>x.date.getTime()>=now.getTime()-86400000).sort((a,b)=>a.date-b.date);
-      return deadlines.length?{task,deadline:deadlines[0].deadline,date:deadlines[0].date}:null;
-    }).filter(Boolean).sort((a,b)=>taskPriority(a.task)-taskPriority(b.task)||a.date-b.date).slice(0,5);
+        .map(deadline=>({task,deadline,date:dateFrom(deadline.dueAt)})).sort((a,b)=>a.date-b.date);
+      const next=deadlines.find(x=>x.date>=startToday);
+      return next||(deadlines.length?deadlines[deadlines.length-1]:null);
+    }).filter(Boolean);
+    const upcoming=all.filter(x=>x.date>=startToday).sort((a,b)=>a.date-b.date);
+    const overdue=all.filter(x=>x.date<startToday).sort((a,b)=>b.date-a.date);
+    return upcoming.concat(overdue).slice(0,6);
   }
   function taskCountDay(date){const key=dateKey(date);return tasks().filter(t=>taskDeadlines(t).some(d=>dateKey(d.dueAt)===key)||dateKey(t.postingAt)===key).length;}
   function available(){return state.connected;}
@@ -190,23 +194,34 @@
     const w=currentWeek();
     return state.data.meetings.filter(m=>{const d=dateFrom(m.date);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end;});
   }
+
+  function weeksDisplay(){
+    return `<div class="weeks-overview"><div class="weeks-overview-head"><div><h3>Semanas de ${escapeText(MONTHS[state.month])}</h3><p>Selecione para ver as atividades do período</p></div><span>${state.year}</span></div>
+      <div class="weeks-overview-buttons" role="group" aria-label="Semanas de ${escapeText(MONTHS[state.month])}">
+        ${getWeeks(state.year,state.month).map(w=>{
+          const n=tasks().filter(t=>!isCompleted(t)&&taskActivityDates(t).some(d=>d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end)).length;
+          return `<button type="button" class="week-overview-button ${state.week===w.n?'selected':''}" data-action="select-week" data-value="${w.n}" aria-pressed="${state.week===w.n}">
+            <strong>Semana ${w.n}</strong><small>${String(w.start).padStart(2,'0')}–${String(w.end).padStart(2,'0')}/${String(state.month+1).padStart(2,'0')}</small>${n?`<span class="week-activity-number">${n}</span>`:''}
+          </button>`;
+        }).join('')}
+      </div></div>`;
+  }
   function renderWeeklyFocus(){
-    const weekTasks=weeklyTasks().filter(t=>!isCompleted(t)).sort(comparePriorityTasks),meetings=weeklyMeetings();
-    const open=weekTasks,done=tasks().filter(t=>isCompleted(t)&&isTaskInWeek(t));
-    // Conserve links para memórias de semanas anteriores que originaram tarefas com prazo neste período.
-    const linkedIds=new Set(weekTasks.map(t=>String(t.meetingId||'')).filter(Boolean));
-    const sourceMeetings=state.data.meetings.filter(m=>linkedIds.has(String(m.id))&&!meetings.some(x=>String(x.id)===String(m.id)));
-    const info=[...meetings,...sourceMeetings];
-    const meta=available()?`<div class="weekly-counts"><span class="weekly-pending">${open.length} pendentes</span><span class="weekly-done">${done.length} concluídas</span></div>`:'';
-    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<div class="weekly-item"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></span>${displayTaskState(t)}</div>`).join('')+(weekTasks.length>7?`<a class="activity-details-link weekly-more" href="#/demandas">Ver outras ${weekTasks.length-7} atividades ${icon('arrow')}</a>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
-    const references=info.length?`<div class="weekly-meetings"><strong>${icon('book')} Memórias relacionadas</strong>${info.map(m=>`<a href="#/reunioes/${safeHref(m.id)}">${escapeText(displayMeetingTitle(m))} · ${formatDate(m.date)} ${icon('arrow')}</a>`).join('')}</div>`:'';
-    return `<section class="card card-pad weekly-focus"><div class="section-head"><div><h2>Pendências semanais</h2><p>${escapeText(periodTitle())} · Semana ${state.week} (${currentWeek().label})</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="weekly-controls">${weekSelector()}${meta}</div><div class="weekly-list">${entries}</div>${references}</section>`;
+    const weekTasks=weeklyTasks().filter(t=>!isCompleted(t)).sort(comparePriorityTasks);
+    const entries=weekTasks.length?weekTasks.slice(0,5).map(t=>`<div class="weekly-preview-item"><div><strong>${escapeText(t.title)}</strong><a class="activity-details-link" href="#/atividade/${safeHref(t.id)}">Ver detalhes ${icon('arrow')}</a></div>${displayTaskState(t)}</div>`).join('')
+      +(weekTasks.length>5?`<button type="button" class="link-action" data-action="go-week-cronograma">Ver as ${weekTasks.length} demandas da semana ${icon('arrow')}</button>`:'')
+      :'<p class="week-empty-notice">Nenhuma pendência nesta semana. As atividades concluídas estão em Arquivadas.</p>';
+    return `<section class="card card-pad weekly-focus weekly-focus-simple"><div class="section-head"><div><h2>Pendências semanais</h2></div>
+      <button class="link-action" data-action="go-all-cronograma">Ver cronograma ${icon('arrow')}</button></div>
+      ${weeksDisplay()}
+      <div class="weekly-preview-heading"><strong>Semana ${state.week}</strong><span>${weekTasks.length} ${weekTasks.length===1?'pendência':'pendências'}</span></div>
+      <div class="weekly-preview-list">${entries}</div></section>`;
   }
   function renderHome(){
     return `
       ${connectNotice()}${renderStats()}
       <div class="dashboard-grid"><div class="stack">
-        <section class="card card-pad upcoming-spotlight"><div class="upcoming-spotlight-head"><div class="upcoming-title"><span class="upcoming-badge">${icon('clock')}</span><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="upcoming-spotlight-body">${renderUpcomingCompact()}</div></section>
+        <section class="card card-pad upcoming-spotlight"><div class="upcoming-spotlight-head"><div class="upcoming-title"><span class="upcoming-badge">${icon('clock')}</span><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div></div><button class="link-action" data-action="go-all-cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="upcoming-spotlight-body">${renderUpcomingCompact()}</div></section>
         <section class="card card-pad"><div class="section-head"><div><h2>Memórias recentes</h2><p>Últimas reuniões registradas</p></div></div>
         ${state.data.meetings.length?state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(displayMeetingTitle(m))}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma reunião registrada','As memórias recentes aparecerão aqui quando forem cadastradas.',true)}
         </section>
@@ -270,17 +285,26 @@
     <div class="switch-row"><div><strong>Atualizar semana automaticamente</strong><small>Ao abrir o sistema, selecionar a semana atual do período.</small></div><label class="switch"><input type="checkbox" data-field="autoWeek" ${state.autoWeek?'checked':''} aria-label="Atualizar semana automaticamente"><span class="track"></span></label></div>
     <p class="notice-line" style="margin:0">Os seletores manuais sempre ficam disponíveis. Alterar o período não modifica nem exclui atividades anteriores.</p>
   </div></details>`;}
-  function renderCronograma(){const weeks=getWeeks(state.year,state.month);
-    return `${header('Planejamento','Cronograma','Mês, ano e semana podem ser consultados livremente. Os registros de outros períodos permanecem preservados.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
-    <section class="card card-pad"><div class="list-toolbar">${periodSelector(true)}</div><hr class="divider"/><div class="section-head"><div><h2>${escapeText(periodTitle())}</h2><p>Calendário de atividades e prazos</p></div><div class="page-actions"><button class="icon-button" data-action="prev-month" title="Mês anterior" aria-label="Mês anterior">${icon('chevron-left')}</button><button class="icon-button" data-action="next-month" title="Próximo mês" aria-label="Próximo mês">${icon('chevron-right')}</button></div></div>
-      <div class="calendar-wrap"><div class="calendar-grid">${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(n=>`<div class="day-name">${n}</div>`).join('')}${calendarCells()}</div></div>
-      <div class="calendar-legend"><span class="legend-mark"></span> Semana selecionada</div>
-      <hr class="divider"/><div class="section-head"><div><h2>Semanas de ${escapeText(MONTHS[state.month])}</h2><p>Selecione para ver as atividades do período</p></div></div>
-      <div class="week-strip">${weeks.map(w=>`<button type="button" class="week-chip ${state.week===w.n?'active':''}" data-action="select-week" data-value="${w.n}" aria-pressed="${state.week===w.n}">Semana ${w.n}</button>`).join('')}</div>
-      <div class="day-summary">${icon('calendar')} Semana ${state.week} · ${currentWeek().label}</div>${calendarWeekDetails()}
-      ${renderPrefs()}</section>`;
-  }
 
+  function renderCronograma(){
+    const selected=state.cronogramaView||'todas';
+    const all=tasks().filter(t=>!isCompleted(t)).sort(comparePriorityTasks);
+    const onWeek=all.filter(isTaskInWeek);
+    return `${header('Planejamento','Cronograma','Acompanhe todas as demandas abertas ou consulte uma semana específica.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
+      <section class="card card-pad cronograma-simple">
+        <div class="cronograma-view-tabs" role="group" aria-label="Visualização do cronograma">
+          <button data-action="cronograma-view" data-value="todas" class="${selected==='todas'?'active':''}" aria-pressed="${selected==='todas'}">Todas as demandas <span>${all.length}</span></button>
+          <button data-action="cronograma-view" data-value="semana" class="${selected==='semana'?'active':''}" aria-pressed="${selected==='semana'}">Por semana</button>
+        </div>
+        ${selected==='semana'? `<div class="cronograma-period-controls">${monthsSelector()}${yearsSelector()}</div>
+          ${weeksDisplay()}
+          <div class="section-head cronograma-list-heading"><div><h2>Semana ${state.week} · ${escapeText(periodTitle())}</h2>
+          <p>${currentWeek().label} · ${onWeek.length} ${onWeek.length===1?'atividade':'atividades'}</p></div></div>
+          ${onWeek.length?onWeek.map(renderTaskCard).join(''):empty('calendar','Nenhuma pendência nesta semana','Consulte outra semana para visualizar suas atividades.',true)}`
+        :`<div class="section-head cronograma-list-heading"><div><h2>Todas as demandas</h2><p>Atividades abertas de todos os meses e comissões, sem duplicações.</p></div>${tag(all.length+' '+(all.length===1?'registro':'registros'),'soft')}</div>
+          ${all.length?all.map(renderTaskCard).join(''):empty('checklist','Nenhuma demanda aberta','As atividades concluídas continuam disponíveis em Demandas → Arquivadas.',true)}`}
+      </section>`;
+  }
   function deadlineOverdue(deadline, now = new Date()){
     if(!deadline || deadline.completedAt || !deadline.dueAt) return false;
     const due = dateFrom(deadline.dueAt);
@@ -899,6 +923,9 @@
       if(b.disabled)return;
       switch(b.dataset.action){
         case 'go':navigate(b.dataset.to);break;
+        case 'go-all-cronograma':state.cronogramaView='todas';navigate('cronograma');break;
+        case 'go-week-cronograma':state.cronogramaView='semana';navigate('cronograma');break;
+        case 'cronograma-view':state.cronogramaView=b.dataset.value==='semana'?'semana':'todas';render();break;
         case 'demand-mode':state.demandMode=b.dataset.value;render();break;
         case 'select-week':state.week=Number(b.dataset.value);savePrefs();render();break;
         case 'prev-month':monthStep(-1);break;
