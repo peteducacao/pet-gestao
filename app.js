@@ -162,7 +162,7 @@
     return `
       ${connectNotice()}${renderStats()}
       <div class="dashboard-grid"><div class="stack">
-        <section class="card card-pad"><div class="section-head"><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div>${renderUpcomingCompact()}</section>
+        <section class="card card-pad upcoming-spotlight"><div class="upcoming-spotlight-head"><div class="upcoming-title"><span class="upcoming-badge">${icon('clock')}</span><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="upcoming-spotlight-body">${renderUpcomingCompact()}</div></section>
         <section class="card card-pad"><div class="section-head"><div><h2>Memórias recentes</h2><p>Últimas reuniões registradas</p></div></div>
         ${state.data.meetings.length?state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma reunião registrada','As memórias recentes aparecerão aqui quando forem cadastradas.',true)}
         </section>
@@ -280,14 +280,40 @@
     return `${header('Comissões',c.name,'',newButton('Nova atividade'))}${connectNotice()}
       <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section><div class="card card-pad"><div class="section-head"><h2>Cronograma e atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?renderCommissionGroups(related):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
   }
-  function renderReunioes(){const all=state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-    return `${header('Memórias','Reuniões','',`<button type="button" data-action="register-memory" class="button primary">${icon('plus')} Registrar memória</button>`)}${connectNotice()}
-      <section class="card card-pad"><div class="section-head"><div><h2>Memórias registradas</h2><p>Histórico por data da reunião</p></div>${available()?tag(all.length+' reuniões','soft'):''}</div>
-      ${all.length?all.map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma memória registrada','Os encontros poderão reunir texto original, decisões, responsáveis, prazos e demandas vinculadas.')}</section>`;
+  function displayMeetingTitle(m){
+    const title=String(m.title||'').trim();
+    if(!title || /^Memória do encontro(?: de quinta-feira)?$/i.test(title))
+      return 'Reunião de '+formatDate(m.date,{day:'2-digit',month:'long',year:'numeric'});
+    return title;
   }
-  function renderMeetingDetail(id){const m=state.data.meetings.find(m=>String(m.id)===String(id));if(!m)return notFound();
-    const linked=tasks().filter(t=>String(t.meetingId)===String(id)||(Array.isArray(m.taskIds)&&m.taskIds.map(String).includes(String(t.id))));
-    return `${header('Reuniões',m.title||'Memória da reunião',formatDate(m.date))}${connectNotice()}<div class="card card-pad memory-reading"><h2>Memória do encontro</h2><p>${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></div>`;
+  function renderReunioes(){
+    const all=state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    const count=all.length;
+    return `${header('Reuniões','Memórias registradas','',`<a href="#/reunioes/nova" class="button primary">${icon('plus')} Nova memória</a>`)}${connectNotice()}
+      <section class="card card-pad memory-list">${count?`<div class="memory-list-meta">${tag(count+' '+(count===1?'reunião':'reuniões'),'soft')}</div>`:''}
+      ${count?all.map(m=>`<article class="memory-list-item"><span class="memory-list-icon">${icon('book')}</span>
+        <div class="memory-list-content"><h2>${escapeText(displayMeetingTitle(m))}</h2><p class="memory-summary">${escapeText(String(m.rawNotes||'').replace(/[\r\n*•→]/g,' ').replace(/\s+/g,' ').trim().slice(0,160))}${String(m.rawNotes||'').length>160?'…':''}</p><span class="memory-list-date">${formatDate(m.date,{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</span>
+          <div class="memory-actions"><a href="#/reunioes/${safeHref(m.id)}" class="activity-details-link">Ver memória ${icon('arrow')}</a><a href="#/reunioes/editar/${safeHref(m.id)}" class="button ghost small-action">${icon('settings')} Editar</a><button class="button subtle-danger small-action" data-action="delete-meeting" data-id="${escapeText(m.id)}" type="button">${icon('close')} Excluir</button></div>
+        </div></article>`).join(''):empty('book','Nenhuma memória registrada','Cadastre a primeira memória para consultar os encontros aqui.')}
+      </section>`;
+  }
+  function renderMeetingDetail(id){
+    const m=state.data.meetings.find(m=>String(m.id)===String(id));
+    if(!m)return notFound();
+    return `${header('Reuniões',displayMeetingTitle(m),formatDate(m.date),`<a class="button ghost" href="#/reunioes/editar/${safeHref(m.id)}">${icon('settings')} Editar memória</a>`)}${connectNotice()}
+      <div class="card card-pad memory-reading"><div class="memory-reading-head">${icon('book')} <strong>Registro completo</strong></div><p>${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></div>`;
+  }
+  function renderMemoryEditor(id){
+    const existing=id?state.data.meetings.find(m=>String(m.id)===String(id)):null;
+    if(id&&!existing)return notFound();
+    const title=existing?'Editar memória':'Nova memória';
+    return `${header('Reuniões',title,'',`<a href="#/reunioes" class="button ghost">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
+      <section class="card card-pad register-page memory-editor"><form id="register-memory-form" data-id="${escapeText(existing?.id||'')}" class="register-form">
+        <label>Título da reunião<input name="title" maxlength="150" placeholder="Ex.: Reunião semanal do PET" value="${escapeText(existing?.title||'')}"></label>
+        <label>Data da reunião<input type="date" name="date" value="${escapeText(existing?.date||dateKey(new Date()))}" required></label>
+        <label>Memória da reunião<textarea name="rawNotes" rows="12" required placeholder="Cole aqui o registro da reunião...">${escapeText(existing?.rawNotes||'')}</textarea></label>
+        <div class="form-actions memory-form-actions">${existing?`<button type="button" class="button subtle-danger" data-action="delete-meeting" data-id="${escapeText(existing.id)}">${icon('close')} Excluir memória</button>`:''}<button type="submit" class="button primary">${icon('check')} ${existing?'Salvar alterações':'Salvar memória'}</button></div>
+      </form><p class="assignment-preview-note">As alterações são demonstrativas e ficam somente neste navegador.</p></section>`;
   }
   function renderMyTasks(){const user=sessionUser(),mine=user?tasks().filter(t=>!isCompleted(t)&&isAssigned(t,user.id)):[];
     return `${header('Área pessoal','Minhas pendências','Todas as atividades atribuídas a você, reunidas de diferentes comissões e períodos.')}${!user?`<div class="private-lock">${icon('lock')}<div><strong>Acesso pessoal ainda não ativado</strong><p>A identificação por conta e as pendências individuais serão disponibilizadas após a implantação da autenticação segura.</p></div></div>`:`<section class="card card-pad"><div class="section-head"><h2>Atividades atribuídas</h2>${tag(String(mine.length)+' abertas','soft')}</div>${mine.length?mine.map(renderTaskCard).join(''):empty('checklist','Nenhuma pendência em seu nome','As atividades concluídas permanecem disponíveis no histórico geral.')}</section>`}`;
