@@ -108,7 +108,7 @@
     :empty('bell','Sem atualizações para exibir','As alterações e revisões aparecerão aqui quando houver registros.',true);
   }
   function renderHome(){
-    return `${header('Espaço de organização','Tudo em um só lugar.','Acompanhe o trabalho do PET Educação sem perder prazos, responsabilidades ou decisões.')}
+    return `
       <div class="hero"><div><div class="eyebrow" style="color:#e6dcff;margin-bottom:10px">ORGANIZAÇÃO COLETIVA</div><h2>Seu PET, mais conectado.</h2><p>Demandas, cronogramas, comissões e memórias com uma estrutura única, clara e organizada.</p></div><div class="hero-side">${icon('spark')}</div></div>
       ${connectNotice()}${renderStats()}
       <div class="dashboard-grid"><div class="stack">
