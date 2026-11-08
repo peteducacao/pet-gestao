@@ -48,3 +48,91 @@
 @media(max-width:1150px){.deadline-record{grid-template-columns:1fr 1fr}.deadline-record>:last-child{justify-self:end}}
 @media(max-width:700px){.deadline-record{grid-template-columns:1fr 1fr;gap:13px}.deadline-record .pill{align-self:start}.activity-overview .activity-info{align-items:flex-start;flex-direction:column;gap:4px}.assignment-options{grid-template-columns:1fr 1fr}}
 @media(max-width:360px){.assignment-options{grid-template-columns:1fr}.assignment-modes button{font-size:11px;padding:8px 6px}}
+
+/* Revisão de legibilidade — PET Educação */
+:root{--readable:14px}
+.page-subtitle:empty{display:none}
+.page-header{margin-bottom:22px}
+.task-list-row{align-items:center;padding:18px 0;min-height:84px}
+.task-list-body{min-width:0;flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:9px}
+.task-list-body>strong,.upcoming-row strong{display:block;font-size:15px;font-weight:800;line-height:1.45;color:#252340}
+.task-row-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.task-list-row .activity-details-link,.upcoming-row .activity-details-link,.weekly-description .activity-details-link{display:inline-flex!important;position:relative;align-items:center;gap:7px;margin:0!important;padding:0!important;line-height:1.55;font-size:13px;font-weight:750;color:#6343ca;white-space:normal}
+.task-list-row .activity-details-link svg,.upcoming-row .activity-details-link svg{height:15px;width:15px}
+.upcoming-row{padding:17px 0;align-items:center}
+.upcoming-row>div:first-child{display:flex;flex-direction:column;align-items:flex-start;gap:9px}
+.upcoming-row .pill{font-size:12px;padding:8px 12px}
+.weekly-item{padding:16px 0;align-items:center}
+.weekly-description{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.weekly-description strong{font-size:14px;line-height:1.5}
+.weekly-description .activity-details-link{font-size:12.5px}
+.weekly-symbol{height:38px;width:38px;border-radius:11px}
+.weekly-symbol svg{width:19px;height:19px}
+.weekly-focus .section-head h2,.section-head h2{font-size:16px}
+.weekly-focus .section-head>div>p{font-size:12px}
+.committee-group{margin-top:23px}
+.committee-group-label{font-size:14px;padding:15px 17px;color:#514085}
+.card-pad{padding:25px}
+.card-pad>h2{font-size:17px;letter-spacing:-.25px;margin:0 0 17px}
+.memory-reading>h2{font-size:18px;margin:0 0 16px}
+.memory-reading>p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.95;color:#4d4961;max-width:100%}
+/* Cadastro de demandas e memórias */
+.register-page{max-width:1150px;margin:0 auto}
+.register-tabs{display:inline-flex;margin-bottom:22px;max-width:480px;width:100%}
+.register-tabs button{min-height:43px;font-size:13px}
+.register-form{display:flex;flex-direction:column;gap:18px}
+.register-form>label,.register-two>label,.register-deadline>label{display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:750;color:#5b516f}
+.register-form input:not([type=checkbox]),.register-form textarea,.register-form select,.register-form select.select{width:100%;min-width:0;min-height:43px;border:1px solid #e4dff0;border-radius:11px;background:#fff;padding:11px 13px;font-size:14px;color:#28243d;outline:none}
+.register-form input:focus-visible,.register-form textarea:focus-visible,.register-form select:focus-visible{border-color:var(--primary);box-shadow:0 0 0 3px #eee7ff}
+.register-form textarea{resize:vertical;line-height:1.65}
+.register-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.register-deadlines{padding:17px;background:#faf9fe;border:1px solid #eeebf6;border-radius:15px}
+.register-deadlines .section-head{margin-bottom:12px}
+.register-deadlines .section-head h3{margin:0;font-size:14px}
+.register-deadline{display:grid;grid-template-columns:minmax(100px,1fr) minmax(120px,1fr) minmax(120px,1fr) minmax(95px,.7fr);gap:11px;border-top:1px solid #e9e5f4;padding:15px 0 0;margin-top:12px}
+.register-deadline:first-of-type{margin-top:0}
+.register-deadline>label{font-size:11px}
+.register-assignment h3{font-size:14px;margin:0 0 12px}
+.register-assignment .assignment-modes{max-width:450px}
+.register-assignment .assignment-options{max-height:310px}
+.form-actions{display:flex;justify-content:flex-end}
+.form-actions .button{min-width:180px;font-size:13px}
+.register-page>.assignment-preview-note{margin-top:20px;border-top:1px solid var(--line);padding-top:16px}
+/* Detalhes minimalistas e revisão da tutoria */
+.activity-detail-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(275px,.75fr);gap:20px;align-items:start}
+.activity-detail-grid .stack{min-width:0}
+.activity-header-strip{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:20px;padding:18px 24px}
+.activity-header-strip>.pill{font-size:12px;padding:9px 13px}
+.activity-due{color:#77718f;font-size:13px;margin:0}
+.activity-due strong{color:#24203a}
+.activity-detail-grid .deadline-record{grid-template-columns:minmax(110px,1fr) minmax(125px,1fr) minmax(170px,1.15fr) auto;padding:17px 0;gap:12px}
+.activity-detail-grid .deadline-record strong{font-size:13px}
+.activity-detail-grid .deadline-record small{font-size:11px}
+.activity-detail-grid .deadline-record .pill{font-size:10px}
+.activity-detail-grid .register-form{gap:17px}
+.activity-detail-grid .register-form>label{font-size:13px}
+.activity-detail-grid .register-form button[type=submit]{min-height:45px;font-size:13px}
+.activity-detail-grid .notice-line{font-size:13px;line-height:1.75}
+.demo-actor{display:grid;grid-template-columns:1fr minmax(160px,220px);gap:15px;align-items:center;padding:15px;background:#f8f5ff;border:1px solid #eae3fb;border-radius:12px}
+.demo-actor label{display:flex;flex-direction:column;gap:4px}
+.demo-actor label strong{font-size:12px}
+.demo-actor label small{font-size:10.5px;color:#898199;line-height:1.4}
+.demo-actor select{width:100%}
+.review-control{background:#faf8ff;border:1px solid #eae4f9;border-radius:12px;padding:15px}
+.review-control select{margin-top:3px}
+.review-control small{font-size:11px;color:#625183;line-height:1.5}
+.review-readonly{font-size:12.5px;padding:13px;color:#645579;background:#f8f6fb;border-radius:10px}
+.observation-item{padding:13px 0;border-bottom:1px solid var(--line)}
+.observation-item:last-child{border-bottom:0}
+.observation-item strong{font-size:13px}
+.observation-item small{display:block;font-size:11px;color:#9992aa;margin-top:4px}
+.observation-item p{font-size:13px;line-height:1.75;margin:9px 0 0;white-space:pre-wrap;color:#4c455e}
+.revision-list{display:flex;flex-direction:column;gap:0}
+.revision-list>div{padding:12px 0;border-bottom:1px solid var(--line)}
+.revision-list>div:last-child{border-bottom:0}
+.revision-list strong{display:block;font-size:12px;line-height:1.5}
+.revision-list small{display:block;font-size:11px;color:#9891a6;margin-top:4px}
+.assigned-pills{margin-top:8px}
+@media(max-width:1150px){.activity-detail-grid{grid-template-columns:1fr}.activity-detail-grid .deadline-record{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.register-two{grid-template-columns:1fr}.register-deadline{grid-template-columns:repeat(2,minmax(0,1fr))}.card-pad{padding:19px}.activity-header-strip{padding:16px}.task-list-row{gap:8px}.task-list-body>strong{font-size:14px}.task-row-meta .pill{font-size:10px}.demo-actor{grid-template-columns:1fr}.activity-detail-grid .deadline-record{grid-template-columns:repeat(2,minmax(0,1fr))}.form-actions .button{width:100%}}
+@media(max-width:400px){.task-row-meta{flex-direction:column;align-items:flex-end}.register-deadline{grid-template-columns:1fr}.upcoming-row strong{font-size:13px}}
