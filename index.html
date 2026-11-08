@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#f7f7fb" />
-  <meta name="description" content="PET Gestão — demandas, cronogramas, comissões e memórias em um só lugar." />
-  <title>PET Gestão | PET Educação</title>
+  <meta name="description" content="PET Educação — reuniões, demandas, cronogramas e comissões." />
+  <title>PET Educação | Central de atividades</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
   <script src="config.js"></script>
@@ -47,17 +47,18 @@
     <aside class="sidebar" id="sidebar" aria-label="Menu principal">
       <div class="brand">
         <div class="brand-icon" aria-hidden="true"><span>P</span><span class="brand-dot"></span></div>
-        <div class="brand-copy"><strong>PET Gestão</strong><small>PET Educação · UFS</small></div>
+        <div class="brand-copy"><strong>PET Educação</strong><small>Central de atividades · UFS</small></div>
         <button class="icon-button mobile-close" id="close-menu" aria-label="Fechar menu"><svg><use href="#i-close"/></svg></button>
       </div>
       <div class="sidebar-menu">
         <p class="nav-caption">ORGANIZAÇÃO</p>
         <nav class="nav-group" id="primary-nav" aria-label="Navegação principal">
           <a class="nav-link" data-route="inicio" href="#/inicio"><svg><use href="#i-grid"/></svg><span>Visão geral</span></a>
+          <a class="nav-link" data-route="reunioes" href="#/reunioes"><svg><use href="#i-book"/></svg><span>Reuniões</span></a>
           <a class="nav-link" data-route="demandas" href="#/demandas"><svg><use href="#i-list"/></svg><span>Demandas</span></a>
           <a class="nav-link" data-route="cronograma" href="#/cronograma"><svg><use href="#i-calendar"/></svg><span>Cronograma</span></a>
           <a class="nav-link" data-route="comissoes" href="#/comissoes"><svg><use href="#i-users"/></svg><span>Comissões</span></a>
-          <a class="nav-link" data-route="reunioes" href="#/reunioes"><svg><use href="#i-book"/></svg><span>Reuniões</span></a>
+          <a class="nav-link" data-route="registrar" href="#/registrar"><svg><use href="#i-plus"/></svg><span>Registrar demandas</span></a>
         </nav>
         <p class="nav-caption separated">PESSOAL</p>
         <nav class="nav-group" aria-label="Área pessoal">
@@ -82,7 +83,7 @@
         </div>
       </header>
       <main class="content" id="content" tabindex="-1"><div id="screen"></div></main>
-      <footer class="footer">PET Gestão <span>·</span> PET Educação — Universidade Federal de Sergipe</footer>
+      <footer class="footer">PET Educação <span>·</span> Universidade Federal de Sergipe</footer>
     </div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
