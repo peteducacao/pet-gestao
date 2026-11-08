@@ -35,8 +35,8 @@ Campos esperados:
 | --- | --- |
 | Usuário | `id`, `name`, `roles` |
 | Comissão | `id`, `name`, `memberIds[]` |
-| Reunião | `id`, `title`, `date`, `rawNotes`, `taskIds[]` |
-| Atividade | `id`, `title`, `description`, `committeeId`, `meetingId`, `assigneeIds[]`, `createdAt`, `registeredAt`, `status`, `stageName`, `completedAt`, `deadlines[]`, `observations[]`, `postingAt` |
+| Reunião | `id`, `title`, `date`, `rawNotes`, `taskIds[]`, `theme`, `colorA`, `colorB` |
+| Atividade | `id`, `title`, `description`, `committeeId` (compatibilidade), `commissionIds[]`, `meetingId` (opcional/legado), `assigneeIds[]`, `createdAt`, `registeredAt`, `status`, `reviewStatus`, `stageName`, `completedAt`, `deadlines[]`, `observations[]`, `postingAt` (obrigatório) |
 | Prazo | `label`, `kind`, `assigneeId`, `assigneeName`, `dueAt`, `completedAt` |
 | Observação | `id`, `body`, `authorId`, `authorName`, `createdAt` |
 | Evento | `id`, `summary`, `actorId`, `actorName`, `createdAt` |
@@ -59,7 +59,7 @@ Os nomes e formatos finais serão validados durante a implementação do backend
 
 ## Etapas padronizadas
 
-A estrutura de dados é única para todas as comissões. O catálogo global de etapas pode ser editado pela Administração; vínculos de cada atividade com essas etapas permitem status internos sem quebrar o resumo de pendências.
+A estrutura de dados é única para todas as comissões. O catálogo global de etapas pode ser editado pela Administração; **Publicar** é uma etapa possível, com `assigneeId` próprio. As tarefas de etapas contam também para as pendências individuais, sem duplicação de tarefa. `reviewStatus=liberado` representa **APROVADO** e pode ser definido por PETianos(as), tutores ou administradores; `status=concluida` é um ato separado que arquiva a atividade.
 
 ## Notificações
 
