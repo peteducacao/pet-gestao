@@ -141,9 +141,9 @@
   function weekSelector(){const weeks=getWeeks(state.year,state.month);return `<div class="filter-item"><label for="filter-week">SEMANA</label><select class="select" id="filter-week" data-field="week" aria-label="Selecionar semana">${weeks.map(w=>`<option value="${w.n}" ${state.week===w.n?'selected':''}>Semana ${w.n} · ${w.label}</option>`).join('')}</select></div>`;}
   function periodSelector(includeWeek=false){return `<div class="filters">${monthsSelector()}${yearsSelector()}${includeWeek?weekSelector():''}<div class="filter-item"><label>&nbsp;</label><button type="button" class="button ghost" data-action="today">${icon('calendar')}Hoje</button></div></div>`;}
   function stats(){
-    const all=tasks();const pending=all.filter(t=>!isCompleted(t));const thisMonth=all.filter(isTaskInMonth);
-    const overdue=pending.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d)));
-    const mine=sessionUser()?pending.filter(t=>isAssigned(t,sessionUser().id)):[];
+    const all=tasks();const open=all.filter(t=>!isCompleted(t));const pending=open.filter(t=>!isApproved(t));const thisMonth=all.filter(isTaskInMonth);
+    const overdue=open.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d)));
+    const mine=sessionUser()?open.filter(t=>isAssigned(t,sessionUser().id)):[];
     return [
       {label:'Demandas do mês',value:available()?thisMonth.length:'—',icon:'list',tone:'purple'},
       {label:'Pendências gerais',value:available()?pending.length:'—',icon:'clock',tone:'orange'},
@@ -323,12 +323,12 @@
   function commissionMetrics(id){
     const own=tasks().filter(t=>linkedToCommission(t,id));
     const open=own.filter(t=>!isCompleted(t));
-    return {pending:open.length,late:open.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d))).length,completed:own.length-open.length};
+    return {pending:open.filter(t=>!isApproved(t)).length,approved:open.filter(isApproved).length,late:open.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d))).length,completed:own.length-open.length};
   }
   function commissionCounters(id){
-    if(!available()) return '<div class="commission-counters"><span>Pendentes <strong>—</strong></span><span>Atrasadas <strong>—</strong></span><span>Concluídas <strong>—</strong></span></div>';
+    if(!available()) return '<div class="commission-counters"><span>Pendentes <strong>—</strong></span><span>Aprovadas <strong>—</strong></span><span>Atrasadas <strong>—</strong></span><span>Concluídas <strong>—</strong></span></div>';
     const m=commissionMetrics(id);
-    return `<div class="commission-counters"><span>Pendentes <strong>${m.pending}</strong></span><span>Atrasadas <strong>${m.late}</strong></span><span>Concluídas <strong>${m.completed}</strong></span></div>`;
+    return `<div class="commission-counters"><span>Pendentes <strong>${m.pending}</strong></span><span>Aprovadas <strong>${m.approved}</strong></span><span>Atrasadas <strong>${m.late}</strong></span><span>Concluídas <strong>${m.completed}</strong></span></div>`;
   }
 
   function renderComissoes(){
@@ -669,7 +669,7 @@
       });
       const unique=[...new Set(names)],old=existing?.deadlines?.[i]||null;
       result.push({label:step==='Publicação'?'Publicar':step,assigneeIds:[...new Set(userIds)],assigneeNames:unique,
-        assigneeId:userIds[0]||null,assigneeName:unique.join(', '),dueAt:day+'T'+(time||'23:59')+':00',completedAt:old?.completedAt||null});
+        assigneeId:userIds[0]||null,assigneeName:unique.join(', '),dueAt:day+'T'+(time||'23:59')+':00',completedAt:old?.completedAt&&old.dueAt===day+'T'+(time||'23:59')+':00'&&deadlineParts(old).step===step?old.completedAt:null});
     }
     return result;
   }
@@ -687,7 +687,7 @@
     task.deadlines=next;
     task.revisions=[...(task.revisions||[]),{action:'Prazos atualizados',actorName:actor?.name||'Demonstração',at:now}];
     task.lastEditedBy=actor?.name||'Demonstração';task.lastEditedAt=now;
-    if(saveLocalDemoWrites()){render();showToast('Prazos salvos neste navegador.');}
+    if(saveLocalDemoWrites()){showToast('Prazos salvos neste navegador.');}
     else showToast('Não foi possível salvar os prazos.');
   }
   function renderRegister(){
@@ -705,6 +705,7 @@
     }
 
     const linkedIds=task?commissionIds(task):fromCommission?[fromCommission]:[];
+    state.regCommitteeId=linkedIds[0]||'';
     const commissionPicker=`<section class="register-commissions"><div class="edit-section-title"><h2>Vincular às comissões (opcional)</h2><p>A mesma atividade aparece no cronograma de cada comissão selecionada, sem criar cópias.</p></div>
       <div class="commission-checkboxes">${state.data.committees.map(c=>`<label class="commission-checkbox"><input type="checkbox" name="commissionIds" value="${escapeText(c.id)}" ${linkedIds.includes(String(c.id))?'checked':''}>
         <span>${escapeText(c.name)}</span></label>`).join('')||'<span class="notice-line">Nenhuma comissão cadastrada.</span>'}</div></section>`;
@@ -1037,12 +1038,19 @@
         }
         return;
       }
-      if(!el.dataset?.field)return;
-      if(el.dataset.assignTarget!==undefined){
+      if(el.dataset?.assignTarget!==undefined){
         const id=String(el.dataset.assignTarget);
         state.assignmentPicked=el.checked?[...new Set([...state.assignmentPicked,id])]:state.assignmentPicked.filter(v=>v!==id);
         return;
       }
+      if(el.name==='commissionIds'&&el.type==='checkbox'){
+        const selected=[...document.querySelectorAll('input[name="commissionIds"]:checked')];
+        state.regCommitteeId=selected[0]?.value||'';
+        const box=document.querySelector('.register-assignment');
+        if(box)box.outerHTML=renderAssignmentPreview();
+        return;
+      }
+      if(!el.dataset?.field)return;
             const field=el.dataset.field;
       if(field==='month'){state.month=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
       if(field==='year'){state.year=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
