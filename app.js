@@ -362,30 +362,48 @@
       :'<p class="notice-line">Nenhum cadastro disponível.</p>';
     return `<div class="register-assignment"><h3>Responsáveis</h3><div class="segmented assignment-modes" role="group" aria-label="Escolher responsáveis">${opts.map(([v,title])=>`<button type="button" data-action="assignment-scope" data-value="${v}" class="${scope===v?'active':''}" aria-pressed="${scope===v}">${title}</button>`).join('')}</div>${list}</div>`;
   }
-  function registerDeadlineRow(i){
-    return `<div class="register-deadline"><label>Etapa<select class="select" name="deadline-step-${i}"><option>Produção</option><option>Correção</option><option>Entrega</option><option>Publicação</option><option>Outro prazo</option></select></label>
-    <label>Para quem<input name="deadline-assignee-${i}" placeholder="Integrante, tutoria ou comissão"></label>
-    <label>Data<input type="date" name="deadline-date-${i}"></label>
-    <label>Horário<input type="time" name="deadline-time-${i}" value="23:59"></label></div>`;
+
+  function registerDeadlineRow(i,deadline){
+    const raw=deadline||{};
+    const parsed=deadlineParts(raw);
+    const name=raw.assigneeName||(parsed.person==='A definir'?'':parsed.person);
+    const dateString=String(raw.dueAt||''),day=dateString.slice(0,10),time=dateString.includes('T')?dateString.slice(11,16):'23:59';
+    const options=['Prazo','Produção','Correção','Entrega','Publicação','Outro prazo'];
+    if(parsed.step&&!options.includes(parsed.step))options.push(parsed.step);
+    return `<div class="register-deadline"><label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===parsed.step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
+      <label>Para quem<input name="deadline-assignee-${i}" value="${escapeText(name)}" placeholder="Integrante, tutoria ou comissão"></label>
+      <label>Data<input type="date" name="deadline-date-${i}" value="${escapeText(day)}"></label>
+      <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label></div>`;
   }
   function renderRegister(){
-    const type=state.registerType||'demanda';
-    const isMemory=type==='memoria';
+    const id=getRoute().id||'';
+    const task=id?tasks().find(t=>String(t.id)===String(id)):null;
+    if(id&&!task)return notFound();
+    if(state.registerCurrentId!==id){
+      state.registerCurrentId=id;
+      state.registerType='demanda';
+      state.regCommitteeId=task?.committeeId||'';
+      state.assignmentScope='usuarios';
+      state.assignmentPicked=(task?.assigneeIds||[]).map(String);
+      state.formDeadlineCount=Math.max(1,task?.deadlines?.length||1);
+    }
+    const type=task?'demanda':state.registerType||'demanda',isMemory=type==='memoria';
     const opt=state.data.committees.map(c=>`<option value="${escapeText(c.id)}" ${String(state.regCommitteeId)===String(c.id)?'selected':''}>${escapeText(c.name)}</option>`).join('');
-    const meetings=state.data.meetings.map(m=>`<option value="${escapeText(m.id)}">${escapeText(m.title)} · ${formatDate(m.date)}</option>`).join('');
-    const typePicker=`<div class="segmented register-tabs" role="group" aria-label="Tipo de registro"><button type="button" class="${!isMemory?'active':''}" data-action="register-type" data-value="demanda">Nova demanda</button><button type="button" class="${isMemory?'active':''}" data-action="register-type" data-value="memoria">Memória da reunião</button></div>`;
+    const meetings=state.data.meetings.map(m=>`<option value="${escapeText(m.id)}" ${String(task?.meetingId||'')===String(m.id)?'selected':''}>${escapeText(m.title)} · ${formatDate(m.date)}</option>`).join('');
+    const typePicker=task?'':`<div class="segmented register-tabs" role="group" aria-label="Tipo de registro"><button type="button" class="${!isMemory?'active':''}" data-action="register-type" data-value="demanda">Nova demanda</button><button type="button" class="${isMemory?'active':''}" data-action="register-type" data-value="memoria">Memória da reunião</button></div>`;
     const memoryForm=`<form id="register-memory-form" class="register-form"><label>Título da memória<input name="title" required maxlength="150" placeholder="Ex.: Encontro de quinta-feira"></label><label>Data da reunião<input name="date" type="date" required></label><label>Memória original<textarea name="rawNotes" rows="9" required placeholder="Cole aqui o texto da memória..."></textarea></label><div class="form-actions"><button type="submit" class="button primary">${icon('check')} Salvar memória</button></div></form>`;
-    const taskForm=`<form id="register-task-form" class="register-form"><label>Título da demanda<input name="title" required maxlength="180" placeholder="Ex.: Produzir banner da Lixeira"></label>
-    <label>Descrição (opcional)<textarea name="description" rows="4" placeholder="O que precisa ser feito?"></textarea></label>
+    const taskForm=`<form id="register-task-form" data-id="${escapeText(task?.id||'')}" class="register-form"><label>Título da demanda<input name="title" required maxlength="180" value="${escapeText(task?.title||'')}" placeholder="Ex.: Produzir banner da Lixeira"></label>
+    <label>Descrição (opcional)<textarea name="description" rows="4" placeholder="O que precisa ser feito?">${escapeText(task?.description||'')}</textarea></label>
     <div class="register-two"><label>Comissão<select name="committeeId" class="select" data-field="regCommitteeId"><option value="">Sem comissão</option>${opt}</select></label><label>Memória vinculada (opcional)<select name="meetingId" class="select"><option value="">Nenhuma</option>${meetings}</select></label></div>
-    <label>Data de postagem (opcional)<input type="date" name="postingAt"></label>
+    <div class="register-two"><label>Data de postagem (opcional)<input type="date" name="postingAt" value="${escapeText(String(task?.postingAt||'').slice(0,10))}"></label>
+      <label>Situação da demanda<select name="status" class="select"><option value="pendente" ${!task||!isCompleted(task)?'selected':''}>Pendente</option><option value="concluida" ${task&&isCompleted(task)?'selected':''}>Concluída / Arquivada</option></select></label></div>
     ${renderAssignmentPreview()}
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button></div>
-    ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i)).join('')}</div>
-    <div class="form-actions"><button type="submit" class="button primary">${icon('check')} Registrar demanda</button></div></form>`;
-    return `${header('Cadastros','Registrar demandas','Crie uma demanda ou registre a memória original de uma reunião.')}${connectNotice()}
+    ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
+    <div class="form-actions"><button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
+    return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda ou registre a memória original de uma reunião.')}${connectNotice()}
       <section class="card card-pad register-page">${typePicker}${isMemory?memoryForm:taskForm}
-      <p class="assignment-preview-note">${state.demo?'Modo de demonstração: os registros são salvos apenas neste navegador, sem envio de e-mails ou compartilhamento.':'O cadastramento exigirá permissão e autenticação quando o sistema for integrado.'}</p></section>`;
+      <p class="assignment-preview-note">${state.demo?'Demonstração: as alterações ficam somente neste navegador e não enviam e-mails.':'A edição exigirá autorização quando o backend estiver integrado.'}</p></section>`;
   }
   function registeredAssigneeIds(){
     if(state.assignmentScope==='todos')return state.data.users.map(u=>String(u.id));
@@ -393,24 +411,34 @@
     const selected=new Set(state.assignmentPicked.map(String));
     return [...new Set(state.data.committees.filter(c=>selected.has(String(c.id))).flatMap(c=>(c.memberIds||[]).map(String)))];
   }
+
   function saveRegisteredTask(form){
     if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
-    const x=new FormData(form);
-    const title=String(x.get('title')||'').trim();
+    const x=new FormData(form),title=String(x.get('title')||'').trim();
     if(!title){showToast('Informe o título da demanda.');return;}
     const deadlines=[];
+    const existing=String(form.dataset.id||'')?tasks().find(t=>String(t.id)===String(form.dataset.id)):null;
     for(let i=0;i<state.formDeadlineCount;i++){
       const day=String(x.get('deadline-date-'+i)||''),hour=String(x.get('deadline-time-'+i)||'23:59');
       if(day){
         const step=String(x.get('deadline-step-'+i)||'Prazo'),who=String(x.get('deadline-assignee-'+i)||'').trim();
-        deadlines.push({label:step,assigneeName:who,dueAt:day+'T'+(hour||'23:59')+':00',completedAt:null});
+        deadlines.push({label:step,assigneeName:who,dueAt:day+'T'+(hour||'23:59')+':00',completedAt:existing?.deadlines?.[i]?.completedAt||null});
       }
     }
-    const id='local-task-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
-    state.data.tasks.push({id,title,description:String(x.get('description')||'').trim(),registeredAt:dateKey(new Date()),postingAt:String(x.get('postingAt')||'')||null,
+    const status=String(x.get('status')||'pendente');
+    const values={title,description:String(x.get('description')||'').trim(),postingAt:String(x.get('postingAt')||'')||null,
       meetingId:String(x.get('meetingId')||'')||null,committeeId:String(x.get('committeeId')||'')||null,
-      deadlines,assigneeIds:registeredAssigneeIds(),stageName:'Pendente',status:'pendente',reviewStatus:'aguardando',revisions:[],observations:[]});
-    if(saveLocalDemoWrites()){state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode='pendentes';location.hash='#/demandas';render();showToast('Demanda registrada nesta demonstração, apenas no seu navegador.');}
+      deadlines,assigneeIds:registeredAssigneeIds(),status,stageName:status==='concluida'?'Concluída':'Pendente'};
+    const now=new Date().toISOString(),actor=actorDemo()||{name:'Demonstração'};
+    if(existing){
+      Object.assign(existing,values);
+      existing.revisions=[...(existing.revisions||[]),{action:'Dados da demanda atualizados',actorName:actor.name,at:now}];
+      existing.lastEditedBy=actor.name;existing.lastEditedAt=now;
+    } else {
+      const id='local-task-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+      state.data.tasks.push({id,registeredAt:dateKey(new Date()),reviewStatus:'aguardando',revisions:[],observations:[],...values});
+    }
+    if(saveLocalDemoWrites()){state.registerCurrentId=null;state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode=status==='concluida'?'arquivo':'pendentes';location.hash='#/demandas';render();showToast(existing?'Demanda atualizada neste navegador.':'Demanda registrada neste navegador.');}
     else showToast('Não foi possível salvar os dados locais.');
   }
   function saveRegisteredMemory(form){
@@ -439,7 +467,7 @@
     const revisions=Array.isArray(t.revisions)?t.revisions.slice().reverse().slice(0,7):[];
     const history=revisions.length?`<div class="revision-list">${revisions.map(x=>`<div><strong>${escapeText(x.action||'Atualização')} — ${escapeText(x.actorName)}</strong><small>${formatDate(x.at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}</div>`:'<p class="notice-line">Nenhuma alteração registrada.</p>';
     const posting=t.postingAt?`<p class="activity-due">Postagem prevista: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
-    return `${header('Atividade',t.title,'',`<a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
+    return `${header('Atividade',t.title,'',`<a class="button ghost" href="#/registrar/${safeHref(t.id)}">${icon('settings')} Editar demanda</a><a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
     <div class="activity-header-strip card card-pad">${statusBadge}${posting}</div>
     <div class="activity-detail-grid">
       <div class="stack">
@@ -455,7 +483,7 @@
           </form></section>
       </div><div class="stack">
         <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}
-          <p class="assignment-preview-note">Para adicionar ou substituir responsáveis, utilize Registrar demandas e, futuramente, a edição da demanda.</p></section>
+          <a class="activity-details-link" href="#/registrar/${safeHref(t.id)}">Editar responsáveis ${icon('arrow')}</a></section>
         <section class="card card-pad"><h2>Histórico de alterações</h2>${history}</section>
       </div>
     </div>`;
