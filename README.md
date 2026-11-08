@@ -12,7 +12,7 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 - **Comissões:** estrutura compartilhada, indicadores por equipe e agrupamento de tarefas por mês e semana; o exemplo de Legendas contém cronograma de postagens de novembro de 2026.
 - **Reuniões:** exibe as memórias originais dos encontros, separadas das tarefas.
 - **Registrar demandas:** exclusivamente criação e edição de demandas. A criação de memórias fica na área **Reuniões**, sem segunda aba de cadastro. Em modo demo, as alterações persistem somente no navegador.
-- **Minhas pendências:** atividades atribuídas ao usuário autenticado, de todas as comissões.
+- **Minhas pendências:** atividades atribuídas ao usuário autenticado ou a um responsável de etapa, de todas as comissões. Na demonstração, é possível escolher um PETiano para visualizar suas pendências simuladas.
 - **Administração:** entrada bloqueada até existir autenticação, autorização e backend, conforme o escopo aprovado.
 
 ## O que está habilitado agora
@@ -23,9 +23,11 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 - Consulta manual de qualquer período, sem apagar ou arquivar dados.
 - Visualização de **Pendências semanais** com tarefas pendentes/concluídas e links para memórias relacionadas.
 - **Ver detalhes** abaixo de cada atividade, com prazos, responsáveis, observações já publicadas, texto salvo somente para leitura, histórico de autoria e data. A edição do texto ocorre exclusivamente no botão **Editar demanda**.
-- **Revisão da tutoria** com estado explícito: aguardando, ajustes necessários, não liberado e liberado para uso/postagem. Os campos de observações e liberação aparecem somente em **Editar demanda** e ficam com cadeado/bloqueados para PETianos; Tutoria e Administração podem alterá-los. Adicionar observação não equivale a liberar.
+- **Revisão e aprovação:** qualquer PETiano(a), Tutor(a) ou Administrador(a) pode mudar o status de aprovação para **APROVADO**. Somente a **observação da tutoria** fica bloqueada por cadeado para PETianos(as). Aprovar não conclui nem arquiva; adicionar observação não aprova automaticamente.
 - Prévia de PETiano(a)/Lene com edição e autoria local, sem representar login institucional.
-- Seleção de responsáveis por usuários, por comissão ou todos, na criação e edição de demandas.
+- Seleção de responsáveis por PETianos(as), por comissão ou todos, na criação e edição de demandas. Etapas como **Publicar** podem ter responsáveis e prazos próprios; elas aparecem também nas pendências individuais do responsável.
+- A **data de postagem é obrigatória** no formulário; atividades podem ser vinculadas a várias comissões sem cópias. Demandas concluídas ficam apenas em **Arquivadas**; grupos de semanas inteiramente concluídas somem do cronograma ativo.
+- Memórias com fundos personalizáveis, inclusive degradês em cores próprias. Cards com datas e responsáveis e status aprovado destacado.
 - Exemplo de cronograma da comissão de **Legendas** (20 atividades, semanas 2, 3 e 4 de novembro) e uma reunião (22/10) com 15 demandas, sendo três identificadas como OK no registro original.
 - Arquitetura de visualização pronta para substituição por registros reais de uma API autenticada.
 - Tratamento de ausência de dados e erro de conexão sem apresentar contagens falsas.
