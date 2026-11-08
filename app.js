@@ -100,7 +100,7 @@
   function displayTaskState(t){
     if(isCompleted(t))return tag('Concluída','mint');
     if(isApproved(t))return tag('APROVADA','approved-pill');
-    return tag('Pendente',taskDeadlines(t).some(d=>deadlineOverdue(d))?'overdue-pill':'soft');
+    return tag('Pendente','overdue-pill');
   }
   function taskDateBadge(t){
     const deadline=taskClosestDeadline(t),date=deadline||dateFrom(t.postingAt)||taskDate(t);
@@ -621,7 +621,7 @@
     const choices=scope==='comissoes'?state.data.committees.map(c=>({id:c.id,name:c.name})):users.map(u=>({id:u.id,name:u.name}));
     const list=scope==='todos'
       ?`<div class="assignment-all">${icon('users')} Todos os ${state.data.users.length} usuários incluídos.</div>`
-      :choices.length?`<div class="assignment-options">${choices.map(c=>`<label class="assignment-option"><input type="checkbox" data-assign-target="${escapeText(c.id)}" ${state.assignmentPicked.includes(String(c.id))?'checked':''}><span>${escapeText(c.name)}</span>${scope==='usuarios'&&members.has(String(c.id))?tag('Da comissão','mint'):''}</label>`).join('')}</div>`
+      :choices.length?`<div class="assignment-options">${choices.map(c=>`<label class="assignment-option"><input type="checkbox" data-assign-target="${escapeText(c.id)}" ${state.assignmentPicked.includes(String(c.id))?'checked':''}><span class="assignment-option-name">${escapeText(c.name)}</span>${scope==='usuarios'&&members.has(String(c.id))?tag('Da comissão','mint'):''}</label>`).join('')}</div>`
       :'<p class="notice-line">Nenhum cadastro disponível.</p>';
     return `<div class="register-assignment"><h3>Responsáveis</h3><div class="segmented assignment-modes" role="group" aria-label="Escolher responsáveis">${opts.map(([v,title])=>`<button type="button" data-action="assignment-scope" data-value="${v}" class="${scope===v?'active':''}" aria-pressed="${scope===v}">${title}</button>`).join('')}</div>${list}</div>`;
   }
@@ -714,7 +714,7 @@
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><div class="deadline-toolbar-actions"><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button><button class="button primary deadline-save-button" type="button" data-action="save-deadlines">${icon('check')} Salvar prazos</button></div></div>
     ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
     ${task?`<section class="edit-copy-section observations-editor"><div class="observations-editor-title"><div class="edit-section-title"><h2>Observações</h2><p>Edite o conteúdo da demanda.</p></div>
-      <span class="observations-author-badge">Última alteração: <strong>${escapeText(task.observationsEditedBy||task.lastEditedBy||'Nenhuma')}</strong>${(task.observationsEditedAt||task.lastEditedAt)?'<small>'+formatDate(task.observationsEditedAt||task.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</small>':''}</span></div>
+      ${task.observationsEditedAt?`<span class="observations-author-badge">Última alteração: <strong>${escapeText(task.observationsEditedBy||'Nenhuma')}</strong>${(task.observationsEditedAt)?'<small>'+formatDate(task.observationsEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</small>':''}</span>`:''}</div>
       <div class="observation-editor-head"><label for="edit-caption-text">Texto da atividade (opcional)</label><button type="button" class="button ghost copy-observations" data-action="copy-observations" title="Copiar observações">${icon('copy')} Copiar</button></div>
       <textarea name="captionText" id="edit-caption-text" rows="6" placeholder="Escreva as observações desta atividade...">${escapeText(task.captionText||'')}</textarea>
       </section>`:''}
@@ -919,13 +919,13 @@
     const posting=t.postingAt?`<p class="activity-due">Previsão: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
     const value=String(t.captionText||'').trim();
     const olderNotes=notes.length?`<details class="observations-archive"><summary>Histórico anterior de comentários (${notes.length})</summary>${notes.slice().reverse().map(n=>`<div class="observation-item"><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small><p>${escapeText(n.body||'')}</p></div>`).join('')}</details>`:'';
-    const updated=`<p class="observations-last-change">Última alteração: <strong>${escapeText(t.observationsEditedBy||t.lastEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt||t.lastEditedAt)?' · '+formatDate(t.observationsEditedAt||t.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>`;
+    const updated=`<p class="observations-last-change">Última alteração: <strong>${escapeText(t.observationsEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt)?' · '+formatDate(t.observationsEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>`;
     return `${header('Atividade',t.title,'',`<a class="button ghost" href="#/registrar/${safeHref(t.id)}">${icon('settings')} Editar demanda</a><a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
     <div class="card card-pad activity-status-panel">${quickTaskStatus(t)}<div class="activity-status-meta">${posting}</div></div>
     <div class="activity-detail-grid">
       <div class="stack">
         <section class="card card-pad"><h2>Prazos e etapas</h2>${deadlines}</section>
-        <section class="card card-pad"><div class="section-head observations-title-row"><h2>Observações</h2><div class="observations-title-actions"><span class="observations-author-badge">Última alteração: <strong>${escapeText(t.observationsEditedBy||t.lastEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt||t.lastEditedAt)?'<small>'+formatDate(t.observationsEditedAt||t.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</small>':''}</span><button type="button" class="button ghost copy-observations" data-action="copy-observations">${icon('copy')} Copiar</button></div></div>
+        <section class="card card-pad"><div class="section-head observations-title-row"><h2>Observações</h2><div class="observations-title-actions">${t.observationsEditedAt?`<span class="observations-author-badge">Última alteração: <strong>${escapeText(t.observationsEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt)?'<small>'+formatDate(t.observationsEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</small>':''}</span>`:''}<button type="button" class="button ghost copy-observations" data-action="copy-observations">${icon('copy')} Copiar</button></div></div>
         ${value?`<p class="saved-activity-text" id="saved-observations-text">${escapeText(value)}</p>`:'<p class="notice-line">Nenhuma observação registrada.</p>'}${olderNotes}</section>
       </div><div class="stack">
         <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}</section>
