@@ -1,5 +1,4 @@
-/* PET Gestão — interface de produção. Sem dados fictícios ou gravação de registros no navegador.
-   Os dados do PET somente serão carregados de uma API autenticada quando implantada. */
+/* PET Educação — protótipo com dados de demonstração; edições apenas locais até implantação de backend e autenticação. */
 (() => {
   'use strict';
 
@@ -10,8 +9,9 @@
   const WEEKDAYS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
   const TODAY = new Date();
   const STORAGE_KEY = 'pet-gestao:prefs:v1';
+  const DEMO_EDITS_KEY = 'pet-educacao:preview-edits:v1';
   const routeTitles = {
-    inicio:'Visão geral', demandas:'Demandas', cronograma:'Cronograma',
+    inicio:'Visão geral', demandas:'Demandas', registrar:'Registrar demandas', cronograma:'Cronograma',
     comissoes:'Comissões', reunioes:'Reuniões',
     'minhas-pendencias':'Minhas pendências', atividade:'Atividade'
   };
@@ -22,7 +22,7 @@
     year:!prefs.autoMonth&&Number.isInteger(prefs.savedYear)&&prefs.savedYear>=2000&&prefs.savedYear<=2100?prefs.savedYear:TODAY.getFullYear(),
     month:!prefs.autoMonth&&Number.isInteger(prefs.savedMonth)&&prefs.savedMonth>=0&&prefs.savedMonth<=11?prefs.savedMonth:TODAY.getMonth(), week:1,
     selectedDay:TODAY.getDate(),
-    demandMode:'mensal', committeeId:null, assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, ...prefs
+    demandMode:'mensal', committeeId:null, assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, demoActor:'petiano', demoEditing:false, formDeadlineCount:1, ...prefs
   };
   state.week = !prefs.autoWeek&&Number.isInteger(prefs.savedWeek)?Math.min(Math.max(1,prefs.savedWeek),getWeeks(state.year,state.month).length) : (state.year===TODAY.getFullYear()&&state.month===TODAY.getMonth()?weekForDay(state.year,state.month,TODAY.getDate()):1);
   let toastTimer;
@@ -172,25 +172,25 @@
       </div></div>`;
   }
   function renderTaskCard(t){
-    const d=dateFrom(t.postingAt);const assigneeCount=Array.isArray(t.assigneeIds)?t.assigneeIds.length:0;
-    const labels=taskDeadlines(t).filter(x=>x.dueAt).slice(0,2).map(x=>`${escapeText(x.label||x.kind||'Prazo')}: ${escapeText(formatDate(x.dueAt))}`).join(' · ');
-    return `<a href="#/atividade/${safeHref(t.id)}" class="placeholder-row" style="text-decoration:none" aria-label="Abrir atividade ${escapeText(t.title)}"><div><strong>${escapeText(t.title)}</strong><small>${escapeText(taskOrigin(t))}${d?' · Postagem '+formatDate(d):''}${assigneeCount?' · '+assigneeCount+' responsável(is)':''}</small>${labels?`<small>${labels}</small>`:''}</div>${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}</a>`;
+    // Informações detalhadas ficam na página da atividade, não na linha de listagem.
+    const review=t.reviewStatus==='liberado'?tag('Liberado','mint'):t.reviewStatus==='ajustes'?tag('Ajustes','soft'):'';
+    return `<div class="placeholder-row task-list-row"><div class="task-list-body"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></div><div class="task-row-meta">${review}${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}</div></div>`;
   }
   function renderDemandList(){const all=tasks();const mode=state.demandMode;let filtered=[];
     if(mode==='mensal'||mode==='semanal')filtered=all.filter(t=>mode==='mensal'?isTaskInMonth(t):isTaskInWeek(t));
     if(mode==='pendentes')filtered=all.filter(t=>!isCompleted(t));
     if(mode==='arquivo')filtered=all.filter(isCompleted);
     filtered.sort((a,b)=>taskSortDate(a)-taskSortDate(b));
-    if(!filtered.length){const titles={mensal:'Nenhuma demanda neste mês',semanal:'Nenhuma demanda nesta semana',pendentes:'Nenhuma pendência registrada',arquivo:'Arquivo sem registros'};
+    if(!filtered.length){const titles={mensal:'Nenhuma demanda neste mês',semanal:'Nenhuma demanda nesta semana',pendentes:'Nenhuma pendência registrada',arquivo:'Nenhuma atividade arquivada'};
       return empty(mode==='arquivo'?'archive':'list',titles[mode],'As atividades cadastradas aparecerão aqui, vinculadas aos responsáveis e às comissões.');}
     return filtered.map(renderTaskCard).join('');
   }
   function renderDemandas(){
-    const modes=[['mensal','Mensal'],['semanal','Semanal'],['pendentes','Pendentes'],['arquivo','Arquivo']];
-    return `${header('Acompanhamento','Demandas','Uma lista única de atividades, organizada por período, responsáveis e situação.',newButton('Nova demanda'))}${connectNotice()}
+    const modes=[['mensal','Mensal'],['semanal','Semanal'],['pendentes','Pendentes'],['arquivo','Arquivadas']];
+    return `${header('Acompanhamento','Demandas','Uma lista única de atividades, organizada por período, responsáveis e situação.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
       <div class="card card-pad"><div class="list-toolbar"><div class="segmented" role="group" aria-label="Visualizar demandas">${modes.map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
         ${(state.demandMode==='mensal'||state.demandMode==='semanal')?`<div class="list-toolbar">${periodSelector(state.demandMode==='semanal')}</div>`:'<p class="notice-line">Esta visualização reúne registros de todos os meses e anos.</p>'}
-        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Histórico de conclusão':'Pendências acumuladas'}</h2><p>As atividades são exibidas uma única vez, mesmo quando relacionadas a várias áreas.</p></div></div>${available()?tag(String(tasks().length)+' registros','soft'):''}</div>
+        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2><p>As atividades são exibidas uma única vez, mesmo quando relacionadas a várias áreas.</p></div></div>${available()?tag(String(tasks().length)+' registros','soft'):''}</div>
         ${renderDemandList()}
       </div>`;
   }
@@ -217,7 +217,7 @@
     <p class="notice-line" style="margin:0">Os seletores manuais sempre ficam disponíveis. Alterar o período não modifica nem exclui atividades anteriores.</p>
   </div></details>`;}
   function renderCronograma(){const weeks=getWeeks(state.year,state.month);
-    return `${header('Planejamento','Cronograma','Mês, ano e semana podem ser consultados livremente. Os registros de outros períodos permanecem preservados.',newButton('Nova atividade'))}${connectNotice()}
+    return `${header('Planejamento','Cronograma','Mês, ano e semana podem ser consultados livremente. Os registros de outros períodos permanecem preservados.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
     <section class="card card-pad"><div class="list-toolbar">${periodSelector(true)}</div><hr class="divider"/><div class="section-head"><div><h2>${escapeText(periodTitle())}</h2><p>Calendário de atividades e prazos</p></div><div class="page-actions"><button class="icon-button" data-action="prev-month" title="Mês anterior" aria-label="Mês anterior">${icon('chevron-left')}</button><button class="icon-button" data-action="next-month" title="Próximo mês" aria-label="Próximo mês">${icon('chevron-right')}</button></div></div>
       <div class="calendar-wrap"><div class="calendar-grid">${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(n=>`<div class="day-name">${n}</div>`).join('')}${calendarCells()}</div></div>
       <div class="calendar-legend"><span class="legend-mark"></span> Semana selecionada</div>
@@ -250,11 +250,19 @@
       <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização por equipes</p></div>${available()?tag(all.length+' comissões','soft'):''}</div>${all.length?all.map(c=>`<a class="placeholder-row" href="#/comissoes/${safeHref(c.id)}"><div><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes</small>${commissionCounters(c.id)}</div>${icon('arrow')}</a>`).join(''):empty('users','Nenhuma comissão cadastrada','Assim que as equipes forem cadastradas, todas aparecerão aqui com a mesma organização.')}</section>`;
   }
 
+  function dateRangeForWeek(date){
+    const d=dateFrom(date);
+    if(!d)return '';
+    const w=getWeeks(d.getFullYear(),d.getMonth()).find(w=>d.getDate()>=w.start&&d.getDate()<=w.end);
+    if(!w)return '';
+    const month=String(d.getMonth()+1).padStart(2,'0'),year=d.getFullYear();
+    return `${String(w.start).padStart(2,'0')}/${month}/${year} a ${String(w.end).padStart(2,'0')}/${month}/${year}`;
+  }
   function renderCommissionGroups(records){
     const groups=new Map();
     records.slice().sort((a,b)=>taskSortDate(a)-taskSortDate(b)).forEach(t=>{
       const d=dateFrom(t.postingAt)||taskDate(t);
-      const label=d?`${MONTHS[d.getMonth()]} de ${d.getFullYear()} · Semana ${weekForDay(d.getFullYear(),d.getMonth(),d.getDate())}`:'Sem data definida';
+      const label=d?`${MONTHS[d.getMonth()]} de ${d.getFullYear()} · Semana ${weekForDay(d.getFullYear(),d.getMonth(),d.getDate())} (${dateRangeForWeek(d)})`:'Sem data definida';
       if(!groups.has(label))groups.set(label,[]);
       groups.get(label).push(t);
     });
@@ -262,17 +270,17 @@
   }
   function renderCommitteeDetail(id){const c=state.data.committees.find(c=>String(c.id)===String(id));if(!c)return notFound();
     const related=tasks().filter(t=>String(t.committeeId)===String(c.id));
-    return `${header('Comissões',c.name,'Atividades, integrantes e cronograma seguem o padrão compartilhado por todas as comissões.',newButton('Nova atividade'))}${connectNotice()}
+    return `${header('Comissões',c.name,'',newButton('Nova atividade'))}${connectNotice()}
       <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section><div class="card card-pad"><div class="section-head"><h2>Cronograma e atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?renderCommissionGroups(related):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
   }
   function renderReunioes(){const all=state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-    return `${header('Registro coletivo','Reuniões','',newButton('Nova memória'))}${connectNotice()}
+    return `${header('Memórias','Reuniões','',`<a href="#/registrar?tipo=memoria" class="button primary">${icon('plus')} Registrar memória</a>`)}${connectNotice()}
       <section class="card card-pad"><div class="section-head"><div><h2>Memórias registradas</h2><p>Histórico por data da reunião</p></div>${available()?tag(all.length+' reuniões','soft'):''}</div>
       ${all.length?all.map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)} · ${Array.isArray(m.taskIds)?m.taskIds.length:0} demandas vinculadas</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma memória registrada','Os encontros poderão reunir texto original, decisões, responsáveis, prazos e demandas vinculadas.')}</section>`;
   }
   function renderMeetingDetail(id){const m=state.data.meetings.find(m=>String(m.id)===String(id));if(!m)return notFound();
     const linked=tasks().filter(t=>String(t.meetingId)===String(id)||(Array.isArray(m.taskIds)&&m.taskIds.map(String).includes(String(t.id))));
-    return `${header('Reuniões',m.title||'Memória da reunião',formatDate(m.date))}${connectNotice()}<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><h2>Memória original</h2></div><p style="white-space:pre-wrap;line-height:1.8;font-size:12.5px;color:#5d5a72">${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></section><section class="card card-pad"><div class="section-head"><h2>Demandas vinculadas</h2></div>${linked.length?linked.map(renderTaskCard).join(''):empty('list','Nenhuma demanda vinculada','As atividades extraídas da reunião aparecerão aqui.',true)}</section></div>`;
+    return `${header('Reuniões',m.title||'Memória da reunião',formatDate(m.date))}${connectNotice()}<div class="card card-pad memory-reading"><h2>Memória do encontro</h2><p>${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></div>`;
   }
   function renderMyTasks(){const user=sessionUser(),mine=user?tasks().filter(t=>!isCompleted(t)&&isAssigned(t,user.id)):[];
     return `${header('Área pessoal','Minhas pendências','Todas as atividades atribuídas a você, reunidas de diferentes comissões e períodos.')}${!user?`<div class="private-lock">${icon('lock')}<div><strong>Acesso pessoal ainda não ativado</strong><p>A identificação por conta e as pendências individuais serão disponibilizadas após a implantação da autenticação segura.</p></div></div>`:`<section class="card card-pad"><div class="section-head"><h2>Atividades atribuídas</h2>${tag(String(mine.length)+' abertas','soft')}</div>${mine.length?mine.map(renderTaskCard).join(''):empty('checklist','Nenhuma pendência em seu nome','As atividades concluídas permanecem disponíveis no histórico geral.')}</section>`}`;
@@ -344,10 +352,10 @@
   function notFound(){return `${header('Navegação','Registro não encontrado','O item solicitado não está disponível ou não pode ser consultado com este acesso.')}<div class="card card-pad">${empty('search','Não foi possível abrir o registro','Retorne à lista e escolha uma atividade disponível.')}</div>`;}
   function render(){
     const {base,id}=getRoute();const screen=$('#screen');if(!screen)return;
-    $('#current-page').textContent=routeTitles[base]||'PET Gestão';
-    document.title=`${routeTitles[base]||'PET Gestão'} | PET Gestão`;
+    $('#current-page').textContent=routeTitles[base]||'PET Educação';
+    document.title=`${routeTitles[base]||'PET Educação'} | PET Educação`;
     document.querySelectorAll('[data-route]').forEach(el=>{const selected=el.dataset.route===base;el.classList.toggle('active',selected);if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
-    const views={inicio:renderHome,demandas:renderDemandas,cronograma:renderCronograma,comissoes:()=>id?renderCommitteeDetail(id):renderComissoes(),reunioes:()=>id?renderMeetingDetail(id):renderReunioes(),'minhas-pendencias':renderMyTasks,atividade:()=>renderActivityDetail(id)};
+    const views={inicio:renderHome,demandas:renderDemandas,registrar:renderRegister,cronograma:renderCronograma,comissoes:()=>id?renderCommitteeDetail(id):renderComissoes(),reunioes:()=>id?renderMeetingDetail(id):renderReunioes(),'minhas-pendencias':renderMyTasks,atividade:()=>renderActivityDetail(id)};
     screen.innerHTML=(views[base]||renderHome)();
   }
   function navigate(path){location.hash='#/'+path; if(getRoute().base===path)render();}
