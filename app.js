@@ -61,20 +61,53 @@
   function weekForDay(y,m,day){return getWeeks(y,m).find(w=>day>=w.start&&day<=w.end)?.n||1;}
   function currentWeek(){return getWeeks(state.year,state.month).find(w=>w.n===state.week)||getWeeks(state.year,state.month)[0];}
   function isCompleted(task){return Boolean(task?.completedAt||task?.closedAt||['concluida','concluído','done','completed','arquivada'].includes(String(task?.status||'').toLowerCase()));}
-  function isAssigned(task,userId){return Boolean(userId&&Array.isArray(task.assigneeIds)&&task.assigneeIds.map(String).includes(String(userId)));}
-  function taskDate(task){return dateFrom(task.registeredAt||task.meetingDate||task.createdAt);}
+
+  function commissionIds(t){return [...new Set([...(Array.isArray(t?.commissionIds)?t.commissionIds:[]),t?.committeeId].filter(v=>v!==null&&v!==undefined&&v!=='').map(String))];}
+  function linkedToCommission(t,id){return commissionIds(t).includes(String(id));}
+  function stageUserId(d){
+    if(d?.assigneeId&&state.data.users.some(u=>String(u.id)===String(d.assigneeId)))return String(d.assigneeId);
+    const raw=String(d?.assigneeName||'').trim().toLocaleLowerCase('pt-BR');
+    return state.data.users.find(u=>String(u.name||'').trim().toLocaleLowerCase('pt-BR')===raw)?.id||null;
+  }
+  function assignedUserIds(t){return [...new Set([...(Array.isArray(t?.assigneeIds)?t.assigneeIds:[]),...taskDeadlines(t).map(stageUserId)].filter(Boolean).map(String))];}
+  function isAssigned(t,userId){return Boolean(userId&&assignedUserIds(t).includes(String(userId)));}
+  function taskDate(t){return dateFrom(t.registeredAt||t.meetingDate||t.createdAt);}
   function committeeName(id){return state.data.committees.find(c=>String(c.id)===String(id))?.name||'Sem comissão';}
   function tasks(){return state.data.tasks;}
-  function taskDeadlines(task){return Array.isArray(task.deadlines)?task.deadlines:[];}
+  function taskDeadlines(t){return Array.isArray(t.deadlines)?t.deadlines:[];}
+  function isApproved(t){return !isCompleted(t)&&t.reviewStatus==='liberado';}
+  function taskClosestDeadline(t){return taskDeadlines(t).filter(d=>!d.completedAt&&dateFrom(d.dueAt)).map(d=>dateFrom(d.dueAt)).sort((a,b)=>a-b)[0]||null;}
+  function taskPriority(t){return isApproved(t)?0:isCompleted(t)?3:taskDeadlines(t).some(d=>deadlineOverdue(d))?1:2;}
+  function comparePriorityTasks(a,b){
+    return taskPriority(a)-taskPriority(b)
+      ||((taskClosestDeadline(a)||dateFrom(a.postingAt)||taskDate(a)||new Date(2100,0,1))-(taskClosestDeadline(b)||dateFrom(b.postingAt)||taskDate(b)||new Date(2100,0,1)))
+      ||String(a.title||'').localeCompare(String(b.title||''),'pt-BR');
+  }
+  function displayTaskState(t){
+    if(isCompleted(t))return tag('Concluída','mint');
+    if(isApproved(t))return tag('APROVADO','approved-pill');
+    if(t.reviewStatus==='ajustes')return tag('Ajustes necessários','review-pill');
+    if(t.reviewStatus==='nao_liberado')return tag('Não liberado','review-pill');
+    if(taskDeadlines(t).some(d=>deadlineOverdue(d)))return tag('Atrasada','overdue-pill');
+    return tag(t.stageName==='Programada'?'Programada':'Pendente','soft');
+  }
+  function taskDateBadge(t){
+    const deadline=taskClosestDeadline(t),date=deadline||dateFrom(t.postingAt)||taskDate(t);
+    return date?`<span class="task-date-badge">${icon('calendar')} ${deadline?'Prazo':t.postingAt?'Previsão':'Cadastro'}: ${formatDate(date)}</span>`:'';
+  }
+  function taskNames(t){return [...new Set(assignedUserIds(t).map(id=>state.data.users.find(u=>String(u.id)===id)?.name).filter(Boolean))];}
+  function taskResponsibleChip(t){
+    const names=taskNames(t);
+    return `<span class="task-assignee-label" title="${escapeText(names.join(', ')||'A definir')}"><strong>${names.length===1?'Responsável':'Responsáveis'}:</strong> ${escapeText(names.join(', ')||'A definir')}</span>`;
+  }
   function upcomingDeadlines(){
     const now=new Date();
-    // Um registro por atividade. Os prazos individuais ficam na página de detalhes.
     return tasks().filter(t=>!isCompleted(t)).map(task=>{
       const deadlines=taskDeadlines(task).filter(d=>!d.completedAt&&dateFrom(d.dueAt))
         .map(deadline=>({deadline,date:dateFrom(deadline.dueAt)}))
         .filter(x=>x.date.getTime()>=now.getTime()-86400000).sort((a,b)=>a.date-b.date);
       return deadlines.length?{task,deadline:deadlines[0].deadline,date:deadlines[0].date}:null;
-    }).filter(Boolean).sort((a,b)=>a.date-b.date).slice(0,5);
+    }).filter(Boolean).sort((a,b)=>taskPriority(a.task)-taskPriority(b.task)||a.date-b.date).slice(0,5);
   }
   function taskCountDay(date){const key=dateKey(date);return tasks().filter(t=>taskDeadlines(t).some(d=>dateKey(d.dueAt)===key)||dateKey(t.postingAt)===key).length;}
   function available(){return state.connected;}
@@ -147,7 +180,7 @@
     return state.data.meetings.filter(m=>{const d=dateFrom(m.date);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end;});
   }
   function renderWeeklyFocus(){
-    const weekTasks=weeklyTasks(),meetings=weeklyMeetings();
+    const weekTasks=weeklyTasks().sort(comparePriorityTasks),meetings=weeklyMeetings();
     const open=weekTasks.filter(t=>!isCompleted(t)),done=weekTasks.filter(isCompleted);
     // Conserve links para memórias de semanas anteriores que originaram tarefas com prazo neste período.
     const linkedIds=new Set(weekTasks.map(t=>String(t.meetingId||'')).filter(Boolean));
@@ -172,22 +205,22 @@
       </div></div>`;
   }
   function renderTaskCard(t){
-    // Informações detalhadas ficam na página da atividade, não na linha de listagem.
-    const review=t.reviewStatus==='liberado'?tag('Liberado','mint'):t.reviewStatus==='ajustes'?tag('Ajustes','soft'):'';
-    return `<div class="placeholder-row task-list-row"><div class="task-list-body"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></div><div class="task-row-meta">${review}${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}</div></div>`;
+    return `<div class="placeholder-row task-list-row"><div class="task-list-body"><div class="task-title-row"><strong>${escapeText(t.title)}</strong>${taskDateBadge(t)}</div>
+      <a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></div>
+      <div class="task-row-meta">${taskResponsibleChip(t)}${displayTaskState(t)}</div></div>`;
   }
   function visibleDemandCount(){
     const mode=state.demandMode;
-    if(mode==='mensal')return tasks().filter(isTaskInMonth).length;
-    if(mode==='semanal')return tasks().filter(isTaskInWeek).length;
+    if(mode==='mensal')return tasks().filter(t=>!isCompleted(t)&&isTaskInMonth(t)).length;
+    if(mode==='semanal')return tasks().filter(t=>!isCompleted(t)&&isTaskInWeek(t)).length;
     if(mode==='pendentes')return tasks().filter(t=>!isCompleted(t)).length;
     return tasks().filter(isCompleted).length;
   }
   function renderDemandList(){const all=tasks();const mode=state.demandMode;let filtered=[];
-    if(mode==='mensal'||mode==='semanal')filtered=all.filter(t=>mode==='mensal'?isTaskInMonth(t):isTaskInWeek(t));
+    if(mode==='mensal'||mode==='semanal')filtered=all.filter(t=>!isCompleted(t)&&(mode==='mensal'?isTaskInMonth(t):isTaskInWeek(t)));
     if(mode==='pendentes')filtered=all.filter(t=>!isCompleted(t));
     if(mode==='arquivo')filtered=all.filter(isCompleted);
-    filtered.sort((a,b)=>taskSortDate(a)-taskSortDate(b));
+    filtered.sort(comparePriorityTasks);
     if(!filtered.length){const titles={mensal:'Nenhuma demanda neste mês',semanal:'Nenhuma demanda nesta semana',pendentes:'Nenhuma pendência registrada',arquivo:'Nenhuma atividade arquivada'};
       return empty(mode==='arquivo'?'archive':'list',titles[mode],'As atividades cadastradas aparecerão aqui, vinculadas aos responsáveis e às comissões.');}
     return filtered.map(renderTaskCard).join('');
@@ -197,7 +230,7 @@
     return `${header('Acompanhamento','Demandas','Uma lista única de atividades, organizada por período, responsáveis e situação.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
       <div class="card card-pad"><div class="list-toolbar"><div class="segmented" role="group" aria-label="Visualizar demandas">${modes.map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
         ${(state.demandMode==='mensal'||state.demandMode==='semanal')?`<div class="list-toolbar">${periodSelector(state.demandMode==='semanal')}</div>`:'<p class="notice-line">Esta visualização reúne registros de todos os meses e anos.</p>'}
-        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2><p>As atividades são exibidas uma única vez, mesmo quando relacionadas a várias áreas.</p></div></div>${available()?tag(String(visibleDemandCount())+' registros','soft'):''}</div>
+        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2></div></div>${available()?tag(String(visibleDemandCount())+' registros','soft'):''}</div>
         ${renderDemandList()}
       </div>`;
   }
@@ -242,7 +275,7 @@
     return due.getTime() < now.getTime();
   }
   function commissionMetrics(id){
-    const own=tasks().filter(t=>String(t.committeeId)===String(id));
+    const own=tasks().filter(t=>linkedToCommission(t,id));
     const open=own.filter(t=>!isCompleted(t));
     return {pending:open.length,late:open.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d))).length,completed:own.length-open.length};
   }
@@ -268,7 +301,7 @@
 
   function commissionPeriodTasks(id){
     return tasks().filter(t=>{
-      if(String(t.committeeId)!==String(id))return false;
+      if(!linkedToCommission(t,id)||isCompleted(t))return false;
       const date=dateFrom(t.postingAt)||taskSortDate(t);
       return date&&date.getFullYear()===state.year&&date.getMonth()===state.month;
     }).sort((a,b)=>taskSortDate(a)-taskSortDate(b));
@@ -305,7 +338,7 @@
   function renderCommitteeDetail(id){
     const c=state.data.committees.find(c=>String(c.id)===String(id));
     if(!c)return notFound();
-    const period=commissionPeriodTasks(c.id);
+    const period=commissionPeriodTasks(c.id).sort(comparePriorityTasks);
     const shown=state.commissionWeek==='all'?period:period.filter(t=>{
       const d=dateFrom(t.postingAt)||taskSortDate(t);
       return d&&weekForDay(d.getFullYear(),d.getMonth(),d.getDate())===Number(state.commissionWeek);
