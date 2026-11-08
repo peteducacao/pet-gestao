@@ -330,9 +330,9 @@
     return {pending:open.filter(t=>!isApproved(t)).length,approved:open.filter(isApproved).length,late:open.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d))).length,completed:own.length-open.length};
   }
   function commissionCounters(id){
-    if(!available()) return '<div class="commission-counters"><span>Pendentes <strong>—</strong></span><span>Aprovadas <strong>—</strong></span><span>Atrasadas <strong>—</strong></span><span>Concluídas <strong>—</strong></span></div>';
+    if(!available()) return '<div class="commission-counters"><span class="metric-pending">Pendentes <strong>—</strong></span><span class="metric-approved">Aprovadas <strong>—</strong></span><span class="metric-late">Atrasadas <strong>—</strong></span><span class="metric-done">Concluídas <strong>—</strong></span></div>';
     const m=commissionMetrics(id);
-    return `<div class="commission-counters"><span>Pendentes <strong>${m.pending}</strong></span><span>Aprovadas <strong>${m.approved}</strong></span><span>Atrasadas <strong>${m.late}</strong></span><span>Concluídas <strong>${m.completed}</strong></span></div>`;
+    return `<div class="commission-counters"><span class="metric-pending">Pendentes <strong>${m.pending}</strong></span><span class="metric-approved">Aprovadas <strong>${m.approved}</strong></span><span class="metric-late">Atrasadas <strong>${m.late}</strong></span><span class="metric-done">Concluídas <strong>${m.completed}</strong></span></div>`;
   }
 
   function renderComissoes(){
