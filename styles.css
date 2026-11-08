@@ -696,3 +696,34 @@
   border-color:#e3dcef;
   color:#584d70;
 }
+
+/* Indicadores das comissões: quatro blocos equilibrados, sempre 2 × 2 */
+.commission-tile .commission-counters{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+  width:100%;
+  margin:0;
+}
+.commission-tile .commission-counters>span{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:7px;
+  min-width:0;
+  margin:0;
+  padding:11px 12px;
+  border-radius:12px;
+  line-height:1.35;
+  font-size:12px;
+  white-space:normal;
+}
+.commission-tile .commission-counters>span strong{
+  font-size:16px;
+  font-variant-numeric:tabular-nums;
+  flex-shrink:0;
+}
+@media(max-width:380px){
+  .commission-tile .commission-counters{gap:7px}
+  .commission-tile .commission-counters>span{padding:9px 8px;font-size:11px}
+}
