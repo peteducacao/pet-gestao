@@ -300,12 +300,44 @@
     const m=commissionMetrics(id);
     return `<div class="commission-counters"><span>Pendentes <strong>${m.pending}</strong></span><span>Atrasadas <strong>${m.late}</strong></span><span>Concluídas <strong>${m.completed}</strong></span></div>`;
   }
-  function renderComissoes(){const all=state.data.committees;
-    return `${header('Trabalho em equipe','Comissões','Todas utilizam a mesma estrutura de atividades, prazos, responsáveis, cronogramas e histórico.',newButton('Nova comissão'))}${connectNotice()}
-      <div class="committee-info"><div class="info-tile">${icon('users')}<strong>Integrantes vinculados</strong><p>Responsáveis da comissão aparecem primeiro no seletor, sem impedir a escolha de outros integrantes.</p></div><div class="info-tile">${icon('calendar')}<strong>Mesmo cronograma</strong><p>Mês, ano, semanas, etapas e múltiplos prazos seguem a mesma estrutura em todas as comissões.</p></div><div class="info-tile">${icon('book')}<strong>Registro centralizado</strong><p>Atividades podem ser relacionadas a reuniões sem duplicar informações.</p></div></div>
-      <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização por equipes</p></div>${available()?tag(all.length+' comissões','soft'):''}</div>${all.length?all.map(c=>`<a class="placeholder-row" href="#/comissoes/${safeHref(c.id)}"><div><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes</small>${commissionCounters(c.id)}</div>${icon('arrow')}</a>`).join(''):empty('users','Nenhuma comissão cadastrada','Assim que as equipes forem cadastradas, todas aparecerão aqui com a mesma organização.')}</section>`;
-  }
 
+  function renderComissoes(){
+    const all=state.data.committees;
+    return `${header('Trabalho em equipe','Comissões','',`<a class="button primary" href="#/comissoes/nova">${icon('plus')} Nova comissão</a>`)}${connectNotice()}
+      <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização das equipes e suas demandas.</p></div>${available()?tag(all.length+' '+(all.length===1?'comissão':'comissões'),'soft'):''}</div>
+      ${all.length?all.map(c=>`<article class="commission-list-item"><a href="#/comissoes/${safeHref(c.id)}" class="commission-name-link"><span class="commission-icon">${icon('users')}</span><span><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes${c.description?' · '+escapeText(c.description):''}</small></span></a>
+        ${commissionCounters(c.id)}<div class="commission-list-actions"><a href="#/comissoes/${safeHref(c.id)}" class="activity-details-link">Ver atividades ${icon('arrow')}</a>
+        <a href="#/comissoes/editar/${safeHref(c.id)}" class="button ghost small-action">${icon('settings')} Editar</a>
+        <button type="button" data-action="delete-commission" data-id="${escapeText(c.id)}" class="button subtle-danger small-action">${icon('close')} Excluir</button></div></article>`).join(''):empty('users','Nenhuma comissão cadastrada','Crie uma comissão para organizar sua equipe e as demandas vinculadas.')}
+      </section>`;
+  }
+  function renderCommissionEditor(id){
+    const c=id?state.data.committees.find(x=>String(x.id)===String(id)):null;
+    if(id&&!c)return notFound();
+    const selected=new Set((c?.memberIds||[]).map(String));
+    const users=state.data.users;
+    const title=c?'Editar comissão':'Nova comissão';
+    return `${header('Comissões',title,'',`<a class="button ghost" href="#/comissoes">${icon('chevron-left')} Voltar às comissões</a>`)}${connectNotice()}
+      <div class="commission-editor-grid">
+        <section class="card card-pad commission-editor-primary">
+          <form id="commission-form" data-id="${escapeText(c?.id||'')}" class="register-form">
+            <div class="edit-section-title"><h2>Dados da comissão</h2><p>Defina o nome, a descrição e quem faz parte da equipe.</p></div>
+            <label>Nome da comissão <span class="required-star">*</span><input type="text" name="name" maxlength="90" required placeholder="Ex.: ImaginAÇÃO" value="${escapeText(c?.name||'')}"></label>
+            <label>Descrição (opcional)<textarea name="description" rows="3" placeholder="Qual é a finalidade da comissão?">${escapeText(c?.description||'')}</textarea></label>
+            <section class="commission-members-editor"><div class="section-head"><div><h2>Integrantes</h2><p>Selecione quem participa da comissão.</p></div><button class="button ghost small-action" data-action="commission-select-all" type="button">Selecionar todos</button></div>
+              <div class="commission-member-list">${users.map(u=>`<label><input type="checkbox" name="memberIds" value="${escapeText(u.id)}" ${selected.has(String(u.id))?'checked':''}><span class="member-icon">${escapeText(String(u.name||'').charAt(0).toUpperCase())}</span><span>${escapeText(u.name)}</span></label>`).join('')||'<p class="notice-line">Nenhum PETiano(a) cadastrado.</p>'}</div></section>
+            <div class="form-actions commission-editor-buttons">${c?`<button type="button" class="button subtle-danger" data-action="delete-commission" data-id="${escapeText(c.id)}">${icon('close')} Excluir comissão</button>`:''}<button type="submit" class="button primary">${icon('check')} ${c?'Salvar alterações':'Criar comissão'}</button></div>
+          </form>
+        </section>
+        <aside class="card card-pad commission-editor-side"><span class="commission-example-icon">${icon('users')}</span><h2>Uma estrutura para todas</h2>
+          <p>Ao criar sua comissão, ela terá automaticamente o mesmo cronograma, prazos, responsáveis e indicadores das demais.</p>
+          <div class="commission-side-detail"><span>📅</span><div><strong>Cronograma mensal e semanal</strong><small>Consulte os períodos sem apagar o histórico.</small></div></div>
+          <div class="commission-side-detail"><span>◎</span><div><strong>Demandas compartilhadas</strong><small>Vincule uma demanda a mais de uma comissão sem duplicá-la.</small></div></div>
+          <div class="commission-side-detail"><span>✓</span><div><strong>Pendentes, atrasadas e concluídas</strong><small>Contadores atualizados a partir das atividades.</small></div></div>
+          <p class="assignment-preview-note">Na demonstração, tudo fica salvo somente neste navegador.</p>
+        </aside>
+      </div>`;
+  }
   function dateRangeForWeek(date){
     const d=dateFrom(date);
     if(!d)return '';
@@ -364,7 +396,7 @@
       return d&&weekForDay(d.getFullYear(),d.getMonth(),d.getDate())===Number(state.commissionWeek);
     });
     const count=shown.length;
-    return `${header('Comissões',c.name,'',newButton('Nova atividade'))}${connectNotice()}
+    return `${header('Comissões',c.name,'',`<a class="button ghost" href="#/comissoes/editar/${safeHref(c.id)}">${icon('settings')} Editar comissão</a><a class="button primary" href="#/registrar">${icon('plus')} Nova demanda</a>`)}${connectNotice()}
       <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section>
       <section class="card card-pad committee-activities">
         <div class="section-head"><h2>Cronograma e atividades</h2>${tag(count+' '+(count===1?'registro':'registros'),'soft')}</div>
@@ -471,6 +503,12 @@
     try{
       const originalTasks=window.PET_GESTAO_DEMO?.tasks||[];
       const originalMeetings=window.PET_GESTAO_DEMO?.meetings||[];
+      const originalCommissions=window.PET_GESTAO_DEMO?.committees||[];
+      const originalCommissionIds=new Set(originalCommissions.map(c=>String(c.id)));
+      const presentCommissionIds=new Set(state.data.committees.map(c=>String(c.id)));
+      const commissionPatches=state.data.committees.filter(c=>originalCommissionIds.has(String(c.id))&&!originalCommissions.some(o=>String(o.id)===String(c.id)&&o.name===c.name&&(o.description||'')===(c.description||'')&&JSON.stringify(o.memberIds||[])===JSON.stringify(c.memberIds||[])));
+      const newCommissions=state.data.committees.filter(c=>!originalCommissionIds.has(String(c.id)));
+      const deletedCommissionIds=[...originalCommissionIds].filter(id=>!presentCommissionIds.has(id));
       const originalIds=new Set(originalTasks.map(t=>String(t.id)));
       const originalMeetingIds=new Set(originalMeetings.map(m=>String(m.id)));
       const currentTasks=new Set(state.data.tasks.map(t=>String(t.id)));
@@ -481,7 +519,7 @@
       const newMeetings=state.data.meetings.filter(m=>!originalMeetingIds.has(String(m.id)));
       const deletedTaskIds=[...originalIds].filter(id=>!currentTasks.has(id));
       const deletedMeetingIds=[...originalMeetingIds].filter(id=>!currentMeetings.has(id));
-      localStorage.setItem(DEMO_EDITS_KEY,JSON.stringify({patches,additions,memoryPatches,newMeetings,deletedTaskIds,deletedMeetingIds}));
+      localStorage.setItem(DEMO_EDITS_KEY,JSON.stringify({patches,additions,memoryPatches,newMeetings,deletedTaskIds,deletedMeetingIds,commissionPatches,newCommissions,deletedCommissionIds}));
       return true;
     }catch(e){console.warn('Não foi possível salvar alterações locais:',e);return false;}
   }
@@ -498,7 +536,16 @@
     state.data.meetings=state.data.meetings.filter(m=>!removedMeetings.has(String(m.id))).map(m=>memoriesById.has(String(m.id))?{...m,...memoriesById.get(String(m.id))}:m);
     const meetings=new Set(state.data.meetings.map(m=>String(m.id)));
     (Array.isArray(edits.newMeetings)?edits.newMeetings:[]).forEach(m=>{if(m&&m.id&&!meetings.has(String(m.id))){state.data.meetings.push(m);meetings.add(String(m.id));}});
-    // Exclusão de uma reunião não remove suas demandas. Elas permanecem acessíveis, sem vínculo.
+    const removedCommissions=new Set(Array.isArray(edits.deletedCommissionIds)?edits.deletedCommissionIds.map(String):[]);
+    const commissionById=new Map((Array.isArray(edits.commissionPatches)?edits.commissionPatches:[]).map(c=>[String(c.id),c]));
+    state.data.committees=state.data.committees.filter(c=>!removedCommissions.has(String(c.id))).map(c=>commissionById.has(String(c.id))?{...c,...commissionById.get(String(c.id))}:c);
+    const seenCommissions=new Set(state.data.committees.map(c=>String(c.id)));
+    (Array.isArray(edits.newCommissions)?edits.newCommissions:[]).forEach(c=>{if(c?.id&&!seenCommissions.has(String(c.id))){state.data.committees.push(c);seenCommissions.add(String(c.id));}});
+    state.data.tasks.forEach(t=>{
+      if(Array.isArray(t.commissionIds))t.commissionIds=t.commissionIds.filter(id=>!removedCommissions.has(String(id)));
+      if(t.committeeId&&removedCommissions.has(String(t.committeeId)))t.committeeId=t.commissionIds?.[0]||null;
+    });
+        // Exclusão de uma reunião não remove suas demandas. Elas permanecem acessíveis, sem vínculo.
     state.data.tasks.forEach(t=>{if(t.meetingId&&removedMeetings.has(String(t.meetingId)))t.meetingId=null;});
     state.data.meetings.forEach(m=>{if(Array.isArray(m.taskIds))m.taskIds=m.taskIds.filter(id=>!removedTasks.has(String(id)));});
   }
@@ -658,6 +705,38 @@
   }
 
 
+
+  function saveCommission(form){
+    if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
+    const fd=new FormData(form),name=String(fd.get('name')||'').trim(),description=String(fd.get('description')||'').trim();
+    if(!name){showToast('Informe o nome da comissão.');return;}
+    const id=String(form.dataset.id||'');
+    const original=id?state.data.committees.find(c=>String(c.id)===id):null;
+    if(id&&!original){showToast('Comissão não encontrada.');return;}
+    if(state.data.committees.some(c=>String(c.id)!==id&&String(c.name||'').toLocaleLowerCase('pt-BR')===name.toLocaleLowerCase('pt-BR'))){showToast('Já existe uma comissão com esse nome.');return;}
+    const memberIds=[...new Set((typeof fd.getAll==='function'?fd.getAll('memberIds'):[]).map(String))].filter(v=>state.data.users.some(u=>String(u.id)===v));
+    const now=new Date().toISOString(),who=actorDemo()?.name||'Demonstração';
+    let saved;
+    if(original){original.name=name;original.description=description;original.memberIds=memberIds;original.lastEditedBy=who;original.lastEditedAt=now;saved=original;}
+    else {saved={id:'local-commission-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),name,description,memberIds,lastEditedBy:who,lastEditedAt:now};state.data.committees.push(saved);}
+    if(saveLocalDemoWrites()){location.hash='#/comissoes/'+safeHref(saved.id);render();showToast(original?'Comissão atualizada neste navegador.':'Comissão criada neste navegador.');}
+    else showToast('Não foi possível salvar a comissão.');
+  }
+  function deleteDemoCommission(id){
+    if(!state.demo){showToast('Exclusão disponível após autenticação.');return;}
+    const c=state.data.committees.find(c=>String(c.id)===String(id));
+    if(!c)return;
+    if(!window.confirm('Excluir a comissão "'+c.name+'"? As demandas permanecerão cadastradas e perderão somente este vínculo.'))return;
+    const now=new Date().toISOString(),who=actorDemo()?.name||'Demonstração';
+    state.data.tasks.filter(t=>linkedToCommission(t,id)).forEach(t=>{
+      t.commissionIds=commissionIds(t).filter(v=>String(v)!==String(id));
+      t.committeeId=t.commissionIds[0]||null;
+      t.revisions=[...(t.revisions||[]),{action:'Desvinculada da comissão '+c.name,actorName:who,at:now}];
+    });
+    state.data.committees=state.data.committees.filter(item=>String(item.id)!==String(id));
+    if(saveLocalDemoWrites()){location.hash='#/comissoes';render();showToast('Comissão excluída nesta demonstração; demandas preservadas.');}
+    else showToast('Não foi possível salvar a exclusão.');
+  }
   function saveRegisteredTask(form){
     if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
     const x=new FormData(form),title=String(x.get('title')||'').trim();
@@ -801,7 +880,7 @@
     $('#current-page').textContent=routeTitles[base]||'PET Educação';
     document.title=`${routeTitles[base]||'PET Educação'} | PET Educação`;
     document.querySelectorAll('[data-route]').forEach(el=>{const selected=el.dataset.route===base;el.classList.toggle('active',selected);if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
-    const views={inicio:renderHome,demandas:renderDemandas,registrar:renderRegister,cronograma:renderCronograma,comissoes:()=>id?renderCommitteeDetail(id):renderComissoes(),reunioes:()=>id==='nova'?renderMemoryEditor(''):id.startsWith('editar/')?renderMemoryEditor(id.slice(7)):id?renderMeetingDetail(id):renderReunioes(),'minhas-pendencias':renderMyTasks,atividade:()=>renderActivityDetail(id)};
+    const views={inicio:renderHome,demandas:renderDemandas,registrar:renderRegister,cronograma:renderCronograma,comissoes:()=>id==='nova'?renderCommissionEditor(''):id.startsWith('editar/')?renderCommissionEditor(id.slice(7)):id?renderCommitteeDetail(id):renderComissoes(),reunioes:()=>id==='nova'?renderMemoryEditor(''):id.startsWith('editar/')?renderMemoryEditor(id.slice(7)):id?renderMeetingDetail(id):renderReunioes(),'minhas-pendencias':renderMyTasks,atividade:()=>renderActivityDetail(id)};
     screen.innerHTML=(views[base]||renderHome)();
   }
   function navigate(path){location.hash='#/'+path; if(getRoute().base===path)render();}
@@ -853,11 +932,18 @@
           else {const tmp=document.createElement('textarea');tmp.value=txt;document.body.append(tmp);tmp.select();const ok=document.execCommand('copy');tmp.remove();showToast(ok?'Observações copiadas.':'Não foi possível copiar.');}
           break;
         }
+        case 'commission-select-all':{
+          const boxes=[...document.querySelectorAll('#commission-form input[name="memberIds"]')];
+          const select=boxes.some(box=>!box.checked);boxes.forEach(box=>{box.checked=select;});
+          b.textContent=select?'Desmarcar todos':'Selecionar todos';break;
+        }
+        case 'delete-commission':deleteDemoCommission(b.dataset.id);break;
         case 'delete-task':deleteDemoRecord('task',b.dataset.id);break;
         case 'delete-meeting':deleteDemoRecord('meeting',b.dataset.id);break;
       }
     });
     document.addEventListener('submit',e=>{
+      if(e.target.id==='commission-form'){e.preventDefault();saveCommission(e.target);}
       if(e.target.id==='register-task-form'){e.preventDefault();saveRegisteredTask(e.target);}
       if(e.target.id==='register-memory-form'){e.preventDefault();saveRegisteredMemory(e.target);}
     });
