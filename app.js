@@ -335,20 +335,34 @@
     return `<div class="commission-counters"><span class="metric-pending">Pendentes <strong>${m.pending}</strong></span><span class="metric-approved">Aprovadas <strong>${m.approved}</strong></span><span class="metric-late">Atrasadas <strong>${m.late}</strong></span><span class="metric-done">Concluídas <strong>${m.completed}</strong></span></div>`;
   }
 
+  const COMMISSION_ARTS=[['vídeo','🎥'],['video','🎥'],['card','🖼️'],['imagina','💡'],['cine','🎬'],['salinha','📚'],['finan','🪙'],['legenda','💬'],['site','🖥️'],['comemora','🎉'],['impressora','🖨️']];
+  function commissionArt(c){
+    const name=String(c?.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return COMMISSION_ARTS.find(([word])=>name.includes(word))?.[1]||'👥';
+  }
   function commissionAvatar(c,extra=''){
     const src=String(c?.imageData||'');
     return /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(src)
       ?'<span class="commission-icon commission-photo '+extra+'"><img src="'+escapeText(src)+'" alt="Foto da comissão '+escapeText(c.name)+'"></span>'
-      :'<span class="commission-icon '+extra+'">'+icon('users')+'</span>';
+      :'<span class="commission-icon commission-default-art '+extra+'" aria-hidden="true">'+commissionArt(c)+'</span>';
+  }
+  function commissionCardBackground(c){
+    const v=String(c?.backgroundColor||'#f7f3ff');
+    return /^#[0-9a-fA-F]{6}$/.test(v)?v:'#f7f3ff';
   }
   function renderComissoes(){
     const all=state.data.committees;
     return `${header('Trabalho em equipe','Comissões','',`<a class="button primary" href="#/comissoes/nova">${icon('plus')} Nova comissão</a>`)}${connectNotice()}
       <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização das equipes e suas demandas.</p></div>${available()?tag(all.length+' '+(all.length===1?'comissão':'comissões'),'soft'):''}</div>
-      ${all.length?all.map(c=>`<article class="commission-list-item"><a href="#/comissoes/${safeHref(c.id)}" class="commission-name-link">${commissionAvatar(c)}<span><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes${c.description?' · '+escapeText(c.description):''}</small></span></a>
-        ${commissionCounters(c.id)}<div class="commission-list-actions"><a href="#/comissoes/${safeHref(c.id)}" class="activity-details-link">Ver atividades ${icon('arrow')}</a>
-        <a href="#/comissoes/editar/${safeHref(c.id)}" class="button ghost small-action">${icon('settings')} Editar</a>
-        <button type="button" data-action="delete-commission" data-id="${escapeText(c.id)}" class="button subtle-danger small-action">${icon('close')} Excluir</button></div></article>`).join(''):empty('users','Nenhuma comissão cadastrada','Crie uma comissão para organizar sua equipe e as demandas vinculadas.')}
+      <div class="commission-cards-grid">${all.length?all.map(c=>`<article class="commission-tile" style="--commission-bg:${commissionCardBackground(c)}">
+        <a class="commission-tile-link" href="#/comissoes/${safeHref(c.id)}" aria-label="Ver atividades da comissão ${escapeText(c.name)}">
+          <div class="commission-tile-main">${commissionAvatar(c)}<div class="commission-tile-info"><h3>${escapeText(c.name)}</h3><p>${escapeText(c.description||'Organização das atividades da comissão.')}</p></div></div>
+          <div class="commission-tile-members">${icon('users')} ${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes</div>
+          ${commissionCounters(c.id)}
+          <span class="commission-tile-view">Ver atividades ${icon('arrow')}</span>
+        </a>
+        <details class="commission-tile-menu"><summary aria-label="Opções da comissão ${escapeText(c.name)}" title="Opções">⋮</summary><div class="commission-tile-menu-items"><a href="#/comissoes/editar/${safeHref(c.id)}">${icon('settings')} Editar</a><button type="button" data-action="delete-commission" data-id="${escapeText(c.id)}">${icon('close')} Excluir</button></div></details>
+      </article>`).join(''):empty('users','Nenhuma comissão cadastrada','Crie uma comissão para organizar sua equipe e as demandas vinculadas.')}</div>
       </section>`;
   }
   function renderCommissionEditor(id){
@@ -364,6 +378,7 @@
             <div class="edit-section-title"><h2>Dados da comissão</h2><p>Defina o nome, a descrição e quem faz parte da equipe.</p></div>
             <label>Nome da comissão <span class="required-star">*</span><input type="text" name="name" maxlength="90" required placeholder="Ex.: ImaginAÇÃO" value="${escapeText(c?.name||'')}"></label>
             <label>Descrição (opcional)<textarea name="description" rows="3" placeholder="Qual é a finalidade da comissão?">${escapeText(c?.description||'')}</textarea></label>
+            <div class="commission-background-picker"><label>Fundo do card (opcional)<input type="color" name="backgroundColor" value="${commissionCardBackground(c)}"></label><p>O fundo permanece igual mesmo quando você troca a foto.</p></div>
             <div class="commission-photo-editor">
               <div id="commission-photo-preview">${commissionAvatar(c||{name:'Nova comissão'},'large')}</div>
               <div><strong>Foto da comissão (opcional)</strong><p>Escolha uma imagem JPG, PNG ou WebP. Ela aparecerá no lugar do ícone padrão.</p>
@@ -554,7 +569,7 @@
       const originalCommissions=window.PET_GESTAO_DEMO?.committees||[];
       const originalCommissionIds=new Set(originalCommissions.map(c=>String(c.id)));
       const presentCommissionIds=new Set(state.data.committees.map(c=>String(c.id)));
-      const commissionPatches=state.data.committees.filter(c=>originalCommissionIds.has(String(c.id))&&!originalCommissions.some(o=>String(o.id)===String(c.id)&&o.name===c.name&&(o.description||'')===(c.description||'')&&JSON.stringify(o.memberIds||[])===JSON.stringify(c.memberIds||[])&&(o.imageData||'')===(c.imageData||'')));
+      const commissionPatches=state.data.committees.filter(c=>originalCommissionIds.has(String(c.id))&&!originalCommissions.some(o=>String(o.id)===String(c.id)&&o.name===c.name&&(o.description||'')===(c.description||'')&&JSON.stringify(o.memberIds||[])===JSON.stringify(c.memberIds||[])&&(o.imageData||'')===(c.imageData||'')&&(o.backgroundColor||'')===(c.backgroundColor||'')));
       const newCommissions=state.data.committees.filter(c=>!originalCommissionIds.has(String(c.id)));
       const deletedCommissionIds=[...originalCommissionIds].filter(id=>!presentCommissionIds.has(id));
       const originalIds=new Set(originalTasks.map(t=>String(t.id)));
@@ -881,11 +896,12 @@
     if(state.data.committees.some(c=>String(c.id)!==id&&String(c.name||'').toLocaleLowerCase('pt-BR')===name.toLocaleLowerCase('pt-BR'))){showToast('Já existe uma comissão com esse nome.');return;}
     const memberIds=[...new Set((typeof fd.getAll==='function'?fd.getAll('memberIds'):[]).map(String))].filter(v=>state.data.users.some(u=>String(u.id)===v));
     const imageData=String(fd.get('imageData')||'');
+    const backgroundColor=/^#[0-9a-fA-F]{6}$/.test(String(fd.get('backgroundColor')||''))?String(fd.get('backgroundColor')):'#f7f3ff';
     if(imageData&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(imageData)){showToast('Imagem inválida.');return;}
     const now=new Date().toISOString(),who=actorDemo()?.name||'Demonstração';
     let saved;
-    if(original){original.name=name;original.description=description;original.memberIds=memberIds;original.imageData=imageData;original.lastEditedBy=who;original.lastEditedAt=now;saved=original;}
-    else {saved={id:'local-commission-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),name,description,memberIds,imageData,lastEditedBy:who,lastEditedAt:now};state.data.committees.push(saved);}
+    if(original){original.name=name;original.description=description;original.memberIds=memberIds;original.imageData=imageData;original.backgroundColor=backgroundColor;original.lastEditedBy=who;original.lastEditedAt=now;saved=original;}
+    else {saved={id:'local-commission-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),name,description,memberIds,imageData,backgroundColor,lastEditedBy:who,lastEditedAt:now};state.data.committees.push(saved);}
     if(saveLocalDemoWrites()){location.hash='#/comissoes/'+safeHref(saved.id);render();showToast(original?'Comissão atualizada neste navegador.':'Comissão criada neste navegador.');}
     else showToast('Não foi possível salvar a comissão.');
   }
