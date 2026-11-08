@@ -284,3 +284,12 @@
 .memory-live-sample{border-radius:12px;padding:20px;border:1px solid #dfd8eb;font-size:13px;color:#403355;font-weight:800}
 @media(max-width:980px){.task-list-row .task-row-meta{max-width:58%}.task-assignee-label{font-size:11px}}
 @media(max-width:660px){.task-list-row{flex-direction:column;align-items:stretch;gap:14px}.task-list-row .task-row-meta{max-width:none;justify-content:flex-start}.task-date-badge{font-size:10px}.task-title-row>strong{font-size:13.5px}.demand-filter-status{border-left:0;padding-left:0}.demand-filter-groups{gap:12px}.demand-filter-group{flex:1 1 100%}.demand-filter-group .segmented{width:100%}.demand-filter-group .segmented button{flex:1}.memory-list-item{padding:16px!important}}
+
+/* Prévia de minhas pendências, sem criar identidades nem login fictício */
+.mytasks-demo-selector{display:flex;align-items:center;flex-wrap:wrap;gap:12px;border:1px solid #e5def5;background:#faf8ff;padding:16px 19px;border-radius:13px;margin-bottom:19px}
+.mytasks-demo-selector>div{flex:1 1 240px}
+.mytasks-demo-selector>div strong{font-size:13px;color:#413459;display:block}
+.mytasks-demo-selector>div small{font-size:11px;color:#81788f;line-height:1.5;display:block;margin-top:5px}
+.mytasks-demo-selector label{font-size:11px;font-weight:800;color:#5d4d75}
+.mytasks-demo-selector select{min-width:175px;min-height:42px}
+@media(max-width:580px){.mytasks-demo-selector{flex-direction:column;align-items:stretch}.mytasks-demo-selector>div{flex:auto}.mytasks-demo-selector select{width:100%}}
