@@ -603,7 +603,7 @@
     const commissionById=new Map((Array.isArray(edits.commissionPatches)?edits.commissionPatches:[]).map(c=>[String(c.id),c]));
     state.data.committees=state.data.committees.filter(c=>!removedCommissions.has(String(c.id))).map(c=>commissionById.has(String(c.id))?{...c,...commissionById.get(String(c.id))}:c);
     const seenCommissions=new Set(state.data.committees.map(c=>String(c.id)));
-    (Array.isArray(edits.newCommissions)?edits.newCommissions:[]).forEach(c=>{if(c?.id&&!seenCommissions.has(String(c.id))){state.data.committees.push(c);seenCommissions.add(String(c.id));}});
+    (Array.isArray(edits.newCommissions)?edits.newCommissions:[]).forEach(c=>{if(c?.id&&!seenCommissions.has(String(c.id))){const existing=state.data.committees.find(x=>String(x.name||'').trim().toLocaleLowerCase('pt-BR')===String(c.name||'').trim().toLocaleLowerCase('pt-BR'));if(existing){Object.assign(existing,{...c,id:existing.id});}else{state.data.committees.push(c);seenCommissions.add(String(c.id));}}});
     state.data.tasks.forEach(t=>{
       if(Array.isArray(t.commissionIds))t.commissionIds=t.commissionIds.filter(id=>!removedCommissions.has(String(id)));
       if(t.committeeId&&removedCommissions.has(String(t.committeeId)))t.committeeId=t.commissionIds?.[0]||null;
