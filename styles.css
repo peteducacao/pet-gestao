@@ -636,11 +636,11 @@
 }
 
 /* Indicadores: cores por significado (não pela posição no cartão) */
-.commission-counters .metric-pending{background:#fff4e5;border-color:#f4dfb9;color:#a66c2c}
-.commission-counters .metric-pending strong{color:#a56622}
-.commission-counters .metric-approved{background:#e4f8ed;border-color:#c6e9d7;color:#257a4d}
-.commission-counters .metric-approved strong{color:#176d43}
-.commission-counters .metric-late{background:#fff1f0;border-color:#f1d4d0;color:#af504c}
-.commission-counters .metric-late strong{color:#a93d35}
-.commission-counters .metric-done{background:#f0f3f8;border-color:#dde4ed;color:#586c82}
-.commission-counters .metric-done strong{color:#425870}
+.commission-counters span.metric-pending{background:#fff4e5;border-color:#f4dfb9;color:#a66c2c}
+.commission-counters span.metric-pending strong{color:#a56622}
+.commission-counters span.metric-approved{background:#e4f8ed;border-color:#c6e9d7;color:#257a4d}
+.commission-counters span.metric-approved strong{color:#176d43}
+.commission-counters span.metric-late{background:#fff1f0;border-color:#f1d4d0;color:#af504c}
+.commission-counters span.metric-late strong{color:#a93d35}
+.commission-counters span.metric-done{background:#f0f3f8;border-color:#dde4ed;color:#586c82}
+.commission-counters span.metric-done strong{color:#425870}
