@@ -481,7 +481,7 @@
   }
   function renderAssignmentPreview(){
     const scope=state.assignmentScope;
-    const opts=[['todos','Todos'],['comissoes','Comissões'],['usuarios','Usuários']];
+    const opts=[['todos','Todos'],['comissoes','Comissões'],['usuarios','PETianos(as)']];
     const commissionId=state.regCommitteeId||'';
     const group=state.data.committees.find(c=>String(c.id)===String(commissionId));
     const members=new Set((group?.memberIds||[]).map(String));
@@ -502,10 +502,16 @@
     const parsed=deadlineParts(raw);
     const name=raw.assigneeName||(parsed.person==='A definir'?'':parsed.person);
     const dateString=String(raw.dueAt||''),day=dateString.slice(0,10),time=dateString.includes('T')?dateString.slice(11,16):'23:59';
-    const options=['Prazo','Produção','Correção','Entrega','Publicação','Outro prazo'];
-    if(parsed.step&&!options.includes(parsed.step))options.push(parsed.step);
-    return `<div class="register-deadline" data-deadline-index="${i}"><label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===parsed.step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
-      <label>Para quem<input name="deadline-assignee-${i}" value="${escapeText(name)}" placeholder="Integrante, tutoria ou comissão"></label>
+    const options=['Prazo','Produção','Correção','Entrega','Publicar','Outro prazo'];
+    const step=parsed.step==='Publicação'?'Publicar':parsed.step;
+    if(step&&!options.includes(step))options.push(step);
+    return `<div class="register-deadline" data-deadline-index="${i}"><label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
+      <label>Para quem<select class="select" name="deadline-assignee-${i}">
+        <option value="">Selecionar responsável</option>
+        ${state.data.users.map(u=>`<option value="${escapeText(u.name)}" ${name===u.name?'selected':''}>${escapeText(u.name)}</option>`).join('')}
+        ${state.data.committees.map(c=>`<option value="${escapeText(c.name)}" ${name===c.name?'selected':''}>${escapeText(c.name)} (comissão)</option>`).join('')}
+        ${name&&![...state.data.users.map(u=>u.name),...state.data.committees.map(c=>c.name)].includes(name)?`<option value="${escapeText(name)}" selected>${escapeText(name)} (informado na memória)</option>`:''}
+        </select></label>
       <label>Data<input type="date" name="deadline-date-${i}" value="${escapeText(day)}"></label>
       <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label><button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo" title="Remover prazo">${icon('close')} Remover prazo</button></div>`;
   }
@@ -521,14 +527,18 @@
       <label for="edit-new-observation">Nova observação (opcional)</label>
       <textarea id="edit-new-observation" name="observation" rows="3" placeholder="${editable?'Ex.: Ajustar as informações antes de publicar.':'Disponível somente para Tutoria e Administração'}" ${editable?'':'disabled aria-disabled="true"'}></textarea>
       </div>`;
-    const options=`<div class="edit-panel-card ${editable?'':'edit-panel-locked'}"><div class="edit-panel-heading">
-      <span class="edit-panel-icon">${icon(editable?'check':'lock')}</span><div><h3>Liberação da atividade</h3>
+
+    const options=`<div class="edit-panel-card edit-panel-review"><div class="edit-panel-heading">
+      <span class="edit-panel-icon">${icon('check')}</span><div><h3>Status de aprovação</h3>
       <p>Situação atual: <strong>${escapeText(current)}</strong></p></div>
-      ${editable?'<span class="edit-access-label">Autorizado</span>':'<span class="edit-access-label locked">Bloqueado</span>'}</div>
-      <label for="edit-review-status">Decisão sobre o uso ou postagem</label>
-      <select class="select" id="edit-review-status" name="reviewStatus" ${editable?'':'disabled aria-disabled="true"'}><option value="">Sem nova decisão</option>${REVIEW_OPTIONS.map(([v,title])=>`<option value="${v}">${escapeText(title)}</option>`).join('')}</select>
-      <small>${editable?'A liberação só será registrada se você escolher explicitamente “Liberado para uso/postagem”.':'A decisão é exclusiva da Tutoria e da Administração.'}</small>
-      </div>`;
+      <span class="edit-access-label">PETianos(as), Tutoria e Administração</span></div>
+      <label for="edit-review-status">Situação da demanda</label>
+      <select class="select" id="edit-review-status" name="reviewStatus">
+        <option value="">Manter situação atual</option>
+        ${REVIEW_OPTIONS.map(([v,title])=>`<option value="${v}">${escapeText(v==='liberado'?'APROVADO':title)}</option>`).join('')}
+      </select>
+      <small>Qualquer PETiano(a) pode aprovar. Aprovar não conclui nem arquiva: para isso, marque “Concluída / Arquivada”.</small>
+    </div>`;
     return `<section class="edit-revision-section"><div class="edit-section-title"><h2>Revisão e observações</h2><p>As orientações não liberam automaticamente a atividade.</p></div>
       ${demoActorSelect()}<div class="edit-revision-grid">${notes}${options}</div></section>`;
   }
@@ -544,12 +554,15 @@
       state.assignmentPicked=(task?.assigneeIds||[]).map(String);
       state.formDeadlineCount=Math.max(1,task?.deadlines?.length||1);
     }
-    const opt=state.data.committees.map(c=>`<option value="${escapeText(c.id)}" ${String(state.regCommitteeId)===String(c.id)?'selected':''}>${escapeText(c.name)}</option>`).join('');
-    const meetings=state.data.meetings.map(m=>`<option value="${escapeText(m.id)}" ${String(task?.meetingId||'')===String(m.id)?'selected':''}>${escapeText(displayMeetingTitle(m))} · ${formatDate(m.date)}</option>`).join('');
+
+    const linkedIds=task?commissionIds(task):[];
+    const commissionPicker=`<section class="register-commissions"><div class="edit-section-title"><h2>Vincular às comissões (opcional)</h2><p>A mesma atividade aparece no cronograma de cada comissão selecionada, sem criar cópias.</p></div>
+      <div class="commission-checkboxes">${state.data.committees.map(c=>`<label class="commission-checkbox"><input type="checkbox" name="commissionIds" value="${escapeText(c.id)}" ${linkedIds.includes(String(c.id))?'checked':''}>
+        <span>${escapeText(c.name)}</span></label>`).join('')||'<span class="notice-line">Nenhuma comissão cadastrada.</span>'}</div></section>`;
     const taskForm=`<form id="register-task-form" data-id="${escapeText(task?.id||'')}" class="register-form"><label>Título da demanda<input name="title" required maxlength="180" value="${escapeText(task?.title||'')}" placeholder="Ex.: Produzir banner da Lixeira"></label>
     <label>Descrição (opcional)<textarea name="description" rows="4" placeholder="O que precisa ser feito?">${escapeText(task?.description||'')}</textarea></label>
-    <div class="register-two"><label>Comissão<select name="committeeId" class="select" data-field="regCommitteeId"><option value="">Sem comissão</option>${opt}</select></label><label>Memória vinculada (opcional)<select name="meetingId" class="select"><option value="">Nenhuma</option>${meetings}</select></label></div>
-    <div class="register-two"><label>Data de postagem (opcional)<input type="date" name="postingAt" value="${escapeText(String(task?.postingAt||'').slice(0,10))}"></label>
+    ${commissionPicker}
+    <div class="register-two"><label>Data de postagem <span class="required-star">*</span><input type="date" name="postingAt" required value="${escapeText(String(task?.postingAt||'').slice(0,10))}"></label>
       <label>Situação da demanda<select name="status" class="select"><option value="pendente" ${!task||!isCompleted(task)?'selected':''}>Pendente</option><option value="concluida" ${task&&isCompleted(task)?'selected':''}>Concluída / Arquivada</option></select></label></div>
     ${renderAssignmentPreview()}
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button></div>
@@ -582,12 +595,16 @@
       const day=String(x.get('deadline-date-'+i)||''),hour=String(x.get('deadline-time-'+i)||'23:59');
       if(day){
         const step=String(x.get('deadline-step-'+i)||'Prazo'),who=String(x.get('deadline-assignee-'+i)||'').trim();
-        deadlines.push({label:step,assigneeName:who,dueAt:day+'T'+(hour||'23:59')+':00',completedAt:existing?.deadlines?.[i]?.completedAt||null});
+        const person=state.data.users.find(u=>u.name===who);
+        deadlines.push({label:step==='Publicação'?'Publicar':step,assigneeName:who,assigneeId:person?.id||null,dueAt:day+'T'+(hour||'23:59')+':00',completedAt:existing?.deadlines?.[i]?.completedAt||null});
       }
     }
     const status=String(x.get('status')||'pendente');
-    const values={title,description:String(x.get('description')||'').trim(),postingAt:String(x.get('postingAt')||'')||null,
-      meetingId:String(x.get('meetingId')||'')||null,committeeId:String(x.get('committeeId')||'')||null,
+    const postingAt=String(x.get('postingAt')||'').trim();
+    if(!postingAt){showToast('Informe a data obrigatória de postagem.');return;}
+    const selectedCommissions=[...new Set(typeof x.getAll==='function'?x.getAll('commissionIds').filter(Boolean).map(String):[])];
+    const values={title,description:String(x.get('description')||'').trim(),postingAt,
+      meetingId:existing?.meetingId||null,commissionIds:selectedCommissions,committeeId:selectedCommissions[0]||null,
       deadlines,assigneeIds:registeredAssigneeIds(),status,stageName:status==='concluida'?'Concluída':'Pendente'};
     const now=new Date().toISOString(),actor=actorDemo()||{name:'Demonstração',role:'petiano'};
     if(existing){
@@ -598,7 +615,7 @@
       const newText=String(x.get('captionText')??priorText);
       // A observação e o seletor de liberação são exclusivos da tutoria e administração.
       const obs=canReview(actor)?String(x.get('observation')||'').trim():'';
-      const requestedReview=canReview(actor)?String(x.get('reviewStatus')||''):'';
+      const requestedReview=String(x.get('reviewStatus')||'');
       const choice=REVIEW_OPTIONS.some(([v])=>v===requestedReview)?requestedReview:null;
       const textChanged=newText!==priorText;
       const observationsChanged=Boolean(obs);
