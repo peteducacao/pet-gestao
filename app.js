@@ -70,6 +70,7 @@
     ids.forEach(id=>{const p=state.data.users.find(u=>String(u.id)===id);if(p)names.push(String(p.name));});
     if(!names.length&&d?.assigneeId){const p=state.data.users.find(u=>String(u.id)===String(d.assigneeId));if(p)names.push(p.name);}
     if(!names.length&&d?.assigneeName)names.push(...String(d.assigneeName).split(/\s*,\s*/g).filter(Boolean));
+    if(!names.length&&String(d?.label||'').includes(' — '))names.push(String(d.label).split(' — ').slice(1).join(' — ').trim());
     return [...new Set(names)];
   }
   function stageUserIds(d){
@@ -690,7 +691,7 @@
     ${task?`<section class="edit-copy-section observations-editor"><div class="edit-section-title"><h2>Observações</h2><p>Edite o conteúdo da demanda. O histórico registra quem salvou e quando.</p></div>
       <div class="observation-editor-head"><label for="edit-caption-text">Texto da atividade (opcional)</label><button type="button" class="button ghost copy-observations" data-action="copy-observations" title="Copiar observações">${icon('copy')} Copiar</button></div>
       <textarea name="captionText" id="edit-caption-text" rows="6" placeholder="Escreva as observações desta atividade...">${escapeText(task.captionText||'')}</textarea>
-      <p class="observations-last-change">Última alteração: <strong>${escapeText(task.lastEditedBy||'Nenhuma')}</strong>${task.lastEditedAt?' · '+formatDate(task.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
+      <p class="observations-last-change">Última alteração: <strong>${escapeText(task.observationsEditedBy||task.lastEditedBy||'Nenhuma')}</strong>${(task.observationsEditedAt||task.lastEditedAt)?' · '+formatDate(task.observationsEditedAt||task.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
       </section>`:''}
     <div class="form-actions demand-form-actions">${task?`<button type="button" class="button subtle-danger" data-action="delete-task" data-id="${escapeText(task.id)}">${icon('close')} Excluir demanda</button>`:'' }<button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
     return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda com prazos, comissão e responsáveis.')}${connectNotice()}
@@ -771,7 +772,7 @@
       else {delete existing.completedAt;delete existing.closedAt;}
       if(before!==JSON.stringify(values))edits.push('Dados da demanda atualizados');
       if(wasCompleted!==isCompleted(existing))edits.push(isCompleted(existing)?'Concluiu demanda':'Reabriu demanda');
-      if(textChanged){existing.captionText=newText;edits.push('Observações atualizadas');}
+      if(textChanged){existing.captionText=newText;existing.observationsEditedBy=actor.name;existing.observationsEditedAt=now;edits.push('Observações atualizadas');}
       if(observationsChanged){
         existing.observations=[...(existing.observations||[]),{body:obs,authorName:actor.name,createdAt:now}];
         edits.push('Observação registrada');
@@ -860,7 +861,7 @@
     const posting=t.postingAt?`<p class="activity-due">Previsão: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
     const value=String(t.captionText||'').trim();
     const olderNotes=notes.length?`<details class="observations-archive"><summary>Histórico anterior de comentários (${notes.length})</summary>${notes.slice().reverse().map(n=>`<div class="observation-item"><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small><p>${escapeText(n.body||'')}</p></div>`).join('')}</details>`:'';
-    const updated=`<p class="observations-last-change">Última alteração: <strong>${escapeText(t.lastEditedBy||'Nenhuma')}</strong>${t.lastEditedAt?' · '+formatDate(t.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>`;
+    const updated=`<p class="observations-last-change">Última alteração: <strong>${escapeText(t.observationsEditedBy||t.lastEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt||t.lastEditedAt)?' · '+formatDate(t.observationsEditedAt||t.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>`;
     return `${header('Atividade',t.title,'',`<a class="button ghost" href="#/registrar/${safeHref(t.id)}">${icon('settings')} Editar demanda</a><a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
     <div class="activity-header-strip card card-pad">${displayTaskState(t)}${posting}</div>
     <div class="activity-detail-grid">
