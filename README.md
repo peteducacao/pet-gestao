@@ -23,11 +23,13 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 - Consulta manual de qualquer período, sem apagar ou arquivar dados.
 - Visualização de **Pendências semanais** com tarefas pendentes/concluídas e links para memórias relacionadas.
 - **Ver detalhes** abaixo de cada atividade, com prazos, responsáveis, observações já publicadas, texto salvo somente para leitura, histórico de autoria e data. A edição do texto ocorre exclusivamente no botão **Editar demanda**.
-- **Revisão e aprovação:** qualquer PETiano(a), Tutor(a) ou Administrador(a) pode mudar o status de aprovação para **APROVADO**. Somente a **observação da tutoria** fica bloqueada por cadeado para PETianos(as). Aprovar não conclui nem arquiva; adicionar observação não aprova automaticamente.
-- Prévia de PETiano(a)/Lene com edição e autoria local, sem representar login institucional.
-- Seleção de responsáveis por PETianos(as), por comissão ou todos, na criação e edição de demandas. Etapas como **Publicar** podem ter responsáveis e prazos próprios; elas aparecem também nas pendências individuais do responsável.
+- **Situação da demanda:** seletor único com **Pendente, Concluída e Aprovada**, editável pelos integrantes. A aprovação dá prioridade visual; somente a conclusão arquiva. O antigo campo de aprovação separado e o bloqueio de observação foram removidos.
+- A prévia utiliza perfis ilustrativos de autoria, mas não representa login institucional.
+- Seleção de responsáveis por PETianos(as), por comissão ou todos, na criação e edição de demandas. Em **Prazos por etapa**, cada prazo aceita **mais de um responsável**, incluindo pessoas e comissões, e possui o botão **Salvar prazos** ao lado de **Adicionar prazo**. A etapa **Publicar** aparece nas pendências individuais dos responsáveis.
 - A **data de postagem é obrigatória** no formulário; atividades podem ser vinculadas a várias comissões sem cópias. Demandas concluídas ficam apenas em **Arquivadas**; grupos de semanas inteiramente concluídas somem do cronograma ativo.
-- Memórias com fundos personalizáveis, inclusive degradês em cores próprias. Cards com datas e responsáveis e status aprovado destacado.
+- Memórias com fundos personalizáveis, inclusive degradês em cores próprias. Cards com datas e responsáveis e situação Aprovada destacada.
+- **Observações:** uma única caixa para o texto da atividade na edição, com autor da última alteração, data e horário, e botão **Copiar**; nos detalhes, consulta sem editor e sem painel duplicado de situação.
+- **Comissões:** botão **Nova comissão** com formulário de nome, descrição e integrantes selecionáveis; editar e excluir com confirmação, em modo demonstrativo local.
 - Exemplo de cronograma da comissão de **Legendas** (20 atividades, semanas 2, 3 e 4 de novembro) e uma reunião (22/10) com 15 demandas, sendo três identificadas como OK no registro original.
 - Arquitetura de visualização pronta para substituição por registros reais de uma API autenticada.
 - Tratamento de ausência de dados e erro de conexão sem apresentar contagens falsas.
