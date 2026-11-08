@@ -235,15 +235,17 @@
     const mode=state.demandMode;
     if(mode==='mensal')return tasks().filter(t=>!isCompleted(t)&&isTaskInMonth(t)).length;
     if(mode==='semanal')return tasks().filter(t=>!isCompleted(t)&&isTaskInWeek(t)).length;
-    if(mode==='pendentes')return tasks().filter(t=>!isCompleted(t)).length;
+    if(mode==='pendentes')return tasks().filter(t=>!isCompleted(t)&&!isApproved(t)).length;
+    if(mode==='aprovadas')return tasks().filter(isApproved).length;
     return tasks().filter(isCompleted).length;
   }
   function renderDemandList(){const all=tasks();const mode=state.demandMode;let filtered=[];
     if(mode==='mensal'||mode==='semanal')filtered=all.filter(t=>!isCompleted(t)&&(mode==='mensal'?isTaskInMonth(t):isTaskInWeek(t)));
-    if(mode==='pendentes')filtered=all.filter(t=>!isCompleted(t));
+    if(mode==='pendentes')filtered=all.filter(t=>!isCompleted(t)&&!isApproved(t));
+    if(mode==='aprovadas')filtered=all.filter(isApproved);
     if(mode==='arquivo')filtered=all.filter(isCompleted);
     filtered.sort(comparePriorityTasks);
-    if(!filtered.length){const titles={mensal:'Nenhuma demanda neste mês',semanal:'Nenhuma demanda nesta semana',pendentes:'Nenhuma pendência registrada',arquivo:'Nenhuma atividade arquivada'};
+    if(!filtered.length){const titles={mensal:'Nenhuma demanda neste mês',semanal:'Nenhuma demanda nesta semana',pendentes:'Nenhuma pendência registrada',aprovadas:'Nenhuma demanda aprovada',arquivo:'Nenhuma atividade arquivada'};
       return empty(mode==='arquivo'?'archive':'list',titles[mode],'As atividades cadastradas aparecerão aqui, vinculadas aos responsáveis e às comissões.');}
     return filtered.map(renderTaskCard).join('');
   }
@@ -258,14 +260,14 @@
       </section>`;
   }
   function renderDemandas(){
-    const modes=[['mensal','Mensal'],['semanal','Semanal'],['pendentes','Pendentes'],['arquivo','Arquivadas']];
+    const modes=[['mensal','Mensal'],['semanal','Semanal'],['pendentes','Pendentes'],['aprovadas','Aprovadas'],['arquivo','Arquivadas']];
     return `${header('Acompanhamento','Demandas','Uma lista única de atividades, organizada por período, responsáveis e situação.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
       <div class="card card-pad"><div class="demand-filter-groups">
         <div class="demand-filter-group"><strong>Período</strong><div class="segmented" role="group" aria-label="Demandas por período">${modes.slice(0,2).map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
         <div class="demand-filter-group demand-filter-status"><strong>Situação</strong><div class="segmented" role="group" aria-label="Demandas por situação">${modes.slice(2).map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
       </div>
         ${(state.demandMode==='mensal'||state.demandMode==='semanal')?`<div class="list-toolbar">${periodSelector(state.demandMode==='semanal')}</div>`:'<p class="notice-line">Esta visualização reúne registros de todos os meses e anos.</p>'}
-        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2></div></div>${available()?tag(String(visibleDemandCount())+' registros','soft'):''}</div>
+        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':state.demandMode==='aprovadas'?'Demandas aprovadas':'Pendências acumuladas'}</h2></div></div>${available()?tag(String(visibleDemandCount())+' registros','soft'):''}</div>
         ${renderDemandList()}
       </div>${renderDemandMemories()}`;
   }
