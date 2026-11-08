@@ -364,3 +364,88 @@
 @media(max-width:1200px){.register-deadline{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.register-deadline .remove-deadline-button{grid-column:1/-1}.commission-editor-grid{grid-template-columns:1fr}.commission-editor-side{padding:19px}}
 @media(max-width:630px){.deadline-toolbar-actions{width:100%}.deadline-toolbar-actions .button{flex:1;justify-content:center}.commission-member-list{grid-template-columns:1fr}.commission-list-item .commission-counters,.commission-list-actions{margin-left:0}.commission-list-actions .activity-details-link{margin-right:0}.commission-list-actions .small-action{font-size:11px}.commission-editor-primary .card-pad{padding:16px}}
 @media(max-width:390px){.register-deadline{grid-template-columns:1fr}.deadline-assignee-options{min-width:245px;max-width:calc(100vw - 70px)}.deadline-toolbar-actions{flex-direction:column}.deadline-toolbar-actions .button{width:100%}}
+
+/* Novembro 2026 — cronograma direto, cartões de semanas, detalhe rápido e responsáveis */
+.weekly-focus-simple{overflow:hidden}
+.weekly-focus-simple>.section-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.weekly-focus-simple>.section-head h2{font-size:19px;margin:0;letter-spacing:-.3px}
+.weekly-focus-simple .link-action{white-space:nowrap;font-size:12.5px;font-weight:800}
+.weeks-overview{background:linear-gradient(125deg,#f9f6ff 0%,#f3effc 100%);border:1px solid #e8dffc;border-radius:16px;padding:19px 21px;margin:15px 0 22px}
+.weeks-overview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:17px}
+.weeks-overview-head h3{font-size:16px;color:#4f388a;font-weight:850;letter-spacing:-.25px;margin:0 0 6px}
+.weeks-overview-head p{font-size:12px;color:#857995;line-height:1.5;margin:0}
+.weeks-overview-head>span{display:inline-block;padding:5px 10px;border:1px solid #e2d9fa;background:rgba(255,255,255,.85);color:#7c60ac;border-radius:8px;font-weight:800;font-size:11px}
+.weeks-overview-buttons{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.week-overview-button{border:1px solid #e1d8f2;border-radius:11px;min-width:0;padding:12px 7px;background:#fff;color:#5e5180;cursor:pointer;position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;transition:background .16s,border-color .16s,box-shadow .16s}
+.week-overview-button strong{font-size:12px;font-weight:800;white-space:nowrap}
+.week-overview-button small{font-size:10px;font-weight:650;color:#9487ab;white-space:nowrap}
+.week-overview-button:hover{background:#eee6ff;border-color:#beaae8}
+.week-overview-button.selected{color:#fff;background:#7151c6;border-color:#7151c6;box-shadow:0 6px 15px rgba(91,62,171,.18)}
+.week-overview-button.selected small{color:#e9dcff}
+.week-overview-button:focus-visible{outline:3px solid #b6a1ef;outline-offset:2px}
+.week-activity-number{position:absolute;top:-7px;right:-5px;min-width:18px;height:18px;border-radius:99px;background:#e6dbff;color:#643dad;padding:3px 5px;font-size:10px;font-weight:850;box-shadow:0 1px 3px rgba(72,37,155,.12)}
+.week-overview-button.selected .week-activity-number{background:#fff;color:#6140b7}
+.weekly-preview-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 0 12px;border-bottom:1px solid #eeeaf3}
+.weekly-preview-heading strong{font-size:13px;color:#362b51}
+.weekly-preview-heading span{font-size:11px;font-weight:800;background:#f4f0fb;color:#7c6b9e;border-radius:99px;padding:6px 10px}
+.weekly-preview-list{max-height:410px;overflow:auto;scrollbar-width:thin}
+.weekly-preview-item{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #f0ecf5;padding:14px 2px}
+.weekly-preview-item:last-child{border-bottom:0}
+.weekly-preview-item>div{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0}
+.weekly-preview-item strong{font-size:12.5px;line-height:1.55;color:#342b4b}
+.weekly-preview-item .activity-details-link{font-size:11.5px}
+.weekly-preview-item>.pill{font-size:10px;flex:none}
+.week-empty-notice{font-size:12px;color:#8a8198;line-height:1.6;padding:16px 3px;margin:0}
+.cronograma-simple{padding:26px 29px}
+.cronograma-view-tabs{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid #e9e5f0}
+.cronograma-view-tabs button{border:1px solid #e4ddf1;color:#756985;background:#fbfaff;border-radius:11px;padding:12px 17px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;cursor:pointer}
+.cronograma-view-tabs button:hover{background:#f2ebff}
+.cronograma-view-tabs button.active{color:#fff;background:#7251c9;border-color:#7251c9;box-shadow:0 5px 13px rgba(95,61,166,.14)}
+.cronograma-view-tabs button span{border-radius:99px;background:rgba(255,255,255,.76);color:#7655c0;font-size:11px;padding:3px 7px}
+.cronograma-period-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:18px}
+.cronograma-period-controls .filter-item{flex:0 1 195px;min-width:135px}
+.cronograma-period-controls .select{width:100%;min-height:43px}
+.cronograma-list-heading{margin-top:23px;margin-bottom:10px}
+.cronograma-list-heading h2{font-size:17px}
+.cronograma-list-heading p{font-size:12px;color:#8a809b}
+.cronograma-simple .task-list-row{padding:18px 0}
+.demand-memories{margin-top:20px}
+.demand-memories .section-head h2{font-size:17px}
+.demand-memory-row{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:12px;padding:16px 17px;border:1px solid #ece5f6;border-radius:12px}
+.demand-memory-row>div:first-child{min-width:0}
+.demand-memory-row strong{display:block;font-size:13px;color:#39304d}
+.demand-memory-row small{font-size:11px;color:#877c98;display:block;margin-top:5px}
+.demand-memory-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.demand-memory-actions .activity-details-link{margin:0 8px 0 0}
+.activity-status-panel{margin:0 0 18px;padding:20px 24px;border-color:#e5ddf4}
+.quick-task-status{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
+.quick-task-status-title{display:flex;flex-direction:column;gap:7px}
+.quick-task-status-title span{font-size:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:800;color:#8a7b9f}
+.quick-task-status-title strong{font-size:16px;color:#433061;font-weight:850}
+.quick-task-status-actions{display:flex;align-items:center;gap:5px;padding:5px;background:#f1eef8;border-radius:12px}
+.quick-status-choice{min-width:92px;min-height:37px;border:1px solid transparent;border-radius:9px;background:transparent;padding:8px 13px;font-size:12px;font-weight:800;color:#7a6e8d;cursor:pointer}
+.quick-status-choice:hover{color:#5d42a1;background:#fff}
+.quick-status-choice.active{background:#fff;color:#6e4bbf;box-shadow:0 2px 7px rgba(69,49,122,.09)}
+.quick-status-choice.status-aprovada{background:#daf6e8;color:#1c814e}
+.quick-status-choice.status-concluida{background:#e0f7ed;color:#166d50}
+.quick-status-choice:focus-visible{outline:2px solid #9b85db}
+.activity-status-meta{display:flex;align-items:center;margin-top:13px;border-top:1px solid #eee9f4;padding-top:13px}
+.activity-status-meta .activity-due{font-size:12px}
+.compact-detail-empty{padding:18px;border:1px dashed #e6e0ed;border-radius:10px;color:#877e98;background:#fbfaff;font-size:12px}
+.activity-detail-grid>.stack .card{min-height:0}
+.activity-detail-grid .card-pad{padding:22px 25px}
+.observations-title-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+.observations-title-row h2{margin:0}
+.observations-title-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.observations-author-badge{font-size:11px;color:#71638e;background:#f3effc;border:1px solid #e5dbf7;border-radius:10px;padding:8px 11px;font-weight:700;line-height:1.5}
+.observations-author-badge strong{color:#50358c;font-weight:850}
+.observations-author-badge small{font-size:10px;display:block;color:#81749c}
+.observations-editor-title{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.observations-editor-title .edit-section-title{min-width:160px}
+.deadline-assignee-picker summary{min-height:43px;height:auto;max-height:73px}
+.deadline-selection-tags{display:flex;align-items:center;flex-wrap:wrap;gap:5px;min-width:0;overflow:auto;max-height:58px;scrollbar-width:thin}
+.deadline-person-chip{display:inline-flex;align-items:center;border:1px solid #dfd2fa;background:#f1eaff;color:#6042a6;border-radius:7px;padding:3px 6px;font-size:10.5px;font-weight:800;line-height:1.5;max-width:100%;overflow-wrap:anywhere}
+.deadline-prompt{color:#3b2d54;font-weight:700;font-size:12px}
+.deadline-assignee-picker summary>svg{flex:none}
+@media(max-width:930px){.weeks-overview-buttons{grid-template-columns:repeat(3,minmax(0,1fr))}.activity-status-panel{padding:18px}.cronograma-simple{padding:20px}}
+@media(max-width:640px){.weeks-overview{padding:15px 13px}.weeks-overview-head h3{font-size:14px}.weeks-overview-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}.week-overview-button{min-height:57px}.weekly-focus-simple>.section-head h2{font-size:16px}.quick-task-status-actions{width:100%;justify-content:stretch}.quick-status-choice{flex:1;min-width:0;padding:9px 4px;font-size:11px}.observations-title-actions{justify-content:flex-start}.demand-memory-row{align-items:flex-start;flex-direction:column}.cronograma-view-tabs button{flex:1;justify-content:center;font-size:12px}.cronograma-period-controls .filter-item{flex:1 1 calc(50% - 12px)}.activity-detail-grid .card-pad{padding:17px}}
