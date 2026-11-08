@@ -592,7 +592,7 @@
     }
     if(state.demoActor==='lene')return {name:'Lene',role:'tutora'};
     if(state.demoActor==='admin')return {name:'Administração',role:'administracao'};
-    return {name:'PETiano(a) — teste',role:'petiano'};
+    return {name:state.data.users.find(u=>String(u.id)===String(state.demoMineUserId))?.name||'Usuário de teste',role:'petiano'};
   }
   function canReview(actor){return Boolean(actor&&['tutora','administracao'].includes(actor.role));}
   const REVIEW_OPTIONS=[
@@ -631,27 +631,25 @@
   }
 
 
+
   function registerDeadlineRow(i,deadline){
-    const raw=deadline||{}, parsed=deadlineParts(raw);
-    const dateString=String(raw.dueAt||''),day=dateString.slice(0,10),time=dateString.includes('T')?dateString.slice(11,16):'23:59';
-    const options=['Prazo','Produção','Correção','Entrega','Publicar','Outro prazo'];
-    const step=parsed.step==='Publicação'?'Publicar':parsed.step;
-    if(step&&!options.includes(step))options.push(step);
-    const selectedIds=new Set(stageUserIds(raw).map(String));
-    const selectedNames=deadlineAssigneeNames(raw);
-    const selectedFree=new Set(selectedNames.filter(name=>!state.data.users.some(u=>u.name===name)).map(String));
-    const caption=selectedNames.length?selectedNames.join(', '):'Selecionar responsáveis';
+    const raw=deadline||{},parsed=deadlineParts(raw);
+    const ds=String(raw.dueAt||''),day=ds.slice(0,10),time=ds.includes('T')?ds.slice(11,16):'23:59';
+    const step=parsed.step==='Correção'?'Correção':'Prazo';
+    const ids=new Set(stageUserIds(raw).map(String));
+    const names=deadlineAssigneeNames(raw),other=new Set(names.filter(n=>!state.data.users.some(u=>u.name===n)));
+    const chips=names.length?names.map(n=>`<span class="deadline-person-chip">${escapeText(n)}</span>`).join(''):'<span class="deadline-prompt">Selecionar responsáveis</span>';
     return `<div class="register-deadline" data-deadline-index="${i}">
-      <label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
-      <div class="deadline-assignee-field"><span>Para quem</span><details class="deadline-assignee-picker"><summary title="${escapeText(caption)}"><span class="deadline-assignee-caption">${escapeText(caption)}</span>${icon('chevron-down')}</summary>
-        <div class="deadline-assignee-options"><p>Escolha uma ou mais pessoas ou comissões</p>
-          <div class="deadline-picker-grid">${state.data.users.map(u=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="u:${escapeText(u.id)}" ${selectedIds.has(String(u.id))?'checked':''}><span>${escapeText(u.name)}</span></label>`).join('')}
-          ${state.data.committees.map(c=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="c:${escapeText(c.id)}" ${selectedFree.has(String(c.name))?'checked':''}><span>${escapeText(c.name)} · comissão</span></label>`).join('')}
-          ${[...selectedFree].filter(name=>!state.data.committees.some(c=>String(c.name)===name)).map(name=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="legacy:${escapeText(name)}" checked><span>${escapeText(name)} · referência anterior</span></label>`).join('')}
+      <label>Etapa<select class="select" name="deadline-step-${i}"><option value="Prazo" ${step==='Prazo'?'selected':''}>Prazo</option><option value="Correção" ${step==='Correção'?'selected':''}>Correção</option></select></label>
+      <div class="deadline-assignee-field"><span>Para quem</span><details class="deadline-assignee-picker"><summary aria-label="Selecionar responsáveis"><span class="deadline-selection-tags">${chips}</span>${icon('chevron-down')}</summary>
+        <div class="deadline-assignee-options"><p>Marque pessoas ou comissões. Abra novamente para acrescentar mais.</p>
+          <div class="deadline-picker-grid">${state.data.users.map(u=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="u:${escapeText(u.id)}" ${ids.has(String(u.id))?'checked':''}><span>${escapeText(u.name)}</span></label>`).join('')}
+          ${state.data.committees.map(c=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="c:${escapeText(c.id)}" ${other.has(String(c.name))?'checked':''}><span>${escapeText(c.name)} · comissão</span></label>`).join('')}
+          ${[...other].filter(n=>!state.data.committees.some(c=>String(c.name)===n)).map(n=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="legacy:${escapeText(n)}" checked><span>${escapeText(n)} · referência anterior</span></label>`).join('')}
           </div></div></details></div>
       <label>Data<input type="date" name="deadline-date-${i}" value="${escapeText(day)}"></label>
       <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label>
-      <button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo" title="Remover prazo">${icon('close')} Remover prazo</button></div>`;
+      <button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo">${icon('close')} Remover prazo</button></div>`;
   }
   function collectDeadlines(form,existing){
     const fd=new FormData(form),result=[];
@@ -1030,16 +1028,21 @@
       if(e.target?.dataset?.field==='memoryColor')updateMemoryPreview(true);
     });
     document.addEventListener('change',e=>{
-      const el=e.target;if(!el.dataset?.field)return;
+      const el=e.target;
+      if(el.name?.startsWith('deadline-assignee-')&&el.type==='checkbox'){
+        const picker=el.closest('.deadline-assignee-picker');
+        if(picker){
+          const labels=[...picker.querySelectorAll('input:checked')].map(ch=>ch.closest('label')?.querySelector('span')?.textContent?.replace(/ · (comissão|referência anterior)$/,'')||'').filter(Boolean);
+          const target=picker.querySelector('.deadline-selection-tags');
+          if(target)target.innerHTML=labels.length?labels.map(n=>'<span class="deadline-person-chip">'+escapeText(n)+'</span>').join(''):'<span class="deadline-prompt">Selecionar responsáveis</span>';
+          picker.open=false;
+        }
+        return;
+      }
+      if(!el.dataset?.field)return;
       if(el.dataset.assignTarget!==undefined){
         const id=String(el.dataset.assignTarget);
         state.assignmentPicked=el.checked?[...new Set([...state.assignmentPicked,id])]:state.assignmentPicked.filter(v=>v!==id);
-        return;
-      }
-      if(el.name?.startsWith('deadline-assignee-') && el.type==='checkbox'){
-        const picker=el.closest('.deadline-assignee-picker');
-        if(picker){const chosen=[...picker.querySelectorAll('input:checked')].map(e=>e.closest('label')?.querySelector('span')?.textContent?.replace(/ · (comissão|referência anterior)$/,'')||'').filter(Boolean);
-          const caption=picker.querySelector('.deadline-assignee-caption');if(caption)caption.textContent=chosen.length?chosen.join(', '):'Selecionar responsáveis';}
         return;
       }
             const field=el.dataset.field;
