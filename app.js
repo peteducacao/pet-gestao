@@ -438,12 +438,16 @@
       deadlines,assigneeIds:registeredAssigneeIds(),status,stageName:status==='concluida'?'Concluída':'Pendente'};
     const now=new Date().toISOString(),actor=actorDemo()||{name:'Demonstração'};
     if(existing){
+      const wasCompleted=isCompleted(existing);
       Object.assign(existing,values);
-      existing.revisions=[...(existing.revisions||[]),{action:'Dados da demanda atualizados',actorName:actor.name,at:now}];
+      if(status==='concluida')existing.completedAt=existing.completedAt||now;
+      else {delete existing.completedAt;delete existing.closedAt;}
+      const action=status==='concluida'&&!wasCompleted?'Concluiu demanda':status!=='concluida'&&wasCompleted?'Reabriu demanda':'Dados da demanda atualizados';
+      existing.revisions=[...(existing.revisions||[]),{action,actorName:actor.name,at:now}];
       existing.lastEditedBy=actor.name;existing.lastEditedAt=now;
     } else {
       const id='local-task-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
-      state.data.tasks.push({id,registeredAt:dateKey(new Date()),reviewStatus:'aguardando',revisions:[],observations:[],...values});
+      state.data.tasks.push({id,registeredAt:dateKey(new Date()),reviewStatus:'aguardando',revisions:[],observations:[],...values,...(status==='concluida'?{completedAt:now}:{})});
     }
     if(saveLocalDemoWrites()){state.registerCurrentId=null;state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode=status==='concluida'?'arquivo':'pendentes';location.hash='#/demandas';render();showToast(existing?'Demanda atualizada neste navegador.':'Demanda registrada neste navegador.');}
     else showToast('Não foi possível salvar os dados locais.');
