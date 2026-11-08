@@ -221,9 +221,6 @@
       ${connectNotice()}${renderStats()}
       <div class="dashboard-grid"><div class="stack">
         <section class="card card-pad upcoming-spotlight"><div class="upcoming-spotlight-head"><div class="upcoming-title"><span class="upcoming-badge">${icon('clock')}</span><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div></div><button class="link-action" data-action="go-all-cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="upcoming-spotlight-body">${renderUpcomingCompact()}</div></section>
-        <section class="card card-pad"><div class="section-head"><div><h2>Memórias recentes</h2><p>Últimas reuniões registradas</p></div></div>
-        ${state.data.meetings.length?state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(displayMeetingTitle(m))}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma reunião registrada','As memórias recentes aparecerão aqui quando forem cadastradas.',true)}
-        </section>
       </div><div class="stack">
         ${renderWeeklyFocus()}
         <section class="card card-pad"><div class="section-head"><div><h2>Últimas atualizações</h2><p>Histórico das atividades</p></div>${icon('bell')}</div>${renderFeed()}</section>
