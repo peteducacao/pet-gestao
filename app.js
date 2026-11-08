@@ -557,32 +557,6 @@
       <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label><button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo" title="Remover prazo">${icon('close')} Remover prazo</button></div>`;
   }
 
-  function renderReviewEditor(t){
-    const actor=actorDemo();
-    const editable=canReview(actor);
-    const current=reviewLabel(t.reviewStatus||'aguardando');
-    const notes=`<div class="edit-panel-card ${editable?'':'edit-panel-locked'}"><div class="edit-panel-heading">
-      <span class="edit-panel-icon">${icon(editable?'book':'lock')}</span><div><h3>Observação da tutoria</h3>
-      <p>${editable?'Registre orientações ou correções para os responsáveis.':'Somente a Tutoria e a Administração podem escrever observações.'}</p></div>
-      ${editable?'<span class="edit-access-label">Autorizado</span>':'<span class="edit-access-label locked">Bloqueado</span>'}</div>
-      <label for="edit-new-observation">Nova observação (opcional)</label>
-      <textarea id="edit-new-observation" name="observation" rows="3" placeholder="${editable?'Ex.: Ajustar as informações antes de publicar.':'Disponível somente para Tutoria e Administração'}" ${editable?'':'disabled aria-disabled="true"'}></textarea>
-      </div>`;
-
-    const options=`<div class="edit-panel-card edit-panel-review"><div class="edit-panel-heading">
-      <span class="edit-panel-icon">${icon('check')}</span><div><h3>Status de aprovação</h3>
-      <p>Situação atual: <strong>${escapeText(current)}</strong></p></div>
-      <span class="edit-access-label">PETianos(as), Tutoria e Administração</span></div>
-      <label for="edit-review-status">Situação da demanda</label>
-      <select class="select" id="edit-review-status" name="reviewStatus">
-        <option value="">Manter situação atual</option>
-        ${REVIEW_OPTIONS.map(([v,title])=>`<option value="${v}">${escapeText(v==='liberado'?'APROVADO':title)}</option>`).join('')}
-      </select>
-      <small>Qualquer PETiano(a) pode aprovar. Aprovar não conclui nem arquiva: para isso, marque “Concluída / Arquivada”.</small>
-    </div>`;
-    return `<section class="edit-revision-section"><div class="edit-section-title"><h2>Revisão e observações</h2><p>As orientações não liberam automaticamente a atividade.</p></div>
-      ${demoActorSelect()}<div class="edit-revision-grid">${notes}${options}</div></section>`;
-  }
   function renderRegister(){
     const id=getRoute().id||'';
     const task=id?tasks().find(t=>String(t.id)===String(id)):null;
@@ -604,13 +578,15 @@
     <label>Descrição (opcional)<textarea name="description" rows="4" placeholder="O que precisa ser feito?">${escapeText(task?.description||'')}</textarea></label>
     ${commissionPicker}
     <div class="register-two"><label>Data de postagem <span class="required-star">*</span><input type="date" name="postingAt" required value="${escapeText(String(task?.postingAt||'').slice(0,10))}"></label>
-      <label>Situação da demanda<select name="status" class="select"><option value="pendente" ${!task||!isCompleted(task)?'selected':''}>Pendente</option><option value="concluida" ${task&&isCompleted(task)?'selected':''}>Concluída / Arquivada</option></select></label></div>
+      <label>Situação da demanda<select name="status" class="select"><option value="pendente" ${(!task||!isCompleted(task))&&task?.reviewStatus!=='liberado'?'selected':''}>Pendente</option><option value="concluida" ${task&&isCompleted(task)?'selected':''}>Concluída</option><option value="aprovada" ${task&&!isCompleted(task)&&task.reviewStatus==='liberado'?'selected':''}>Aprovada</option></select></label></div>
     ${renderAssignmentPreview()}
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button></div>
     ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
-    ${task?`<section class="edit-copy-section"><div class="edit-section-title"><h2>Texto da atividade</h2><p>Atualize a legenda ou o conteúdo que será utilizado.</p></div>
-      <label for="edit-caption-text">Texto (opcional)</label><textarea name="captionText" id="edit-caption-text" rows="5" placeholder="Escreva ou edite o texto da atividade...">${escapeText(task.captionText||'')}</textarea></section>
-      ${renderReviewEditor(task)}`:''}
+    ${task?`<section class="edit-copy-section observations-editor"><div class="edit-section-title"><h2>Observações</h2><p>Edite o conteúdo da demanda. O histórico registra quem salvou e quando.</p></div>
+      <div class="observation-editor-head"><label for="edit-caption-text">Texto da atividade (opcional)</label><button type="button" class="button ghost copy-observations" data-action="copy-observations" title="Copiar observações">${icon('copy')} Copiar</button></div>
+      <textarea name="captionText" id="edit-caption-text" rows="6" placeholder="Escreva as observações desta atividade...">${escapeText(task.captionText||'')}</textarea>
+      <p class="observations-last-change">Última alteração: <strong>${escapeText(task.lastEditedBy||'Nenhuma')}</strong>${task.lastEditedAt?' · '+formatDate(task.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
+      </section>`:''}
     <div class="form-actions demand-form-actions">${task?`<button type="button" class="button subtle-danger" data-action="delete-task" data-id="${escapeText(task.id)}">${icon('close')} Excluir demanda</button>`:'' }<button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
     return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda com prazos, comissão e responsáveis.')}${connectNotice()}
       <section class="card card-pad register-page">${taskForm}
@@ -640,7 +616,8 @@
         deadlines.push({label:step==='Publicação'?'Publicar':step,assigneeName:who,assigneeId:person?.id||null,dueAt:day+'T'+(hour||'23:59')+':00',completedAt:existing?.deadlines?.[i]?.completedAt||null});
       }
     }
-    const status=String(x.get('status')||'pendente');
+    const chosenStatus=String(x.get('status')||'pendente');
+    const status=chosenStatus==='concluida'?'concluida':'pendente';
     const postingAt=String(x.get('postingAt')||'').trim();
     if(!postingAt){showToast('Informe a data obrigatória de postagem.');return;}
     const selectedCommissions=[...new Set(typeof x.getAll==='function'?x.getAll('commissionIds').filter(Boolean).map(String):[])];
@@ -655,9 +632,8 @@
       const priorText=String(existing.captionText||'');
       const newText=String(x.get('captionText')??priorText);
       // A observação e o seletor de liberação são exclusivos da tutoria e administração.
-      const obs=canReview(actor)?String(x.get('observation')||'').trim():'';
-      const requestedReview=String(x.get('reviewStatus')||'');
-      const choice=REVIEW_OPTIONS.some(([v])=>v===requestedReview)?requestedReview:null;
+      const obs=''; // Observações agora são o texto único da atividade, não comentários separados.
+      const choice=chosenStatus==='aprovada'?'liberado':chosenStatus==='pendente'?'aguardando':null;
       const textChanged=newText!==priorText;
       const observationsChanged=Boolean(obs);
       const edits=[];
@@ -666,7 +642,7 @@
       else {delete existing.completedAt;delete existing.closedAt;}
       if(before!==JSON.stringify(values))edits.push('Dados da demanda atualizados');
       if(wasCompleted!==isCompleted(existing))edits.push(isCompleted(existing)?'Concluiu demanda':'Reabriu demanda');
-      if(textChanged){existing.captionText=newText;edits.push(canReview(actor)?'Texto corrigido':'Texto editado');}
+      if(textChanged){existing.captionText=newText;edits.push('Observações atualizadas');}
       if(observationsChanged){
         existing.observations=[...(existing.observations||[]),{body:obs,authorName:actor.name,createdAt:now}];
         edits.push('Observação registrada');
@@ -674,7 +650,7 @@
       // Nenhuma alteração textual ou observação aprova automaticamente a publicação.
       // Mudanças em material já liberado exigem nova liberação explícita.
       let updatedReview=priorReview;
-      if((textChanged||observationsChanged)&&priorReview==='liberado')updatedReview=observationsChanged?'ajustes':'aguardando';
+      if(textChanged&&priorReview==='liberado')updatedReview='aguardando';
       if(choice)updatedReview=choice;
       if(updatedReview!==priorReview){existing.reviewStatus=updatedReview;edits.push('Revisão: '+reviewLabel(updatedReview));}
       if(edits.length){
@@ -683,7 +659,7 @@
       }
     }else{
       const id='local-task-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
-      state.data.tasks.push({id,registeredAt:dateKey(new Date()),reviewStatus:'aguardando',revisions:[],observations:[],...values,...(status==='concluida'?{completedAt:now}:{})});
+      state.data.tasks.push({id,registeredAt:dateKey(new Date()),reviewStatus:chosenStatus==='aprovada'?'liberado':'aguardando',revisions:[],observations:[],...values,...(status==='concluida'?{completedAt:now}:{})});
     }
     if(saveLocalDemoWrites()){
       state.registerCurrentId=null;state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode=status==='concluida'?'arquivo':'pendentes';
@@ -739,32 +715,32 @@
     else showToast('Não foi possível salvar a exclusão no navegador.');
   }
 
+
   function renderActivityDetail(id){
     const t=tasks().find(t=>String(t.id)===String(id));
     if(!t)return notFound();
     const d=taskDeadlines(t),notes=Array.isArray(t.observations)?t.observations:[];
-    const assignees=getAssigneeNames(t),review=t.reviewStatus||'aguardando';
-    const statusBadge=review==='liberado'?tag('APROVADO','approved-pill'):review==='ajustes'?tag('Ajustes necessários','soft'):review==='nao_liberado'?tag('Não liberado','soft'):tag('Aguardando revisão','soft');
+    const assignees=getAssigneeNames(t);
     const deadlines=d.length?d.map(x=>{
       const {step,person}=deadlineParts(x),date=dateFrom(x.dueAt);
       const due=date?formatDate(date,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'A definir';
-      return `<div class="deadline-record"><div class="deadline-step">${icon('clock')}<strong>${escapeText(step)}</strong></div><div class="deadline-field"><small>Responsável</small><strong>${escapeText(person)}</strong></div><div class="deadline-field"><small>Prazo</small><strong>${escapeText(due)}</strong></div>${tag(x.completedAt?'Concluído':'Pendente',x.completedAt?'mint':'soft')}</div>`;
+      return `<div class="deadline-record"><div class="deadline-step">${icon('clock')}<strong>${escapeText(step)}</strong></div><div class="deadline-field"><small>Responsáveis</small><strong>${escapeText(person)}</strong></div><div class="deadline-field"><small>Prazo</small><strong>${escapeText(due)}</strong></div>${tag(x.completedAt?'Concluído':'Pendente',x.completedAt?'mint':'soft')}</div>`;
     }).join(''):empty('clock','Nenhum prazo cadastrado','Sem prazos definidos para esta atividade.',true);
-    const observations=notes.length?notes.slice().reverse().map(n=>`<div class="observation-item"><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small><p>${escapeText(n.body||'')}</p></div>`).join(''):'';
     const revisions=Array.isArray(t.revisions)?t.revisions.slice().reverse().slice(0,7):[];
     const history=revisions.length?`<div class="revision-list">${revisions.map(x=>`<div><strong>${escapeText(x.action||'Atualização')} — ${escapeText(x.actorName)}</strong><small>${formatDate(x.at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}</div>`:'<p class="notice-line">Nenhuma alteração registrada.</p>';
     const posting=t.postingAt?`<p class="activity-due">Previsão: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
-    const savedText=String(t.captionText||'').trim();
+    const value=String(t.captionText||'').trim();
+    const olderNotes=notes.length?`<details class="observations-archive"><summary>Histórico anterior de comentários (${notes.length})</summary>${notes.slice().reverse().map(n=>`<div class="observation-item"><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small><p>${escapeText(n.body||'')}</p></div>`).join('')}</details>`:'';
+    const updated=`<p class="observations-last-change">Última alteração: <strong>${escapeText(t.lastEditedBy||'Nenhuma')}</strong>${t.lastEditedAt?' · '+formatDate(t.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>`;
     return `${header('Atividade',t.title,'',`<a class="button ghost" href="#/registrar/${safeHref(t.id)}">${icon('settings')} Editar demanda</a><a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
-    <div class="activity-header-strip card card-pad">${statusBadge}${posting}</div>
+    <div class="activity-header-strip card card-pad">${displayTaskState(t)}${posting}</div>
     <div class="activity-detail-grid">
       <div class="stack">
         <section class="card card-pad"><h2>Prazos e etapas</h2>${deadlines}</section>
-        ${savedText?`<section class="card card-pad"><h2>Texto registrado</h2><p class="saved-activity-text">${escapeText(savedText)}</p></section>`:''}
-        <section class="card card-pad"><h2>Observações</h2>${observations||'<p class="notice-line">Nenhuma observação registrada.</p>'}</section>
+        <section class="card card-pad"><div class="section-head"><h2>Observações</h2><button type="button" class="button ghost copy-observations" data-action="copy-observations">${icon('copy')} Copiar</button></div>
+        ${value?`<p class="saved-activity-text" id="saved-observations-text">${escapeText(value)}</p>`:'<p class="notice-line">Nenhuma observação registrada.</p>'}${updated}${olderNotes}</section>
       </div><div class="stack">
         <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}</section>
-        <section class="card card-pad"><h2>Situação da revisão</h2><p class="notice-line">${escapeText(reviewLabel(review))}</p><p class="assignment-preview-note">A aprovação não é automática: depende de uma decisão da Tutoria ou da Administração.</p></section>
         <section class="card card-pad"><h2>Histórico de alterações</h2>${history}</section>
       </div>
     </div>`;
@@ -816,6 +792,15 @@
           if(row){row.remove();showToast('Prazo retirado do formulário. Salve a demanda para confirmar a alteração.');}
           break;
         }
+        case 'copy-observations':{
+          const textField=document.querySelector('#edit-caption-text');
+          const details=getRoute().id?tasks().find(t=>String(t.id)===String(getRoute().id)):null;
+          const txt=String(textField?.value??details?.captionText??'');
+          if(!txt){showToast('Não há observações para copiar.');break;}
+          if(navigator.clipboard?.writeText){navigator.clipboard.writeText(txt).then(()=>showToast('Observações copiadas.')).catch(()=>showToast('Não foi possível copiar.'));}
+          else {const tmp=document.createElement('textarea');tmp.value=txt;document.body.append(tmp);tmp.select();const ok=document.execCommand('copy');tmp.remove();showToast(ok?'Observações copiadas.':'Não foi possível copiar.');}
+          break;
+        }
         case 'delete-task':deleteDemoRecord('task',b.dataset.id);break;
         case 'delete-meeting':deleteDemoRecord('meeting',b.dataset.id);break;
       }
@@ -841,13 +826,9 @@
         const oldForm=document.querySelector('#register-task-form');
         const oldText=oldForm?.querySelector('[name="captionText"]')?.value??'';
         state.demoActor=el.value;
-        const reviewPanel=document.querySelector('.edit-revision-section');
-        const task=tasks().find(t=>String(t.id)===String(oldForm?.dataset.id||''));
-        if(reviewPanel&&task){
-          reviewPanel.outerHTML=renderReviewEditor(task);
-          const txt=oldForm.querySelector('[name="captionText"]');
-          if(txt)txt.value=oldText;
-        }else render();
+        const obsField=oldForm?.querySelector('[name="captionText"]');
+        if(obsField)obsField.value=oldText;
+        else render();
         return;
       }
       if(field==='regCommitteeId'){state.regCommitteeId=el.value;const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();return;}
