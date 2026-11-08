@@ -22,7 +22,7 @@
     year:!prefs.autoMonth&&Number.isInteger(prefs.savedYear)&&prefs.savedYear>=2000&&prefs.savedYear<=2100?prefs.savedYear:TODAY.getFullYear(),
     month:!prefs.autoMonth&&Number.isInteger(prefs.savedMonth)&&prefs.savedMonth>=0&&prefs.savedMonth<=11?prefs.savedMonth:TODAY.getMonth(), week:1,
     selectedDay:TODAY.getDate(),
-    demandMode:'mensal', committeeId:null, commissionWeek:'all', assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, demoActor:'petiano', demoEditing:false, formDeadlineCount:1, ...prefs
+    demandMode:'mensal', committeeId:null, commissionWeek:'all', demoMineUserId:'andreza', assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, demoActor:'petiano', demoEditing:false, formDeadlineCount:1, ...prefs
   };
   state.week = !prefs.autoWeek&&Number.isInteger(prefs.savedWeek)?Math.min(Math.max(1,prefs.savedWeek),getWeeks(state.year,state.month).length) : (state.year===TODAY.getFullYear()&&state.month===TODAY.getMonth()?weekForDay(state.year,state.month,TODAY.getDate()):1);
   let toastTimer;
@@ -422,10 +422,18 @@
         <div class="form-actions memory-form-actions">${existing?`<button type="button" class="button subtle-danger" data-action="delete-meeting" data-id="${escapeText(existing.id)}">${icon('close')} Excluir memória</button>`:''}<button type="submit" class="button primary">${icon('check')} ${existing?'Salvar alterações':'Salvar memória'}</button></div>
       </form><p class="assignment-preview-note">As alterações são demonstrativas e ficam somente neste navegador.</p></section>`;
   }
-  function renderMyTasks(){const user=sessionUser(),mine=user?tasks().filter(t=>!isCompleted(t)&&isAssigned(t,user.id)):[];
-    return `${header('Área pessoal','Minhas pendências','Todas as atividades atribuídas a você, reunidas de diferentes comissões e períodos.')}${!user?`<div class="private-lock">${icon('lock')}<div><strong>Acesso pessoal ainda não ativado</strong><p>A identificação por conta e as pendências individuais serão disponibilizadas após a implantação da autenticação segura.</p></div></div>`:`<section class="card card-pad"><div class="section-head"><h2>Atividades atribuídas</h2>${tag(String(mine.length)+' abertas','soft')}</div>${mine.length?mine.map(renderTaskCard).join(''):empty('checklist','Nenhuma pendência em seu nome','As atividades concluídas permanecem disponíveis no histórico geral.')}</section>`}`;
-  }
 
+  function renderMyTasks(){
+    const user=state.demo?state.data.users.find(u=>String(u.id)===String(state.demoMineUserId))||null:sessionUser();
+    const mine=user?tasks().filter(t=>!isCompleted(t)&&isAssigned(t,user.id)).sort(comparePriorityTasks):[];
+    const preview=state.demo?`<div class="mytasks-demo-selector"><div><strong>Consultar pendências por PETiano(a)</strong><small>Simulação da área pessoal; na versão com login, cada pessoa verá somente as próprias atividades.</small></div>
+      <label for="mytasks-demo-user">Usuário</label><select class="select" id="mytasks-demo-user" data-field="demoMineUserId" aria-label="Escolher usuário para prévia">${state.data.users.map(u=>`<option value="${escapeText(u.id)}" ${String(u.id)===String(state.demoMineUserId)?'selected':''}>${escapeText(u.name)}</option>`).join('')}</select></div>`:'';
+    return `${header('Área pessoal','Minhas pendências','Atividades atribuídas a você, de qualquer comissão e período.')}${connectNotice()}
+      ${preview}${!user?`<div class="private-lock">${icon('lock')}<div><strong>Acesso pessoal ainda não ativado</strong><p>As pendências individuais serão habilitadas com a autenticação segura.</p></div></div>`
+      :`<section class="card card-pad"><div class="section-head"><h2>Pendências de ${escapeText(user.name)}</h2>${tag(String(mine.length)+' '+(mine.length===1?'atividade':'atividades'),'soft')}</div>
+       ${mine.length?mine.map(renderTaskCard).join(''):empty('checklist','Nenhuma pendência atribuída','As atividades concluídas continuam em Arquivadas.')}
+      </section>`}`;
+  }
   function getAssigneeNames(t){
     return taskNames(t);
   }
@@ -828,6 +836,7 @@
       if(field==='year'){state.year=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
       if(field==='week'){state.week=Number(el.value);}
       if(field==='commissionWeek'){state.commissionWeek=el.value==='all'?'all':String(el.value);}
+      if(field==='demoMineUserId'){state.demoMineUserId=String(el.value);render();return;}
       if(field==='demoActor'){
         const oldForm=document.querySelector('#register-task-form');
         const oldText=oldForm?.querySelector('[name="captionText"]')?.value??'';
