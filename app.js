@@ -307,7 +307,7 @@
       if(!linkedToCommission(t,id)||isCompleted(t))return false;
       const date=dateFrom(t.postingAt)||taskSortDate(t);
       return date&&date.getFullYear()===state.year&&date.getMonth()===state.month;
-    }).sort((a,b)=>taskSortDate(a)-taskSortDate(b));
+    }).sort(comparePriorityTasks);
   }
   function commissionWeekSelector(){
     return `<div class="filter-item commission-week-filter"><label for="commission-filter-week">SEMANA</label>
@@ -330,7 +330,11 @@
       if(!groups.has(n))groups.set(n,[]);
       groups.get(n).push(t);
     });
-    return [...groups].sort(([a],[b])=>a-b).map(([number,items])=>{
+    return [...groups].sort(([weekA,listA],[weekB,listB])=>{
+      const approvedA=listA.some(isApproved)?0:1,approvedB=listB.some(isApproved)?0:1;
+      return approvedA-approvedB||weekA-weekB;
+    }).map(([number,items])=>{
+      items.sort(comparePriorityTasks);
       const w=getWeeks(state.year,state.month).find(w=>w.n===number);
       const date=w?new Date(state.year,state.month,w.start):null;
       const label=date?`${MONTHS[state.month]} de ${state.year} · Semana ${number} (${dateRangeForWeek(date)})`:'Semana '+number;
