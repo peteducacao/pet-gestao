@@ -22,7 +22,7 @@
     year:!prefs.autoMonth&&Number.isInteger(prefs.savedYear)&&prefs.savedYear>=2000&&prefs.savedYear<=2100?prefs.savedYear:TODAY.getFullYear(),
     month:!prefs.autoMonth&&Number.isInteger(prefs.savedMonth)&&prefs.savedMonth>=0&&prefs.savedMonth<=11?prefs.savedMonth:TODAY.getMonth(), week:1,
     selectedDay:TODAY.getDate(),
-    demandMode:'mensal', committeeId:null, ...prefs
+    demandMode:'mensal', committeeId:null, assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, ...prefs
   };
   state.week = !prefs.autoWeek&&Number.isInteger(prefs.savedWeek)?Math.min(Math.max(1,prefs.savedWeek),getWeeks(state.year,state.month).length) : (state.year===TODAY.getFullYear()&&state.month===TODAY.getMonth()?weekForDay(state.year,state.month,TODAY.getDate()):1);
   let toastTimer;
@@ -68,8 +68,13 @@
   function taskDeadlines(task){return Array.isArray(task.deadlines)?task.deadlines:[];}
   function upcomingDeadlines(){
     const now=new Date();
-    return tasks().filter(t=>!isCompleted(t)).flatMap(t=>taskDeadlines(t).filter(d=>!d.completedAt&&dateFrom(d.dueAt)).map(d=>({task:t,deadline:d,date:dateFrom(d.dueAt)})))
-      .filter(x=>x.date.getTime()>=now.getTime()-86400000).sort((a,b)=>a.date-b.date).slice(0,5);
+    // Um registro por atividade. Os prazos individuais ficam na página de detalhes.
+    return tasks().filter(t=>!isCompleted(t)).map(task=>{
+      const deadlines=taskDeadlines(task).filter(d=>!d.completedAt&&dateFrom(d.dueAt))
+        .map(deadline=>({deadline,date:dateFrom(deadline.dueAt)}))
+        .filter(x=>x.date.getTime()>=now.getTime()-86400000).sort((a,b)=>a.date-b.date);
+      return deadlines.length?{task,deadline:deadlines[0].deadline,date:deadlines[0].date}:null;
+    }).filter(Boolean).sort((a,b)=>a.date-b.date).slice(0,5);
   }
   function taskCountDay(date){const key=dateKey(date);return tasks().filter(t=>taskDeadlines(t).some(d=>dateKey(d.dueAt)===key)||dateKey(t.postingAt)===key).length;}
   function available(){return state.connected;}
@@ -99,8 +104,8 @@
     ];
   }
   function renderStats(){return `<div class="stat-grid">${stats().map(s=>`<div class="card stat"><div class="stat-icon ${s.tone}">${icon(s.icon)}</div><div class="stat-copy"><span>${s.label}</span><strong>${s.value}</strong></div></div>`).join('')}</div>`;}
-  function renderUpcomingCompact(){const items=upcomingDeadlines();return items.length?items.map(({task,deadline,date})=>`
-    <div class="placeholder-row"><div><strong>${escapeText(task.title)}</strong><small>${escapeText(committeeName(task.committeeId))} · ${escapeText(deadline.label||deadline.kind||'Prazo')}</small></div>${tag(formatDate(date,{day:'2-digit',month:'short'}),'soft')}</div>`).join('')
+  function renderUpcomingCompact(){const items=upcomingDeadlines();return items.length?items.map(({task,date})=>`
+    <div class="placeholder-row upcoming-row"><div><strong>${escapeText(task.title)}</strong><a class="activity-details-link" href="#/atividade/${safeHref(task.id)}">Ver detalhes ${icon('arrow')}</a></div>${tag(formatDate(date,{day:'2-digit',month:'short'}),'soft')}</div>`).join('')
     :empty('clock','Nenhum prazo para exibir','Os prazos registrados aparecerão aqui, organizados pela data de entrega.',true);
   }
   function renderFeed(){const updates=state.data.events.slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))).slice(0,4);
@@ -272,10 +277,70 @@
   function renderMyTasks(){const user=sessionUser(),mine=user?tasks().filter(t=>!isCompleted(t)&&isAssigned(t,user.id)):[];
     return `${header('Área pessoal','Minhas pendências','Todas as atividades atribuídas a você, reunidas de diferentes comissões e períodos.')}${!user?`<div class="private-lock">${icon('lock')}<div><strong>Acesso pessoal ainda não ativado</strong><p>A identificação por conta e as pendências individuais serão disponibilizadas após a implantação da autenticação segura.</p></div></div>`:`<section class="card card-pad"><div class="section-head"><h2>Atividades atribuídas</h2>${tag(String(mine.length)+' abertas','soft')}</div>${mine.length?mine.map(renderTaskCard).join(''):empty('checklist','Nenhuma pendência em seu nome','As atividades concluídas permanecem disponíveis no histórico geral.')}</section>`}`;
   }
-  function renderActivityDetail(id){const t=tasks().find(t=>String(t.id)===String(id));if(!t)return notFound();
-    const d=taskDeadlines(t);const notes=Array.isArray(t.observations)?t.observations:[];
-    const deadlines=d.length?d.map(x=>`<div class="placeholder-row"><div><strong>${escapeText(x.label||x.kind||'Prazo')}</strong><small>${escapeText(x.assigneeName||'Responsável não atribuído')} · ${formatDate(x.dueAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div>${tag(x.completedAt?'Concluído':'Aberto',x.completedAt?'mint':'soft')}</div>`).join(''):empty('clock','Nenhum prazo registrado','Prazos de produção, correção e outras etapas aparecerão aqui.',true);
-    return `${header(committeeName(t.committeeId),t.title,'Atividade vinculada à central de demandas.')}${connectNotice()}<div class="dashboard-grid"><div class="stack"><section class="card card-pad"><div class="section-head"><h2>Descrição</h2>${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}</div><p style="font-size:12px;white-space:pre-wrap;line-height:1.8;color:#686579">${escapeText(t.description||'Nenhuma descrição cadastrada.')}</p><hr class="divider"/><h2 style="font-size:13px">Observações</h2>${notes.length?notes.map(n=>`<div class="placeholder-row"><div><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt)}</small><p style="white-space:pre-wrap;font-size:12px;line-height:1.8">${escapeText(n.body||'')}</p></div></div>`).join(''):empty('book','Sem observações registradas','As observações ficarão separadas do texto da atividade.',true)}</section></div><div class="stack"><section class="card card-pad"><div class="section-head"><h2>Prazos e responsáveis</h2></div>${deadlines}</section><section class="card card-pad"><div class="section-head"><h2>Origem</h2></div><p class="notice-line">${escapeText(committeeName(t.committeeId))}${t.meetingId?' · Reunião vinculada':''}</p></section></div></div>`;
+
+  function getAssigneeNames(t){
+    const ids=Array.isArray(t.assigneeIds)?t.assigneeIds:[];
+    return [...new Set(ids.map(id=>state.data.users.find(u=>String(u.id)===String(id))?.name).filter(Boolean))];
+  }
+  function deadlineParts(d){
+    const label=String(d.label||d.kind||'Prazo');
+    const separated=label.split(' — ');
+    const step=separated[0]||'Prazo';
+    const person=String(d.assigneeName||separated.slice(1).join(' — ')||'').trim();
+    return {step,person:person||'A definir'};
+  }
+  function renderAssignmentPreview(){
+    const scope=state.assignmentScope;
+    const opts=[['todos','Todos'],['comissoes','Comissões'],['usuarios','Usuários']];
+    const choices=scope==='comissoes'?state.data.committees.map(c=>({id:c.id,name:c.name})):state.data.users.map(u=>({id:u.id,name:u.name}));
+    const list=scope==='todos'
+      ?`<div class="assignment-all">${icon('users')} Todos os ${state.data.users.length} usuários cadastrados estão incluídos nesta seleção.</div>`
+      :choices.length?`<div class="assignment-options">${choices.map(c=>`<label class="assignment-option"><input type="checkbox" data-assign-target="${escapeText(c.id)}" ${state.assignmentPicked.includes(String(c.id))?'checked':''}><span>${escapeText(c.name)}</span></label>`).join('')}</div>`
+      :`<p class="notice-line">Nenhum cadastro disponível nesta categoria.</p>`;
+    return `<section class="card card-pad assignment-preview"><div class="section-head"><div><h2>Marcar responsáveis</h2><p>Escolha quem participaria desta atividade.</p></div></div>
+      <div class="segmented assignment-modes" role="group" aria-label="Quem marcar como responsável">${opts.map(([v,title])=>`<button type="button" data-action="assignment-scope" data-value="${v}" class="${scope===v?'active':''}" aria-pressed="${scope===v}">${title}</button>`).join('')}</div>
+      ${list}<p class="assignment-preview-note">${state.demo?'Prévia interativa: a seleção não é salva nem envia notificações.':'Seleções serão salvas quando o gerenciamento seguro estiver habilitado.'}</p>
+    </section>`;
+  }
+  function renderActivityDetail(id){
+    const t=tasks().find(t=>String(t.id)===String(id));
+    if(!t)return notFound();
+    if(state.assignmentTaskId!==String(id)){
+      state.assignmentTaskId=String(id);
+      state.assignmentScope='usuarios';
+      state.assignmentPicked=[];
+    }
+    const d=taskDeadlines(t),notes=Array.isArray(t.observations)?t.observations:[];
+    const assignees=getAssigneeNames(t);
+    const linkedCommittee=t.committeeId?state.data.committees.find(c=>String(c.id)===String(t.committeeId)):null;
+    const label=t.meetingId?'Reunião':linkedCommittee?'Comissão':'Demanda geral';
+    const sourceHref=t.meetingId?`#/reunioes/${safeHref(t.meetingId)}`:linkedCommittee?`#/comissoes/${safeHref(linkedCommittee.id)}`:'#/demandas';
+    const description=String(t.description||'').trim();
+    const deadlines=d.length?d.map(x=>{
+      const {step,person}=deadlineParts(x);
+      const date=dateFrom(x.dueAt);
+      const dueDate=date?formatDate(date,{day:'2-digit',month:'2-digit',year:'numeric'}):'Não definido';
+      const dueTime=date?new Intl.DateTimeFormat('pt-BR',{hour:'2-digit',minute:'2-digit'}).format(date):'23:59';
+      return `<div class="deadline-record"><div class="deadline-step">${icon('clock')}<strong>${escapeText(step)}</strong></div>
+        <div class="deadline-field"><small>Para quem</small><strong>${escapeText(person)}</strong></div>
+        <div class="deadline-field"><small>Data e horário</small><strong>${escapeText(dueDate)} · ${escapeText(dueTime)}</strong></div>
+        <div>${tag(x.completedAt?'Concluído':'Pendente',x.completedAt?'mint':'soft')}</div>
+      </div>`;
+    }).join(''):empty('clock','Nenhum prazo cadastrado','Quando houver prazos, eles aparecerão aqui com seus responsáveis.',true);
+    const observationHtml=notes.length?notes.map(n=>`<div class="placeholder-row"><div><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt)}</small><p style="white-space:pre-wrap;font-size:12px;line-height:1.8">${escapeText(n.body||'')}</p></div></div>`).join(''):empty('book','Nenhuma observação cadastrada','As observações são independentes da descrição da atividade.',true);
+    const posting=t.postingAt?`<div class="activity-info"><span>Data prevista para postagem</span><strong>${formatDate(t.postingAt)}</strong></div>`:'';
+    const people=assignees.length?`<div class="assigned-pills">${assignees.map(name=>tag(name,'soft')).join('')}</div>`:'<p class="notice-line">Responsável geral ainda não definido.</p>';
+    return `${header(taskOrigin(t),t.title,'',`<a class="button ghost" href="${sourceHref}">${icon('chevron-left')} Voltar à origem</a>`)}${connectNotice()}
+      <div class="activity-overview card card-pad"><span class="detail-kicker">${escapeText(label)}: ${escapeText(taskOrigin(t))}</span>${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}
+      ${posting}${description?`<div class="activity-description"><h2>Descrição</h2><p>${escapeText(description)}</p></div>`:''}</div>
+      <div class="dashboard-grid activity-grid"><div class="stack">
+        <section class="card card-pad"><div class="section-head"><div><h2>Prazos e etapas</h2><p>Datas e destinatários definidos para cada etapa.</p></div></div>${deadlines}</section>
+        <section class="card card-pad"><div class="section-head"><h2>Observações</h2></div>${observationHtml}</section>
+      </div><div class="stack">
+        <section class="card card-pad"><div class="section-head"><h2>Responsáveis pela atividade</h2></div>${people}</section>
+        ${renderAssignmentPreview()}
+        <section class="card card-pad"><div class="section-head"><h2>Origem</h2></div><a class="activity-details-link" href="${sourceHref}">${escapeText(taskOrigin(t))} ${icon('arrow')}</a></section>
+      </div></div>`;
   }
   function notFound(){return `${header('Navegação','Registro não encontrado','O item solicitado não está disponível ou não pode ser consultado com este acesso.')}<div class="card card-pad">${empty('search','Não foi possível abrir o registro','Retorne à lista e escolha uma atividade disponível.')}</div>`;}
   function render(){
@@ -309,10 +374,16 @@
         case 'prev-month':monthStep(-1);break;
         case 'next-month':monthStep(1);break;
         case 'today':resetCurrent();break;
+        case 'assignment-scope':state.assignmentScope=b.dataset.value;state.assignmentPicked=[];render();break;
       }
     });
     document.addEventListener('change',e=>{
       const el=e.target;if(!el.dataset?.field)return;
+      if(el.dataset.assignTarget!==undefined){
+        const id=String(el.dataset.assignTarget);
+        state.assignmentPicked=el.checked?[...new Set([...state.assignmentPicked,id])]:state.assignmentPicked.filter(v=>v!==id);
+        return;
+      }
       const field=el.dataset.field;
       if(field==='month'){state.month=Number(el.value);state.week=1;state.selectedDay=1;}
       if(field==='year'){state.year=Number(el.value);state.week=1;state.selectedDay=1;}
