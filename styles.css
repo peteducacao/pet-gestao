@@ -181,3 +181,19 @@
 @media(max-width:1250px){.register-deadline{grid-template-columns:repeat(2,minmax(0,1fr))}.register-deadline .remove-deadline-button{grid-column:1 / -1;justify-self:end;min-height:36px}}
 @media(max-width:680px){.upcoming-spotlight-head{padding:18px;align-items:flex-start;flex-wrap:wrap}.upcoming-title h2{font-size:17px}.upcoming-spotlight-body{padding:4px 18px 8px}.memory-list{padding:10px 17px}.memory-list-item{gap:12px}.memory-list-icon{height:42px;width:42px;border-radius:11px}.memory-list-icon svg{width:21px;height:21px}.memory-list-content h2{font-size:16px}.memory-summary{font-size:12px}.memory-reading{padding:18px}.memory-reading>p{font-size:13px;line-height:1.85}.register-deadline{grid-template-columns:repeat(2,minmax(0,1fr))}.demand-form-actions>.button{min-width:0;flex:1}.memory-form-actions .button{flex:1;min-width:0}}
 @media(max-width:390px){.register-deadline{grid-template-columns:1fr}.memory-list-item{flex-direction:column}.memory-actions{gap:8px}.upcoming-spotlight-head .link-action{font-size:11px}}
+
+/* Seletor de mês, ano e semana idêntico em todas as comissões */
+.commission-filter-bar{margin:18px 0 20px;padding:18px 20px;background:#f8f6ff;border:1px solid #e8e1f9;border-radius:14px}
+.commission-filter-title{display:flex;align-items:center;gap:10px;color:#55418a;font-size:13px;margin-bottom:13px}
+.commission-filter-title svg{width:18px;height:18px}
+.commission-filter-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.commission-filter-row .filter-item{min-width:115px;flex:0 1 178px}
+.commission-filter-row .filter-item label{font-size:10.5px;letter-spacing:.5px;font-weight:800}
+.commission-filter-row .filter-item .select{width:100%;min-height:42px;font-size:13px}
+.commission-filter-row .commission-week-filter{flex:1 1 310px;max-width:410px;min-width:210px}
+.commission-filter-row .commission-current-btn{min-height:42px;flex:none}
+.commission-period-result{margin-top:5px}
+.commission-period-result .committee-group{margin-top:14px}
+.commission-period-result .committee-group:first-child{margin-top:0}
+.commission-period-result .committee-group-label{font-size:14px;line-height:1.5}
+@media(max-width:680px){.commission-filter-bar{padding:15px 14px}.commission-filter-row{gap:10px}.commission-filter-row .filter-item{flex:1 1 calc(50% - 10px);min-width:115px}.commission-filter-row .commission-week-filter{flex:1 1 100%;max-width:none}.commission-filter-row .commission-current-btn{width:100%;justify-content:center}}
