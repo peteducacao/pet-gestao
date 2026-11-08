@@ -403,10 +403,10 @@
     const dateString=String(raw.dueAt||''),day=dateString.slice(0,10),time=dateString.includes('T')?dateString.slice(11,16):'23:59';
     const options=['Prazo','Produção','Correção','Entrega','Publicação','Outro prazo'];
     if(parsed.step&&!options.includes(parsed.step))options.push(parsed.step);
-    return `<div class="register-deadline"><label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===parsed.step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
+    return `<div class="register-deadline" data-deadline-index="${i}"><label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===parsed.step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
       <label>Para quem<input name="deadline-assignee-${i}" value="${escapeText(name)}" placeholder="Integrante, tutoria ou comissão"></label>
       <label>Data<input type="date" name="deadline-date-${i}" value="${escapeText(day)}"></label>
-      <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label></div>`;
+      <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label><button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo" title="Remover prazo">${icon('close')} Remover prazo</button></div>`;
   }
   function renderRegister(){
     const id=getRoute().id||'';
@@ -420,11 +420,8 @@
       state.assignmentPicked=(task?.assigneeIds||[]).map(String);
       state.formDeadlineCount=Math.max(1,task?.deadlines?.length||1);
     }
-    const type=task?'demanda':state.registerType||'demanda',isMemory=type==='memoria';
     const opt=state.data.committees.map(c=>`<option value="${escapeText(c.id)}" ${String(state.regCommitteeId)===String(c.id)?'selected':''}>${escapeText(c.name)}</option>`).join('');
-    const meetings=state.data.meetings.map(m=>`<option value="${escapeText(m.id)}" ${String(task?.meetingId||'')===String(m.id)?'selected':''}>${escapeText(m.title)} · ${formatDate(m.date)}</option>`).join('');
-    const typePicker=task?'':`<div class="segmented register-tabs" role="group" aria-label="Tipo de registro"><button type="button" class="${!isMemory?'active':''}" data-action="register-type" data-value="demanda">Nova demanda</button><button type="button" class="${isMemory?'active':''}" data-action="register-type" data-value="memoria">Memória da reunião</button></div>`;
-    const memoryForm=`<form id="register-memory-form" class="register-form"><label>Título da memória<input name="title" required maxlength="150" placeholder="Ex.: Encontro de quinta-feira"></label><label>Data da reunião<input name="date" type="date" required></label><label>Memória original<textarea name="rawNotes" rows="9" required placeholder="Cole aqui o texto da memória..."></textarea></label><div class="form-actions"><button type="submit" class="button primary">${icon('check')} Salvar memória</button></div></form>`;
+    const meetings=state.data.meetings.map(m=>`<option value="${escapeText(m.id)}" ${String(task?.meetingId||'')===String(m.id)?'selected':''}>${escapeText(displayMeetingTitle(m))} · ${formatDate(m.date)}</option>`).join('');
     const taskForm=`<form id="register-task-form" data-id="${escapeText(task?.id||'')}" class="register-form"><label>Título da demanda<input name="title" required maxlength="180" value="${escapeText(task?.title||'')}" placeholder="Ex.: Produzir banner da Lixeira"></label>
     <label>Descrição (opcional)<textarea name="description" rows="4" placeholder="O que precisa ser feito?">${escapeText(task?.description||'')}</textarea></label>
     <div class="register-two"><label>Comissão<select name="committeeId" class="select" data-field="regCommitteeId"><option value="">Sem comissão</option>${opt}</select></label><label>Memória vinculada (opcional)<select name="meetingId" class="select"><option value="">Nenhuma</option>${meetings}</select></label></div>
@@ -433,9 +430,9 @@
     ${renderAssignmentPreview()}
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button></div>
     ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
-    <div class="form-actions"><button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
-    return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda ou registre a memória original de uma reunião.')}${connectNotice()}
-      <section class="card card-pad register-page">${typePicker}${isMemory?memoryForm:taskForm}
+    <div class="form-actions demand-form-actions">${task?`<button type="button" class="button subtle-danger" data-action="delete-task" data-id="${escapeText(task.id)}">${icon('close')} Excluir demanda</button>`:'' }<button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
+    return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda com prazos, comissão e responsáveis.')}${connectNotice()}
+      <section class="card card-pad register-page">${taskForm}
       <p class="assignment-preview-note">${state.demo?'Demonstração: as alterações ficam somente neste navegador e não enviam e-mails.':'A edição exigirá autorização quando o backend estiver integrado.'}</p></section>`;
   }
   function registeredAssigneeIds(){
