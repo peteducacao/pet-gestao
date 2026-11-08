@@ -234,3 +234,53 @@
 .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
 @media(max-width:920px){.edit-revision-grid{grid-template-columns:1fr}}
 @media(max-width:590px){.edit-copy-section,.edit-revision-section{padding:15px}.demo-actor-compact{align-items:flex-start;flex-direction:column}.demo-actor-compact select{max-width:none;width:100%}.edit-panel-heading>div{flex-basis:110px}.edit-panel-heading h3{font-size:12px}}
+
+/* Atualização PET Educação: datas claras, aprovação, responsáveis e arquivo */
+.task-title-row{display:flex;flex-wrap:wrap;align-items:center;column-gap:13px;row-gap:7px;margin:0 0 8px}
+.task-title-row>strong{font-size:14.5px;line-height:1.5;color:#242038;font-weight:800}
+.task-date-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #e9e1fa;background:#f8f5ff;border-radius:8px;color:#7254a5;font-size:11px;font-weight:800;white-space:nowrap}
+.task-date-badge svg{height:13px;width:13px}
+.task-list-row{min-height:94px;padding:20px 0}
+.task-list-body{align-self:center;gap:5px}
+.task-list-row .task-row-meta{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;max-width:51%;flex:none}
+.task-assignee-label{display:inline-block;line-height:1.45;font-size:11.5px;color:#746d86;background:#faf9ff;border:1px solid #ebe6f5;padding:7px 10px;border-radius:9px;overflow-wrap:anywhere}
+.task-assignee-label strong{color:#51466f}
+.task-row-meta .pill{font-size:11px;font-weight:800;padding:8px 12px;white-space:nowrap}
+.pill.approved-pill{color:#0f7043;background:#dbf8e7;border:1px solid #b8e7cb;font-size:11px;font-weight:900;box-shadow:0 2px 6px #1d8a4a10}
+.pill.overdue-pill{color:#b45f18;background:#fff2de;border:1px solid #f5dbb2}
+.pill.review-pill{color:#905f39;background:#fff1e7;border:1px solid #f1dfcc}
+.demand-filter-groups{display:flex;gap:17px;align-items:end;flex-wrap:wrap;margin:0 0 19px}
+.demand-filter-group{display:flex;flex-direction:column;gap:9px;align-items:flex-start}
+.demand-filter-group>strong{font-size:11px;color:#837a98;letter-spacing:.7px;text-transform:uppercase}
+.demand-filter-group .segmented{min-height:44px}
+.demand-filter-status{border-left:1px solid #e8e4f1;padding-left:18px}
+.demand-filter-status .segmented{background:#f3f4fa}
+.demand-filter-status .segmented button.active{color:#2c7f56;background:#e1f7e9}
+.register-commissions{border:1px solid #e9e3f7;border-radius:14px;background:#faf9ff;padding:18px;display:flex;flex-direction:column;gap:15px}
+.register-commissions h2{font-size:15px}
+.register-commissions p{font-size:12px;margin:0}
+.commission-checkboxes{display:flex;flex-wrap:wrap;gap:9px}
+.commission-checkbox{cursor:pointer;display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid #ddd6ec;background:#fff;border-radius:9px;font-size:12.5px;font-weight:700;color:#594c70}
+.commission-checkbox:hover{background:#f7f1ff}
+.commission-checkbox:has(input:checked){background:#eee6ff;border-color:#b7a3ea;color:#4c347e}
+.commission-checkbox input{width:16px;height:16px;accent-color:#754fce;cursor:pointer}
+.required-star{font-size:13px;color:#cf4771;font-weight:900}
+.edit-panel-locked{position:relative;background:#f6f6fa;border-color:#e5e3ed}
+.edit-panel-locked textarea:disabled{filter:blur(1.2px);opacity:.7!important;user-select:none}
+.edit-panel-locked:after{content:"🔒";position:absolute;bottom:50px;left:50%;transform:translateX(-50%);font-size:22px;opacity:.85;pointer-events:none;text-shadow:0 2px 6px #fff}
+.edit-panel-review{background:#f6fcf9;border:1px solid #d7ece0}
+.edit-panel-review .edit-panel-icon{background:#d9f4e4;color:#26774b}
+.edit-panel-review .edit-access-label{font-size:10px;white-space:normal;max-width:160px;text-align:center}
+.memory-list-item{margin:12px 0;border-radius:14px;border:1px solid #eae3f5!important;padding:23px!important;box-shadow:0 4px 14px rgba(51,35,93,.035)}
+.memory-list-item:not(:last-child){margin-bottom:16px}
+.memory-list-icon{background:rgba(255,255,255,.65);color:#7152ba;border:1px solid rgba(115,80,180,.12)}
+.memory-reading{border:1px solid #e9e2f3;overflow-wrap:anywhere}
+.memory-style-controls{display:flex;flex-direction:column;gap:14px;border:1px solid #e5def4;background:#faf8ff;border-radius:15px;padding:18px}
+.memory-style-controls>label{display:flex;flex-direction:column;gap:9px;font-size:12px;font-weight:800;color:#56486f}
+.memory-style-controls select{max-width:470px}
+.memory-palette{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.memory-palette label{display:flex;flex-direction:column;gap:7px;font-size:11px;color:#706485}
+.memory-palette input[type=color]{width:72px;height:45px;border:1px solid #e6deee;border-radius:9px;background:#fff;padding:4px;cursor:pointer}
+.memory-live-sample{border-radius:12px;padding:20px;border:1px solid #dfd8eb;font-size:13px;color:#403355;font-weight:800}
+@media(max-width:980px){.task-list-row .task-row-meta{max-width:58%}.task-assignee-label{font-size:11px}}
+@media(max-width:660px){.task-list-row{flex-direction:column;align-items:stretch;gap:14px}.task-list-row .task-row-meta{max-width:none;justify-content:flex-start}.task-date-badge{font-size:10px}.task-title-row>strong{font-size:13.5px}.demand-filter-status{border-left:0;padding-left:0}.demand-filter-groups{gap:12px}.demand-filter-group{flex:1 1 100%}.demand-filter-group .segmented{width:100%}.demand-filter-group .segmented button{flex:1}.memory-list-item{padding:16px!important}}
