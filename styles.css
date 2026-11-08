@@ -293,3 +293,74 @@
 .mytasks-demo-selector label{font-size:11px;font-weight:800;color:#5d4d75}
 .mytasks-demo-selector select{min-width:175px;min-height:42px}
 @media(max-width:580px){.mytasks-demo-selector{flex-direction:column;align-items:stretch}.mytasks-demo-selector>div{flex:auto}.mytasks-demo-selector select{width:100%}}
+
+/* Edição enxuta: situação única, observações e criação de comissões */
+.register-deadlines{position:relative;overflow:visible}
+.register-deadlines>.section-head{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.deadline-toolbar-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.deadline-toolbar-actions .button{min-height:40px;font-size:12px;white-space:nowrap}
+.deadline-save-button{box-shadow:none}
+.register-deadline{position:relative;grid-template-columns:minmax(135px,1fr) minmax(195px,1.35fr) minmax(140px,.9fr) minmax(102px,.65fr) auto;align-items:end;gap:12px}
+.deadline-assignee-field{display:flex;min-width:0;flex-direction:column;gap:8px}
+.deadline-assignee-field>span{font-size:11px;color:#5b516f;font-weight:750}
+.deadline-assignee-picker{position:relative;min-width:0}
+.deadline-assignee-picker summary{height:43px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none;background:#fff;color:#2d2644;border:1px solid #e4dff0;border-radius:11px;padding:10px 12px;outline:none}
+.deadline-assignee-picker summary::-webkit-details-marker{display:none}
+.deadline-assignee-picker summary:focus-visible{box-shadow:0 0 0 3px #ebe3ff;border-color:#7a59d5}
+.deadline-assignee-picker summary svg{width:15px;height:15px;flex:none;color:#75669a}
+.deadline-assignee-picker[open] summary{border-color:#9c84e0;border-radius:11px 11px 0 0}
+.deadline-assignee-caption{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:12.5px;font-weight:700}
+.register-deadline:has(.deadline-assignee-picker[open]){z-index:8}
+.deadline-assignee-options{position:absolute;top:100%;left:0;right:0;min-width:min(300px,80vw);max-height:290px;overflow:auto;z-index:14;padding:12px;background:white;border:1px solid #a795d7;border-radius:0 0 12px 12px;box-shadow:0 16px 34px rgba(48,31,89,.18)}
+.deadline-assignee-options p{font-size:10.5px;color:#78718e;margin:0 0 10px}
+.deadline-picker-grid{display:flex;flex-direction:column;gap:5px}
+.deadline-picker-grid label{display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:8px;font-weight:650;font-size:11.5px;color:#423756;cursor:pointer}
+.deadline-picker-grid label:hover{background:#f7f3ff}
+.deadline-picker-grid label:has(input:checked){background:#f0eaff}
+.deadline-picker-grid input{width:15px;height:15px;accent-color:#704ec8;flex:none}
+.observations-editor{background:linear-gradient(145deg,#faf8ff,#fff);gap:12px}
+.observations-editor .edit-section-title{margin-bottom:4px}
+.observation-editor-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px}
+.observation-editor-head label{font-size:12px;font-weight:800;color:#584d74}
+.copy-observations{min-height:35px!important;font-size:11.5px;padding:8px 12px!important}
+.copy-observations svg{height:15px;width:15px}
+.observations-last-change{font-size:11.5px;color:#7d738e;margin:6px 0 0;line-height:1.6}
+.observations-last-change strong{color:#574277;font-weight:800}
+.observations-archive{margin-top:15px;border-top:1px solid #e8e2f1;padding-top:14px}
+.observations-archive summary{font-size:12px;font-weight:800;color:#6e57ad;cursor:pointer}
+.commission-list-item{padding:20px 0;border-bottom:1px solid #eae5f2}
+.commission-list-item:last-child{border:0}
+.commission-name-link{display:flex;gap:12px;align-items:center;text-decoration:none}
+.commission-name-link strong{display:block;font-size:16px;color:#322640;font-weight:800}
+.commission-name-link small{display:block;font-size:12px;color:#81788e;margin-top:6px}
+.commission-icon,.commission-example-icon{width:45px;height:45px;display:grid;place-items:center;flex:none;border-radius:13px;background:#eee9ff;color:#714ecb}
+.commission-icon svg,.commission-example-icon svg{height:22px;width:22px}
+.commission-list-item .commission-counters{margin-left:57px;margin-top:12px}
+.commission-list-actions{margin-left:57px;margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.commission-list-actions .activity-details-link{margin-right:auto}
+.commission-editor-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(270px,.75fr);gap:20px;align-items:start}
+.commission-editor-primary{min-width:0}
+.commission-editor-primary .register-form{gap:19px}
+.commission-editor-primary .edit-section-title h2{font-size:17px}
+.commission-members-editor{border:1px solid #e8e2f2;background:#fbfaff;padding:17px;border-radius:13px}
+.commission-members-editor .section-head{margin-bottom:13px}
+.commission-members-editor .section-head h2{font-size:14px;margin:0 0 4px}
+.commission-members-editor .section-head p{font-size:12px;margin:0;color:#81788f}
+.commission-member-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:340px;overflow:auto}
+.commission-member-list label{display:flex;align-items:center;gap:9px;cursor:pointer;padding:9px 10px;border:1px solid #e9e4f3;background:white;border-radius:9px;font-size:12px;font-weight:700;min-width:0}
+.commission-member-list label:hover{background:#f8f3ff}
+.commission-member-list label:has(input:checked){background:#f1ecff;border-color:#b8a5ef}
+.commission-member-list input{width:16px;height:16px;accent-color:#7555ce;flex:none}
+.member-icon{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#e9e0ff;color:#63419c;font-size:11px;flex:none}
+.commission-editor-buttons{gap:12px;flex-wrap:wrap;justify-content:space-between}
+.commission-editor-side{background:linear-gradient(155deg,#f4efff,#fff);padding:27px}
+.commission-editor-side h2{font-size:19px;font-weight:850;color:#322747;margin:17px 0 8px;line-height:1.35}
+.commission-editor-side>p{font-size:12.5px;color:#776b85;line-height:1.7}
+.commission-example-icon{width:53px;height:53px;border-radius:16px;background:#e8ddff}
+.commission-side-detail{display:flex;gap:12px;margin:20px 0;align-items:flex-start}
+.commission-side-detail>span{font-size:20px;flex:none;width:29px;text-align:center;color:#7651c0}
+.commission-side-detail strong{display:block;font-size:12px;color:#46385a;line-height:1.5}
+.commission-side-detail small{font-size:11px;color:#82778e;line-height:1.5;display:block;margin-top:3px}
+@media(max-width:1200px){.register-deadline{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.register-deadline .remove-deadline-button{grid-column:1/-1}.commission-editor-grid{grid-template-columns:1fr}.commission-editor-side{padding:19px}}
+@media(max-width:630px){.deadline-toolbar-actions{width:100%}.deadline-toolbar-actions .button{flex:1;justify-content:center}.commission-member-list{grid-template-columns:1fr}.commission-list-item .commission-counters,.commission-list-actions{margin-left:0}.commission-list-actions .activity-details-link{margin-right:0}.commission-list-actions .small-action{font-size:11px}.commission-editor-primary .card-pad{padding:16px}}
+@media(max-width:390px){.register-deadline{grid-template-columns:1fr}.deadline-assignee-options{min-width:245px;max-width:calc(100vw - 70px)}.deadline-toolbar-actions{flex-direction:column}.deadline-toolbar-actions .button{width:100%}}
