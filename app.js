@@ -338,6 +338,7 @@
       return raw&&typeof raw==='object'?raw:{};
     }catch{return {};}
   }
+
   function saveLocalDemoWrites(){
     if(!state.demo)return false;
     try{
@@ -345,22 +346,34 @@
       const originalMeetings=window.PET_GESTAO_DEMO?.meetings||[];
       const originalIds=new Set(originalTasks.map(t=>String(t.id)));
       const originalMeetingIds=new Set(originalMeetings.map(m=>String(m.id)));
+      const currentTasks=new Set(state.data.tasks.map(t=>String(t.id)));
+      const currentMeetings=new Set(state.data.meetings.map(m=>String(m.id)));
       const patches=state.data.tasks.filter(t=>originalIds.has(String(t.id))&&(t.revisions?.length||t.observations?.length||t.reviewStatus||t.captionText));
       const additions=state.data.tasks.filter(t=>!originalIds.has(String(t.id)));
+      const memoryPatches=state.data.meetings.filter(m=>originalMeetingIds.has(String(m.id)) && !originalMeetings.some(x=>String(x.id)===String(m.id)&&x.title===m.title&&x.date===m.date&&x.rawNotes===m.rawNotes));
       const newMeetings=state.data.meetings.filter(m=>!originalMeetingIds.has(String(m.id)));
-      localStorage.setItem(DEMO_EDITS_KEY,JSON.stringify({patches,additions,newMeetings}));
+      const deletedTaskIds=[...originalIds].filter(id=>!currentTasks.has(id));
+      const deletedMeetingIds=[...originalMeetingIds].filter(id=>!currentMeetings.has(id));
+      localStorage.setItem(DEMO_EDITS_KEY,JSON.stringify({patches,additions,memoryPatches,newMeetings,deletedTaskIds,deletedMeetingIds}));
       return true;
-    }catch(e){console.warn('Falha ao salvar dados locais:',e);return false;}
+    }catch(e){console.warn('Não foi possível salvar alterações locais:',e);return false;}
   }
   function mergeLocalDemoWrites(){
     if(!state.demo)return;
     const edits=readLocalDemoWrites();
+    const removedTasks=new Set(Array.isArray(edits.deletedTaskIds)?edits.deletedTaskIds.map(String):[]);
+    const removedMeetings=new Set(Array.isArray(edits.deletedMeetingIds)?edits.deletedMeetingIds.map(String):[]);
     const byId=new Map((Array.isArray(edits.patches)?edits.patches:[]).map(x=>[String(x.id),x]));
-    state.data.tasks=state.data.tasks.map(t=>byId.has(String(t.id))?{...t,...byId.get(String(t.id))}:t);
+    const memoriesById=new Map((Array.isArray(edits.memoryPatches)?edits.memoryPatches:[]).map(x=>[String(x.id),x]));
+    state.data.tasks=state.data.tasks.filter(t=>!removedTasks.has(String(t.id))).map(t=>byId.has(String(t.id))?{...t,...byId.get(String(t.id))}:t);
     const original=new Set(state.data.tasks.map(t=>String(t.id)));
     (Array.isArray(edits.additions)?edits.additions:[]).forEach(t=>{if(t&&t.id&&!original.has(String(t.id))){state.data.tasks.push(t);original.add(String(t.id));}});
+    state.data.meetings=state.data.meetings.filter(m=>!removedMeetings.has(String(m.id))).map(m=>memoriesById.has(String(m.id))?{...m,...memoriesById.get(String(m.id))}:m);
     const meetings=new Set(state.data.meetings.map(m=>String(m.id)));
     (Array.isArray(edits.newMeetings)?edits.newMeetings:[]).forEach(m=>{if(m&&m.id&&!meetings.has(String(m.id))){state.data.meetings.push(m);meetings.add(String(m.id));}});
+    // Exclusão de uma reunião não remove suas demandas. Elas permanecem acessíveis, sem vínculo.
+    state.data.tasks.forEach(t=>{if(t.meetingId&&removedMeetings.has(String(t.meetingId)))t.meetingId=null;});
+    state.data.meetings.forEach(m=>{if(Array.isArray(m.taskIds))m.taskIds=m.taskIds.filter(id=>!removedTasks.has(String(id)));});
   }
   function actorDemo(){
     if(!state.demo)return sessionUser()?{name:sessionUser().name||'Integrante',role:(sessionUser().roles||[]).includes('tutor')?'tutora':'petiano'}:null;
@@ -475,13 +488,50 @@
     if(saveLocalDemoWrites()){state.registerCurrentId=null;state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode=status==='concluida'?'arquivo':'pendentes';location.hash='#/demandas';render();showToast(existing?'Demanda atualizada neste navegador.':'Demanda registrada neste navegador.');}
     else showToast('Não foi possível salvar os dados locais.');
   }
+
   function saveRegisteredMemory(form){
     if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
-    const x=new FormData(form),title=String(x.get('title')||'').trim(),rawNotes=String(x.get('rawNotes')||'').trim();
-    if(!title||!rawNotes){showToast('Preencha o título e a memória.');return;}
-    state.data.meetings.push({id:'local-meeting-'+Date.now().toString(36),title,date:String(x.get('date')||dateKey(new Date())),rawNotes,taskIds:[]});
-    if(saveLocalDemoWrites()){location.hash='#/reunioes';render();showToast('Memória registrada localmente nesta demonstração.');}
+    const x=new FormData(form),title=String(x.get('title')||'').trim(),rawNotes=String(x.get('rawNotes')||'').trim(),date=String(x.get('date')||'');
+    if(!rawNotes||!date){showToast('Informe a data e o texto da memória.');return;}
+    const id=String(form.dataset.id||'');
+    const existing=id?state.data.meetings.find(m=>String(m.id)===id):null;
+    if(id&&!existing){showToast('Memória não encontrada.');return;}
+    const now=new Date().toISOString(),who=actorDemo()?.name||'Demonstração';
+    if(existing){
+      existing.title=title;
+      existing.date=date;
+      existing.rawNotes=rawNotes;
+      existing.lastEditedBy=who;
+      existing.lastEditedAt=now;
+    }else{
+      state.data.meetings.push({id:'local-meeting-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),title,date,rawNotes,taskIds:[],lastEditedBy:who,lastEditedAt:now});
+    }
+    if(saveLocalDemoWrites()){location.hash='#/reunioes';render();showToast(existing?'Memória atualizada neste navegador.':'Memória registrada neste navegador.');}
     else showToast('Não foi possível salvar os dados locais.');
+  }
+  function deleteDemoRecord(kind,id){
+    if(!state.demo){showToast('Exclusão indisponível sem autenticação.');return;}
+    const isMeeting=kind==='meeting';
+    const list=isMeeting?state.data.meetings:state.data.tasks;
+    const entry=list.find(x=>String(x.id)===String(id));
+    if(!entry)return;
+    const name=isMeeting?displayMeetingTitle(entry):entry.title||'Demanda';
+    const message=isMeeting
+      ?`Excluir a memória "${name}"? As demandas relacionadas serão preservadas, mas deixarão de estar vinculadas a esta reunião. Essa exclusão vale apenas nesta demonstração.`
+      :`Excluir a demanda "${name}" e seus prazos? Essa exclusão vale apenas nesta demonstração.`;
+    if(!window.confirm(message))return;
+    if(isMeeting){
+      state.data.meetings=state.data.meetings.filter(m=>String(m.id)!==String(id));
+      state.data.tasks.forEach(t=>{if(String(t.meetingId)===String(id))t.meetingId=null;});
+      location.hash='#/reunioes';
+    }else{
+      state.data.tasks=state.data.tasks.filter(t=>String(t.id)!==String(id));
+      state.data.meetings.forEach(m=>{if(Array.isArray(m.taskIds))m.taskIds=m.taskIds.filter(x=>String(x)!==String(id));});
+      state.demandMode='pendentes';
+      location.hash='#/demandas';
+    }
+    if(saveLocalDemoWrites()){render();showToast(isMeeting?'Memória excluída nesta demonstração.':'Demanda excluída nesta demonstração.');}
+    else showToast('Não foi possível salvar a exclusão no navegador.');
   }
   function renderActivityDetail(id){
     const t=tasks().find(t=>String(t.id)===String(id));
