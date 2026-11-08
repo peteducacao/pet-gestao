@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f7fb" />
+  <meta name="description" content="PET Gestão — demandas, cronogramas, comissões e memórias em um só lugar." />
+  <title>PET Gestão | PET Educação</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" stroke-linecap="round" stroke-width="3"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2H3Zm14-15a3 3 0 0 1 0 6m2 9h2v-2a6 6 0 0 0-4-5.65"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5c4-1.5 6-1.1 8 0v16c-2-1.1-4-1.5-8 0V4.5Zm8 0c2-1.1 4-1.5 8 0v16c-4-1.5-6-1.1-8 0"/></symbol>
+    <symbol id="i-checklist" viewBox="0 0 24 24"><path d="m3 6 2 2 3-4m4 3h9M3 15l2 2 3-4m4 3h9"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9m-10 5h6"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 10h18c0-2-3-3-3-10M10 21h4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16M8 4v6m8 4v6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Zm0 7v4m0 3v.1"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5 5 19"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 2.7 7.3L22 12l-7.3 2.7L12 22l-2.7-7.3L2 12l7.3-2.7L12 2Z"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h16m-16 10h16M9 4v6m6 4v6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  </svg>
+  <div class="app-shell" id="shell">
+    <div class="mobile-overlay" id="overlay" hidden></div>
+    <aside class="sidebar" id="sidebar" aria-label="Menu principal">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true"><span>P</span><span class="brand-dot"></span></div>
+        <div class="brand-copy"><strong>PET Gestão</strong><small>PET Educação · UFS</small></div>
+        <button class="icon-button mobile-close" id="close-menu" aria-label="Fechar menu"><svg><use href="#i-close"/></svg></button>
+      </div>
+      <div class="sidebar-menu">
+        <p class="nav-caption">ORGANIZAÇÃO</p>
+        <nav class="nav-group" id="primary-nav" aria-label="Navegação principal">
+          <a class="nav-link" data-route="inicio" href="#/inicio"><svg><use href="#i-grid"/></svg><span>Visão geral</span></a>
+          <a class="nav-link" data-route="demandas" href="#/demandas"><svg><use href="#i-list"/></svg><span>Demandas</span></a>
+          <a class="nav-link" data-route="cronograma" href="#/cronograma"><svg><use href="#i-calendar"/></svg><span>Cronograma</span></a>
+          <a class="nav-link" data-route="comissoes" href="#/comissoes"><svg><use href="#i-users"/></svg><span>Comissões</span></a>
+          <a class="nav-link" data-route="reunioes" href="#/reunioes"><svg><use href="#i-book"/></svg><span>Reuniões e memórias</span></a>
+        </nav>
+        <p class="nav-caption separated">PESSOAL</p>
+        <nav class="nav-group" aria-label="Área pessoal">
+          <a class="nav-link" data-route="minhas-pendencias" href="#/minhas-pendencias"><svg><use href="#i-checklist"/></svg><span>Minhas pendências</span></a>
+        </nav>
+        <p class="nav-caption separated">SISTEMA</p>
+        <nav class="nav-group" aria-label="Administração">
+          <button class="nav-link nav-locked" id="admin-link" type="button" aria-disabled="true" title="Painel administrativo indisponível até a implantação segura"><svg><use href="#i-lock"/></svg><span>Administração</span><svg class="nav-end"><use href="#i-lock"/></svg></button>
+        </nav>
+      </div>
+      <div class="sidebar-footer"><span class="connection-dot" id="connection-dot"></span><div><strong id="connection-label">Integração pendente</strong><small>Acesso seguro ainda não ativado</small></div></div>
+    </aside>
+    <div class="main-column">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-button mobile-menu-button" id="open-menu" aria-label="Abrir menu"><svg><use href="#i-menu"/></svg></button>
+          <span class="topbar-context">PET Educação <span class="breadcrumb-slash">/</span> <span id="current-page">Visão geral</span></span>
+        </div>
+        <div class="topbar-right">
+          <span class="today-label" id="today-label"></span>
+          <button class="profile-button" id="account-button" type="button" aria-label="Conta de usuário ainda não disponível"><svg><use href="#i-user"/></svg><span>Acessar conta</span></button>
+        </div>
+      </header>
+      <main class="content" id="content" tabindex="-1"><div id="screen"></div></main>
+      <footer class="footer">PET Gestão <span>·</span> PET Educação — Universidade Federal de Sergipe</footer>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
