@@ -18,7 +18,7 @@
   const emptyData = () => ({tasks:[],committees:[],meetings:[],users:[],events:[],session:null});
   const prefs = readPrefs();
   const state = {
-    data:emptyData(), connected:false, loading:false,
+    data:emptyData(), connected:false, loading:false, demo:false,
     year:!prefs.autoMonth&&Number.isInteger(prefs.savedYear)&&prefs.savedYear>=2000&&prefs.savedYear<=2100?prefs.savedYear:TODAY.getFullYear(),
     month:!prefs.autoMonth&&Number.isInteger(prefs.savedMonth)&&prefs.savedMonth>=0&&prefs.savedMonth<=11?prefs.savedMonth:TODAY.getMonth(), week:1,
     selectedDay:TODAY.getDate(),
@@ -81,15 +81,15 @@
   function header(eyebrow,title,subtitle,actions=''){
     return `<div class="page-header"><div><div class="eyebrow">${escapeText(eyebrow)}</div><h1 class="page-title">${escapeText(title)}</h1><p class="page-subtitle">${escapeText(subtitle)}</p></div>${actions?`<div class="page-actions">${actions}</div>`:''}</div>`;
   }
-  function connectNotice(){return available()?'':`<div class="status-note">${icon('info')}<div><strong>Dados institucionais ainda não conectados.</strong> A estrutura das telas está disponível; registros, acessos e ações compartilhadas serão ativados após a integração segura.</div></div>`;}
+  function connectNotice(){return state.demo?'<div class="status-note demo-banner">'+icon('info')+'<div><strong>Prévia de demonstração</strong> — cronograma de novembro e memória de 22/10 carregados apenas para apresentar o layout. Nenhuma alteração ou e-mail é enviado.</div></div>':available()?'':`<div class="status-note">${icon('info')}<div><strong>Dados institucionais ainda não conectados.</strong> A estrutura das telas está disponível; registros, acessos e ações compartilhadas serão ativados após a integração segura.</div></div>`;}
   function newButton(label){return `<button class="button primary" type="button" disabled title="Disponível após a implantação do acesso seguro">${icon('plus')}${escapeText(label)}</button>`;}
   function monthsSelector(){return `<div class="filter-item"><label for="filter-month">MÊS</label><select class="select" id="filter-month" data-field="month" aria-label="Selecionar mês">${MONTHS.map((m,i)=>`<option value="${i}" ${i===state.month?'selected':''}>${m}</option>`).join('')}</select></div>`;}
   function yearsSelector(){const low=Math.min(2024,state.year-3),high=Math.max(2030,state.year+3);return `<div class="filter-item"><label for="filter-year">ANO</label><select class="select" id="filter-year" data-field="year" aria-label="Selecionar ano">${Array.from({length:high-low+1},(_,i)=>low+i).map(y=>`<option value="${y}" ${y===state.year?'selected':''}>${y}</option>`).join('')}</select></div>`;}
   function weekSelector(){const weeks=getWeeks(state.year,state.month);return `<div class="filter-item"><label for="filter-week">SEMANA</label><select class="select" id="filter-week" data-field="week" aria-label="Selecionar semana">${weeks.map(w=>`<option value="${w.n}" ${state.week===w.n?'selected':''}>Semana ${w.n} · ${w.label}</option>`).join('')}</select></div>`;}
   function periodSelector(includeWeek=false){return `<div class="filters">${monthsSelector()}${yearsSelector()}${includeWeek?weekSelector():''}<div class="filter-item"><label>&nbsp;</label><button type="button" class="button ghost" data-action="today">${icon('calendar')}Hoje</button></div></div>`;}
   function stats(){
-    const all=tasks();const pending=all.filter(t=>!isCompleted(t));const now=new Date();const thisMonth=all.filter(t=>{const d=taskDate(t);return d&&d.getMonth()===state.month&&d.getFullYear()===state.year;});
-    const overdue=pending.filter(t=>taskDeadlines(t).some(d=>{const date=dateFrom(d.dueAt);return date&&date<now&&!d.completedAt;}));
+    const all=tasks();const pending=all.filter(t=>!isCompleted(t));const thisMonth=all.filter(isTaskInMonth);
+    const overdue=pending.filter(t=>taskDeadlines(t).some(d=>deadlineOverdue(d)));
     const mine=sessionUser()?pending.filter(t=>isAssigned(t,sessionUser().id)):[];
     return [
       {label:'Demandas do mês',value:available()?thisMonth.length:'—',icon:'list',tone:'purple'},
@@ -107,6 +107,47 @@
     return updates.length?updates.map(e=>`<div class="placeholder-row"><div><strong>${escapeText(e.summary||'Atualização registrada')}</strong><small>${escapeText(e.actorName||'Equipe')} · ${formatDate(e.createdAt)}</small></div></div>`).join('')
     :empty('bell','Sem atualizações para exibir','As alterações e revisões aparecerão aqui quando houver registros.',true);
   }
+
+  function taskOrigin(t) {
+    if(t.committeeId) return committeeName(t.committeeId);
+    if(t.meetingId) {
+      const m=state.data.meetings.find(x=>String(x.id)===String(t.meetingId));
+      return m?'Memória de '+formatDate(m.date):'Reunião';
+    }
+    return 'Demanda geral';
+  }
+  function taskActivityDates(t){
+    return [taskDate(t),dateFrom(t.postingAt),...taskDeadlines(t).map(d=>dateFrom(d.dueAt))].filter(Boolean);
+  }
+  function isTaskInMonth(t){
+    return taskActivityDates(t).some(d=>d.getFullYear()===state.year&&d.getMonth()===state.month);
+  }
+  function isTaskInWeek(t){
+    const w=currentWeek();
+    return taskActivityDates(t).some(d=>d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end);
+  }
+  function taskSortDate(t){
+    return dateFrom(t.postingAt)||taskDeadlines(t).map(d=>dateFrom(d.dueAt)).filter(Boolean).sort((a,b)=>a-b)[0]||taskDate(t)||new Date(2100,0,1);
+  }
+  function weeklyTasks(){
+    return tasks().filter(isTaskInWeek).sort((a,b)=>taskSortDate(a)-taskSortDate(b));
+  }
+  function weeklyMeetings(){
+    const w=currentWeek();
+    return state.data.meetings.filter(m=>{const d=dateFrom(m.date);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end;});
+  }
+  function renderWeeklyFocus(){
+    const weekTasks=weeklyTasks(),meetings=weeklyMeetings();
+    const open=weekTasks.filter(t=>!isCompleted(t)),done=weekTasks.filter(isCompleted);
+    // Conserve links para memórias de semanas anteriores que originaram tarefas com prazo neste período.
+    const linkedIds=new Set(weekTasks.map(t=>String(t.meetingId||'')).filter(Boolean));
+    const sourceMeetings=state.data.meetings.filter(m=>linkedIds.has(String(m.id))&&!meetings.some(x=>String(x.id)===String(m.id)));
+    const info=[...meetings,...sourceMeetings];
+    const meta=available()?`<div class="weekly-counts"><span class="weekly-pending">${open.length} pendentes</span><span class="weekly-done">${done.length} concluídas</span></div>`:'';
+    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<a class="weekly-item" href="#/atividade/${safeHref(t.id)}"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><small>${escapeText(taskOrigin(t))}${t.postingAt?' · Postagem '+formatDate(t.postingAt,{day:'2-digit',month:'2-digit'}):''}</small></span>${tag(isCompleted(t)?'Concluída':'Pendente',isCompleted(t)?'mint':'soft')}</a>`).join('')+(weekTasks.length>7?`<p class="weekly-more">+ ${weekTasks.length-7} outras atividades no cronograma</p>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
+    const references=info.length?`<div class="weekly-meetings"><strong>${icon('book')} Memórias relacionadas</strong>${info.map(m=>`<a href="#/reunioes/${safeHref(m.id)}">${escapeText(m.title||'Reunião')} · ${formatDate(m.date)} ${icon('arrow')}</a>`).join('')}</div>`:'';
+    return `<section class="card card-pad weekly-focus"><div class="section-head"><div><h2>Pendências semanais</h2><p>${escapeText(periodTitle())} · Semana ${state.week} (${currentWeek().label})</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="weekly-controls">${weekSelector()}${meta}</div><div class="weekly-list">${entries}</div>${references}</section>`;
+  }
   function renderHome(){
     return `
       ${connectNotice()}${renderStats()}
@@ -116,20 +157,20 @@
         ${state.data.meetings.length?state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma reunião registrada','As memórias recentes aparecerão aqui quando forem cadastradas.',true)}
         </section>
       </div><div class="stack">
-        <section class="card card-pad"><div class="section-head"><div><h2>Período em foco</h2><p>${escapeText(periodTitle())}</p></div>${tag('Semana '+state.week)}</div><div class="deadline-preview">${icon('calendar')}<div><h3>${escapeText(periodTitle())}</h3><p>Semana ${state.week}: ${currentWeek().label}. O histórico continua disponível para consulta a qualquer momento.</p></div></div><div style="margin-top:15px"><button class="button ghost" data-action="go" data-to="cronograma">${icon('calendar')} Abrir calendário</button></div></section>
+        ${renderWeeklyFocus()}
         <section class="card card-pad"><div class="section-head"><div><h2>Últimas atualizações</h2><p>Histórico das atividades</p></div>${icon('bell')}</div>${renderFeed()}</section>
       </div></div>`;
   }
   function renderTaskCard(t){
-    const d=taskDate(t);const assigneeCount=Array.isArray(t.assigneeIds)?t.assigneeIds.length:0;
+    const d=dateFrom(t.postingAt);const assigneeCount=Array.isArray(t.assigneeIds)?t.assigneeIds.length:0;
     const labels=taskDeadlines(t).filter(x=>x.dueAt).slice(0,2).map(x=>`${escapeText(x.label||x.kind||'Prazo')}: ${escapeText(formatDate(x.dueAt))}`).join(' · ');
-    return `<a href="#/atividade/${safeHref(t.id)}" class="placeholder-row" style="text-decoration:none" aria-label="Abrir atividade ${escapeText(t.title)}"><div><strong>${escapeText(t.title)}</strong><small>${escapeText(committeeName(t.committeeId))}${d?' · '+formatDate(d):''}${assigneeCount?' · '+assigneeCount+' responsável(is)':''}</small>${labels?`<small>${labels}</small>`:''}</div>${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}</a>`;
+    return `<a href="#/atividade/${safeHref(t.id)}" class="placeholder-row" style="text-decoration:none" aria-label="Abrir atividade ${escapeText(t.title)}"><div><strong>${escapeText(t.title)}</strong><small>${escapeText(taskOrigin(t))}${d?' · Postagem '+formatDate(d):''}${assigneeCount?' · '+assigneeCount+' responsável(is)':''}</small>${labels?`<small>${labels}</small>`:''}</div>${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}</a>`;
   }
-  function renderDemandList(){const all=tasks();const mode=state.demandMode;const selectedWeek=currentWeek();let filtered=[];
-    if(mode==='mensal'||mode==='semanal')filtered=all.filter(t=>{const d=taskDate(t);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&(mode!=='semanal'||(d.getDate()>=selectedWeek.start&&d.getDate()<=selectedWeek.end));});
+  function renderDemandList(){const all=tasks();const mode=state.demandMode;let filtered=[];
+    if(mode==='mensal'||mode==='semanal')filtered=all.filter(t=>mode==='mensal'?isTaskInMonth(t):isTaskInWeek(t));
     if(mode==='pendentes')filtered=all.filter(t=>!isCompleted(t));
     if(mode==='arquivo')filtered=all.filter(isCompleted);
-    filtered.sort((a,b)=>(taskDate(b)?.getTime()||0)-(taskDate(a)?.getTime()||0));
+    filtered.sort((a,b)=>taskSortDate(a)-taskSortDate(b));
     if(!filtered.length){const titles={mensal:'Nenhuma demanda neste mês',semanal:'Nenhuma demanda nesta semana',pendentes:'Nenhuma pendência registrada',arquivo:'Arquivo sem registros'};
       return empty(mode==='arquivo'?'archive':'list',titles[mode],'As atividades cadastradas aparecerão aqui, vinculadas aos responsáveis e às comissões.');}
     return filtered.map(renderTaskCard).join('');
@@ -156,8 +197,8 @@
     }
     return output.join('');
   }
-  function calendarWeekDetails(){const week=currentWeek();const dates=[];for(let d=week.start;d<=week.end;d++)dates.push(new Date(state.year,state.month,d));
-    const byWeek=tasks().filter(t=>dates.some(d=>taskDeadlines(t).some(x=>dateKey(x.dueAt)===dateKey(d))||dateKey(t.postingAt)===dateKey(d)));
+  function calendarWeekDetails(){// O mesmo registro pode ter prazo de revisão e data de postagem, mas aparece uma vez.
+    const byWeek=weeklyTasks();
     return byWeek.length?byWeek.map(renderTaskCard).join(''):empty('calendar','Sem atividades para esta semana','Os prazos, eventos e postagens registrados aparecerão neste período.',true);
   }
   function renderPrefs(){return `<details class="prefs-panel"><summary>${icon('sliders')} Preferências de navegação ${icon('chevron-down')}</summary><div class="prefs-content">
@@ -271,6 +312,14 @@
     return {tasks:unique(asArr(src.tasks)),committees:unique(asArr(src.committees)),meetings:unique(asArr(src.meetings)),users:unique(asArr(src.users)),events:asArr(src.events),session:src.session&&typeof src.session==='object'?src.session:null};
   }
   async function loadInstitutionalData(){
+    if(!API && config.demoMode===true && window.PET_GESTAO_DEMO){
+      state.data=sanitizeBootstrap(window.PET_GESTAO_DEMO);
+      state.connected=true;
+      state.demo=true;
+      $('#connection-label').textContent='Modo demonstração';
+      render();
+      return;
+    }
     if(!API)return;
     state.loading=true;
     try{
