@@ -199,11 +199,11 @@
     return state.data.meetings.filter(m=>{const d=dateFrom(m.date);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end;});
   }
 
-  function weeksDisplay(){
+  function weeksDisplay(pendingOnly=false){
     return `<div class="weeks-overview"><div class="weeks-overview-head"><div><h3>Semanas de ${escapeText(MONTHS[state.month])}</h3><p>Selecione para ver as atividades do período</p></div><span>${state.year}</span></div>
       <div class="weeks-overview-buttons" role="group" aria-label="Semanas de ${escapeText(MONTHS[state.month])}">
         ${getWeeks(state.year,state.month).map(w=>{
-          const n=tasks().filter(t=>!isCompleted(t)&&taskActivityDates(t).some(d=>d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end)).length;
+          const n=tasks().filter(t=>!isCompleted(t)&&(!pendingOnly||!isApproved(t))&&taskActivityDates(t).some(d=>d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end)).length;
           return `<button type="button" class="week-overview-button ${state.week===w.n?'selected':''}" data-action="select-week" data-value="${w.n}" aria-pressed="${state.week===w.n}">
             <strong>Semana ${w.n}</strong><small>${String(w.start).padStart(2,'0')}–${String(w.end).padStart(2,'0')}/${String(state.month+1).padStart(2,'0')}</small>${n?`<span class="week-activity-number">${n}</span>`:''}
           </button>`;
@@ -211,12 +211,12 @@
       </div></div>`;
   }
   function renderWeeklyFocus(){
-    const weekTasks=weeklyTasks().filter(t=>!isCompleted(t)).sort(comparePriorityTasks);
+    const weekTasks=weeklyTasks().filter(t=>!isCompleted(t)&&!isApproved(t)).sort(comparePriorityTasks);
     const entries=weekTasks.length?weekTasks.map(t=>`<div class="weekly-preview-item"><div><strong>${escapeText(t.title)}</strong><a class="activity-details-link" href="#/atividade/${safeHref(t.id)}">Ver detalhes ${icon('arrow')}</a></div>${displayTaskState(t)}</div>`).join('')
       :'<p class="week-empty-notice">Nenhuma pendência nesta semana. As atividades concluídas estão em Arquivadas.</p>';
     return `<section class="card card-pad weekly-focus weekly-focus-simple"><div class="section-head"><div><h2>Pendências semanais</h2></div>
       <button class="link-action" data-action="go-all-cronograma">Ver cronograma ${icon('arrow')}</button></div>
-      ${weeksDisplay()}
+      ${weeksDisplay(true)}
       <div class="weekly-preview-heading"><strong>Semana ${state.week}</strong><span>${weekTasks.length} ${weekTasks.length===1?'pendência':'pendências'}</span></div>
       <div class="weekly-preview-list">${entries}</div></section>`;
   }
