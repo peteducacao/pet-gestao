@@ -6,6 +6,6 @@ window.PET_GESTAO_CONFIG = Object.freeze({
   apiBaseUrl: '',
   // Somente apresentação: utilizar o arquivo demo-data.js enquanto a API estiver ausente.
   demoMode: true,
-  appName: 'PET Gestão',
+  appName: 'PET Educação',
   locale: 'pt-BR'
 });
