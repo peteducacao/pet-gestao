@@ -99,11 +99,8 @@
   }
   function displayTaskState(t){
     if(isCompleted(t))return tag('Concluída','mint');
-    if(isApproved(t))return tag('APROVADO','approved-pill');
-    if(t.reviewStatus==='ajustes')return tag('Ajustes necessários','review-pill');
-    if(t.reviewStatus==='nao_liberado')return tag('Não liberado','review-pill');
-    if(taskDeadlines(t).some(d=>deadlineOverdue(d)))return tag('Atrasada','overdue-pill');
-    return tag(t.stageName==='Programada'?'Programada':'Pendente','soft');
+    if(isApproved(t))return tag('APROVADA','approved-pill');
+    return tag('Pendente',taskDeadlines(t).some(d=>deadlineOverdue(d))?'overdue-pill':'soft');
   }
   function taskDateBadge(t){
     const deadline=taskClosestDeadline(t),date=deadline||dateFrom(t.postingAt)||taskDate(t);
