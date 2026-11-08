@@ -39,6 +39,15 @@ window.PET_GESTAO_DEMO = {
     }
   ],
   "committees": [
+    {"id":"videos","name":"Vídeos","memberIds":[],"description":""},
+    {"id":"card","name":"Card","memberIds":[],"description":""},
+    {"id":"imaginacao","name":"ImaginAÇÃO","memberIds":[],"description":""},
+    {"id":"cinepet","name":"CinePET","memberIds":[],"description":""},
+    {"id":"salinha","name":"Salinha","memberIds":[],"description":""},
+    {"id":"financas","name":"Finanças","memberIds":[],"description":""},
+    {"id":"site","name":"Site","memberIds":[],"description":""},
+    {"id":"comemoracao","name":"Comemoração","memberIds":[],"description":""},
+    {"id":"impressora-3d","name":"Impressora 3D","memberIds":[],"description":""},
     {
       "id": "legendas",
       "name": "Legendas",
