@@ -11,7 +11,7 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 - **Cronograma:** mês, ano e semana; navegação manual e atualização automática opcional.
 - **Comissões:** estrutura compartilhada, indicadores por equipe e agrupamento de tarefas por mês e semana; o exemplo de Legendas contém cronograma de postagens de novembro de 2026.
 - **Reuniões:** exibe as memórias originais dos encontros, separadas das tarefas.
-- **Registrar demandas:** permite criar e editar tarefas e registrar memórias. Em modo demo, as alterações persistem somente no navegador.
+- **Registrar demandas:** exclusivamente criação e edição de demandas. A criação de memórias fica na área **Reuniões**, sem segunda aba de cadastro. Em modo demo, as alterações persistem somente no navegador.
 - **Minhas pendências:** atividades atribuídas ao usuário autenticado, de todas as comissões.
 - **Administração:** entrada bloqueada até existir autenticação, autorização e backend, conforme o escopo aprovado.
 
@@ -72,3 +72,10 @@ Foram realizados testes de funções de navegação, períodos, geração de HTM
 ## Atenção aos exemplos
 
 Datas, responsáveis e estados exibidos na demonstração foram transcritos da memória e do cronograma apresentados, **não representam confirmação de execução em tempo real**. O registro escrito em 22/10 aponta Emoji, Lixeira e Semáforo como OK; essas três tarefas aparecem como concluídas somente para demonstrar a interface. O nome «Pene», encontrado no cronograma, foi preservado como dado a confirmar, sem atribuir a qualquer conta.
+
+## Exclusões na demonstração
+
+- Cada prazo no formulário possui **Remover prazo**. A retirada desse campo somente altera a atividade quando a demanda for salva.
+- Demandas existentes podem ser excluídas pelo botão **Excluir demanda** na edição; memórias podem ser excluídas na lista ou no formulário de edição. O navegador pede confirmação antes de excluir o registro completo.
+- As exclusões são representadas apenas no armazenamento local do navegador e **não modificam o arquivo de exemplos do GitHub**. Elas permanecem após atualizar a página nesse navegador. A exclusão de uma memória preserva as demandas que estavam vinculadas.
+- No ambiente real, exclusões exigirão autenticação, autorização e trilha de auditoria no servidor.
