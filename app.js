@@ -228,7 +228,10 @@
   function renderDemandas(){
     const modes=[['mensal','Mensal'],['semanal','Semanal'],['pendentes','Pendentes'],['arquivo','Arquivadas']];
     return `${header('Acompanhamento','Demandas','Uma lista única de atividades, organizada por período, responsáveis e situação.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
-      <div class="card card-pad"><div class="list-toolbar"><div class="segmented" role="group" aria-label="Visualizar demandas">${modes.map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
+      <div class="card card-pad"><div class="demand-filter-groups">
+        <div class="demand-filter-group"><strong>Período</strong><div class="segmented" role="group" aria-label="Demandas por período">${modes.slice(0,2).map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
+        <div class="demand-filter-group demand-filter-status"><strong>Situação</strong><div class="segmented" role="group" aria-label="Demandas por situação">${modes.slice(2).map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
+      </div>
         ${(state.demandMode==='mensal'||state.demandMode==='semanal')?`<div class="list-toolbar">${periodSelector(state.demandMode==='semanal')}</div>`:'<p class="notice-line">Esta visualização reúne registros de todos os meses e anos.</p>'}
         <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2></div></div>${available()?tag(String(visibleDemandCount())+' registros','soft'):''}</div>
         ${renderDemandList()}
@@ -408,8 +411,8 @@
           <label>Estilo do fundo<select name="theme" class="select" data-field="memoryTheme">
             ${[['classic','Branco'],['lilac','Lilás suave'],['sage','Verde sálvia'],['blue','Azul claro'],['purplegradient','Degradê lilás'],['sunset','Degradê rosado'],['custom','Degradê personalizado']].map(([key,label])=>`<option value="${key}" ${(existing?.theme||'classic')===key?'selected':''}>${label}</option>`).join('')}
           </select></label>
-          <div class="memory-palette"><label>Cor inicial<input type="color" name="colorA" value="${memoryHex(existing?.colorA,'#f7f1ff')}"></label>
-            <label>Cor final<input type="color" name="colorB" value="${memoryHex(existing?.colorB,'#e4edff')}"></label></div>
+          <div class="memory-palette"><label>Cor inicial<input type="color" name="colorA" data-field="memoryColor" value="${memoryHex(existing?.colorA,'#f7f1ff')}"></label>
+            <label>Cor final<input type="color" name="colorB" data-field="memoryColor" value="${memoryHex(existing?.colorB,'#e4edff')}"></label></div>
           <div class="memory-live-sample" id="memory-live-sample" style="${memoryStyle(existing)}">Prévia do fundo da memória</div>
         </section>
         <div class="form-actions memory-form-actions">${existing?`<button type="button" class="button subtle-danger" data-action="delete-meeting" data-id="${escapeText(existing.id)}">${icon('close')} Excluir memória</button>`:''}<button type="submit" class="button primary">${icon('check')} ${existing?'Salvar alterações':'Salvar memória'}</button></div>
