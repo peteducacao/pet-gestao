@@ -154,7 +154,7 @@
     const sourceMeetings=state.data.meetings.filter(m=>linkedIds.has(String(m.id))&&!meetings.some(x=>String(x.id)===String(m.id)));
     const info=[...meetings,...sourceMeetings];
     const meta=available()?`<div class="weekly-counts"><span class="weekly-pending">${open.length} pendentes</span><span class="weekly-done">${done.length} concluídas</span></div>`:'';
-    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<a class="weekly-item" href="#/atividade/${safeHref(t.id)}"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><small>${escapeText(taskOrigin(t))}${t.postingAt?' · Postagem '+formatDate(t.postingAt,{day:'2-digit',month:'2-digit'}):''}</small></span>${tag(isCompleted(t)?'Concluída':'Pendente',isCompleted(t)?'mint':'soft')}</a>`).join('')+(weekTasks.length>7?`<p class="weekly-more">+ ${weekTasks.length-7} outras atividades no cronograma</p>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
+    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<div class="weekly-item"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></span>${tag(isCompleted(t)?'Concluída':'Pendente',isCompleted(t)?'mint':'soft')}</div>`).join('')+(weekTasks.length>7?`<p class="weekly-more">+ ${weekTasks.length-7} outras atividades no cronograma</p>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
     const references=info.length?`<div class="weekly-meetings"><strong>${icon('book')} Memórias relacionadas</strong>${info.map(m=>`<a href="#/reunioes/${safeHref(m.id)}">${escapeText(m.title||'Reunião')} · ${formatDate(m.date)} ${icon('arrow')}</a>`).join('')}</div>`:'';
     return `<section class="card card-pad weekly-focus"><div class="section-head"><div><h2>Pendências semanais</h2><p>${escapeText(periodTitle())} · Semana ${state.week} (${currentWeek().label})</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="weekly-controls">${weekSelector()}${meta}</div><div class="weekly-list">${entries}</div>${references}</section>`;
   }
@@ -274,9 +274,9 @@
       <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section><div class="card card-pad"><div class="section-head"><h2>Cronograma e atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?renderCommissionGroups(related):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
   }
   function renderReunioes(){const all=state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-    return `${header('Memórias','Reuniões','',`<a href="#/registrar?tipo=memoria" class="button primary">${icon('plus')} Registrar memória</a>`)}${connectNotice()}
+    return `${header('Memórias','Reuniões','',`<button type="button" data-action="register-memory" class="button primary">${icon('plus')} Registrar memória</button>`)}${connectNotice()}
       <section class="card card-pad"><div class="section-head"><div><h2>Memórias registradas</h2><p>Histórico por data da reunião</p></div>${available()?tag(all.length+' reuniões','soft'):''}</div>
-      ${all.length?all.map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)} · ${Array.isArray(m.taskIds)?m.taskIds.length:0} demandas vinculadas</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma memória registrada','Os encontros poderão reunir texto original, decisões, responsáveis, prazos e demandas vinculadas.')}</section>`;
+      ${all.length?all.map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma memória registrada','Os encontros poderão reunir texto original, decisões, responsáveis, prazos e demandas vinculadas.')}</section>`;
   }
   function renderMeetingDetail(id){const m=state.data.meetings.find(m=>String(m.id)===String(id));if(!m)return notFound();
     const linked=tasks().filter(t=>String(t.meetingId)===String(id)||(Array.isArray(m.taskIds)&&m.taskIds.map(String).includes(String(t.id))));
@@ -365,7 +365,7 @@
   function registerDeadlineRow(i){
     return `<div class="register-deadline"><label>Etapa<select class="select" name="deadline-step-${i}"><option>Produção</option><option>Correção</option><option>Entrega</option><option>Publicação</option><option>Outro prazo</option></select></label>
     <label>Para quem<input name="deadline-assignee-${i}" placeholder="Integrante, tutoria ou comissão"></label>
-    <label>Data<input type="date" name="deadline-date-${i}" required></label>
+    <label>Data<input type="date" name="deadline-date-${i}"></label>
     <label>Horário<input type="time" name="deadline-time-${i}" value="23:59"></label></div>`;
   }
   function renderRegister(){
@@ -509,9 +509,10 @@
         case 'prev-month':monthStep(-1);break;
         case 'next-month':monthStep(1);break;
         case 'today':resetCurrent();break;
-        case 'assignment-scope':state.assignmentScope=b.dataset.value;state.assignmentPicked=[];render();break;
-        case 'register-type':state.registerType=b.dataset.value;state.formDeadlineCount=1;render();break;
-        case 'add-deadline':state.formDeadlineCount=Math.min(8,state.formDeadlineCount+1);render();break;
+        case 'assignment-scope':state.assignmentScope=b.dataset.value;state.assignmentPicked=[];{const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();else render();}break;
+        case 'register-type':state.registerType=b.dataset.value;state.formDeadlineCount=1;state.assignmentPicked=[];render();break;
+        case 'register-memory':state.registerType='memoria';state.formDeadlineCount=1;navigate('registrar');render();break;
+        case 'add-deadline':if(state.formDeadlineCount<8){const container=document.querySelector('.register-deadlines');if(container){container.insertAdjacentHTML('beforeend',registerDeadlineRow(state.formDeadlineCount));state.formDeadlineCount++;}}break;
       }
     });
     document.addEventListener('submit',e=>{
@@ -530,8 +531,8 @@
       if(field==='month'){state.month=Number(el.value);state.week=1;state.selectedDay=1;}
       if(field==='year'){state.year=Number(el.value);state.week=1;state.selectedDay=1;}
       if(field==='week'){state.week=Number(el.value);}
-      if(field==='demoActor'){state.demoActor=el.value;render();return;}
-      if(field==='regCommitteeId'){state.regCommitteeId=el.value;render();return;}
+      if(field==='demoActor'){const oldForm=document.querySelector('#activity-update-form');const prevText=oldForm?.querySelector('[name="captionText"]')?.value??'';const prevObs=oldForm?.querySelector('[name="observation"]')?.value??'';state.demoActor=el.value;render();const newForm=document.querySelector('#activity-update-form');if(newForm){newForm.querySelector('[name="captionText"]').value=prevText;newForm.querySelector('[name="observation"]').value=prevObs;}return;}
+      if(field==='regCommitteeId'){state.regCommitteeId=el.value;const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();return;}
       if(field==='autoMonth'||field==='autoWeek'){state[field]=el.checked;savePrefs();return;}
       savePrefs();render();
     });
