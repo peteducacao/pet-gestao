@@ -117,7 +117,12 @@
     return 'Demanda geral';
   }
   function taskActivityDates(t){
-    return [taskDate(t),dateFrom(t.postingAt),...taskDeadlines(t).map(d=>dateFrom(d.dueAt))].filter(Boolean);
+    const posting=dateFrom(t.postingAt);
+    const deadlines=taskDeadlines(t).map(d=>dateFrom(d.dueAt)).filter(Boolean);
+    // A data de cadastro não deve deslocar todas as postagens para a semana em que o cronograma foi inserido.
+    // Memórias também podem ser consultadas na semana da própria reunião e na semana dos prazos derivados.
+    const origin=(!posting&&(t.meetingId||!deadlines.length))?taskDate(t):null;
+    return [posting,...deadlines,origin].filter(Boolean);
   }
   function isTaskInMonth(t){
     return taskActivityDates(t).some(d=>d.getFullYear()===state.year&&d.getMonth()===state.month);
