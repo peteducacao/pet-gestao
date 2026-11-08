@@ -680,3 +680,19 @@
 .commission-background-picker p{font-size:.85rem;color:#776f8a;margin:6px 0 0}
 @media(max-width:1050px){.commission-cards-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.commission-cards-grid{grid-template-columns:1fr;gap:14px}.commission-tile-link{min-height:0;padding:18px}.commission-tile-main .commission-icon{width:88px;height:88px;min-width:88px}.commission-default-art{font-size:49px}.commission-tile-info h3{font-size:1.14rem}}
+
+/* Concluídas: visual neutro elegante, sem bloco verde saturado */
+.commission-counters span.metric-done,
+.commission-tile .commission-counters span.metric-done{
+  background:#f5f2fa;
+  border:1px solid #e4ddef;
+  color:#625976;
+  box-shadow:none;
+}
+.commission-counters span.metric-done strong,
+.commission-tile .commission-counters span.metric-done strong{color:#463a63}
+.status-concluida,.status-done,.badge-done{
+  background:#f2eff8;
+  border-color:#e3dcef;
+  color:#584d70;
+}
