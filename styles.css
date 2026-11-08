@@ -727,3 +727,14 @@
   .commission-tile .commission-counters{gap:7px}
   .commission-tile .commission-counters>span{padding:9px 8px;font-size:11px}
 }
+
+/* Concluídas: lavanda refinada, contrastando com o verde de Aprovadas */
+.commission-tile .commission-counters>span.metric-done,
+.commission-counters span.metric-done{
+  background:#e9e0fa;
+  border:1px solid #d4c2f3;
+  color:#60458d;
+  box-shadow:0 1px 3px rgba(84,53,139,.05);
+}
+.commission-tile .commission-counters>span.metric-done strong,
+.commission-counters span.metric-done strong{color:#4c2c83}
