@@ -208,8 +208,7 @@
   }
   function renderWeeklyFocus(){
     const weekTasks=weeklyTasks().filter(t=>!isCompleted(t)).sort(comparePriorityTasks);
-    const entries=weekTasks.length?weekTasks.slice(0,5).map(t=>`<div class="weekly-preview-item"><div><strong>${escapeText(t.title)}</strong><a class="activity-details-link" href="#/atividade/${safeHref(t.id)}">Ver detalhes ${icon('arrow')}</a></div>${displayTaskState(t)}</div>`).join('')
-      +(weekTasks.length>5?`<button type="button" class="link-action" data-action="go-week-cronograma">Ver as ${weekTasks.length} demandas da semana ${icon('arrow')}</button>`:'')
+    const entries=weekTasks.length?weekTasks.map(t=>`<div class="weekly-preview-item"><div><strong>${escapeText(t.title)}</strong><a class="activity-details-link" href="#/atividade/${safeHref(t.id)}">Ver detalhes ${icon('arrow')}</a></div>${displayTaskState(t)}</div>`).join('')
       :'<p class="week-empty-notice">Nenhuma pendência nesta semana. As atividades concluídas estão em Arquivadas.</p>';
     return `<section class="card card-pad weekly-focus weekly-focus-simple"><div class="section-head"><div><h2>Pendências semanais</h2></div>
       <button class="link-action" data-action="go-all-cronograma">Ver cronograma ${icon('arrow')}</button></div>
@@ -717,10 +716,10 @@
     ${renderAssignmentPreview()}
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><div class="deadline-toolbar-actions"><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button><button class="button primary deadline-save-button" type="button" data-action="save-deadlines">${icon('check')} Salvar prazos</button></div></div>
     ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
-    ${task?`<section class="edit-copy-section observations-editor"><div class="edit-section-title"><h2>Observações</h2><p>Edite o conteúdo da demanda. O histórico registra quem salvou e quando.</p></div>
+    ${task?`<section class="edit-copy-section observations-editor"><div class="observations-editor-title"><div class="edit-section-title"><h2>Observações</h2><p>Edite o conteúdo da demanda.</p></div>
+      <span class="observations-author-badge">Última alteração: <strong>${escapeText(task.observationsEditedBy||task.lastEditedBy||'Nenhuma')}</strong>${(task.observationsEditedAt||task.lastEditedAt)?'<small>'+formatDate(task.observationsEditedAt||task.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</small>':''}</span></div>
       <div class="observation-editor-head"><label for="edit-caption-text">Texto da atividade (opcional)</label><button type="button" class="button ghost copy-observations" data-action="copy-observations" title="Copiar observações">${icon('copy')} Copiar</button></div>
       <textarea name="captionText" id="edit-caption-text" rows="6" placeholder="Escreva as observações desta atividade...">${escapeText(task.captionText||'')}</textarea>
-      <p class="observations-last-change">Última alteração: <strong>${escapeText(task.observationsEditedBy||task.lastEditedBy||'Nenhuma')}</strong>${(task.observationsEditedAt||task.lastEditedAt)?' · '+formatDate(task.observationsEditedAt||task.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>
       </section>`:''}
     <div class="form-actions demand-form-actions">${task?`<button type="button" class="button subtle-danger" data-action="delete-task" data-id="${escapeText(task.id)}">${icon('close')} Excluir demanda</button>`:'' }<button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
     return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda com prazos, comissão e responsáveis.')}${connectNotice()}
