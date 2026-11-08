@@ -22,7 +22,7 @@
     year:!prefs.autoMonth&&Number.isInteger(prefs.savedYear)&&prefs.savedYear>=2000&&prefs.savedYear<=2100?prefs.savedYear:TODAY.getFullYear(),
     month:!prefs.autoMonth&&Number.isInteger(prefs.savedMonth)&&prefs.savedMonth>=0&&prefs.savedMonth<=11?prefs.savedMonth:TODAY.getMonth(), week:1,
     selectedDay:TODAY.getDate(),
-    demandMode:'mensal', committeeId:null, assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, demoActor:'petiano', demoEditing:false, formDeadlineCount:1, ...prefs
+    demandMode:'mensal', committeeId:null, commissionWeek:'all', assignmentScope:'usuarios', assignmentPicked:[], assignmentTaskId:null, demoActor:'petiano', demoEditing:false, formDeadlineCount:1, ...prefs
   };
   state.week = !prefs.autoWeek&&Number.isInteger(prefs.savedWeek)?Math.min(Math.max(1,prefs.savedWeek),getWeeks(state.year,state.month).length) : (state.year===TODAY.getFullYear()&&state.month===TODAY.getMonth()?weekForDay(state.year,state.month,TODAY.getDate()):1);
   let toastTimer;
@@ -265,20 +265,61 @@
     const month=String(d.getMonth()+1).padStart(2,'0'),year=d.getFullYear();
     return `${String(w.start).padStart(2,'0')}/${month}/${year} a ${String(w.end).padStart(2,'0')}/${month}/${year}`;
   }
+
+  function commissionPeriodTasks(id){
+    return tasks().filter(t=>{
+      if(String(t.committeeId)!==String(id))return false;
+      const date=dateFrom(t.postingAt)||taskSortDate(t);
+      return date&&date.getFullYear()===state.year&&date.getMonth()===state.month;
+    }).sort((a,b)=>taskSortDate(a)-taskSortDate(b));
+  }
+  function commissionWeekSelector(){
+    return `<div class="filter-item commission-week-filter"><label for="commission-filter-week">SEMANA</label>
+      <select class="select" id="commission-filter-week" data-field="commissionWeek" aria-label="Selecionar semana da comissão">
+      <option value="all" ${state.commissionWeek==='all'?'selected':''}>Todas as semanas</option>
+      ${getWeeks(state.year,state.month).map(w=>`<option value="${w.n}" ${String(state.commissionWeek)===String(w.n)?'selected':''}>Semana ${w.n} (${String(w.start).padStart(2,'0')}/${String(state.month+1).padStart(2,'0')} a ${String(w.end).padStart(2,'0')}/${String(state.month+1).padStart(2,'0')})</option>`).join('')}
+      </select></div>`;
+  }
+  function commissionPeriodFilters(){
+    return `<div class="commission-filter-bar"><div class="commission-filter-title">${icon('calendar')}<strong>Selecionar período</strong></div>
+      <div class="commission-filter-row">${monthsSelector()}${yearsSelector()}${commissionWeekSelector()}
+      <button type="button" class="button ghost commission-current-btn" data-action="commission-current">${icon('calendar')} Mês atual</button></div></div>`;
+  }
   function renderCommissionGroups(records){
     const groups=new Map();
-    records.slice().sort((a,b)=>taskSortDate(a)-taskSortDate(b)).forEach(t=>{
-      const d=dateFrom(t.postingAt)||taskDate(t);
-      const label=d?`${MONTHS[d.getMonth()]} de ${d.getFullYear()} · Semana ${weekForDay(d.getFullYear(),d.getMonth(),d.getDate())} (${dateRangeForWeek(d)})`:'Sem data definida';
-      if(!groups.has(label))groups.set(label,[]);
-      groups.get(label).push(t);
+    records.forEach(t=>{
+      const date=dateFrom(t.postingAt)||taskSortDate(t);
+      if(!date)return;
+      const n=weekForDay(date.getFullYear(),date.getMonth(),date.getDate());
+      if(!groups.has(n))groups.set(n,[]);
+      groups.get(n).push(t);
     });
-    return Array.from(groups,([label,items])=>`<div class="committee-group"><h3 class="committee-group-label">${escapeText(label)}</h3>${items.map(renderTaskCard).join('')}</div>`).join('');
+    return [...groups].sort(([a],[b])=>a-b).map(([number,items])=>{
+      const w=getWeeks(state.year,state.month).find(w=>w.n===number);
+      const date=w?new Date(state.year,state.month,w.start):null;
+      const label=date?`${MONTHS[state.month]} de ${state.year} · Semana ${number} (${dateRangeForWeek(date)})`:'Semana '+number;
+      return `<section class="committee-group"><h3 class="committee-group-label">${escapeText(label)}</h3>
+        <div class="committee-group-items">${items.map(renderTaskCard).join('')}</div></section>`;
+    }).join('');
   }
-  function renderCommitteeDetail(id){const c=state.data.committees.find(c=>String(c.id)===String(id));if(!c)return notFound();
-    const related=tasks().filter(t=>String(t.committeeId)===String(c.id));
+  function renderCommitteeDetail(id){
+    const c=state.data.committees.find(c=>String(c.id)===String(id));
+    if(!c)return notFound();
+    const period=commissionPeriodTasks(c.id);
+    const shown=state.commissionWeek==='all'?period:period.filter(t=>{
+      const d=dateFrom(t.postingAt)||taskSortDate(t);
+      return d&&weekForDay(d.getFullYear(),d.getMonth(),d.getDate())===Number(state.commissionWeek);
+    });
+    const count=shown.length;
     return `${header('Comissões',c.name,'',newButton('Nova atividade'))}${connectNotice()}
-      <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section><div class="card card-pad"><div class="section-head"><h2>Cronograma e atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?renderCommissionGroups(related):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
+      <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section>
+      <section class="card card-pad committee-activities">
+        <div class="section-head"><h2>Cronograma e atividades</h2>${tag(count+' '+(count===1?'registro':'registros'),'soft')}</div>
+        ${commissionPeriodFilters()}
+        <div class="commission-period-result">
+        ${shown.length?renderCommissionGroups(shown):empty('calendar','Nenhuma atividade neste período','Escolha outro mês ou semana para consultar as atividades.',true)}
+        </div>
+      </section>`;
   }
   function displayMeetingTitle(m){
     const title=String(m.title||'').trim();
@@ -621,6 +662,7 @@
         case 'prev-month':monthStep(-1);break;
         case 'next-month':monthStep(1);break;
         case 'today':resetCurrent();break;
+        case 'commission-current':state.commissionWeek='all';resetCurrent();break;
         case 'assignment-scope':state.assignmentScope=b.dataset.value;state.assignmentPicked=[];{const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();else render();}break;
         case 'add-deadline':{
           const container=document.querySelector('.register-deadlines');
@@ -652,9 +694,10 @@
         return;
       }
       const field=el.dataset.field;
-      if(field==='month'){state.month=Number(el.value);state.week=1;state.selectedDay=1;}
-      if(field==='year'){state.year=Number(el.value);state.week=1;state.selectedDay=1;}
+      if(field==='month'){state.month=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
+      if(field==='year'){state.year=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
       if(field==='week'){state.week=Number(el.value);}
+      if(field==='commissionWeek'){state.commissionWeek=el.value==='all'?'all':String(el.value);}
       if(field==='demoActor'){const oldForm=document.querySelector('#activity-update-form');const prevText=oldForm?.querySelector('[name="captionText"]')?.value??'';const prevObs=oldForm?.querySelector('[name="observation"]')?.value??'';state.demoActor=el.value;render();const newForm=document.querySelector('#activity-update-form');if(newForm){newForm.querySelector('[name="captionText"]').value=prevText;newForm.querySelector('[name="observation"]').value=prevObs;}return;}
       if(field==='regCommitteeId'){state.regCommitteeId=el.value;const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();return;}
       if(field==='autoMonth'||field==='autoWeek'){state[field]=el.checked;savePrefs();return;}
