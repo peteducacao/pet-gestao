@@ -12,14 +12,14 @@ Toda comissão trabalha com **exatamente a mesma estrutura**: campos, atividades
 - O modo automático define apenas o período inicial ao entrar no site; a navegação manual fica sempre disponível.
 - Se a atualização automática estiver desabilitada, a preferência manual de período deve ser mantida.
 - Trocar de mês ou semana nunca altera, apaga ou arquiva atividades.
-- Todo prazo possui etapa (produção, correção e outras configuráveis), data, hora e responsável; a hora padrão ao criar é **23:59**, mas é editável.
+- Todo prazo possui etapa (produção, correção, publicar e outras configuráveis), data, hora e **um ou mais responsáveis**; a hora padrão ao criar é **23:59**, mas é editável. Botão **Salvar prazos** permite salvar somente a subseção de prazos na edição, sem modificar os demais campos.
 - Atividades podem ter múltiplos prazos com responsáveis diferentes, inclusive tutoria.
 
 ## Pessoas e comissões
 
 - Os cargos do sistema são **PETiano(a), Tutor(a) e Administração** e são atribuíveis pela Administração.
 - Uma pessoa pode acumular cargos; a ação de tutoria deve ser identificada pelo papel de tutor(a) validado no servidor.
-- As comissões possuem integrantes padrão cadastráveis, editáveis e removíveis. Uma demanda pode ser vinculada a mais de uma comissão com o mesmo identificador; não criar cópias. A etapa **Publicar**, com responsável selecionado por usuário, aparece em **Minhas pendências** deste usuário.
+- As comissões possuem nome, descrição opcional e integrantes padrão cadastráveis, editáveis e removíveis. Há formulário de **Nova comissão**, edição, renomeação e exclusão com confirmação. Uma demanda pode ser vinculada a mais de uma comissão com o mesmo identificador; não criar cópias. A etapa **Publicar**, com responsável selecionado por usuário, aparece em **Minhas pendências** deste usuário.
 - No seletor de responsáveis, mostrar **primeiro todos os integrantes da comissão, inclusive tutoria**; depois os demais usuários cadastrados. É permitido selecionar qualquer usuário.
 - **Minhas pendências** mostra tarefas abertas atribuídas à conta conectada, independentemente da comissão ou do mês. Concluídas saem da lista e permanecem no histórico.
 
@@ -32,7 +32,7 @@ Toda comissão trabalha com **exatamente a mesma estrutura**: campos, atividades
 - Guardar registros de alterações, autoria e data.
 - A navegação separa **Reuniões** (somente a memória original) e **Demandas** (acompanhamento), com **Registrar demanda** disponível dentro da aba Demandas, sem link duplicado no menu lateral. O fundo de cada memória pode usar uma cor fixa ou degradê personalizado.
 
-## Revisão, observações e e-mails
+## Situação, observações e e-mails
 
 - O texto principal da atividade/legenda pode ser editado **apenas pela tela Editar demanda**; na página de detalhes ele é exibido para leitura (se existir). Guardar quem alterou e a data e horário.
 - Os campos **Nova observação** e **Decisão sobre aprovação** ficam exclusivamente na edição. **Nova observação** fica bloqueada com cadeado para PETianos(as), só Tutoria e Administração podem escrevê-la. **Aprovação** pode ser modificada por PETianos(as), Tutoria ou Administração.
