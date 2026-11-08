@@ -416,21 +416,36 @@
     state.data.tasks.forEach(t=>{if(t.meetingId&&removedMeetings.has(String(t.meetingId)))t.meetingId=null;});
     state.data.meetings.forEach(m=>{if(Array.isArray(m.taskIds))m.taskIds=m.taskIds.filter(id=>!removedTasks.has(String(id)));});
   }
+
   function actorDemo(){
-    if(!state.demo)return sessionUser()?{name:sessionUser().name||'Integrante',role:(sessionUser().roles||[]).includes('tutor')?'tutora':'petiano'}:null;
-    return state.demoActor==='lene'?{name:'Lene',role:'tutora'}:{name:'PETiano(a) — teste',role:'petiano'};
+    if(!state.demo){
+      const user=sessionUser();
+      if(!user)return null;
+      const roles=Array.isArray(user.roles)?user.roles.map(r=>String(r).toLowerCase()):[];
+      const role=roles.some(r=>r==='tutor'||r==='tutora')?'tutora':roles.some(r=>r==='admin'||r==='administracao'||r==='administração')?'administracao':'petiano';
+      return {name:user.name||'Integrante',role};
+    }
+    if(state.demoActor==='lene')return {name:'Lene — tutoria (simulação)',role:'tutora'};
+    if(state.demoActor==='admin')return {name:'Administração (simulação)',role:'administracao'};
+    return {name:'PETiano(a) — teste',role:'petiano'};
   }
+  function canReview(actor){return Boolean(actor&&['tutora','administracao'].includes(actor.role));}
   const REVIEW_OPTIONS=[
     ['aguardando','Aguardando revisão'],
     ['ajustes','Ajustes necessários'],
-    ['nao_liberado','Não liberado para postagem'],
-    ['liberado','Liberado para postagem']
+    ['nao_liberado','Não liberado para uso/postagem'],
+    ['liberado','Liberado para uso/postagem']
   ];
   function reviewLabel(value){return REVIEW_OPTIONS.find(r=>r[0]===value)?.[1]||'Aguardando revisão';}
   function demoActorSelect(){
     if(!state.demo)return '';
-    return `<div class="demo-actor"><label for="demo-actor"><strong>Perfil de demonstração</strong><small>Não é login real. Escolha um perfil para testar a autoria.</small></label>
-      <select class="select" id="demo-actor" data-field="demoActor"><option value="petiano" ${state.demoActor==='petiano'?'selected':''}>PETiano(a) — teste</option><option value="lene" ${state.demoActor==='lene'?'selected':''}>Lene — Tutora (simulação)</option></select></div>`;
+    return `<div class="demo-actor-compact"><div class="demo-actor-copy"><span class="demo-dot"></span><div><strong>Perfil para testar a tela</strong><small>Simulação — não substitui o login real.</small></div></div>
+      <label for="demo-actor" class="visually-hidden">Visualizar como</label>
+      <select class="select" id="demo-actor" data-field="demoActor" aria-label="Visualizar como">
+        <option value="petiano" ${state.demoActor==='petiano'?'selected':''}>PETiano(a)</option>
+        <option value="lene" ${state.demoActor==='lene'?'selected':''}>Lene · Tutora</option>
+        <option value="admin" ${state.demoActor==='admin'?'selected':''}>Administração</option>
+      </select></div>`;
   }
   function renderAssignmentPreview(){
     const scope=state.assignmentScope;
