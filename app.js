@@ -330,7 +330,7 @@
     const observationHtml=notes.length?notes.map(n=>`<div class="placeholder-row"><div><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt)}</small><p style="white-space:pre-wrap;font-size:12px;line-height:1.8">${escapeText(n.body||'')}</p></div></div>`).join(''):empty('book','Nenhuma observação cadastrada','As observações são independentes da descrição da atividade.',true);
     const posting=t.postingAt?`<div class="activity-info"><span>Data prevista para postagem</span><strong>${formatDate(t.postingAt)}</strong></div>`:'';
     const people=assignees.length?`<div class="assigned-pills">${assignees.map(name=>tag(name,'soft')).join('')}</div>`:'<p class="notice-line">Responsável geral ainda não definido.</p>';
-    return `${header(taskOrigin(t),t.title,'',`<a class="button ghost" href="${sourceHref}">${icon('chevron-left')} Voltar à origem</a>`)}${connectNotice()}
+    return `${header('Detalhes da atividade',t.title,'',`<a class="button ghost" href="${sourceHref}">${icon('chevron-left')} Voltar à origem</a>`)}${connectNotice()}
       <div class="activity-overview card card-pad"><span class="detail-kicker">${escapeText(label)}: ${escapeText(taskOrigin(t))}</span>${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}
       ${posting}${description?`<div class="activity-description"><h2>Descrição</h2><p>${escapeText(description)}</p></div>`:''}</div>
       <div class="dashboard-grid activity-grid"><div class="stack">
@@ -339,7 +339,6 @@
       </div><div class="stack">
         <section class="card card-pad"><div class="section-head"><h2>Responsáveis pela atividade</h2></div>${people}</section>
         ${renderAssignmentPreview()}
-        <section class="card card-pad"><div class="section-head"><h2>Origem</h2></div><a class="activity-details-link" href="${sourceHref}">${escapeText(taskOrigin(t))} ${icon('arrow')}</a></section>
       </div></div>`;
   }
   function notFound(){return `${header('Navegação','Registro não encontrado','O item solicitado não está disponível ou não pode ser consultado com este acesso.')}<div class="card card-pad">${empty('search','Não foi possível abrir o registro','Retorne à lista e escolha uma atividade disponível.')}</div>`;}
