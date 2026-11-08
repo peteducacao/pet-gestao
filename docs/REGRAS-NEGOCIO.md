@@ -12,7 +12,7 @@ Toda comissão trabalha com **exatamente a mesma estrutura**: campos, atividades
 - O modo automático define apenas o período inicial ao entrar no site; a navegação manual fica sempre disponível.
 - Se a atualização automática estiver desabilitada, a preferência manual de período deve ser mantida.
 - Trocar de mês ou semana nunca altera, apaga ou arquiva atividades.
-- Todo prazo possui etapa (produção, correção, publicar e outras configuráveis), data, hora e **um ou mais responsáveis**; a hora padrão ao criar é **23:59**, mas é editável. Botão **Salvar prazos** permite salvar somente a subseção de prazos na edição, sem modificar os demais campos.
+- Na prévia, cada prazo possui apenas as etapas **Prazo** e **Correção**, data, hora e um ou mais responsáveis; a hora padrão é **23:59**, editável. Etapas antigas permanecem no histórico. Selecionar um responsável fecha o seletor e exibe os marcados como etiquetas, sem perder múltiplas seleções. Botão **Salvar prazos** permite salvar somente a subseção de prazos na edição, sem modificar os demais campos.
 - Atividades podem ter múltiplos prazos com responsáveis diferentes, inclusive tutoria.
 
 ## Pessoas e comissões
@@ -30,16 +30,16 @@ Toda comissão trabalha com **exatamente a mesma estrutura**: campos, atividades
 - Um trecho informativo não vira tarefa automaticamente. Nomes desconhecidos, `???` e prazos incertos não serão inventados.
 - Vincular tarefas existentes, em vez de duplicá-las quando forem retomadas em encontros posteriores.
 - Guardar registros de alterações, autoria e data.
-- A navegação separa **Reuniões** (somente a memória original) e **Demandas** (acompanhamento), com **Registrar demanda** disponível dentro da aba Demandas, sem link duplicado no menu lateral. O fundo de cada memória pode usar uma cor fixa ou degradê personalizado.
+- Não existe mais aba **Reuniões** no menu lateral. A área **Demandas** reúne acompanhamento e **Memórias dos encontros**, com links para leitura/edição das atas. O fundo das memórias tem cores ou degradês personalizados com prévia em tempo real.
 
-## Situação, observações e e-mails
+## Situação e observações
 
-- O texto principal da atividade/legenda pode ser editado **apenas pela tela Editar demanda**; na página de detalhes ele é exibido para leitura (se existir). Guardar quem alterou e a data e horário.
-- Os campos **Nova observação** e **Decisão sobre aprovação** ficam exclusivamente na edição. **Nova observação** fica bloqueada com cadeado para PETianos(as), só Tutoria e Administração podem escrevê-la. **Aprovação** pode ser modificada por PETianos(as), Tutoria ou Administração.
-- Editar uma legenda já aprovada deve retirar a aprovação anterior, a menos que o responsável selecione **APROVADO** explicitamente para o novo conteúdo. Registrar observação não aprova o material.
-- O responsável pode escolher explicitamente entre **aguardando revisão**, **ajustes necessários**, **não liberado** e **APROVADO**. A atividade aprovada ganha destaque e prioridade no topo, mas só é arquivada quando **Concluída**. Uma observação ou edição de texto por si só **não é aprovação**.
-- O status de liberação é independente da conclusão da tarefa.
-- Na versão demonstrativa, um seletor de perfil Lene/PETiano(a) apenas simula o fluxo e guarda registros localmente, sem enviar e-mail ou afirmar identidade verificada.
+- O formulário **Editar demanda** contém prazos, responsáveis e texto de observações. O controle **Pendente / Aprovada / Concluída** aparece na página **Ver detalhes**, permitindo mudanças rápidas.
+- **Aprovada** mantém a tarefa ativa com prioridade; **Concluída** a move para **Arquivadas**. Apenas quando todas as tarefas da semana são concluídas o bloco dessa semana desaparece.
+- O texto das **Observações** pode ser editado por integrantes no formulário, mas em **Ver detalhes** é apenas para consulta e cópia. A autoria da última alteração do texto, com nome e data, aparece em destaque ao lado do título.
+- Editar o texto anteriormente aprovado remove a aprovação até uma nova ação explícita de aprovação.
+- Se uma demanda for criada a partir da página de uma comissão, sua vinculação com aquela comissão fica pré-selecionada e, após salvar, retorna à página da comissão.
+- A página **Cronograma** abre em **Todas as demandas** (ativas, de qualquer mês). A seleção semanal fica disponível sem calendário grande nem painel de preferências. Na inicial, **Próximos prazos** lista as seis atividades com prazos mais próximos.
 
 ## Observações e e-mails
 
