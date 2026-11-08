@@ -477,6 +477,29 @@
       <label>Data<input type="date" name="deadline-date-${i}" value="${escapeText(day)}"></label>
       <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label><button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo" title="Remover prazo">${icon('close')} Remover prazo</button></div>`;
   }
+
+  function renderReviewEditor(t){
+    const actor=actorDemo();
+    const editable=canReview(actor);
+    const current=reviewLabel(t.reviewStatus||'aguardando');
+    const notes=`<div class="edit-panel-card ${editable?'':'edit-panel-locked'}"><div class="edit-panel-heading">
+      <span class="edit-panel-icon">${icon(editable?'book':'lock')}</span><div><h3>Observação da tutoria</h3>
+      <p>${editable?'Registre orientações ou correções para os responsáveis.':'Somente a Tutoria e a Administração podem escrever observações.'}</p></div>
+      ${editable?'<span class="edit-access-label">Autorizado</span>':'<span class="edit-access-label locked">Bloqueado</span>'}</div>
+      <label for="edit-new-observation">Nova observação (opcional)</label>
+      <textarea id="edit-new-observation" name="observation" rows="3" placeholder="${editable?'Ex.: Ajustar as informações antes de publicar.':'Disponível somente para Tutoria e Administração'}" ${editable?'':'disabled aria-disabled="true"'}></textarea>
+      </div>`;
+    const options=`<div class="edit-panel-card ${editable?'':'edit-panel-locked'}"><div class="edit-panel-heading">
+      <span class="edit-panel-icon">${icon(editable?'check':'lock')}</span><div><h3>Liberação da atividade</h3>
+      <p>Situação atual: <strong>${escapeText(current)}</strong></p></div>
+      ${editable?'<span class="edit-access-label">Autorizado</span>':'<span class="edit-access-label locked">Bloqueado</span>'}</div>
+      <label for="edit-review-status">Decisão sobre o uso ou postagem</label>
+      <select class="select" id="edit-review-status" name="reviewStatus" ${editable?'':'disabled aria-disabled="true"'}><option value="">Sem nova decisão</option>${REVIEW_OPTIONS.map(([v,title])=>`<option value="${v}">${escapeText(title)}</option>`).join('')}</select>
+      <small>${editable?'A liberação só será registrada se você escolher explicitamente “Liberado para uso/postagem”.':'A decisão é exclusiva da Tutoria e da Administração.'}</small>
+      </div>`;
+    return `<section class="edit-revision-section"><div class="edit-section-title"><h2>Revisão e observações</h2><p>As orientações não liberam automaticamente a atividade.</p></div>
+      ${demoActorSelect()}<div class="edit-revision-grid">${notes}${options}</div></section>`;
+  }
   function renderRegister(){
     const id=getRoute().id||'';
     const task=id?tasks().find(t=>String(t.id)===String(id)):null;
@@ -499,6 +522,9 @@
     ${renderAssignmentPreview()}
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button></div>
     ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
+    ${task?`<section class="edit-copy-section"><div class="edit-section-title"><h2>Texto da atividade</h2><p>Atualize a legenda ou o conteúdo que será utilizado.</p></div>
+      <label for="edit-caption-text">Texto (opcional)</label><textarea name="captionText" id="edit-caption-text" rows="5" placeholder="Escreva ou edite o texto da atividade...">${escapeText(task.captionText||'')}</textarea></section>
+      ${renderReviewEditor(task)}`:''}
     <div class="form-actions demand-form-actions">${task?`<button type="button" class="button subtle-danger" data-action="delete-task" data-id="${escapeText(task.id)}">${icon('close')} Excluir demanda</button>`:'' }<button type="submit" class="button primary">${icon('check')} ${task?'Salvar demanda':'Registrar demanda'}</button></div></form>`;
     return `${header('Cadastros',task?'Editar demanda':'Registrar demandas',task?'Altere prazos, responsáveis, comissão ou situação da atividade.':'Crie uma demanda com prazos, comissão e responsáveis.')}${connectNotice()}
       <section class="card card-pad register-page">${taskForm}
@@ -589,15 +615,13 @@
     if(saveLocalDemoWrites()){render();showToast(isMeeting?'Memória excluída nesta demonstração.':'Demanda excluída nesta demonstração.');}
     else showToast('Não foi possível salvar a exclusão no navegador.');
   }
+
   function renderActivityDetail(id){
     const t=tasks().find(t=>String(t.id)===String(id));
     if(!t)return notFound();
     const d=taskDeadlines(t),notes=Array.isArray(t.observations)?t.observations:[];
-    const assignees=getAssigneeNames(t);
-    const person=actorDemo();
-    const isTutor=person?.role==='tutora';
-    const review=t.reviewStatus||'aguardando';
-    const statusBadge=review==='liberado'?tag('Liberado para postagem','mint'):review==='ajustes'?tag('Ajustes necessários','soft'):review==='nao_liberado'?tag('Não liberado','soft'):tag('Aguardando revisão','soft');
+    const assignees=getAssigneeNames(t),review=t.reviewStatus||'aguardando';
+    const statusBadge=review==='liberado'?tag('Liberado para uso/postagem','mint'):review==='ajustes'?tag('Ajustes necessários','soft'):review==='nao_liberado'?tag('Não liberado','soft'):tag('Aguardando revisão','soft');
     const deadlines=d.length?d.map(x=>{
       const {step,person}=deadlineParts(x),date=dateFrom(x.dueAt);
       const due=date?formatDate(date,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'A definir';
@@ -607,43 +631,20 @@
     const revisions=Array.isArray(t.revisions)?t.revisions.slice().reverse().slice(0,7):[];
     const history=revisions.length?`<div class="revision-list">${revisions.map(x=>`<div><strong>${escapeText(x.action||'Atualização')} — ${escapeText(x.actorName)}</strong><small>${formatDate(x.at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}</div>`:'<p class="notice-line">Nenhuma alteração registrada.</p>';
     const posting=t.postingAt?`<p class="activity-due">Postagem prevista: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
+    const savedText=String(t.captionText||'').trim();
     return `${header('Atividade',t.title,'',`<a class="button ghost" href="#/registrar/${safeHref(t.id)}">${icon('settings')} Editar demanda</a><a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
     <div class="activity-header-strip card card-pad">${statusBadge}${posting}</div>
     <div class="activity-detail-grid">
       <div class="stack">
         <section class="card card-pad"><h2>Prazos e etapas</h2>${deadlines}</section>
-        <section class="card card-pad"><h2>Observações</h2>${observations||'<p class="notice-line">Nenhuma observação cadastrada.</p>'}</section>
-        <section class="card card-pad"><h2>Texto e revisão</h2><p class="notice-line">Edite o texto, inclua uma observação ou solicite uma correção. Uma observação não libera a postagem automaticamente.</p>
-          ${demoActorSelect()}
-          <form id="activity-update-form" data-id="${escapeText(t.id)}" class="register-form">
-            <label>Texto da atividade / legenda (opcional)<textarea id="activity-text" name="captionText" rows="6" placeholder="Escreva ou edite o texto aqui...">${escapeText(t.captionText||'')}</textarea></label>
-            <label>Nova observação (opcional)<textarea name="observation" rows="3" placeholder="Registre aqui uma orientação ou correção..."></textarea></label>
-            ${isTutor?`<label class="review-control">Decisão da tutoria<select class="select" name="reviewStatus">${REVIEW_OPTIONS.map(([v,title])=>`<option value="${v}" ${review===v?'selected':''}>${title}</option>`).join('')}</select><small>Escolha “Liberado para postagem” somente quando a tutoria autorizar.</small></label>`:`<p class="review-readonly">Situação da revisão: <strong>${escapeText(reviewLabel(review))}</strong>. Apenas a tutoria pode alterar essa decisão.</p>`}
-            <button class="button primary" type="submit">${icon('check')} Salvar alterações</button>
-          </form></section>
+        ${savedText?`<section class="card card-pad"><h2>Texto registrado</h2><p class="saved-activity-text">${escapeText(savedText)}</p></section>`:''}
+        <section class="card card-pad"><h2>Observações</h2>${observations||'<p class="notice-line">Nenhuma observação registrada.</p>'}</section>
       </div><div class="stack">
-        <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}
-          <a class="activity-details-link" href="#/registrar/${safeHref(t.id)}">Editar responsáveis ${icon('arrow')}</a></section>
+        <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}</section>
+        <section class="card card-pad"><h2>Situação da revisão</h2><p class="notice-line">${escapeText(reviewLabel(review))}</p><p class="assignment-preview-note">A aprovação não é automática: depende de uma decisão da Tutoria ou da Administração.</p></section>
         <section class="card card-pad"><h2>Histórico de alterações</h2>${history}</section>
       </div>
     </div>`;
-  }
-  function saveActivityUpdate(form){
-    if(!state.demo){showToast('Edição disponível após a implantação do acesso seguro.');return;}
-    const t=tasks().find(x=>String(x.id)===String(form.dataset.id)),actor=actorDemo();
-    if(!t||!actor)return;
-    const data=new FormData(form),newText=String(data.get('captionText')||''),obs=String(data.get('observation')||'').trim(),oldText=String(t.captionText||'');
-    const oldReview=t.reviewStatus||'aguardando',newReview=actor.role==='tutora'?String(data.get('reviewStatus')||oldReview):oldReview;
-    const at=new Date().toISOString();
-    let changed=false;
-    if(newText!==oldText){t.captionText=newText;changed=true;}
-    if(obs){t.observations=[...(t.observations||[]),{body:obs,authorName:actor.name,createdAt:at}];changed=true;}
-    if(newReview!==oldReview){t.reviewStatus=newReview;changed=true;}
-    if(!changed){showToast('Nenhuma alteração para salvar.');return;}
-    t.revisions=[...(t.revisions||[]),{action:newReview!==oldReview?'Decisão da tutoria: '+reviewLabel(newReview):actor.role==='tutora'?'Correção':'Alteração',actorName:actor.name,at}];
-    t.lastEditedBy=actor.name;t.lastEditedAt=at;
-    if(saveLocalDemoWrites()){render();showToast('Alteração registrada localmente com autoria e horário. Nenhum e-mail foi enviado.');}
-    else showToast('Não foi possível salvar a alteração.');
   }
   function notFound(){return `${header('Navegação','Registro não encontrado','O item solicitado não está disponível ou não pode ser consultado com este acesso.')}<div class="card card-pad">${empty('search','Não foi possível abrir o registro','Retorne à lista e escolha uma atividade disponível.')}</div>`;}
   function render(){
@@ -697,7 +698,6 @@
       }
     });
     document.addEventListener('submit',e=>{
-      if(e.target.id==='activity-update-form'){e.preventDefault();saveActivityUpdate(e.target);}
       if(e.target.id==='register-task-form'){e.preventDefault();saveRegisteredTask(e.target);}
       if(e.target.id==='register-memory-form'){e.preventDefault();saveRegisteredMemory(e.target);}
     });
@@ -713,7 +713,19 @@
       if(field==='year'){state.year=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
       if(field==='week'){state.week=Number(el.value);}
       if(field==='commissionWeek'){state.commissionWeek=el.value==='all'?'all':String(el.value);}
-      if(field==='demoActor'){const oldForm=document.querySelector('#activity-update-form');const prevText=oldForm?.querySelector('[name="captionText"]')?.value??'';const prevObs=oldForm?.querySelector('[name="observation"]')?.value??'';state.demoActor=el.value;render();const newForm=document.querySelector('#activity-update-form');if(newForm){newForm.querySelector('[name="captionText"]').value=prevText;newForm.querySelector('[name="observation"]').value=prevObs;}return;}
+      if(field==='demoActor'){
+        const oldForm=document.querySelector('#register-task-form');
+        const oldText=oldForm?.querySelector('[name="captionText"]')?.value??'';
+        state.demoActor=el.value;
+        const reviewPanel=document.querySelector('.edit-revision-section');
+        const task=tasks().find(t=>String(t.id)===String(oldForm?.dataset.id||''));
+        if(reviewPanel&&task){
+          reviewPanel.outerHTML=renderReviewEditor(task);
+          const txt=oldForm.querySelector('[name="captionText"]');
+          if(txt)txt.value=oldText;
+        }else render();
+        return;
+      }
       if(field==='regCommitteeId'){state.regCommitteeId=el.value;const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();return;}
       if(field==='autoMonth'||field==='autoWeek'){state[field]=el.checked;savePrefs();return;}
       savePrefs();render();
