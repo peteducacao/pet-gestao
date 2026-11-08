@@ -154,7 +154,7 @@
     const sourceMeetings=state.data.meetings.filter(m=>linkedIds.has(String(m.id))&&!meetings.some(x=>String(x.id)===String(m.id)));
     const info=[...meetings,...sourceMeetings];
     const meta=available()?`<div class="weekly-counts"><span class="weekly-pending">${open.length} pendentes</span><span class="weekly-done">${done.length} concluídas</span></div>`:'';
-    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<div class="weekly-item"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></span>${tag(isCompleted(t)?'Concluída':'Pendente',isCompleted(t)?'mint':'soft')}</div>`).join('')+(weekTasks.length>7?`<p class="weekly-more">+ ${weekTasks.length-7} outras atividades no cronograma</p>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
+    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<div class="weekly-item"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></span>${tag(isCompleted(t)?'Concluída':'Pendente',isCompleted(t)?'mint':'soft')}</div>`).join('')+(weekTasks.length>7?`<a class="activity-details-link weekly-more" href="#/demandas">Ver outras ${weekTasks.length-7} atividades ${icon('arrow')}</a>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
     const references=info.length?`<div class="weekly-meetings"><strong>${icon('book')} Memórias relacionadas</strong>${info.map(m=>`<a href="#/reunioes/${safeHref(m.id)}">${escapeText(m.title||'Reunião')} · ${formatDate(m.date)} ${icon('arrow')}</a>`).join('')}</div>`:'';
     return `<section class="card card-pad weekly-focus"><div class="section-head"><div><h2>Pendências semanais</h2><p>${escapeText(periodTitle())} · Semana ${state.week} (${currentWeek().label})</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="weekly-controls">${weekSelector()}${meta}</div><div class="weekly-list">${entries}</div>${references}</section>`;
   }
@@ -176,6 +176,13 @@
     const review=t.reviewStatus==='liberado'?tag('Liberado','mint'):t.reviewStatus==='ajustes'?tag('Ajustes','soft'):'';
     return `<div class="placeholder-row task-list-row"><div class="task-list-body"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></div><div class="task-row-meta">${review}${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}</div></div>`;
   }
+  function visibleDemandCount(){
+    const mode=state.demandMode;
+    if(mode==='mensal')return tasks().filter(isTaskInMonth).length;
+    if(mode==='semanal')return tasks().filter(isTaskInWeek).length;
+    if(mode==='pendentes')return tasks().filter(t=>!isCompleted(t)).length;
+    return tasks().filter(isCompleted).length;
+  }
   function renderDemandList(){const all=tasks();const mode=state.demandMode;let filtered=[];
     if(mode==='mensal'||mode==='semanal')filtered=all.filter(t=>mode==='mensal'?isTaskInMonth(t):isTaskInWeek(t));
     if(mode==='pendentes')filtered=all.filter(t=>!isCompleted(t));
@@ -190,7 +197,7 @@
     return `${header('Acompanhamento','Demandas','Uma lista única de atividades, organizada por período, responsáveis e situação.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
       <div class="card card-pad"><div class="list-toolbar"><div class="segmented" role="group" aria-label="Visualizar demandas">${modes.map(([val,label])=>`<button type="button" data-action="demand-mode" data-value="${val}" class="${state.demandMode===val?'active':''}" aria-pressed="${state.demandMode===val}">${label}</button>`).join('')}</div></div>
         ${(state.demandMode==='mensal'||state.demandMode==='semanal')?`<div class="list-toolbar">${periodSelector(state.demandMode==='semanal')}</div>`:'<p class="notice-line">Esta visualização reúne registros de todos os meses e anos.</p>'}
-        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2><p>As atividades são exibidas uma única vez, mesmo quando relacionadas a várias áreas.</p></div></div>${available()?tag(String(tasks().length)+' registros','soft'):''}</div>
+        <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2><p>As atividades são exibidas uma única vez, mesmo quando relacionadas a várias áreas.</p></div></div>${available()?tag(String(visibleDemandCount())+' registros','soft'):''}</div>
         ${renderDemandList()}
       </div>`;
   }
@@ -500,7 +507,7 @@
     if(obs){t.observations=[...(t.observations||[]),{body:obs,authorName:actor.name,createdAt:at}];changed=true;}
     if(newReview!==oldReview){t.reviewStatus=newReview;changed=true;}
     if(!changed){showToast('Nenhuma alteração para salvar.');return;}
-    t.revisions=[...(t.revisions||[]),{action:newReview!==oldReview?'Decisão da tutoria: '+reviewLabel(newReview):actor.role==='tutora'?'Correção por '+actor.name:'Alteração por '+actor.name,actorName:actor.name,at}];
+    t.revisions=[...(t.revisions||[]),{action:newReview!==oldReview?'Decisão da tutoria: '+reviewLabel(newReview):actor.role==='tutora'?'Correção':'Alteração',actorName:actor.name,at}];
     t.lastEditedBy=actor.name;t.lastEditedAt=at;
     if(saveLocalDemoWrites()){render();showToast('Alteração registrada localmente com autoria e horário. Nenhum e-mail foi enviado.');}
     else showToast('Não foi possível salvar a alteração.');
@@ -539,7 +546,7 @@
         case 'today':resetCurrent();break;
         case 'assignment-scope':state.assignmentScope=b.dataset.value;state.assignmentPicked=[];{const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();else render();}break;
         case 'register-type':state.registerType=b.dataset.value;state.formDeadlineCount=1;state.assignmentPicked=[];render();break;
-        case 'register-memory':state.registerType='memoria';state.formDeadlineCount=1;navigate('registrar');render();break;
+        case 'register-memory':state.registerCurrentId='';state.registerType='memoria';state.formDeadlineCount=1;navigate('registrar');render();break;
         case 'add-deadline':if(state.formDeadlineCount<8){const container=document.querySelector('.register-deadlines');if(container){container.insertAdjacentHTML('beforeend',registerDeadlineRow(state.formDeadlineCount));state.formDeadlineCount++;}}break;
       }
     });
