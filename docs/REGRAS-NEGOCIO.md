@@ -34,7 +34,9 @@ Toda comissão trabalha com **exatamente a mesma estrutura**: campos, atividades
 
 ## Revisão, observações e e-mails
 
-- O texto principal da atividade/legenda pode ser editado; salvar quem alterou e a data e horário.
+- O texto principal da atividade/legenda pode ser editado **apenas pela tela Editar demanda**; na página de detalhes ele é exibido para leitura (se existir). Guardar quem alterou e a data e horário.
+- Os campos **Nova observação** e **Decisão sobre liberação** ficam exclusivamente na edição da demanda; permanecem visualmente bloqueados e desabilitados com cadeado para PETianos(as). Só Tutoria e Administração podem preenchê-los.
+- Editar uma legenda já liberada deve retirar automaticamente a liberação anterior, a menos que Tutoria/Administração libere explicitamente o novo conteúdo. Registrar observação não aprova o material.
 - A tutoria deverá escolher explicitamente entre **aguardando revisão**, **ajustes necessários**, **não liberado** e **liberado para postagem**. Uma observação ou edição de texto por si só **não é aprovação**.
 - O status de liberação é independente da conclusão da tarefa.
 - Na versão demonstrativa, um seletor de perfil Lene/PETiano(a) apenas simula o fluxo e guarda registros localmente, sem enviar e-mail ou afirmar identidade verificada.
