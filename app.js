@@ -428,7 +428,7 @@
       return d&&weekForDay(d.getFullYear(),d.getMonth(),d.getDate())===Number(state.commissionWeek);
     });
     const count=shown.length;
-    return `${header('Comissões',c.name,'',`<a class="button ghost" href="#/comissoes/editar/${safeHref(c.id)}">${icon('settings')} Editar comissão</a><a class="button primary" href="#/registrar">${icon('plus')} Nova demanda</a>`)}${connectNotice()}
+    return `${header('Comissões',c.name,'',`<a class="button ghost" href="#/comissoes/editar/${safeHref(c.id)}">${icon('settings')} Editar comissão</a><a class="button primary" href="#/registrar/novo/${safeHref(c.id)}">${icon('plus')} Nova demanda</a>`)}${connectNotice()}
       <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section>
       <section class="card card-pad committee-activities">
         <div class="section-head"><h2>Cronograma e atividades</h2>${tag(count+' '+(count===1?'registro':'registros'),'soft')}</div>
@@ -696,8 +696,9 @@
   }
   function renderRegister(){
     const id=getRoute().id||'';
-    const task=id?tasks().find(t=>String(t.id)===String(id)):null;
-    if(id&&!task)return notFound();
+    const fromCommission=id.startsWith('novo/')?id.slice(5):null;
+    const task=id&&!fromCommission?tasks().find(t=>String(t.id)===String(id)):null;
+    if((id&&!fromCommission&&!task)||(fromCommission&&!state.data.committees.some(c=>String(c.id)===String(fromCommission))))return notFound();
     if(state.registerCurrentId!==id){
       state.registerCurrentId=id;
       state.registerType='demanda';
@@ -707,15 +708,14 @@
       state.formDeadlineCount=Math.max(1,task?.deadlines?.length||1);
     }
 
-    const linkedIds=task?commissionIds(task):[];
+    const linkedIds=task?commissionIds(task):fromCommission?[fromCommission]:[];
     const commissionPicker=`<section class="register-commissions"><div class="edit-section-title"><h2>Vincular às comissões (opcional)</h2><p>A mesma atividade aparece no cronograma de cada comissão selecionada, sem criar cópias.</p></div>
       <div class="commission-checkboxes">${state.data.committees.map(c=>`<label class="commission-checkbox"><input type="checkbox" name="commissionIds" value="${escapeText(c.id)}" ${linkedIds.includes(String(c.id))?'checked':''}>
         <span>${escapeText(c.name)}</span></label>`).join('')||'<span class="notice-line">Nenhuma comissão cadastrada.</span>'}</div></section>`;
-    const taskForm=`<form id="register-task-form" data-id="${escapeText(task?.id||'')}" class="register-form"><label>Título da demanda<input name="title" required maxlength="180" value="${escapeText(task?.title||'')}" placeholder="Ex.: Produzir banner da Lixeira"></label>
+    const taskForm=`<form id="register-task-form" data-id="${escapeText(task?.id||'')}" data-return-commission="${escapeText(fromCommission||task?.committeeId||'')}" class="register-form"><label>Título da demanda<input name="title" required maxlength="180" value="${escapeText(task?.title||'')}" placeholder="Ex.: Produzir banner da Lixeira"></label>
     <label>Descrição (opcional)<textarea name="description" rows="4" placeholder="O que precisa ser feito?">${escapeText(task?.description||'')}</textarea></label>
     ${commissionPicker}
-    <div class="register-two"><label>Data de postagem <span class="required-star">*</span><input type="date" name="postingAt" required value="${escapeText(String(task?.postingAt||'').slice(0,10))}"></label>
-      <label>Situação da demanda<select name="status" class="select"><option value="pendente" ${(!task||!isCompleted(task))&&task?.reviewStatus!=='liberado'?'selected':''}>Pendente</option><option value="concluida" ${task&&isCompleted(task)?'selected':''}>Concluída</option><option value="aprovada" ${task&&!isCompleted(task)&&task.reviewStatus==='liberado'?'selected':''}>Aprovada</option></select></label></div>
+    <div class="register-two"><label>Data de postagem <span class="required-star">*</span><input type="date" name="postingAt" required value="${escapeText(String(task?.postingAt||'').slice(0,10))}"></label></div>
     ${renderAssignmentPreview()}
     <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><div class="deadline-toolbar-actions"><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button><button class="button primary deadline-save-button" type="button" data-action="save-deadlines">${icon('check')} Salvar prazos</button></div></div>
     ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
@@ -777,7 +777,7 @@
     const existing=id?tasks().find(t=>String(t.id)===id):null;
     if(id&&!existing){showToast('Demanda não encontrada.');return;}
     const deadlines=collectDeadlines(form,existing);
-    const chosenStatus=String(x.get('status')||'pendente');
+    const chosenStatus=String(x.get('status')||(existing?(isCompleted(existing)?'concluida':isApproved(existing)?'aprovada':'pendente'):'pendente'));
     const status=chosenStatus==='concluida'?'concluida':'pendente';
     const postingAt=String(x.get('postingAt')||'').trim();
     if(!postingAt){showToast('Informe a data obrigatória de postagem.');return;}
@@ -824,7 +824,13 @@
     }
     if(saveLocalDemoWrites()){
       state.registerCurrentId=null;state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode=status==='concluida'?'arquivo':'pendentes';
-      location.hash='#/demandas';render();
+      const returnCommission=String(form.dataset.returnCommission||'');
+      if(returnCommission&&state.data.committees.some(c=>String(c.id)===returnCommission)&&status!=='concluida'){
+        const date=dateFrom(postingAt);
+        if(date){state.year=date.getFullYear();state.month=date.getMonth();}
+        state.commissionWeek='all';location.hash='#/comissoes/'+safeHref(returnCommission);
+      }else location.hash='#/demandas';
+      render();
       showToast(existing?'Demanda atualizada com autoria e horário nesta demonstração.':'Demanda registrada neste navegador.');
     }else showToast('Não foi possível salvar os dados locais.');
   }
@@ -877,6 +883,33 @@
   }
 
 
+
+  function quickTaskStatus(t){
+    const selected=isCompleted(t)?'concluida':isApproved(t)?'aprovada':'pendente';
+    return `<div class="quick-task-status"><div class="quick-task-status-title"><span>Situação da demanda</span><strong>${selected==='pendente'?'Pendente':selected==='aprovada'?'Aprovada':'Concluída'}</strong></div>
+      <div class="quick-task-status-actions" role="group" aria-label="Alterar situação da demanda">
+        ${[['pendente','Pendente'],['aprovada','Aprovada'],['concluida','Concluída']].map(([value,label])=>`<button type="button" data-action="quick-task-status" data-id="${escapeText(t.id)}" data-status="${value}" class="quick-status-choice ${selected===value?'active status-'+value:''}" aria-pressed="${selected===value}">${label}</button>`).join('')}
+      </div></div>`;
+  }
+  function saveQuickTaskStatus(id,status){
+    if(!state.demo){showToast('Edição disponível após a implantação do acesso seguro.');return;}
+    if(!['pendente','aprovada','concluida'].includes(status))return;
+    const t=tasks().find(t=>String(t.id)===String(id));if(!t)return;
+    const before=isCompleted(t)?'concluida':isApproved(t)?'aprovada':'pendente';
+    if(before===status)return;
+    const now=new Date().toISOString(),name=actorDemo()?.name||'Usuário de teste';
+    t.status=status==='concluida'?'concluida':'pendente';
+    t.reviewStatus=status==='aprovada'?'liberado':'aguardando';
+    t.stageName=status==='concluida'?'Concluída':status==='aprovada'?'Aprovada':'Pendente';
+    if(status==='concluida')t.completedAt=t.completedAt||now;
+    else {delete t.completedAt;delete t.closedAt;}
+    t.revisions=[...(t.revisions||[]),{action:'Situação: '+({pendente:'Pendente',aprovada:'Aprovada',concluida:'Concluída'}[status]),actorName:name,at:now}];
+    t.lastEditedBy=name;t.lastEditedAt=now;
+    if(saveLocalDemoWrites()){
+      if(status==='concluida'){state.demandMode='arquivo';location.hash='#/demandas';}
+      render();showToast(status==='concluida'?'Demanda concluída e arquivada neste navegador.':'Situação atualizada neste navegador.');
+    }else showToast('Não foi possível salvar a situação.');
+  }
   function renderActivityDetail(id){
     const t=tasks().find(t=>String(t.id)===String(id));
     if(!t)return notFound();
@@ -886,7 +919,7 @@
       const {step,person}=deadlineParts(x),date=dateFrom(x.dueAt);
       const due=date?formatDate(date,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'A definir';
       return `<div class="deadline-record"><div class="deadline-step">${icon('clock')}<strong>${escapeText(step)}</strong></div><div class="deadline-field"><small>Responsáveis</small><strong>${escapeText(person)}</strong></div><div class="deadline-field"><small>Prazo</small><strong>${escapeText(due)}</strong></div>${tag(x.completedAt?'Concluído':'Pendente',x.completedAt?'mint':'soft')}</div>`;
-    }).join(''):empty('clock','Nenhum prazo cadastrado','Sem prazos definidos para esta atividade.',true);
+    }).join(''):'<div class="compact-detail-empty">Nenhum prazo cadastrado.</div>';
     const revisions=Array.isArray(t.revisions)?t.revisions.slice().reverse().slice(0,7):[];
     const history=revisions.length?`<div class="revision-list">${revisions.map(x=>`<div><strong>${escapeText(x.action||'Atualização')} — ${escapeText(x.actorName)}</strong><small>${formatDate(x.at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}</div>`:'<p class="notice-line">Nenhuma alteração registrada.</p>';
     const posting=t.postingAt?`<p class="activity-due">Previsão: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
@@ -894,12 +927,12 @@
     const olderNotes=notes.length?`<details class="observations-archive"><summary>Histórico anterior de comentários (${notes.length})</summary>${notes.slice().reverse().map(n=>`<div class="observation-item"><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small><p>${escapeText(n.body||'')}</p></div>`).join('')}</details>`:'';
     const updated=`<p class="observations-last-change">Última alteração: <strong>${escapeText(t.observationsEditedBy||t.lastEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt||t.lastEditedAt)?' · '+formatDate(t.observationsEditedAt||t.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</p>`;
     return `${header('Atividade',t.title,'',`<a class="button ghost" href="#/registrar/${safeHref(t.id)}">${icon('settings')} Editar demanda</a><a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
-    <div class="activity-header-strip card card-pad">${displayTaskState(t)}${posting}</div>
+    <div class="card card-pad activity-status-panel">${quickTaskStatus(t)}<div class="activity-status-meta">${posting}</div></div>
     <div class="activity-detail-grid">
       <div class="stack">
         <section class="card card-pad"><h2>Prazos e etapas</h2>${deadlines}</section>
-        <section class="card card-pad"><div class="section-head"><h2>Observações</h2><button type="button" class="button ghost copy-observations" data-action="copy-observations">${icon('copy')} Copiar</button></div>
-        ${value?`<p class="saved-activity-text" id="saved-observations-text">${escapeText(value)}</p>`:'<p class="notice-line">Nenhuma observação registrada.</p>'}${updated}${olderNotes}</section>
+        <section class="card card-pad"><div class="section-head observations-title-row"><h2>Observações</h2><div class="observations-title-actions"><span class="observations-author-badge">Última alteração: <strong>${escapeText(t.observationsEditedBy||t.lastEditedBy||'Nenhuma')}</strong>${(t.observationsEditedAt||t.lastEditedAt)?'<small>'+formatDate(t.observationsEditedAt||t.lastEditedAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</small>':''}</span><button type="button" class="button ghost copy-observations" data-action="copy-observations">${icon('copy')} Copiar</button></div></div>
+        ${value?`<p class="saved-activity-text" id="saved-observations-text">${escapeText(value)}</p>`:'<p class="notice-line">Nenhuma observação registrada.</p>'}${olderNotes}</section>
       </div><div class="stack">
         <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}</section>
         <section class="card card-pad"><h2>Histórico de alterações</h2>${history}</section>
@@ -983,6 +1016,7 @@
           b.textContent=select?'Desmarcar todos':'Selecionar todos';break;
         }
         case 'delete-commission':deleteDemoCommission(b.dataset.id);break;
+        case 'quick-task-status':saveQuickTaskStatus(b.dataset.id,b.dataset.status);break;
         case 'delete-task':deleteDemoRecord('task',b.dataset.id);break;
         case 'delete-meeting':deleteDemoRecord('meeting',b.dataset.id);break;
       }
