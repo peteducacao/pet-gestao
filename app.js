@@ -335,11 +335,17 @@
     return `<div class="commission-counters"><span class="metric-pending">Pendentes <strong>${m.pending}</strong></span><span class="metric-approved">Aprovadas <strong>${m.approved}</strong></span><span class="metric-late">Atrasadas <strong>${m.late}</strong></span><span class="metric-done">Concluídas <strong>${m.completed}</strong></span></div>`;
   }
 
+  function commissionAvatar(c,extra=''){
+    const src=String(c?.imageData||'');
+    return /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(src)
+      ?'<span class="commission-icon commission-photo '+extra+'"><img src="'+escapeText(src)+'" alt="Foto da comissão '+escapeText(c.name)+'"></span>'
+      :'<span class="commission-icon '+extra+'">'+icon('users')+'</span>';
+  }
   function renderComissoes(){
     const all=state.data.committees;
     return `${header('Trabalho em equipe','Comissões','',`<a class="button primary" href="#/comissoes/nova">${icon('plus')} Nova comissão</a>`)}${connectNotice()}
       <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização das equipes e suas demandas.</p></div>${available()?tag(all.length+' '+(all.length===1?'comissão':'comissões'),'soft'):''}</div>
-      ${all.length?all.map(c=>`<article class="commission-list-item"><a href="#/comissoes/${safeHref(c.id)}" class="commission-name-link"><span class="commission-icon">${icon('users')}</span><span><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes${c.description?' · '+escapeText(c.description):''}</small></span></a>
+      ${all.length?all.map(c=>`<article class="commission-list-item"><a href="#/comissoes/${safeHref(c.id)}" class="commission-name-link">${commissionAvatar(c)}<span><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes${c.description?' · '+escapeText(c.description):''}</small></span></a>
         ${commissionCounters(c.id)}<div class="commission-list-actions"><a href="#/comissoes/${safeHref(c.id)}" class="activity-details-link">Ver atividades ${icon('arrow')}</a>
         <a href="#/comissoes/editar/${safeHref(c.id)}" class="button ghost small-action">${icon('settings')} Editar</a>
         <button type="button" data-action="delete-commission" data-id="${escapeText(c.id)}" class="button subtle-danger small-action">${icon('close')} Excluir</button></div></article>`).join(''):empty('users','Nenhuma comissão cadastrada','Crie uma comissão para organizar sua equipe e as demandas vinculadas.')}
@@ -358,6 +364,14 @@
             <div class="edit-section-title"><h2>Dados da comissão</h2><p>Defina o nome, a descrição e quem faz parte da equipe.</p></div>
             <label>Nome da comissão <span class="required-star">*</span><input type="text" name="name" maxlength="90" required placeholder="Ex.: ImaginAÇÃO" value="${escapeText(c?.name||'')}"></label>
             <label>Descrição (opcional)<textarea name="description" rows="3" placeholder="Qual é a finalidade da comissão?">${escapeText(c?.description||'')}</textarea></label>
+            <div class="commission-photo-editor">
+              <div id="commission-photo-preview">${commissionAvatar(c||{name:'Nova comissão'},'large')}</div>
+              <div><strong>Foto da comissão (opcional)</strong><p>Escolha uma imagem JPG, PNG ou WebP. Ela aparecerá no lugar do ícone padrão.</p>
+                <label class="button ghost small-action commission-photo-upload">Escolher foto<input type="file" id="commission-photo-input" accept="image/jpeg,image/png,image/webp" hidden></label>
+                <button type="button" class="button ghost small-action" data-action="remove-commission-photo">Remover foto</button>
+              </div>
+              <input type="hidden" name="imageData" id="commission-image-data" value="${escapeText(c?.imageData||'')}">
+            </div>
             <section class="commission-members-editor"><div class="section-head"><div><h2>Integrantes</h2><p>Selecione quem participa da comissão.</p></div><button class="button ghost small-action" data-action="commission-select-all" type="button">Selecionar todos</button></div>
               <div class="commission-member-list">${users.map(u=>`<label><input type="checkbox" name="memberIds" value="${escapeText(u.id)}" ${selected.has(String(u.id))?'checked':''}><span class="member-icon">${escapeText(String(u.name||'').charAt(0).toUpperCase())}</span><span>${escapeText(u.name)}</span></label>`).join('')||'<p class="notice-line">Nenhum PETiano(a) cadastrado.</p>'}</div></section>
             <div class="form-actions commission-editor-buttons">${c?`<button type="button" class="button subtle-danger" data-action="delete-commission" data-id="${escapeText(c.id)}">${icon('close')} Excluir comissão</button>`:''}<button type="submit" class="button primary">${icon('check')} ${c?'Salvar alterações':'Criar comissão'}</button></div>
@@ -540,7 +554,7 @@
       const originalCommissions=window.PET_GESTAO_DEMO?.committees||[];
       const originalCommissionIds=new Set(originalCommissions.map(c=>String(c.id)));
       const presentCommissionIds=new Set(state.data.committees.map(c=>String(c.id)));
-      const commissionPatches=state.data.committees.filter(c=>originalCommissionIds.has(String(c.id))&&!originalCommissions.some(o=>String(o.id)===String(c.id)&&o.name===c.name&&(o.description||'')===(c.description||'')&&JSON.stringify(o.memberIds||[])===JSON.stringify(c.memberIds||[])));
+      const commissionPatches=state.data.committees.filter(c=>originalCommissionIds.has(String(c.id))&&!originalCommissions.some(o=>String(o.id)===String(c.id)&&o.name===c.name&&(o.description||'')===(c.description||'')&&JSON.stringify(o.memberIds||[])===JSON.stringify(c.memberIds||[])&&(o.imageData||'')===(c.imageData||'')));
       const newCommissions=state.data.committees.filter(c=>!originalCommissionIds.has(String(c.id)));
       const deletedCommissionIds=[...originalCommissionIds].filter(id=>!presentCommissionIds.has(id));
       const originalIds=new Set(originalTasks.map(t=>String(t.id)));
@@ -832,6 +846,31 @@
 
 
 
+  async function uploadCommissionPhoto(input){
+    const file=input.files?.[0];
+    if(!file)return;
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){
+      showToast('Escolha uma imagem JPG, PNG ou WebP de até 5 MB.');input.value='';return;
+    }
+    try{
+      const url=URL.createObjectURL(file);
+      const img=new Image();
+      await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});
+      const canvas=document.createElement('canvas'),side=320;
+      canvas.width=canvas.height=side;
+      const ctx=canvas.getContext('2d');
+      if(!ctx)throw Error('Canvas indisponível');
+      const crop=Math.min(img.naturalWidth,img.naturalHeight);
+      ctx.drawImage(img,(img.naturalWidth-crop)/2,(img.naturalHeight-crop)/2,crop,crop,0,0,side,side);
+      URL.revokeObjectURL(url);
+      const data=canvas.toDataURL('image/jpeg',0.78);
+      if(data.length>180000){showToast('Imagem muito grande após otimização.');return;}
+      const hidden=document.querySelector('#commission-image-data'),preview=document.querySelector('#commission-photo-preview');
+      if(hidden)hidden.value=data;
+      if(preview)preview.innerHTML=commissionAvatar({name:'Comissão',imageData:data},'large');
+    }catch(e){showToast('Não foi possível carregar a foto.');}
+    finally{input.value='';}
+  }
   function saveCommission(form){
     if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
     const fd=new FormData(form),name=String(fd.get('name')||'').trim(),description=String(fd.get('description')||'').trim();
@@ -841,10 +880,12 @@
     if(id&&!original){showToast('Comissão não encontrada.');return;}
     if(state.data.committees.some(c=>String(c.id)!==id&&String(c.name||'').toLocaleLowerCase('pt-BR')===name.toLocaleLowerCase('pt-BR'))){showToast('Já existe uma comissão com esse nome.');return;}
     const memberIds=[...new Set((typeof fd.getAll==='function'?fd.getAll('memberIds'):[]).map(String))].filter(v=>state.data.users.some(u=>String(u.id)===v));
+    const imageData=String(fd.get('imageData')||'');
+    if(imageData&&!/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(imageData)){showToast('Imagem inválida.');return;}
     const now=new Date().toISOString(),who=actorDemo()?.name||'Demonstração';
     let saved;
-    if(original){original.name=name;original.description=description;original.memberIds=memberIds;original.lastEditedBy=who;original.lastEditedAt=now;saved=original;}
-    else {saved={id:'local-commission-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),name,description,memberIds,lastEditedBy:who,lastEditedAt:now};state.data.committees.push(saved);}
+    if(original){original.name=name;original.description=description;original.memberIds=memberIds;original.imageData=imageData;original.lastEditedBy=who;original.lastEditedAt=now;saved=original;}
+    else {saved={id:'local-commission-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),name,description,memberIds,imageData,lastEditedBy:who,lastEditedAt:now};state.data.committees.push(saved);}
     if(saveLocalDemoWrites()){location.hash='#/comissoes/'+safeHref(saved.id);render();showToast(original?'Comissão atualizada neste navegador.':'Comissão criada neste navegador.');}
     else showToast('Não foi possível salvar a comissão.');
   }
@@ -1106,6 +1147,12 @@
           else {const tmp=document.createElement('textarea');tmp.value=txt;document.body.append(tmp);tmp.select();const ok=document.execCommand('copy');tmp.remove();showToast(ok?'Observações copiadas.':'Não foi possível copiar.');}
           break;
         }
+        case 'remove-commission-photo':{
+          const input=document.querySelector('#commission-image-data'),preview=document.querySelector('#commission-photo-preview');
+          if(input)input.value='';
+          if(preview)preview.innerHTML=commissionAvatar({name:'Comissão'},'large');
+          break;
+        }
         case 'commission-select-all':{
           const boxes=[...document.querySelectorAll('#commission-form input[name="memberIds"]')];
           const select=boxes.some(box=>!box.checked);boxes.forEach(box=>{box.checked=select;});
@@ -1131,6 +1178,7 @@
     });
     document.addEventListener('change',e=>{
       const el=e.target;
+      if(el.id==='commission-photo-input'){uploadCommissionPhoto(el);return;}
       if(el.id==='task-attachment-input'){uploadDemoFiles(el);return;}
       if(el.name?.startsWith('deadline-assignee-')&&el.type==='checkbox'){
         const picker=el.closest('.deadline-assignee-picker');
