@@ -180,14 +180,14 @@
     return state.data.meetings.filter(m=>{const d=dateFrom(m.date);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&d.getDate()>=w.start&&d.getDate()<=w.end;});
   }
   function renderWeeklyFocus(){
-    const weekTasks=weeklyTasks().sort(comparePriorityTasks),meetings=weeklyMeetings();
-    const open=weekTasks.filter(t=>!isCompleted(t)),done=weekTasks.filter(isCompleted);
+    const weekTasks=weeklyTasks().filter(t=>!isCompleted(t)).sort(comparePriorityTasks),meetings=weeklyMeetings();
+    const open=weekTasks,done=tasks().filter(t=>isCompleted(t)&&isTaskInWeek(t));
     // Conserve links para memórias de semanas anteriores que originaram tarefas com prazo neste período.
     const linkedIds=new Set(weekTasks.map(t=>String(t.meetingId||'')).filter(Boolean));
     const sourceMeetings=state.data.meetings.filter(m=>linkedIds.has(String(m.id))&&!meetings.some(x=>String(x.id)===String(m.id)));
     const info=[...meetings,...sourceMeetings];
     const meta=available()?`<div class="weekly-counts"><span class="weekly-pending">${open.length} pendentes</span><span class="weekly-done">${done.length} concluídas</span></div>`:'';
-    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<div class="weekly-item"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></span>${tag(isCompleted(t)?'Concluída':'Pendente',isCompleted(t)?'mint':'soft')}</div>`).join('')+(weekTasks.length>7?`<a class="activity-details-link weekly-more" href="#/demandas">Ver outras ${weekTasks.length-7} atividades ${icon('arrow')}</a>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
+    const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<div class="weekly-item"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></span>${displayTaskState(t)}</div>`).join('')+(weekTasks.length>7?`<a class="activity-details-link weekly-more" href="#/demandas">Ver outras ${weekTasks.length-7} atividades ${icon('arrow')}</a>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
     const references=info.length?`<div class="weekly-meetings"><strong>${icon('book')} Memórias relacionadas</strong>${info.map(m=>`<a href="#/reunioes/${safeHref(m.id)}">${escapeText(displayMeetingTitle(m))} · ${formatDate(m.date)} ${icon('arrow')}</a>`).join('')}</div>`:'';
     return `<section class="card card-pad weekly-focus"><div class="section-head"><div><h2>Pendências semanais</h2><p>${escapeText(periodTitle())} · Semana ${state.week} (${currentWeek().label})</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="weekly-controls">${weekSelector()}${meta}</div><div class="weekly-list">${entries}</div>${references}</section>`;
   }
@@ -248,7 +248,7 @@
     return output.join('');
   }
   function calendarWeekDetails(){// O mesmo registro pode ter prazo de revisão e data de postagem, mas aparece uma vez.
-    const byWeek=weeklyTasks();
+    const byWeek=weeklyTasks().filter(t=>!isCompleted(t)).sort(comparePriorityTasks);
     return byWeek.length?byWeek.map(renderTaskCard).join(''):empty('calendar','Sem atividades para esta semana','Os prazos, eventos e postagens registrados aparecerão neste período.',true);
   }
   function renderPrefs(){return `<details class="prefs-panel"><summary>${icon('sliders')} Preferências de navegação ${icon('chevron-down')}</summary><div class="prefs-content">
@@ -394,8 +394,7 @@
   }
 
   function getAssigneeNames(t){
-    const ids=Array.isArray(t.assigneeIds)?t.assigneeIds:[];
-    return [...new Set(ids.map(id=>state.data.users.find(u=>String(u.id)===String(id))?.name).filter(Boolean))];
+    return taskNames(t);
   }
   function deadlineParts(d){
     const label=String(d.label||d.kind||'Prazo');
