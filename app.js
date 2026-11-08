@@ -354,6 +354,24 @@
         </div>
       </section>`;
   }
+
+  const MEMORY_THEMES={
+    classic:['#ffffff','#ffffff'],
+    lilac:['#f7f2ff','#eae0ff'],
+    sage:['#f0faf3','#d7eee2'],
+    blue:['#edf7ff','#dcecff'],
+    purplegradient:['#f4e9ff','#e4e9ff'],
+    sunset:['#fff0e9','#f8dcee'],
+    custom:['#f7f1ff','#e4edff']
+  };
+  function memoryHex(value,fallback){return /^#[0-9a-f]{6}$/i.test(String(value||''))?String(value):fallback;}
+  function memoryStyle(m){
+    const theme=String(m?.theme||'classic');
+    const defaults=MEMORY_THEMES[theme]||MEMORY_THEMES.classic;
+    const a=theme==='custom'?memoryHex(m?.colorA,defaults[0]):defaults[0];
+    const b=theme==='custom'?memoryHex(m?.colorB,defaults[1]):defaults[1];
+    return `background:linear-gradient(130deg,${a},${b});`;
+  }
   function displayMeetingTitle(m){
     const title=String(m.title||'').trim();
     if(!title || /^Memória do encontro(?: de quinta-feira)?$/i.test(title))
@@ -365,7 +383,7 @@
     const count=all.length;
     return `${header('Reuniões','Memórias registradas','',`<a href="#/reunioes/nova" class="button primary">${icon('plus')} Nova memória</a>`)}${connectNotice()}
       <section class="card card-pad memory-list">${count?`<div class="memory-list-meta">${tag(count+' '+(count===1?'reunião':'reuniões'),'soft')}</div>`:''}
-      ${count?all.map(m=>`<article class="memory-list-item"><span class="memory-list-icon">${icon('book')}</span>
+      ${count?all.map(m=>`<article class="memory-list-item" style="${memoryStyle(m)}"><span class="memory-list-icon">${icon('book')}</span>
         <div class="memory-list-content"><h2>${escapeText(displayMeetingTitle(m))}</h2><p class="memory-summary">${escapeText(String(m.rawNotes||'').replace(/[\r\n*•→]/g,' ').replace(/\s+/g,' ').trim().slice(0,160))}${String(m.rawNotes||'').length>160?'…':''}</p><span class="memory-list-date">${formatDate(m.date,{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</span>
           <div class="memory-actions"><a href="#/reunioes/${safeHref(m.id)}" class="activity-details-link">Ver memória ${icon('arrow')}</a><a href="#/reunioes/editar/${safeHref(m.id)}" class="button ghost small-action">${icon('settings')} Editar</a><button class="button subtle-danger small-action" data-action="delete-meeting" data-id="${escapeText(m.id)}" type="button">${icon('close')} Excluir</button></div>
         </div></article>`).join(''):empty('book','Nenhuma memória registrada','Cadastre a primeira memória para consultar os encontros aqui.')}
@@ -375,7 +393,7 @@
     const m=state.data.meetings.find(m=>String(m.id)===String(id));
     if(!m)return notFound();
     return `${header('Reuniões',displayMeetingTitle(m),formatDate(m.date),`<a class="button ghost" href="#/reunioes/editar/${safeHref(m.id)}">${icon('settings')} Editar memória</a>`)}${connectNotice()}
-      <div class="card card-pad memory-reading"><div class="memory-reading-head">${icon('book')} <strong>Registro completo</strong></div><p>${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></div>`;
+      <div class="card card-pad memory-reading" style="${memoryStyle(m)}"><div class="memory-reading-head">${icon('book')} <strong>Registro completo</strong></div><p>${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></div>`;
   }
   function renderMemoryEditor(id){
     const existing=id?state.data.meetings.find(m=>String(m.id)===String(id)):null;
@@ -386,6 +404,14 @@
         <label>Título da reunião<input name="title" maxlength="150" placeholder="Ex.: Reunião semanal do PET" value="${escapeText(existing?.title||'')}"></label>
         <label>Data da reunião<input type="date" name="date" value="${escapeText(existing?.date||dateKey(new Date()))}" required></label>
         <label>Memória da reunião<textarea name="rawNotes" rows="12" required placeholder="Cole aqui o registro da reunião...">${escapeText(existing?.rawNotes||'')}</textarea></label>
+        <section class="memory-style-controls"><div class="edit-section-title"><h2>Aparência da memória</h2><p>Escolha um fundo ou combine duas cores em degradê. A aparência será aplicada na lista e na leitura.</p></div>
+          <label>Estilo do fundo<select name="theme" class="select" data-field="memoryTheme">
+            ${[['classic','Branco'],['lilac','Lilás suave'],['sage','Verde sálvia'],['blue','Azul claro'],['purplegradient','Degradê lilás'],['sunset','Degradê rosado'],['custom','Degradê personalizado']].map(([key,label])=>`<option value="${key}" ${(existing?.theme||'classic')===key?'selected':''}>${label}</option>`).join('')}
+          </select></label>
+          <div class="memory-palette"><label>Cor inicial<input type="color" name="colorA" value="${memoryHex(existing?.colorA,'#f7f1ff')}"></label>
+            <label>Cor final<input type="color" name="colorB" value="${memoryHex(existing?.colorB,'#e4edff')}"></label></div>
+          <div class="memory-live-sample" id="memory-live-sample" style="${memoryStyle(existing)}">Prévia do fundo da memória</div>
+        </section>
         <div class="form-actions memory-form-actions">${existing?`<button type="button" class="button subtle-danger" data-action="delete-meeting" data-id="${escapeText(existing.id)}">${icon('close')} Excluir memória</button>`:''}<button type="submit" class="button primary">${icon('check')} ${existing?'Salvar alterações':'Salvar memória'}</button></div>
       </form><p class="assignment-preview-note">As alterações são demonstrativas e ficam somente neste navegador.</p></section>`;
   }
@@ -423,7 +449,7 @@
       const currentMeetings=new Set(state.data.meetings.map(m=>String(m.id)));
       const patches=state.data.tasks.filter(t=>originalIds.has(String(t.id))&&(t.revisions?.length||t.observations?.length||t.reviewStatus||t.captionText));
       const additions=state.data.tasks.filter(t=>!originalIds.has(String(t.id)));
-      const memoryPatches=state.data.meetings.filter(m=>originalMeetingIds.has(String(m.id)) && !originalMeetings.some(x=>String(x.id)===String(m.id)&&x.title===m.title&&x.date===m.date&&x.rawNotes===m.rawNotes));
+      const memoryPatches=state.data.meetings.filter(m=>originalMeetingIds.has(String(m.id)) && !originalMeetings.some(x=>String(x.id)===String(m.id)&&x.title===m.title&&x.date===m.date&&x.rawNotes===m.rawNotes&&(x.theme||'classic')===(m.theme||'classic')&&(x.colorA||'')===(m.colorA||'')&&(x.colorB||'')===(m.colorB||'')));
       const newMeetings=state.data.meetings.filter(m=>!originalMeetingIds.has(String(m.id)));
       const deletedTaskIds=[...originalIds].filter(id=>!currentTasks.has(id));
       const deletedMeetingIds=[...originalMeetingIds].filter(id=>!currentMeetings.has(id));
@@ -465,8 +491,8 @@
   const REVIEW_OPTIONS=[
     ['aguardando','Aguardando revisão'],
     ['ajustes','Ajustes necessários'],
-    ['nao_liberado','Não liberado para uso/postagem'],
-    ['liberado','Liberado para uso/postagem']
+    ['nao_liberado','Não liberado'],
+    ['liberado','APROVADO']
   ];
   function reviewLabel(value){return REVIEW_OPTIONS.find(r=>r[0]===value)?.[1]||'Aguardando revisão';}
   function demoActorSelect(){
@@ -662,10 +688,13 @@
       existing.title=title;
       existing.date=date;
       existing.rawNotes=rawNotes;
+      existing.theme=String(x.get('theme')||'classic');
+      existing.colorA=memoryHex(x.get('colorA'),'#f7f1ff');
+      existing.colorB=memoryHex(x.get('colorB'),'#e4edff');
       existing.lastEditedBy=who;
       existing.lastEditedAt=now;
     }else{
-      state.data.meetings.push({id:'local-meeting-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),title,date,rawNotes,taskIds:[],lastEditedBy:who,lastEditedAt:now});
+      state.data.meetings.push({id:'local-meeting-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),title,date,rawNotes,theme:String(x.get('theme')||'classic'),colorA:memoryHex(x.get('colorA'),'#f7f1ff'),colorB:memoryHex(x.get('colorB'),'#e4edff'),taskIds:[],lastEditedBy:who,lastEditedAt:now});
     }
     if(saveLocalDemoWrites()){location.hash='#/reunioes';render();showToast(existing?'Memória atualizada neste navegador.':'Memória registrada neste navegador.');}
     else showToast('Não foi possível salvar os dados locais.');
@@ -700,7 +729,7 @@
     if(!t)return notFound();
     const d=taskDeadlines(t),notes=Array.isArray(t.observations)?t.observations:[];
     const assignees=getAssigneeNames(t),review=t.reviewStatus||'aguardando';
-    const statusBadge=review==='liberado'?tag('Liberado para uso/postagem','mint'):review==='ajustes'?tag('Ajustes necessários','soft'):review==='nao_liberado'?tag('Não liberado','soft'):tag('Aguardando revisão','soft');
+    const statusBadge=review==='liberado'?tag('APROVADO','approved-pill'):review==='ajustes'?tag('Ajustes necessários','soft'):review==='nao_liberado'?tag('Não liberado','soft'):tag('Aguardando revisão','soft');
     const deadlines=d.length?d.map(x=>{
       const {step,person}=deadlineParts(x),date=dateFrom(x.dueAt);
       const due=date?formatDate(date,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'A definir';
@@ -709,7 +738,7 @@
     const observations=notes.length?notes.slice().reverse().map(n=>`<div class="observation-item"><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small><p>${escapeText(n.body||'')}</p></div>`).join(''):'';
     const revisions=Array.isArray(t.revisions)?t.revisions.slice().reverse().slice(0,7):[];
     const history=revisions.length?`<div class="revision-list">${revisions.map(x=>`<div><strong>${escapeText(x.action||'Atualização')} — ${escapeText(x.actorName)}</strong><small>${formatDate(x.at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}</div>`:'<p class="notice-line">Nenhuma alteração registrada.</p>';
-    const posting=t.postingAt?`<p class="activity-due">Postagem prevista: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
+    const posting=t.postingAt?`<p class="activity-due">Previsão: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
     const savedText=String(t.captionText||'').trim();
     return `${header('Atividade',t.title,'',`<a class="button ghost" href="#/registrar/${safeHref(t.id)}">${icon('settings')} Editar demanda</a><a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
     <div class="activity-header-strip card card-pad">${statusBadge}${posting}</div>
@@ -806,6 +835,11 @@
         return;
       }
       if(field==='regCommitteeId'){state.regCommitteeId=el.value;const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();return;}
+      if(field==='memoryTheme'||field==='memoryColor'){
+        const form=document.querySelector('#register-memory-form'),sample=document.querySelector('#memory-live-sample');
+        if(form&&sample){sample.style.background=memoryStyle({theme:form.elements.theme.value,colorA:form.elements.colorA.value,colorB:form.elements.colorB.value}).replace(/^background:/,'').replace(/;$/,'');}
+        return;
+      }
       if(field==='autoMonth'||field==='autoWeek'){state[field]=el.checked;savePrefs();return;}
       savePrefs();render();
     });
