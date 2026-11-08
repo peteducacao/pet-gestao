@@ -155,7 +155,7 @@
     const info=[...meetings,...sourceMeetings];
     const meta=available()?`<div class="weekly-counts"><span class="weekly-pending">${open.length} pendentes</span><span class="weekly-done">${done.length} concluídas</span></div>`:'';
     const entries=weekTasks.length?weekTasks.slice(0,7).map(t=>`<div class="weekly-item"><span class="weekly-symbol ${isCompleted(t)?'success':'open'}">${icon(isCompleted(t)?'check':'clock')}</span><span class="weekly-description"><strong>${escapeText(t.title)}</strong><a href="#/atividade/${safeHref(t.id)}" class="activity-details-link">Ver detalhes ${icon('arrow')}</a></span>${tag(isCompleted(t)?'Concluída':'Pendente',isCompleted(t)?'mint':'soft')}</div>`).join('')+(weekTasks.length>7?`<a class="activity-details-link weekly-more" href="#/demandas">Ver outras ${weekTasks.length-7} atividades ${icon('arrow')}</a>`:''):empty('checklist','Nenhuma atividade nesta semana','Escolha outra semana para consultar demandas, prazos e postagens.',true);
-    const references=info.length?`<div class="weekly-meetings"><strong>${icon('book')} Memórias relacionadas</strong>${info.map(m=>`<a href="#/reunioes/${safeHref(m.id)}">${escapeText(m.title||'Reunião')} · ${formatDate(m.date)} ${icon('arrow')}</a>`).join('')}</div>`:'';
+    const references=info.length?`<div class="weekly-meetings"><strong>${icon('book')} Memórias relacionadas</strong>${info.map(m=>`<a href="#/reunioes/${safeHref(m.id)}">${escapeText(displayMeetingTitle(m))} · ${formatDate(m.date)} ${icon('arrow')}</a>`).join('')}</div>`:'';
     return `<section class="card card-pad weekly-focus"><div class="section-head"><div><h2>Pendências semanais</h2><p>${escapeText(periodTitle())} · Semana ${state.week} (${currentWeek().label})</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="weekly-controls">${weekSelector()}${meta}</div><div class="weekly-list">${entries}</div>${references}</section>`;
   }
   function renderHome(){
@@ -164,7 +164,7 @@
       <div class="dashboard-grid"><div class="stack">
         <section class="card card-pad upcoming-spotlight"><div class="upcoming-spotlight-head"><div class="upcoming-title"><span class="upcoming-badge">${icon('clock')}</span><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div><div class="upcoming-spotlight-body">${renderUpcomingCompact()}</div></section>
         <section class="card card-pad"><div class="section-head"><div><h2>Memórias recentes</h2><p>Últimas reuniões registradas</p></div></div>
-        ${state.data.meetings.length?state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma reunião registrada','As memórias recentes aparecerão aqui quando forem cadastradas.',true)}
+        ${state.data.meetings.length?state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(displayMeetingTitle(m))}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma reunião registrada','As memórias recentes aparecerão aqui quando forem cadastradas.',true)}
         </section>
       </div><div class="stack">
         ${renderWeeklyFocus()}
@@ -595,7 +595,7 @@
     $('#current-page').textContent=routeTitles[base]||'PET Educação';
     document.title=`${routeTitles[base]||'PET Educação'} | PET Educação`;
     document.querySelectorAll('[data-route]').forEach(el=>{const selected=el.dataset.route===base;el.classList.toggle('active',selected);if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
-    const views={inicio:renderHome,demandas:renderDemandas,registrar:renderRegister,cronograma:renderCronograma,comissoes:()=>id?renderCommitteeDetail(id):renderComissoes(),reunioes:()=>id?renderMeetingDetail(id):renderReunioes(),'minhas-pendencias':renderMyTasks,atividade:()=>renderActivityDetail(id)};
+    const views={inicio:renderHome,demandas:renderDemandas,registrar:renderRegister,cronograma:renderCronograma,comissoes:()=>id?renderCommitteeDetail(id):renderComissoes(),reunioes:()=>id==='nova'?renderMemoryEditor(''):id.startsWith('editar/')?renderMemoryEditor(id.slice(7)):id?renderMeetingDetail(id):renderReunioes(),'minhas-pendencias':renderMyTasks,atividade:()=>renderActivityDetail(id)};
     screen.innerHTML=(views[base]||renderHome)();
   }
   function navigate(path){location.hash='#/'+path; if(getRoute().base===path)render();}
@@ -622,9 +622,21 @@
         case 'next-month':monthStep(1);break;
         case 'today':resetCurrent();break;
         case 'assignment-scope':state.assignmentScope=b.dataset.value;state.assignmentPicked=[];{const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();else render();}break;
-        case 'register-type':state.registerType=b.dataset.value;state.formDeadlineCount=1;state.assignmentPicked=[];render();break;
-        case 'register-memory':state.registerCurrentId='';state.registerType='memoria';state.formDeadlineCount=1;navigate('registrar');render();break;
-        case 'add-deadline':if(state.formDeadlineCount<8){const container=document.querySelector('.register-deadlines');if(container){container.insertAdjacentHTML('beforeend',registerDeadlineRow(state.formDeadlineCount));state.formDeadlineCount++;}}break;
+        case 'add-deadline':{
+          const container=document.querySelector('.register-deadlines');
+          if(container && container.querySelectorAll('.register-deadline').length<8 && state.formDeadlineCount<32){
+            container.insertAdjacentHTML('beforeend',registerDeadlineRow(state.formDeadlineCount));
+            state.formDeadlineCount++;
+          } else showToast('Limite de oito prazos por atividade.');
+          break;
+        }
+        case 'remove-deadline':{
+          const row=b.closest('.register-deadline');
+          if(row){row.remove();showToast('Prazo retirado do formulário. Salve a demanda para confirmar a alteração.');}
+          break;
+        }
+        case 'delete-task':deleteDemoRecord('task',b.dataset.id);break;
+        case 'delete-meeting':deleteDemoRecord('meeting',b.dataset.id);break;
       }
     });
     document.addEventListener('submit',e=>{
