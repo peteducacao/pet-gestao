@@ -297,57 +297,185 @@
     const person=String(d.assigneeName||separated.slice(1).join(' — ')||'').trim();
     return {step,person:person||'A definir'};
   }
+
+  // Somente demonstração: o estado destas alterações é local ao navegador.
+  function readLocalDemoWrites(){
+    try{
+      const raw=JSON.parse(localStorage.getItem(DEMO_EDITS_KEY)||'{}');
+      return raw&&typeof raw==='object'?raw:{};
+    }catch{return {};}
+  }
+  function saveLocalDemoWrites(){
+    if(!state.demo)return false;
+    try{
+      const originalTasks=window.PET_GESTAO_DEMO?.tasks||[];
+      const originalMeetings=window.PET_GESTAO_DEMO?.meetings||[];
+      const originalIds=new Set(originalTasks.map(t=>String(t.id)));
+      const originalMeetingIds=new Set(originalMeetings.map(m=>String(m.id)));
+      const patches=state.data.tasks.filter(t=>originalIds.has(String(t.id))&&(t.revisions?.length||t.observations?.length||t.reviewStatus||t.captionText));
+      const additions=state.data.tasks.filter(t=>!originalIds.has(String(t.id)));
+      const newMeetings=state.data.meetings.filter(m=>!originalMeetingIds.has(String(m.id)));
+      localStorage.setItem(DEMO_EDITS_KEY,JSON.stringify({patches,additions,newMeetings}));
+      return true;
+    }catch(e){console.warn('Falha ao salvar dados locais:',e);return false;}
+  }
+  function mergeLocalDemoWrites(){
+    if(!state.demo)return;
+    const edits=readLocalDemoWrites();
+    const byId=new Map((Array.isArray(edits.patches)?edits.patches:[]).map(x=>[String(x.id),x]));
+    state.data.tasks=state.data.tasks.map(t=>byId.has(String(t.id))?{...t,...byId.get(String(t.id))}:t);
+    const original=new Set(state.data.tasks.map(t=>String(t.id)));
+    (Array.isArray(edits.additions)?edits.additions:[]).forEach(t=>{if(t&&t.id&&!original.has(String(t.id))){state.data.tasks.push(t);original.add(String(t.id));}});
+    const meetings=new Set(state.data.meetings.map(m=>String(m.id)));
+    (Array.isArray(edits.newMeetings)?edits.newMeetings:[]).forEach(m=>{if(m&&m.id&&!meetings.has(String(m.id))){state.data.meetings.push(m);meetings.add(String(m.id));}});
+  }
+  function actorDemo(){
+    if(!state.demo)return sessionUser()?{name:sessionUser().name||'Integrante',role:(sessionUser().roles||[]).includes('tutor')?'tutora':'petiano'}:null;
+    return state.demoActor==='lene'?{name:'Lene',role:'tutora'}:{name:'PETiano(a) — teste',role:'petiano'};
+  }
+  const REVIEW_OPTIONS=[
+    ['aguardando','Aguardando revisão'],
+    ['ajustes','Ajustes necessários'],
+    ['nao_liberado','Não liberado para postagem'],
+    ['liberado','Liberado para postagem']
+  ];
+  function reviewLabel(value){return REVIEW_OPTIONS.find(r=>r[0]===value)?.[1]||'Aguardando revisão';}
+  function demoActorSelect(){
+    if(!state.demo)return '';
+    return `<div class="demo-actor"><label for="demo-actor"><strong>Perfil de demonstração</strong><small>Não é login real. Escolha um perfil para testar a autoria.</small></label>
+      <select class="select" id="demo-actor" data-field="demoActor"><option value="petiano" ${state.demoActor==='petiano'?'selected':''}>PETiano(a) — teste</option><option value="lene" ${state.demoActor==='lene'?'selected':''}>Lene — Tutora (simulação)</option></select></div>`;
+  }
   function renderAssignmentPreview(){
     const scope=state.assignmentScope;
     const opts=[['todos','Todos'],['comissoes','Comissões'],['usuarios','Usuários']];
-    const choices=scope==='comissoes'?state.data.committees.map(c=>({id:c.id,name:c.name})):state.data.users.map(u=>({id:u.id,name:u.name}));
+    const commissionId=state.regCommitteeId||'';
+    const group=state.data.committees.find(c=>String(c.id)===String(commissionId));
+    const members=new Set((group?.memberIds||[]).map(String));
+    const users=state.data.users.slice().sort((a,b)=>{
+      const p=Number(members.has(String(b.id)))-Number(members.has(String(a.id)));
+      return p||String(a.name).localeCompare(String(b.name),'pt-BR');
+    });
+    const choices=scope==='comissoes'?state.data.committees.map(c=>({id:c.id,name:c.name})):users.map(u=>({id:u.id,name:u.name}));
     const list=scope==='todos'
-      ?`<div class="assignment-all">${icon('users')} Todos os ${state.data.users.length} usuários cadastrados estão incluídos nesta seleção.</div>`
-      :choices.length?`<div class="assignment-options">${choices.map(c=>`<label class="assignment-option"><input type="checkbox" data-assign-target="${escapeText(c.id)}" ${state.assignmentPicked.includes(String(c.id))?'checked':''}><span>${escapeText(c.name)}</span></label>`).join('')}</div>`
-      :`<p class="notice-line">Nenhum cadastro disponível nesta categoria.</p>`;
-    return `<section class="card card-pad assignment-preview"><div class="section-head"><div><h2>Marcar responsáveis</h2><p>Escolha quem participaria desta atividade.</p></div></div>
-      <div class="segmented assignment-modes" role="group" aria-label="Quem marcar como responsável">${opts.map(([v,title])=>`<button type="button" data-action="assignment-scope" data-value="${v}" class="${scope===v?'active':''}" aria-pressed="${scope===v}">${title}</button>`).join('')}</div>
-      ${list}<p class="assignment-preview-note">${state.demo?'Prévia interativa: a seleção não é salva nem envia notificações.':'Seleções serão salvas quando o gerenciamento seguro estiver habilitado.'}</p>
-    </section>`;
+      ?`<div class="assignment-all">${icon('users')} Todos os ${state.data.users.length} usuários incluídos.</div>`
+      :choices.length?`<div class="assignment-options">${choices.map(c=>`<label class="assignment-option"><input type="checkbox" data-assign-target="${escapeText(c.id)}" ${state.assignmentPicked.includes(String(c.id))?'checked':''}><span>${escapeText(c.name)}</span>${scope==='usuarios'&&members.has(String(c.id))?tag('Da comissão','mint'):''}</label>`).join('')}</div>`
+      :'<p class="notice-line">Nenhum cadastro disponível.</p>';
+    return `<div class="register-assignment"><h3>Responsáveis</h3><div class="segmented assignment-modes" role="group" aria-label="Escolher responsáveis">${opts.map(([v,title])=>`<button type="button" data-action="assignment-scope" data-value="${v}" class="${scope===v?'active':''}" aria-pressed="${scope===v}">${title}</button>`).join('')}</div>${list}</div>`;
+  }
+  function registerDeadlineRow(i){
+    return `<div class="register-deadline"><label>Etapa<select class="select" name="deadline-step-${i}"><option>Produção</option><option>Correção</option><option>Entrega</option><option>Publicação</option><option>Outro prazo</option></select></label>
+    <label>Para quem<input name="deadline-assignee-${i}" placeholder="Integrante, tutoria ou comissão"></label>
+    <label>Data<input type="date" name="deadline-date-${i}" required></label>
+    <label>Horário<input type="time" name="deadline-time-${i}" value="23:59"></label></div>`;
+  }
+  function renderRegister(){
+    const type=state.registerType||'demanda';
+    const isMemory=type==='memoria';
+    const opt=state.data.committees.map(c=>`<option value="${escapeText(c.id)}" ${String(state.regCommitteeId)===String(c.id)?'selected':''}>${escapeText(c.name)}</option>`).join('');
+    const meetings=state.data.meetings.map(m=>`<option value="${escapeText(m.id)}">${escapeText(m.title)} · ${formatDate(m.date)}</option>`).join('');
+    const typePicker=`<div class="segmented register-tabs" role="group" aria-label="Tipo de registro"><button type="button" class="${!isMemory?'active':''}" data-action="register-type" data-value="demanda">Nova demanda</button><button type="button" class="${isMemory?'active':''}" data-action="register-type" data-value="memoria">Memória da reunião</button></div>`;
+    const memoryForm=`<form id="register-memory-form" class="register-form"><label>Título da memória<input name="title" required maxlength="150" placeholder="Ex.: Encontro de quinta-feira"></label><label>Data da reunião<input name="date" type="date" required></label><label>Memória original<textarea name="rawNotes" rows="9" required placeholder="Cole aqui o texto da memória..."></textarea></label><div class="form-actions"><button type="submit" class="button primary">${icon('check')} Salvar memória</button></div></form>`;
+    const taskForm=`<form id="register-task-form" class="register-form"><label>Título da demanda<input name="title" required maxlength="180" placeholder="Ex.: Produzir banner da Lixeira"></label>
+    <label>Descrição (opcional)<textarea name="description" rows="4" placeholder="O que precisa ser feito?"></textarea></label>
+    <div class="register-two"><label>Comissão<select name="committeeId" class="select" data-field="regCommitteeId"><option value="">Sem comissão</option>${opt}</select></label><label>Memória vinculada (opcional)<select name="meetingId" class="select"><option value="">Nenhuma</option>${meetings}</select></label></div>
+    <label>Data de postagem (opcional)<input type="date" name="postingAt"></label>
+    ${renderAssignmentPreview()}
+    <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button></div>
+    ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i)).join('')}</div>
+    <div class="form-actions"><button type="submit" class="button primary">${icon('check')} Registrar demanda</button></div></form>`;
+    return `${header('Cadastros','Registrar demandas','Crie uma demanda ou registre a memória original de uma reunião.')}${connectNotice()}
+      <section class="card card-pad register-page">${typePicker}${isMemory?memoryForm:taskForm}
+      <p class="assignment-preview-note">${state.demo?'Modo de demonstração: os registros são salvos apenas neste navegador, sem envio de e-mails ou compartilhamento.':'O cadastramento exigirá permissão e autenticação quando o sistema for integrado.'}</p></section>`;
+  }
+  function registeredAssigneeIds(){
+    if(state.assignmentScope==='todos')return state.data.users.map(u=>String(u.id));
+    if(state.assignmentScope==='usuarios')return state.assignmentPicked.slice();
+    const selected=new Set(state.assignmentPicked.map(String));
+    return [...new Set(state.data.committees.filter(c=>selected.has(String(c.id))).flatMap(c=>(c.memberIds||[]).map(String)))];
+  }
+  function saveRegisteredTask(form){
+    if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
+    const x=new FormData(form);
+    const title=String(x.get('title')||'').trim();
+    if(!title){showToast('Informe o título da demanda.');return;}
+    const deadlines=[];
+    for(let i=0;i<state.formDeadlineCount;i++){
+      const day=String(x.get('deadline-date-'+i)||''),hour=String(x.get('deadline-time-'+i)||'23:59');
+      if(day){
+        const step=String(x.get('deadline-step-'+i)||'Prazo'),who=String(x.get('deadline-assignee-'+i)||'').trim();
+        deadlines.push({label:step,assigneeName:who,dueAt:day+'T'+(hour||'23:59')+':00',completedAt:null});
+      }
+    }
+    const id='local-task-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+    state.data.tasks.push({id,title,description:String(x.get('description')||'').trim(),registeredAt:dateKey(new Date()),postingAt:String(x.get('postingAt')||'')||null,
+      meetingId:String(x.get('meetingId')||'')||null,committeeId:String(x.get('committeeId')||'')||null,
+      deadlines,assigneeIds:registeredAssigneeIds(),stageName:'Pendente',status:'pendente',reviewStatus:'aguardando',revisions:[],observations:[]});
+    if(saveLocalDemoWrites()){state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode='pendentes';location.hash='#/demandas';render();showToast('Demanda registrada nesta demonstração, apenas no seu navegador.');}
+    else showToast('Não foi possível salvar os dados locais.');
+  }
+  function saveRegisteredMemory(form){
+    if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
+    const x=new FormData(form),title=String(x.get('title')||'').trim(),rawNotes=String(x.get('rawNotes')||'').trim();
+    if(!title||!rawNotes){showToast('Preencha o título e a memória.');return;}
+    state.data.meetings.push({id:'local-meeting-'+Date.now().toString(36),title,date:String(x.get('date')||dateKey(new Date())),rawNotes,taskIds:[]});
+    if(saveLocalDemoWrites()){location.hash='#/reunioes';render();showToast('Memória registrada localmente nesta demonstração.');}
+    else showToast('Não foi possível salvar os dados locais.');
   }
   function renderActivityDetail(id){
     const t=tasks().find(t=>String(t.id)===String(id));
     if(!t)return notFound();
-    if(state.assignmentTaskId!==String(id)){
-      state.assignmentTaskId=String(id);
-      state.assignmentScope='usuarios';
-      state.assignmentPicked=[];
-    }
     const d=taskDeadlines(t),notes=Array.isArray(t.observations)?t.observations:[];
     const assignees=getAssigneeNames(t);
-    const linkedCommittee=t.committeeId?state.data.committees.find(c=>String(c.id)===String(t.committeeId)):null;
-    const label=t.meetingId?'Reunião':linkedCommittee?'Comissão':'Demanda geral';
-    const sourceHref=t.meetingId?`#/reunioes/${safeHref(t.meetingId)}`:linkedCommittee?`#/comissoes/${safeHref(linkedCommittee.id)}`:'#/demandas';
-    const description=String(t.description||'').trim();
+    const person=actorDemo();
+    const isTutor=person?.role==='tutora';
+    const review=t.reviewStatus||'aguardando';
+    const statusBadge=review==='liberado'?tag('Liberado para postagem','mint'):review==='ajustes'?tag('Ajustes necessários','soft'):review==='nao_liberado'?tag('Não liberado','soft'):tag('Aguardando revisão','soft');
     const deadlines=d.length?d.map(x=>{
-      const {step,person}=deadlineParts(x);
-      const date=dateFrom(x.dueAt);
-      const dueDate=date?formatDate(date,{day:'2-digit',month:'2-digit',year:'numeric'}):'Não definido';
-      const dueTime=date?new Intl.DateTimeFormat('pt-BR',{hour:'2-digit',minute:'2-digit'}).format(date):'23:59';
-      return `<div class="deadline-record"><div class="deadline-step">${icon('clock')}<strong>${escapeText(step)}</strong></div>
-        <div class="deadline-field"><small>Para quem</small><strong>${escapeText(person)}</strong></div>
-        <div class="deadline-field"><small>Data e horário</small><strong>${escapeText(dueDate)} · ${escapeText(dueTime)}</strong></div>
-        <div>${tag(x.completedAt?'Concluído':'Pendente',x.completedAt?'mint':'soft')}</div>
-      </div>`;
-    }).join(''):empty('clock','Nenhum prazo cadastrado','Quando houver prazos, eles aparecerão aqui com seus responsáveis.',true);
-    const observationHtml=notes.length?notes.map(n=>`<div class="placeholder-row"><div><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt)}</small><p style="white-space:pre-wrap;font-size:12px;line-height:1.8">${escapeText(n.body||'')}</p></div></div>`).join(''):empty('book','Nenhuma observação cadastrada','As observações são independentes da descrição da atividade.',true);
-    const posting=t.postingAt?`<div class="activity-info"><span>Data prevista para postagem</span><strong>${formatDate(t.postingAt)}</strong></div>`:'';
-    const people=assignees.length?`<div class="assigned-pills">${assignees.map(name=>tag(name,'soft')).join('')}</div>`:'<p class="notice-line">Responsável geral ainda não definido.</p>';
-    return `${header('Detalhes da atividade',t.title,'',`<a class="button ghost" href="${sourceHref}">${icon('chevron-left')} Voltar à origem</a>`)}${connectNotice()}
-      <div class="activity-overview card card-pad"><span class="detail-kicker">${escapeText(label)}: ${escapeText(taskOrigin(t))}</span>${tag(isCompleted(t)?'Concluída':t.stageName||'Pendente',isCompleted(t)?'mint':'soft')}
-      ${posting}${description?`<div class="activity-description"><h2>Descrição</h2><p>${escapeText(description)}</p></div>`:''}</div>
-      <div class="dashboard-grid activity-grid"><div class="stack">
-        <section class="card card-pad"><div class="section-head"><div><h2>Prazos e etapas</h2><p>Datas e destinatários definidos para cada etapa.</p></div></div>${deadlines}</section>
-        <section class="card card-pad"><div class="section-head"><h2>Observações</h2></div>${observationHtml}</section>
+      const {step,person}=deadlineParts(x),date=dateFrom(x.dueAt);
+      const due=date?formatDate(date,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'A definir';
+      return `<div class="deadline-record"><div class="deadline-step">${icon('clock')}<strong>${escapeText(step)}</strong></div><div class="deadline-field"><small>Responsável</small><strong>${escapeText(person)}</strong></div><div class="deadline-field"><small>Prazo</small><strong>${escapeText(due)}</strong></div>${tag(x.completedAt?'Concluído':'Pendente',x.completedAt?'mint':'soft')}</div>`;
+    }).join(''):empty('clock','Nenhum prazo cadastrado','Sem prazos definidos para esta atividade.',true);
+    const observations=notes.length?notes.slice().reverse().map(n=>`<div class="observation-item"><strong>${escapeText(n.authorName||'Integrante')}</strong><small>${formatDate(n.createdAt,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small><p>${escapeText(n.body||'')}</p></div>`).join(''):'';
+    const revisions=Array.isArray(t.revisions)?t.revisions.slice().reverse().slice(0,7):[];
+    const history=revisions.length?`<div class="revision-list">${revisions.map(x=>`<div><strong>${escapeText(x.action||'Atualização')} — ${escapeText(x.actorName)}</strong><small>${formatDate(x.at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}</div>`:'<p class="notice-line">Nenhuma alteração registrada.</p>';
+    const posting=t.postingAt?`<p class="activity-due">Postagem prevista: <strong>${formatDate(t.postingAt)}</strong></p>`:'';
+    return `${header('Atividade',t.title,'',`<a class="button ghost" href="${t.meetingId?'#/reunioes/'+safeHref(t.meetingId):t.committeeId?'#/comissoes/'+safeHref(t.committeeId):'#/demandas'}">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
+    <div class="activity-header-strip card card-pad">${statusBadge}${posting}</div>
+    <div class="activity-detail-grid">
+      <div class="stack">
+        <section class="card card-pad"><h2>Prazos e etapas</h2>${deadlines}</section>
+        <section class="card card-pad"><h2>Observações</h2>${observations||'<p class="notice-line">Nenhuma observação cadastrada.</p>'}</section>
+        <section class="card card-pad"><h2>Texto e revisão</h2><p class="notice-line">Edite o texto, inclua uma observação ou solicite uma correção. Uma observação não libera a postagem automaticamente.</p>
+          ${demoActorSelect()}
+          <form id="activity-update-form" data-id="${escapeText(t.id)}" class="register-form">
+            <label>Texto da atividade / legenda (opcional)<textarea id="activity-text" name="captionText" rows="6" placeholder="Escreva ou edite o texto aqui...">${escapeText(t.captionText||'')}</textarea></label>
+            <label>Nova observação (opcional)<textarea name="observation" rows="3" placeholder="Registre aqui uma orientação ou correção..."></textarea></label>
+            ${isTutor?`<label class="review-control">Decisão da tutoria<select class="select" name="reviewStatus">${REVIEW_OPTIONS.map(([v,title])=>`<option value="${v}" ${review===v?'selected':''}>${title}</option>`).join('')}</select><small>Escolha “Liberado para postagem” somente quando a tutoria autorizar.</small></label>`:`<p class="review-readonly">Situação da revisão: <strong>${escapeText(reviewLabel(review))}</strong>. Apenas a tutoria pode alterar essa decisão.</p>`}
+            <button class="button primary" type="submit">${icon('check')} Salvar alterações</button>
+          </form></section>
       </div><div class="stack">
-        <section class="card card-pad"><div class="section-head"><h2>Responsáveis pela atividade</h2></div>${people}</section>
-        ${renderAssignmentPreview()}
-      </div></div>`;
+        <section class="card card-pad"><h2>Responsáveis</h2>${assignees.length?`<div class="assigned-pills">${assignees.map(a=>tag(a,'soft')).join('')}</div>`:'<p class="notice-line">Nenhum responsável atribuído.</p>'}
+          <p class="assignment-preview-note">Para adicionar ou substituir responsáveis, utilize Registrar demandas e, futuramente, a edição da demanda.</p></section>
+        <section class="card card-pad"><h2>Histórico de alterações</h2>${history}</section>
+      </div>
+    </div>`;
+  }
+  function saveActivityUpdate(form){
+    if(!state.demo){showToast('Edição disponível após a implantação do acesso seguro.');return;}
+    const t=tasks().find(x=>String(x.id)===String(form.dataset.id)),actor=actorDemo();
+    if(!t||!actor)return;
+    const data=new FormData(form),newText=String(data.get('captionText')||''),obs=String(data.get('observation')||'').trim(),oldText=String(t.captionText||'');
+    const oldReview=t.reviewStatus||'aguardando',newReview=actor.role==='tutora'?String(data.get('reviewStatus')||oldReview):oldReview;
+    const at=new Date().toISOString();
+    let changed=false;
+    if(newText!==oldText){t.captionText=newText;changed=true;}
+    if(obs){t.observations=[...(t.observations||[]),{body:obs,authorName:actor.name,createdAt:at}];changed=true;}
+    if(newReview!==oldReview){t.reviewStatus=newReview;changed=true;}
+    if(!changed){showToast('Nenhuma alteração para salvar.');return;}
+    t.revisions=[...(t.revisions||[]),{action:newReview!==oldReview?'Decisão da tutoria: '+reviewLabel(newReview):actor.role==='tutora'?'Correção por '+actor.name:'Alteração por '+actor.name,actorName:actor.name,at}];
+    t.lastEditedBy=actor.name;t.lastEditedAt=at;
+    if(saveLocalDemoWrites()){render();showToast('Alteração registrada localmente com autoria e horário. Nenhum e-mail foi enviado.');}
+    else showToast('Não foi possível salvar a alteração.');
   }
   function notFound(){return `${header('Navegação','Registro não encontrado','O item solicitado não está disponível ou não pode ser consultado com este acesso.')}<div class="card card-pad">${empty('search','Não foi possível abrir o registro','Retorne à lista e escolha uma atividade disponível.')}</div>`;}
   function render(){
@@ -382,7 +510,14 @@
         case 'next-month':monthStep(1);break;
         case 'today':resetCurrent();break;
         case 'assignment-scope':state.assignmentScope=b.dataset.value;state.assignmentPicked=[];render();break;
+        case 'register-type':state.registerType=b.dataset.value;state.formDeadlineCount=1;render();break;
+        case 'add-deadline':state.formDeadlineCount=Math.min(8,state.formDeadlineCount+1);render();break;
       }
+    });
+    document.addEventListener('submit',e=>{
+      if(e.target.id==='activity-update-form'){e.preventDefault();saveActivityUpdate(e.target);}
+      if(e.target.id==='register-task-form'){e.preventDefault();saveRegisteredTask(e.target);}
+      if(e.target.id==='register-memory-form'){e.preventDefault();saveRegisteredMemory(e.target);}
     });
     document.addEventListener('change',e=>{
       const el=e.target;if(!el.dataset?.field)return;
@@ -395,6 +530,8 @@
       if(field==='month'){state.month=Number(el.value);state.week=1;state.selectedDay=1;}
       if(field==='year'){state.year=Number(el.value);state.week=1;state.selectedDay=1;}
       if(field==='week'){state.week=Number(el.value);}
+      if(field==='demoActor'){state.demoActor=el.value;render();return;}
+      if(field==='regCommitteeId'){state.regCommitteeId=el.value;render();return;}
       if(field==='autoMonth'||field==='autoWeek'){state[field]=el.checked;savePrefs();return;}
       savePrefs();render();
     });
@@ -410,6 +547,7 @@
       state.data=sanitizeBootstrap(window.PET_GESTAO_DEMO);
       state.connected=true;
       state.demo=true;
+      mergeLocalDemoWrites();
       $('#connection-label').textContent='Modo demonstração';
       render();
       return;
