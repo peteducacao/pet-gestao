@@ -604,3 +604,26 @@
  .commission-list-actions{flex-wrap:wrap}
  .commission-list-actions .activity-details-link{flex-basis:100%;margin-bottom:3px}
 }
+
+/* Anexos locais na prévia: visual enxuto e adaptado a celular */
+.attachment-editor{gap:13px}
+.attachment-items{display:flex;flex-direction:column;gap:9px}
+.attachment-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 13px;border:1px solid #e5def1;border-radius:11px;background:#fff;min-width:0}
+.attachment-name{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0}
+.attachment-name>svg{width:21px;height:21px;color:#7453bb;flex:none}
+.attachment-name>span{min-width:0}
+.attachment-name strong{display:block;font-size:12px;color:#372b50;overflow-wrap:anywhere;line-height:1.5}
+.attachment-name small{display:block;margin-top:3px;font-size:10px;color:#847a95}
+.attachment-actions{display:flex;gap:7px;flex:0 0 auto;align-items:center}
+.attachment-actions .small-action{padding:8px 11px;font-size:11px;min-height:34px}
+.attachment-empty{font-size:12px;color:#857b95;margin:0;padding:13px 14px;border:1px dashed #e6ddf1;border-radius:9px;background:#fcfbff}
+.attachment-input-label{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:max-content;max-width:100%;padding:10px 16px;background:#f4efff;color:#6844b6;border:1px solid #d8c9f3;border-radius:10px;cursor:pointer;font-weight:800;font-size:12px}
+.attachment-input-label:hover{background:#e9dcff}
+.attachment-input-label svg{width:16px;height:16px}
+#task-attachment-input{display:block;max-width:100%;font-size:11px;color:#786c90}
+.attachment-editor>small{font-size:11px;color:#817891;line-height:1.6}
+@media(max-width:640px){
+ .attachment-item{flex-wrap:wrap}
+ .attachment-actions{justify-content:flex-start;margin-left:30px}
+ .attachment-input-label{width:100%}
+}
