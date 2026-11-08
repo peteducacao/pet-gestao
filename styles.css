@@ -449,3 +449,116 @@
 .deadline-assignee-picker summary>svg{flex:none}
 @media(max-width:930px){.weeks-overview-buttons{grid-template-columns:repeat(3,minmax(0,1fr))}.activity-status-panel{padding:18px}.cronograma-simple{padding:20px}}
 @media(max-width:640px){.weeks-overview{padding:15px 13px}.weeks-overview-head h3{font-size:14px}.weeks-overview-buttons{grid-template-columns:repeat(2,minmax(0,1fr))}.week-overview-button{min-height:57px}.weekly-focus-simple>.section-head h2{font-size:16px}.quick-task-status-actions{width:100%;justify-content:stretch}.quick-status-choice{flex:1;min-width:0;padding:9px 4px;font-size:11px}.observations-title-actions{justify-content:flex-start}.demand-memory-row{align-items:flex-start;flex-direction:column}.cronograma-view-tabs button{flex:1;justify-content:center;font-size:12px}.cronograma-period-controls .filter-item{flex:1 1 calc(50% - 12px)}.activity-detail-grid .card-pad{padding:17px}}
+
+/* PET Educação — correção definitiva das listas de demandas em telas pequenas.
+   Regras no final do arquivo para prevalecer sobre estilos mobile antigos. */
+@media (max-width: 720px){
+  .placeholder-row.task-list-row{
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    width:100%;
+    align-items:start;
+    justify-items:stretch;
+    gap:9px;
+    padding:15px 0;
+    min-height:0;
+    margin:0;
+    text-align:left;
+  }
+  .task-list-row .task-list-body{
+    display:flex;
+    flex-direction:column;
+    align-self:stretch;
+    align-items:flex-start;
+    width:100%;
+    min-width:0;
+    flex:initial;
+    gap:8px;
+    margin:0;
+  }
+  .task-list-row .task-title-row{
+    display:flex;
+    flex-flow:row wrap;
+    align-items:center;
+    justify-content:flex-start;
+    gap:7px 10px;
+    width:100%;
+    min-width:0;
+    margin:0;
+  }
+  .task-list-row .task-title-row>strong{
+    font-size:14px;
+    font-weight:800;
+    line-height:1.42;
+    min-width:0;
+    max-width:100%;
+    overflow-wrap:anywhere;
+    margin:0;
+  }
+  .task-list-row .task-date-badge{
+    display:inline-flex;
+    flex:none;
+    white-space:nowrap;
+    padding:5px 8px;
+    font-size:10px;
+    line-height:1.3;
+    margin:0;
+  }
+  .task-list-row .activity-details-link{
+    display:inline-flex!important;
+    align-items:center;
+    justify-content:flex-start;
+    align-self:flex-start;
+    font-size:12px;
+    line-height:1.4;
+    padding:0;
+    margin:0!important;
+  }
+  .task-list-row .task-row-meta{
+    display:flex!important;
+    flex-direction:row!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    justify-self:stretch;
+    gap:7px 9px;
+    flex-wrap:wrap;
+    width:100%;
+    max-width:none!important;
+    min-width:0;
+    margin:0;
+    padding:0;
+  }
+  .task-list-row .task-assignee-label{
+    display:inline-flex;
+    align-items:center;
+    flex-wrap:wrap;
+    column-gap:4px;
+    max-width:100%;
+    width:auto;
+    min-width:0;
+    padding:6px 9px;
+    margin:0;
+    line-height:1.4;
+    font-size:11px;
+    overflow-wrap:anywhere;
+  }
+  .task-list-row .task-row-meta>.pill{
+    display:inline-flex;
+    flex:none;
+    margin:0!important;
+    padding:6px 10px;
+    font-size:10px;
+    line-height:1.35;
+    white-space:nowrap;
+    width:auto;
+  }
+  .cronograma-simple .task-list-row{padding:15px 0;}
+  .committee-group .task-list-row{padding:15px 0;}
+}
+@media (max-width: 390px){
+  .placeholder-row.task-list-row{gap:8px;padding:13px 0;}
+  .task-list-row .task-title-row>strong{font-size:13.5px;}
+  .task-list-row .task-date-badge{font-size:9.5px;padding:4px 7px;}
+  .task-list-row .task-row-meta{justify-content:flex-start!important;}
+  .task-list-row .task-assignee-label{font-size:10.5px;padding:5px 8px;}
+}
