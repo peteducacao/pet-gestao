@@ -251,6 +251,16 @@
       return empty(mode==='arquivo'?'archive':'list',titles[mode],'As atividades cadastradas aparecerão aqui, vinculadas aos responsáveis e às comissões.');}
     return filtered.map(renderTaskCard).join('');
   }
+  function renderDemandMemories(){
+    const all=state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    return `<section class="card card-pad demand-memories"><div class="section-head"><div><h2>Memórias dos encontros</h2><p>Consulte os registros das reuniões sem duplicar atividades.</p></div>
+        <a href="#/reunioes/nova" class="button ghost">${icon('plus')} Nova memória</a></div>
+        ${all.length?all.map(m=>`<div class="demand-memory-row" style="${memoryStyle(m)}"><div><strong>${escapeText(displayMeetingTitle(m))}</strong><small>${formatDate(m.date)}</small></div>
+        <div class="demand-memory-actions"><a href="#/reunioes/${safeHref(m.id)}" class="activity-details-link">Ver memória ${icon('arrow')}</a>
+        <a href="#/reunioes/editar/${safeHref(m.id)}" class="button ghost small-action">Editar</a>
+        <button type="button" class="button subtle-danger small-action" data-action="delete-meeting" data-id="${escapeText(m.id)}">Excluir</button></div></div>`).join(''):empty('book','Nenhuma memória registrada','Cadastre a memória do primeiro encontro.',true)}
+      </section>`;
+  }
   function renderDemandas(){
     const modes=[['mensal','Mensal'],['semanal','Semanal'],['pendentes','Pendentes'],['arquivo','Arquivadas']];
     return `${header('Acompanhamento','Demandas','Uma lista única de atividades, organizada por período, responsáveis e situação.',`<a class="button primary" href="#/registrar">${icon('plus')} Registrar demanda</a>`)}${connectNotice()}
@@ -261,7 +271,7 @@
         ${(state.demandMode==='mensal'||state.demandMode==='semanal')?`<div class="list-toolbar">${periodSelector(state.demandMode==='semanal')}</div>`:'<p class="notice-line">Esta visualização reúne registros de todos os meses e anos.</p>'}
         <hr class="divider"/><div class="table-head"><div class="section-head" style="margin-bottom:0"><div><h2>${state.demandMode==='mensal'?periodTitle():state.demandMode==='semanal'?'Semana '+state.week+' · '+periodTitle():state.demandMode==='arquivo'?'Arquivadas':'Pendências acumuladas'}</h2></div></div>${available()?tag(String(visibleDemandCount())+' registros','soft'):''}</div>
         ${renderDemandList()}
-      </div>`;
+      </div>${renderDemandMemories()}`;
   }
   function calendarCells(){
     const first=new Date(state.year,state.month,1),offset=(first.getDay()+6)%7;
@@ -466,14 +476,14 @@
   function renderMeetingDetail(id){
     const m=state.data.meetings.find(m=>String(m.id)===String(id));
     if(!m)return notFound();
-    return `${header('Reuniões',displayMeetingTitle(m),formatDate(m.date),`<a class="button ghost" href="#/reunioes/editar/${safeHref(m.id)}">${icon('settings')} Editar memória</a>`)}${connectNotice()}
+    return `${header('Demandas',displayMeetingTitle(m),formatDate(m.date),`<a class="button ghost" href="#/reunioes/editar/${safeHref(m.id)}">${icon('settings')} Editar memória</a>`)}${connectNotice()}
       <div class="card card-pad memory-reading" style="${memoryStyle(m)}"><div class="memory-reading-head">${icon('book')} <strong>Registro completo</strong></div><p>${escapeText(m.rawNotes||'Sem texto cadastrado.')}</p></div>`;
   }
   function renderMemoryEditor(id){
     const existing=id?state.data.meetings.find(m=>String(m.id)===String(id)):null;
     if(id&&!existing)return notFound();
     const title=existing?'Editar memória':'Nova memória';
-    return `${header('Reuniões',title,'',`<a href="#/reunioes" class="button ghost">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
+    return `${header('Demandas',title,'',`<a href="#/demandas" class="button ghost">${icon('chevron-left')} Voltar</a>`)}${connectNotice()}
       <section class="card card-pad register-page memory-editor"><form id="register-memory-form" data-id="${escapeText(existing?.id||'')}" class="register-form">
         <label>Título da reunião<input name="title" maxlength="150" placeholder="Ex.: Reunião semanal do PET" value="${escapeText(existing?.title||'')}"></label>
         <label>Data da reunião<input type="date" name="date" value="${escapeText(existing?.date||dateKey(new Date()))}" required></label>
@@ -838,7 +848,7 @@
     }else{
       state.data.meetings.push({id:'local-meeting-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),title,date,rawNotes,theme:String(x.get('theme')||'classic'),colorA:memoryHex(x.get('colorA'),'#f7f1ff'),colorB:memoryHex(x.get('colorB'),'#e4edff'),taskIds:[],lastEditedBy:who,lastEditedAt:now});
     }
-    if(saveLocalDemoWrites()){location.hash='#/reunioes';render();showToast(existing?'Memória atualizada neste navegador.':'Memória registrada neste navegador.');}
+    if(saveLocalDemoWrites()){location.hash='#/demandas';render();showToast(existing?'Memória atualizada neste navegador.':'Memória registrada neste navegador.');}
     else showToast('Não foi possível salvar os dados locais.');
   }
   function deleteDemoRecord(kind,id){
@@ -855,7 +865,7 @@
     if(isMeeting){
       state.data.meetings=state.data.meetings.filter(m=>String(m.id)!==String(id));
       state.data.tasks.forEach(t=>{if(String(t.meetingId)===String(id))t.meetingId=null;});
-      location.hash='#/reunioes';
+      location.hash='#/demandas';
     }else{
       state.data.tasks=state.data.tasks.filter(t=>String(t.id)!==String(id));
       state.data.meetings.forEach(m=>{if(Array.isArray(m.taskIds))m.taskIds=m.taskIds.filter(x=>String(x)!==String(id));});
@@ -910,6 +920,16 @@
   function resetCurrent(){state.year=TODAY.getFullYear();state.month=TODAY.getMonth();state.week=weekForDay(state.year,state.month,TODAY.getDate());state.selectedDay=TODAY.getDate();savePrefs();render();}
   function showToast(message){const t=$('#toast');t.textContent=message;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true;},4200);}
   function menuOpen(open){$('#sidebar').classList.toggle('open',open);$('#overlay').hidden=!open;document.body.style.overflow=open?'hidden':'';}
+  function updateMemoryPreview(colorChanged=false){
+    const form=document.querySelector('#register-memory-form'),sample=document.querySelector('#memory-live-sample');
+    if(!form||!sample)return;
+    const theme=form.querySelector('[name="theme"]'),colorA=form.querySelector('[name="colorA"]'),colorB=form.querySelector('[name="colorB"]');
+    if(!theme||!colorA||!colorB)return;
+    if(colorChanged)theme.value='custom';
+    const background=memoryStyle({theme:theme.value,colorA:colorA.value,colorB:colorB.value}).replace(/^background:/,'').replace(/;$/,'');
+    sample.style.setProperty('background',background);
+    sample.dataset.theme=theme.value;
+  }
   function bind(){
     $('#open-menu').addEventListener('click',()=>menuOpen(true));
     $('#close-menu').addEventListener('click',()=>menuOpen(false));
@@ -972,6 +992,9 @@
       if(e.target.id==='register-task-form'){e.preventDefault();saveRegisteredTask(e.target);}
       if(e.target.id==='register-memory-form'){e.preventDefault();saveRegisteredMemory(e.target);}
     });
+    document.addEventListener('input',e=>{
+      if(e.target?.dataset?.field==='memoryColor')updateMemoryPreview(true);
+    });
     document.addEventListener('change',e=>{
       const el=e.target;if(!el.dataset?.field)return;
       if(el.dataset.assignTarget!==undefined){
@@ -1002,9 +1025,7 @@
       }
       if(field==='regCommitteeId'){state.regCommitteeId=el.value;const group=document.querySelector('.register-assignment');if(group)group.outerHTML=renderAssignmentPreview();return;}
       if(field==='memoryTheme'||field==='memoryColor'){
-        const form=document.querySelector('#register-memory-form'),sample=document.querySelector('#memory-live-sample');
-        if(form&&sample){sample.style.background=memoryStyle({theme:form.elements.theme.value,colorA:form.elements.colorA.value,colorB:form.elements.colorB.value}).replace(/^background:/,'').replace(/;$/,'');}
-        return;
+        updateMemoryPreview(field==='memoryColor');return;
       }
       if(field==='autoMonth'||field==='autoWeek'){state[field]=el.checked;savePrefs();return;}
       savePrefs();render();
