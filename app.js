@@ -239,10 +239,21 @@
       <div class="committee-info"><div class="info-tile">${icon('users')}<strong>Integrantes vinculados</strong><p>Responsáveis da comissão aparecem primeiro no seletor, sem impedir a escolha de outros integrantes.</p></div><div class="info-tile">${icon('calendar')}<strong>Mesmo cronograma</strong><p>Mês, ano, semanas, etapas e múltiplos prazos seguem a mesma estrutura em todas as comissões.</p></div><div class="info-tile">${icon('book')}<strong>Registro centralizado</strong><p>Atividades podem ser relacionadas a reuniões sem duplicar informações.</p></div></div>
       <section class="card card-pad"><div class="section-head"><div><h2>Comissões cadastradas</h2><p>Organização por equipes</p></div>${available()?tag(all.length+' comissões','soft'):''}</div>${all.length?all.map(c=>`<a class="placeholder-row" href="#/comissoes/${safeHref(c.id)}"><div><strong>${escapeText(c.name)}</strong><small>${Array.isArray(c.memberIds)?c.memberIds.length:0} integrantes</small>${commissionCounters(c.id)}</div>${icon('arrow')}</a>`).join(''):empty('users','Nenhuma comissão cadastrada','Assim que as equipes forem cadastradas, todas aparecerão aqui com a mesma organização.')}</section>`;
   }
+
+  function renderCommissionGroups(records){
+    const groups=new Map();
+    records.slice().sort((a,b)=>taskSortDate(a)-taskSortDate(b)).forEach(t=>{
+      const d=dateFrom(t.postingAt)||taskDate(t);
+      const label=d?`${MONTHS[d.getMonth()]} de ${d.getFullYear()} · Semana ${weekForDay(d.getFullYear(),d.getMonth(),d.getDate())}`:'Sem data definida';
+      if(!groups.has(label))groups.set(label,[]);
+      groups.get(label).push(t);
+    });
+    return Array.from(groups,([label,items])=>`<div class="committee-group"><h3 class="committee-group-label">${escapeText(label)}</h3>${items.map(renderTaskCard).join('')}</div>`).join('');
+  }
   function renderCommitteeDetail(id){const c=state.data.committees.find(c=>String(c.id)===String(id));if(!c)return notFound();
     const related=tasks().filter(t=>String(t.committeeId)===String(c.id));
     return `${header('Comissões',c.name,'Atividades, integrantes e cronograma seguem o padrão compartilhado por todas as comissões.',newButton('Nova atividade'))}${connectNotice()}
-      <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section><div class="card card-pad"><div class="section-head"><h2>Atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?related.map(renderTaskCard).join(''):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
+      <section class="card card-pad committee-summary"><div class="section-head"><h2>Resumo da comissão</h2></div>${commissionCounters(c.id)}</section><div class="card card-pad"><div class="section-head"><h2>Cronograma e atividades</h2>${tag(String(related.length)+' registros','soft')}</div>${related.length?renderCommissionGroups(related):empty('list','Nenhuma atividade registrada','As atividades desta comissão aparecerão aqui.')}</div>`;
   }
   function renderReunioes(){const all=state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     return `${header('Registro coletivo','Reuniões','',newButton('Nova memória'))}${connectNotice()}
