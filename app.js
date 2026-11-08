@@ -425,8 +425,8 @@
       const role=roles.some(r=>r==='tutor'||r==='tutora')?'tutora':roles.some(r=>r==='admin'||r==='administracao'||r==='administração')?'administracao':'petiano';
       return {name:user.name||'Integrante',role};
     }
-    if(state.demoActor==='lene')return {name:'Lene — tutoria (simulação)',role:'tutora'};
-    if(state.demoActor==='admin')return {name:'Administração (simulação)',role:'administracao'};
+    if(state.demoActor==='lene')return {name:'Lene',role:'tutora'};
+    if(state.demoActor==='admin')return {name:'Administração',role:'administracao'};
     return {name:'PETiano(a) — teste',role:'petiano'};
   }
   function canReview(actor){return Boolean(actor&&['tutora','administracao'].includes(actor.role));}
@@ -537,12 +537,15 @@
     return [...new Set(state.data.committees.filter(c=>selected.has(String(c.id))).flatMap(c=>(c.memberIds||[]).map(String)))];
   }
 
+
   function saveRegisteredTask(form){
     if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
     const x=new FormData(form),title=String(x.get('title')||'').trim();
     if(!title){showToast('Informe o título da demanda.');return;}
     const deadlines=[];
-    const existing=String(form.dataset.id||'')?tasks().find(t=>String(t.id)===String(form.dataset.id)):null;
+    const id=String(form.dataset.id||'');
+    const existing=id?tasks().find(t=>String(t.id)===id):null;
+    if(id&&!existing){showToast('Demanda não encontrada.');return;}
     for(let i=0;i<state.formDeadlineCount;i++){
       const day=String(x.get('deadline-date-'+i)||''),hour=String(x.get('deadline-time-'+i)||'23:59');
       if(day){
@@ -554,23 +557,50 @@
     const values={title,description:String(x.get('description')||'').trim(),postingAt:String(x.get('postingAt')||'')||null,
       meetingId:String(x.get('meetingId')||'')||null,committeeId:String(x.get('committeeId')||'')||null,
       deadlines,assigneeIds:registeredAssigneeIds(),status,stageName:status==='concluida'?'Concluída':'Pendente'};
-    const now=new Date().toISOString(),actor=actorDemo()||{name:'Demonstração'};
+    const now=new Date().toISOString(),actor=actorDemo()||{name:'Demonstração',role:'petiano'};
     if(existing){
+      const before=JSON.stringify(Object.fromEntries(Object.keys(values).map(key=>[key,existing[key]])));
       const wasCompleted=isCompleted(existing);
+      const priorReview=existing.reviewStatus||'aguardando';
+      const priorText=String(existing.captionText||'');
+      const newText=String(x.get('captionText')??priorText);
+      // A observação e o seletor de liberação são exclusivos da tutoria e administração.
+      const obs=canReview(actor)?String(x.get('observation')||'').trim():'';
+      const requestedReview=canReview(actor)?String(x.get('reviewStatus')||''):'';
+      const choice=REVIEW_OPTIONS.some(([v])=>v===requestedReview)?requestedReview:null;
+      const textChanged=newText!==priorText;
+      const observationsChanged=Boolean(obs);
+      const edits=[];
       Object.assign(existing,values);
       if(status==='concluida')existing.completedAt=existing.completedAt||now;
       else {delete existing.completedAt;delete existing.closedAt;}
-      const action=status==='concluida'&&!wasCompleted?'Concluiu demanda':status!=='concluida'&&wasCompleted?'Reabriu demanda':'Dados da demanda atualizados';
-      existing.revisions=[...(existing.revisions||[]),{action,actorName:actor.name,at:now}];
-      existing.lastEditedBy=actor.name;existing.lastEditedAt=now;
-    } else {
+      if(before!==JSON.stringify(values))edits.push('Dados da demanda atualizados');
+      if(wasCompleted!==isCompleted(existing))edits.push(isCompleted(existing)?'Concluiu demanda':'Reabriu demanda');
+      if(textChanged){existing.captionText=newText;edits.push(canReview(actor)?'Texto corrigido':'Texto editado');}
+      if(observationsChanged){
+        existing.observations=[...(existing.observations||[]),{body:obs,authorName:actor.name,createdAt:now}];
+        edits.push('Observação registrada');
+      }
+      // Nenhuma alteração textual ou observação aprova automaticamente a publicação.
+      // Mudanças em material já liberado exigem nova liberação explícita.
+      let updatedReview=priorReview;
+      if((textChanged||observationsChanged)&&priorReview==='liberado')updatedReview=observationsChanged?'ajustes':'aguardando';
+      if(choice)updatedReview=choice;
+      if(updatedReview!==priorReview){existing.reviewStatus=updatedReview;edits.push('Revisão: '+reviewLabel(updatedReview));}
+      if(edits.length){
+        existing.revisions=[...(existing.revisions||[]),...edits.map(action=>({action,actorName:actor.name,at:now}))];
+        existing.lastEditedBy=actor.name;existing.lastEditedAt=now;
+      }
+    }else{
       const id='local-task-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
       state.data.tasks.push({id,registeredAt:dateKey(new Date()),reviewStatus:'aguardando',revisions:[],observations:[],...values,...(status==='concluida'?{completedAt:now}:{})});
     }
-    if(saveLocalDemoWrites()){state.registerCurrentId=null;state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode=status==='concluida'?'arquivo':'pendentes';location.hash='#/demandas';render();showToast(existing?'Demanda atualizada neste navegador.':'Demanda registrada neste navegador.');}
-    else showToast('Não foi possível salvar os dados locais.');
+    if(saveLocalDemoWrites()){
+      state.registerCurrentId=null;state.assignmentPicked=[];state.formDeadlineCount=1;state.demandMode=status==='concluida'?'arquivo':'pendentes';
+      location.hash='#/demandas';render();
+      showToast(existing?'Demanda atualizada com autoria e horário nesta demonstração.':'Demanda registrada neste navegador.');
+    }else showToast('Não foi possível salvar os dados locais.');
   }
-
   function saveRegisteredMemory(form){
     if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
     const x=new FormData(form),title=String(x.get('title')||'').trim(),rawNotes=String(x.get('rawNotes')||'').trim(),date=String(x.get('date')||'');
