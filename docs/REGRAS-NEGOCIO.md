@@ -1,4 +1,4 @@
-# Regras de negócio — PET Gestão
+# Regras de negócio — PET Educação
 
 ## Princípio do produto
 
@@ -30,6 +30,14 @@ Toda comissão trabalha com **exatamente a mesma estrutura**: campos, atividades
 - Um trecho informativo não vira tarefa automaticamente. Nomes desconhecidos, `???` e prazos incertos não serão inventados.
 - Vincular tarefas existentes, em vez de duplicá-las quando forem retomadas em encontros posteriores.
 - Guardar registros de alterações, autoria e data.
+- A navegação separa **Reuniões** (somente a memória original), **Demandas** (acompanhamento) e **Registrar demandas** (formulário de cadastro e edição).
+
+## Revisão, observações e e-mails
+
+- O texto principal da atividade/legenda pode ser editado; salvar quem alterou e a data e horário.
+- A tutoria deverá escolher explicitamente entre **aguardando revisão**, **ajustes necessários**, **não liberado** e **liberado para postagem**. Uma observação ou edição de texto por si só **não é aprovação**.
+- O status de liberação é independente da conclusão da tarefa.
+- Na versão demonstrativa, um seletor de perfil Lene/PETiano(a) apenas simula o fluxo e guarda registros localmente, sem enviar e-mail ou afirmar identidade verificada.
 
 ## Observações e e-mails
 
