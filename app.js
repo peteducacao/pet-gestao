@@ -113,9 +113,9 @@
       ${connectNotice()}${renderStats()}
       <div class="dashboard-grid"><div class="stack">
         <section class="card card-pad"><div class="section-head"><div><h2>Próximos prazos</h2><p>Atividades que precisam de atenção</p></div><button class="link-action" data-action="go" data-to="cronograma">Ver cronograma ${icon('arrow')}</button></div>${renderUpcomingCompact()}</section>
-        <section class="card card-pad"><div class="section-head"><div><h2>Atalhos</h2><p>Acesse as áreas de trabalho</p></div></div><div class="quick-grid">
-        <a class="quick-link" href="#/demandas">Demandas ${icon('arrow')}</a><a class="quick-link" href="#/comissoes">Comissões ${icon('arrow')}</a><a class="quick-link" href="#/reunioes">Memórias ${icon('arrow')}</a><a class="quick-link" href="#/minhas-pendencias">Minhas pendências ${icon('arrow')}</a>
-        </div></section>
+        <section class="card card-pad"><div class="section-head"><div><h2>Memórias recentes</h2><p>Últimas reuniões registradas</p></div></div>
+        ${state.data.meetings.length?state.data.meetings.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,4).map(m=>`<a href="#/reunioes/${safeHref(m.id)}" class="placeholder-row"><div><strong>${escapeText(m.title||'Reunião')}</strong><small>${formatDate(m.date)}</small></div>${icon('arrow')}</a>`).join(''):empty('book','Nenhuma reunião registrada','As memórias recentes aparecerão aqui quando forem cadastradas.',true)}
+        </section>
       </div><div class="stack">
         <section class="card card-pad"><div class="section-head"><div><h2>Período em foco</h2><p>${escapeText(periodTitle())}</p></div>${tag('Semana '+state.week)}</div><div class="deadline-preview">${icon('calendar')}<div><h3>${escapeText(periodTitle())}</h3><p>Semana ${state.week}: ${currentWeek().label}. O histórico continua disponível para consulta a qualquer momento.</p></div></div><div style="margin-top:15px"><button class="button ghost" data-action="go" data-to="cronograma">${icon('calendar')} Abrir calendário</button></div></section>
         <section class="card card-pad"><div class="section-head"><div><h2>Últimas atualizações</h2><p>Histórico das atividades</p></div>${icon('bell')}</div>${renderFeed()}</section>
