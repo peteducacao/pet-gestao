@@ -1,4 +1,4 @@
-# PET Gestão
+# PET Educação
 
 Central de organização do PET Educação — Universidade Federal de Sergipe.
 
@@ -7,10 +7,11 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 ## Estrutura do site
 
 - **Visão geral:** indicadores, próximos prazos, atualizações e acessos às seções.
-- **Demandas:** mensal, semanal, pendentes de qualquer período e arquivo.
+- **Demandas:** acompanhamento mensal e semanal, pendências acumuladas e arquivadas.
 - **Cronograma:** mês, ano e semana; navegação manual e atualização automática opcional.
 - **Comissões:** estrutura compartilhada, indicadores por equipe e agrupamento de tarefas por mês e semana; o exemplo de Legendas contém cronograma de postagens de novembro de 2026.
-- **Reuniões:** memória original de 22/10/2026 e demandas derivadas, sem duplicar os registros.
+- **Reuniões:** exibe as memórias originais dos encontros, separadas das tarefas.
+- **Registrar demandas:** permite criar e editar tarefas e registrar memórias. Em modo demo, as alterações persistem somente no navegador.
 - **Minhas pendências:** atividades atribuídas ao usuário autenticado, de todas as comissões.
 - **Administração:** entrada bloqueada até existir autenticação, autorização e backend, conforme o escopo aprovado.
 
@@ -21,13 +22,17 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 - Preferências de avanço automático de mês/ano e semana, independentes entre si.
 - Consulta manual de qualquer período, sem apagar ou arquivar dados.
 - Visualização de **Pendências semanais** com tarefas pendentes/concluídas e links para memórias relacionadas.
+- **Ver detalhes** abaixo de cada atividade, com prazos, responsáveis, observações, texto editável, histórico de autoria e data.
+- **Revisão da tutoria** com estado explícito: aguardando, ajustes necessários, não liberado e liberado para postagem; incluir observação nunca equivale a liberar.
+- Prévia de PETiano(a)/Lene com edição e autoria local, sem representar login institucional.
+- Seleção de responsáveis por usuários, por comissão ou todos, na criação e edição de demandas.
 - Exemplo de cronograma da comissão de **Legendas** (20 atividades, semanas 2, 3 e 4 de novembro) e uma reunião (22/10) com 15 demandas, sendo três identificadas como OK no registro original.
 - Arquitetura de visualização pronta para substituição por registros reais de uma API autenticada.
 - Tratamento de ausência de dados e erro de conexão sem apresentar contagens falsas.
 
 ## O que não está habilitado
 
-**Ainda não há autenticação, banco de dados, cadastro compartilhado, permissões administrativas, extração automatizada das memórias ou envio/agendamento de e-mails.** As atividades e os contadores são exemplos; nada no painel é persistido ou enviado. Os controles de escrita permanecem bloqueados.
+**Ainda não há autenticação, banco de dados, cadastro compartilhado, permissões administrativas, extração automatizada das memórias ou envio/agendamento de e-mails.** As atividades iniciais são exemplos. **É possível criar e editar dados na demonstração, mas eles são salvos somente no armazenamento do navegador**, sem sincronização, autenticação, e-mail ou compartilhamento. O painel administrativo permanece bloqueado.
 
 Isso é intencional: permitir operações compartilhadas antes de configurar autenticação e regras de acesso poderia comprometer dados da equipe.
 
@@ -35,7 +40,7 @@ Isso é intencional: permitir operações compartilhadas antes de configurar aut
 
 - `index.html`: estrutura de navegação e acessibilidade.
 - `styles.css`: identidade visual e layout responsivo.
-- `app.js`: páginas, filtros, calendário, listas, estados e contrato de leitura da API.
+- `app.js`: páginas, filtros, calendário, listas, simulação de cadastro, revisão, autoria e contrato de leitura da API.
 - `demo-data.js`: memória e cronograma para apresentação, sem informações de acesso; remover ao conectar os dados reais.
 - `config.js`: configuração **pública**, sem segredos; `demoMode: true` ativa os exemplos somente quando `apiBaseUrl` estiver vazio.
 - `assets/favicon.svg`: ícone vetorial.
@@ -62,7 +67,7 @@ Os dados esperados são descritos em [`docs/CONTRATO-API.md`](docs/CONTRATO-API.
 
 ## Validação
 
-Foram previstos testes de navegação, calendário, preferências, bloqueio de Administração, ausência de dados e versão móvel. O sistema só poderá ser considerado operacional para a equipe após teste integrado com identidade, permissões, banco de dados, notificações e um domínio publicado.
+Foram realizados testes de funções de navegação, períodos, geração de HTML, criação/edição local de demandas, revisão da tutoria simulada e restauração do armazenamento local. A verificação visual em navegadores reais continua necessária. O sistema só poderá ser considerado operacional para a equipe após teste integrado com identidade, permissões, banco de dados, notificações e um domínio publicado.
 
 ## Atenção aos exemplos
 
