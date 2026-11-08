@@ -6,28 +6,28 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 
 ## Estrutura do site
 
-- **Visão geral:** indicadores, próximos prazos, atualizações e acessos às seções.
+- **Visão geral:** indicadores, seis próximos prazos e seletor compacto de semanas com atividades do período.
 - **Demandas:** acompanhamento mensal e semanal, pendências acumuladas e arquivadas.
-- **Cronograma:** mês, ano e semana; navegação manual e atualização automática opcional.
+- **Cronograma:** abre com todas as demandas ativas de todos os meses; permite alternar para seleção de mês, ano e semana. O calendário grande e o painel de preferências visuais foram retirados.
 - **Comissões:** estrutura compartilhada, indicadores por equipe e agrupamento de tarefas por mês e semana; o exemplo de Legendas contém cronograma de postagens de novembro de 2026.
-- **Reuniões:** exibe as memórias originais dos encontros, separadas das tarefas.
-- **Registrar demandas:** exclusivamente criação e edição de demandas. A criação de memórias fica na área **Reuniões**, sem segunda aba de cadastro. Em modo demo, as alterações persistem somente no navegador.
+- **Memórias dos encontros:** agora disponíveis dentro da aba **Demandas**. A aba Reuniões foi removida do menu lateral, mantendo leitura, edição e personalização das memórias.
+- **Registrar demandas:** exclusivamente criação e edição de demandas. A criação de memórias fica na seção **Memórias dos encontros** dentro de Demandas, sem aba separada. Em modo demo, as alterações persistem somente no navegador.
 - **Minhas pendências:** atividades atribuídas ao usuário autenticado ou a um responsável de etapa, de todas as comissões. Na demonstração, é possível escolher um PETiano para visualizar suas pendências simuladas.
 - **Administração:** entrada bloqueada até existir autenticação, autorização e backend, conforme o escopo aprovado.
 
 ## O que está habilitado agora
 
 - Interface responsiva para computador e celular; navegação completa entre páginas públicas.
-- Seletores reais de mês, ano e semana; visualização de calendário e período atual.
-- Preferências de avanço automático de mês/ano e semana, independentes entre si.
+- Seletores de mês, ano e semanas; o cronograma não usa mais grade de calendário.
+- Preferências anteriores permanecem nos dados locais, mas o painel **Preferências de navegação** deixou de ser exibido.
 - Consulta manual de qualquer período, sem apagar ou arquivar dados.
-- Visualização de **Pendências semanais** com tarefas pendentes/concluídas e links para memórias relacionadas.
+- **Pendências semanais** na inicial: botões Semana 1–5, atividades abertas daquele intervalo e um único link **Ver cronograma**, que abre a lista completa de demandas.
 - **Ver detalhes** abaixo de cada atividade, com prazos, responsáveis, observações já publicadas, texto salvo somente para leitura, histórico de autoria e data. A edição do texto ocorre exclusivamente no botão **Editar demanda**.
-- **Situação da demanda:** seletor único com **Pendente, Concluída e Aprovada**, editável pelos integrantes. A aprovação dá prioridade visual; somente a conclusão arquiva. O antigo campo de aprovação separado e o bloqueio de observação foram removidos.
+- **Situação da demanda:** controle rápido **Pendente, Aprovada e Concluída** na página **Ver detalhes**, fora do formulário de edição. A aprovação dá prioridade visual; somente a conclusão arquiva.
 - A prévia utiliza perfis ilustrativos de autoria, mas não representa login institucional.
-- Seleção de responsáveis por PETianos(as), por comissão ou todos, na criação e edição de demandas. Em **Prazos por etapa**, cada prazo aceita **mais de um responsável**, incluindo pessoas e comissões, e possui o botão **Salvar prazos** ao lado de **Adicionar prazo**. A etapa **Publicar** aparece nas pendências individuais dos responsáveis.
+- Seleção de responsáveis por PETianos(as), por comissão ou todos, na criação e edição de demandas. Em **Prazos por etapa**, cada prazo aceita **mais de um responsável** (pessoas e comissões), cujos nomes aparecem como etiquetas; a lista fecha a cada seleção, preservando os itens marcados. O seletor de etapa agora tem apenas **Prazo** e **Correção**, e o botão **Salvar prazos** permanece ao lado de **Adicionar prazo**. Registros antigos são preservados.
 - A **data de postagem é obrigatória** no formulário; atividades podem ser vinculadas a várias comissões sem cópias. Demandas concluídas ficam apenas em **Arquivadas**; grupos de semanas inteiramente concluídas somem do cronograma ativo.
-- Memórias com fundos personalizáveis, inclusive degradês em cores próprias. Cards com datas e responsáveis e situação Aprovada destacada.
+- Memórias com fundos personalizáveis e prévia em tempo real, inclusive degradês em cores próprias. Cards com datas e responsáveis e situação Aprovada destacada.
 - **Observações:** uma única caixa para o texto da atividade na edição, com autor da última alteração, data e horário, e botão **Copiar**; nos detalhes, consulta sem editor e sem painel duplicado de situação.
 - **Comissões:** botão **Nova comissão** com formulário de nome, descrição e integrantes selecionáveis; editar e excluir com confirmação, em modo demonstrativo local.
 - Exemplo de cronograma da comissão de **Legendas** (20 atividades, semanas 2, 3 e 4 de novembro) e uma reunião (22/10) com 15 demandas, sendo três identificadas como OK no registro original.
@@ -44,7 +44,7 @@ Isso é intencional: permitir operações compartilhadas antes de configurar aut
 
 - `index.html`: estrutura de navegação e acessibilidade.
 - `styles.css`: identidade visual e layout responsivo.
-- `app.js`: páginas, filtros, calendário, listas, simulação de cadastro, revisão, autoria e contrato de leitura da API.
+- `app.js`: páginas, filtros, listas, criação/edição de registros, acompanhamento semanal, autoria e contrato de leitura da API.
 - `demo-data.js`: memória e cronograma para apresentação, sem informações de acesso; remover ao conectar os dados reais.
 - `config.js`: configuração **pública**, sem segredos; `demoMode: true` ativa os exemplos somente quando `apiBaseUrl` estiver vazio.
 - `assets/favicon.svg`: ícone vetorial.
