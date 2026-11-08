@@ -22,8 +22,8 @@ Este repositório contém uma **versão de apresentação** com dados demonstrat
 - Preferências de avanço automático de mês/ano e semana, independentes entre si.
 - Consulta manual de qualquer período, sem apagar ou arquivar dados.
 - Visualização de **Pendências semanais** com tarefas pendentes/concluídas e links para memórias relacionadas.
-- **Ver detalhes** abaixo de cada atividade, com prazos, responsáveis, observações, texto editável, histórico de autoria e data.
-- **Revisão da tutoria** com estado explícito: aguardando, ajustes necessários, não liberado e liberado para postagem; incluir observação nunca equivale a liberar.
+- **Ver detalhes** abaixo de cada atividade, com prazos, responsáveis, observações já publicadas, texto salvo somente para leitura, histórico de autoria e data. A edição do texto ocorre exclusivamente no botão **Editar demanda**.
+- **Revisão da tutoria** com estado explícito: aguardando, ajustes necessários, não liberado e liberado para uso/postagem. Os campos de observações e liberação aparecem somente em **Editar demanda** e ficam com cadeado/bloqueados para PETianos; Tutoria e Administração podem alterá-los. Adicionar observação não equivale a liberar.
 - Prévia de PETiano(a)/Lene com edição e autoria local, sem representar login institucional.
 - Seleção de responsáveis por usuários, por comissão ou todos, na criação e edição de demandas.
 - Exemplo de cronograma da comissão de **Legendas** (20 atividades, semanas 2, 3 e 4 de novembro) e uma reunião (22/10) com 15 demandas, sendo três identificadas como OK no registro original.
