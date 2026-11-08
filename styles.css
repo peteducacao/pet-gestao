@@ -562,3 +562,16 @@
   .task-list-row .task-row-meta{justify-content:flex-start!important;}
   .task-list-row .task-assignee-label{font-size:10.5px;padding:5px 8px;}
 }
+
+/* Responsáveis: impedir quebra vertical dos nomes em telas pequenas */
+.assignment-options{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+.assignment-option{display:flex;align-items:center;justify-content:flex-start;gap:9px;min-width:0;min-height:50px;flex-wrap:wrap;overflow:hidden}
+.assignment-option input{flex:0 0 16px;width:16px;height:16px;margin:0}
+.assignment-option .assignment-option-name{flex:1 1 75px;min-width:70px;overflow-wrap:normal;word-break:normal;white-space:normal;line-height:1.4}
+.assignment-option>.pill{flex:0 0 auto;max-width:100%;white-space:normal;line-height:1.3;font-size:10px}
+@media(max-width:620px){
+ .assignment-options{grid-template-columns:minmax(0,1fr)}
+ .assignment-option{flex-wrap:nowrap;min-height:49px;padding:10px 12px;gap:10px}
+ .assignment-option .assignment-option-name{flex:1 1 auto;min-width:0;font-size:12px}
+ .assignment-option>.pill{font-size:10px;flex:0 0 auto;white-space:nowrap}
+}
