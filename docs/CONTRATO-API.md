@@ -37,7 +37,7 @@ Campos esperados:
 | Comissão | `id`, `name`, `memberIds[]` |
 | Reunião | `id`, `title`, `date`, `rawNotes`, `taskIds[]`, `theme`, `colorA`, `colorB` |
 | Atividade | `id`, `title`, `description`, `committeeId` (compatibilidade), `commissionIds[]`, `meetingId` (opcional/legado), `assigneeIds[]`, `createdAt`, `registeredAt`, `status`, `reviewStatus`, `stageName`, `completedAt`, `deadlines[]`, `observations[]`, `postingAt` (obrigatório) |
-| Prazo | `label`, `kind`, `assigneeId`, `assigneeName`, `dueAt`, `completedAt` |
+| Prazo | `label`, `kind`, `assigneeIds[]`, `assigneeNames[]`, `assigneeId`/`assigneeName` (legado), `dueAt`, `completedAt` |
 | Observação | `id`, `body`, `authorId`, `authorName`, `createdAt` |
 | Evento | `id`, `summary`, `actorId`, `actorName`, `createdAt` |
 
@@ -55,7 +55,7 @@ As datas são ISO 8601. Prazos com horário devem conter timezone explícito. Pa
 - `POST /api/v1/email/send`, `POST /api/v1/email/schedule`, `PATCH /api/v1/email/schedules/:id`, `DELETE /api/v1/email/schedules/:id` (restrito)
 - `GET/PATCH /api/v1/settings` (conforme cargo)
 
-Os nomes e formatos finais serão validados durante a implementação do backend. Não os considere APIs em produção.
+Os nomes e formatos finais serão validados durante a implementação do backend. Não os considere APIs em produção. O status da demanda é selecionado como Pendente, Concluída ou Aprovada; para compatibilidade com a prévia, Aprovada corresponde a `status=pendente` com `reviewStatus=liberado`. Este mapeamento pode ser simplificado no contrato definitivo.
 
 ## Etapas padronizadas
 
@@ -74,3 +74,7 @@ Envio manual da Administração constitui fluxo independente, com editor de cont
 - Arquivos enviados em armazenamento privado apropriado e URLs com autorização.
 - Serviço de e-mail transacional configurado com domínio verificado, SPF/DKIM e gerenciamento de falhas.
 - Rotina agendada executada no servidor, não no navegador do usuário.
+
+## Comissões e prazos — atualização da prévia
+
+A prévia contém criação, edição e exclusão de comissões, com seleção de `memberIds[]`, mas não envia alterações ao servidor. Prazos aceitam múltiplos responsáveis; **Salvar prazos** é uma atualização parcial da atividade existente. No backend deverão existir operações transacionais autenticadas, auditadas e sujeitas a permissões.
