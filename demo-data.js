@@ -1,7 +1,4 @@
-/* DADOS DE DEMONSTRAÇÃO — transcrição ilustrativa de informações fornecidas pelo usuário.
- * Não são registros institucionais confirmados nem contêm e-mails ou senhas.
- * Remover/desativar ao conectar a API real.
- */
+/* DADOS DE DEMONSTRAÇÃO — material fornecido pelo usuário; não há integração com serviço de e-mail nem banco de dados. */
 window.PET_GESTAO_DEMO = {
   "users": [
     {
@@ -57,7 +54,7 @@ window.PET_GESTAO_DEMO = {
       "id": "memoria-2026-10-22",
       "title": "Memória do encontro de quinta-feira",
       "date": "2026-10-22",
-      "rawNotes": "MEMÓRIA DO ENCONTRO DE QUINTA-FEIRA (22.10.2026)\n• (até 29.10) Projetos para a Mostra do dia 30.10: verificar necessidade de reserva de mesas e outros materiais, confirmar horário; projetos finalizados até 29/10.\n• No dia 22.10, os projetos estavam sendo testados e ajustados.\n\nSituação dos projetos:\n• Emoji: OK.\n• Condomínio: falta finalizar. Responsável: Ysadora.\n• Lixeira: OK.\n• Semáforo: OK.\n\nProjetos para a MNR:\n• Até 11.11 — Banner da Lixeira: João Vitor.\n• Até 11.11 — Banner da Estufa: Andreza.\n• Até 12.11 — Panfletos e adesivos: Luiz.\n• Até 16.11 — Impressão dos banners: Dayane.\n• Até 19.11 — Organização da Estufa: Gabriel.\n• Até 19.11 — Organização da Lixeira: comprar 6 sensores PIR, 10 servomotores e EVA vermelho. Dayane.\n\nProdução de chaveiros: em andamento; comissão responsável.\n\nOrganização dos kits das crianças:\n• Testes com ESP32: Gabriel.\n• Separar motores DC e realizar soldagem, se necessário: responsável a definir.\n\nPlanejamento dos encontros de robótica com as crianças:\n• Construção dos carrinhos sem etapa de testes no simulador.\n• Encontros de 04, 11 e 18 de novembro.\n• Verificar possível reposição de aulas. Responsável a definir.",
+      "rawNotes": "*MEMÓRIA DO ENCONTRO DE QUINTA-FEIRA (22.10.2026)*\n\n• *(até 29.10) Projetos para a Mostra do dia 30.10:* verificar a necessidade de reserva de mesas e outros materiais, além de confirmar o horário da Mostra. Os projetos deverão estar finalizados até o dia 29 de outubro.\n\n* No dia 22.10, os projetos estavam sendo testados e ajustados.\n\n*Situação dos projetos:*\n\n-> Emoji: OK.\n\n-> Condomínio: falta finalizar. Responsável: (Ysadora).\n\n-> Lixeira: OK.\n\n-> Semáforo: OK.\n\n• *Projetos para a MNR:*\n\n-> *(até 11.11) Banner da Lixeira:* produção do banner. Responsável: (João Vitor).\n\n-> *(até 11.11) Banner da Estufa:* produção do banner. Responsável: (Andreza).\n\n-> *(até 12.11) Panfletos e adesivos:* produção dos materiais. Responsável: (Luiz).\n\n-> *(até 16.11) Impressão dos banners:* realizar a impressão dos banners. Responsável: (Dayane).\n\n-> *(até 19.11) Organização da Estufa:* organizar e finalizar o projeto. Responsável: (Gabriel).\n\n-> *(até 19.11) Organização da Lixeira:* adquirir 6 sensores PIR, 10 servomotores e \n\nEVA vermelho. Responsável: (Dayane ).\n\n• *Produção de chaveiros:* a produção permanece em andamento. Responsável: (Comissão).\n\n• *Organização dos kits das crianças:*\n\n-> Realizar os testes com o ESP32. Responsável: (Gabriel).\n\n-> Separar os motores DC e realizar a soldagem, caso necessário. Responsável: (???).\n\n• *Planejamento dos encontros de robótica com as crianças:* a construção dos carrinhos será realizada sem a etapa de testes no simulador. Os encontros ocorrerão nos dias 4, 11 e 18 de novembro. Verificar se haverá reposição de aulas. Responsável: (???).",
       "taskIds": [
         "mem-mostra-mesas",
         "mem-emoji",
