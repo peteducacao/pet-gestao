@@ -64,12 +64,25 @@
 
   function commissionIds(t){return [...new Set([...(Array.isArray(t?.commissionIds)?t.commissionIds:[]),t?.committeeId].filter(v=>v!==null&&v!==undefined&&v!=='').map(String))];}
   function linkedToCommission(t,id){return commissionIds(t).includes(String(id));}
-  function stageUserId(d){
-    if(d?.assigneeId&&state.data.users.some(u=>String(u.id)===String(d.assigneeId)))return String(d.assigneeId);
-    const raw=String(d?.assigneeName||'').trim().toLocaleLowerCase('pt-BR');
-    return state.data.users.find(u=>String(u.name||'').trim().toLocaleLowerCase('pt-BR')===raw)?.id||null;
+  function deadlineAssigneeNames(d){
+    const names=Array.isArray(d?.assigneeNames)?d.assigneeNames.filter(Boolean).map(String):[];
+    const ids=Array.isArray(d?.assigneeIds)?d.assigneeIds.filter(Boolean).map(String):[];
+    ids.forEach(id=>{const p=state.data.users.find(u=>String(u.id)===id);if(p)names.push(String(p.name));});
+    if(!names.length&&d?.assigneeId){const p=state.data.users.find(u=>String(u.id)===String(d.assigneeId));if(p)names.push(p.name);}
+    if(!names.length&&d?.assigneeName)names.push(...String(d.assigneeName).split(/\s*,\s*/g).filter(Boolean));
+    return [...new Set(names)];
   }
-  function assignedUserIds(t){return [...new Set([...(Array.isArray(t?.assigneeIds)?t.assigneeIds:[]),...taskDeadlines(t).map(stageUserId)].filter(Boolean).map(String))];}
+  function stageUserIds(d){
+    const ids=Array.isArray(d?.assigneeIds)?d.assigneeIds.filter(Boolean).map(String):[];
+    if(d?.assigneeId)ids.push(String(d.assigneeId));
+    deadlineAssigneeNames(d).forEach(name=>{
+      const match=state.data.users.find(u=>String(u.name||'').trim().toLocaleLowerCase('pt-BR')===String(name).trim().toLocaleLowerCase('pt-BR'));
+      if(match)ids.push(String(match.id));
+    });
+    return [...new Set(ids)].filter(id=>state.data.users.some(u=>String(u.id)===id));
+  }
+  function stageUserId(d){return stageUserIds(d)[0]||null;}
+  function assignedUserIds(t){return [...new Set([...(Array.isArray(t?.assigneeIds)?t.assigneeIds:[]),...taskDeadlines(t).flatMap(stageUserIds)].filter(Boolean).map(String))];}
   function isAssigned(t,userId){return Boolean(userId&&assignedUserIds(t).includes(String(userId)));}
   function taskDate(t){return dateFrom(t.registeredAt||t.meetingDate||t.createdAt);}
   function committeeName(id){return state.data.committees.find(c=>String(c.id)===String(id))?.name||'Sem comissão';}
@@ -441,7 +454,7 @@
     const label=String(d.label||d.kind||'Prazo');
     const separated=label.split(' — ');
     const step=separated[0]||'Prazo';
-    const person=String(d.assigneeName||separated.slice(1).join(' — ')||'').trim();
+    const person=deadlineAssigneeNames(d).join(', ')||separated.slice(1).join(' — ').trim();
     return {step,person:person||'A definir'};
   }
 
@@ -538,25 +551,70 @@
     return `<div class="register-assignment"><h3>Responsáveis</h3><div class="segmented assignment-modes" role="group" aria-label="Escolher responsáveis">${opts.map(([v,title])=>`<button type="button" data-action="assignment-scope" data-value="${v}" class="${scope===v?'active':''}" aria-pressed="${scope===v}">${title}</button>`).join('')}</div>${list}</div>`;
   }
 
+
   function registerDeadlineRow(i,deadline){
-    const raw=deadline||{};
-    const parsed=deadlineParts(raw);
-    const name=raw.assigneeName||(parsed.person==='A definir'?'':parsed.person);
+    const raw=deadline||{}, parsed=deadlineParts(raw);
     const dateString=String(raw.dueAt||''),day=dateString.slice(0,10),time=dateString.includes('T')?dateString.slice(11,16):'23:59';
     const options=['Prazo','Produção','Correção','Entrega','Publicar','Outro prazo'];
     const step=parsed.step==='Publicação'?'Publicar':parsed.step;
     if(step&&!options.includes(step))options.push(step);
-    return `<div class="register-deadline" data-deadline-index="${i}"><label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
-      <label>Para quem<select class="select" name="deadline-assignee-${i}">
-        <option value="">Selecionar responsável</option>
-        ${state.data.users.map(u=>`<option value="${escapeText(u.name)}" ${name===u.name?'selected':''}>${escapeText(u.name)}</option>`).join('')}
-        ${state.data.committees.map(c=>`<option value="${escapeText(c.name)}" ${name===c.name?'selected':''}>${escapeText(c.name)} (comissão)</option>`).join('')}
-        ${name&&![...state.data.users.map(u=>u.name),...state.data.committees.map(c=>c.name)].includes(name)?`<option value="${escapeText(name)}" selected>${escapeText(name)} (informado na memória)</option>`:''}
-        </select></label>
+    const selectedIds=new Set(stageUserIds(raw).map(String));
+    const selectedNames=deadlineAssigneeNames(raw);
+    const selectedFree=new Set(selectedNames.filter(name=>!state.data.users.some(u=>u.name===name)).map(String));
+    const caption=selectedNames.length?selectedNames.join(', '):'Selecionar responsáveis';
+    return `<div class="register-deadline" data-deadline-index="${i}">
+      <label>Etapa<select class="select" name="deadline-step-${i}">${options.map(o=>`<option ${o===step?'selected':''}>${escapeText(o)}</option>`).join('')}</select></label>
+      <div class="deadline-assignee-field"><span>Para quem</span><details class="deadline-assignee-picker"><summary title="${escapeText(caption)}"><span class="deadline-assignee-caption">${escapeText(caption)}</span>${icon('chevron-down')}</summary>
+        <div class="deadline-assignee-options"><p>Escolha uma ou mais pessoas ou comissões</p>
+          <div class="deadline-picker-grid">${state.data.users.map(u=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="u:${escapeText(u.id)}" ${selectedIds.has(String(u.id))?'checked':''}><span>${escapeText(u.name)}</span></label>`).join('')}
+          ${state.data.committees.map(c=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="c:${escapeText(c.id)}" ${selectedFree.has(String(c.name))?'checked':''}><span>${escapeText(c.name)} · comissão</span></label>`).join('')}
+          ${[...selectedFree].filter(name=>!state.data.committees.some(c=>String(c.name)===name)).map(name=>`<label><input type="checkbox" name="deadline-assignee-${i}" value="legacy:${escapeText(name)}" checked><span>${escapeText(name)} · referência anterior</span></label>`).join('')}
+          </div></div></details></div>
       <label>Data<input type="date" name="deadline-date-${i}" value="${escapeText(day)}"></label>
-      <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label><button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo" title="Remover prazo">${icon('close')} Remover prazo</button></div>`;
+      <label>Horário<input type="time" name="deadline-time-${i}" value="${escapeText(time||'23:59')}"></label>
+      <button type="button" class="remove-deadline-button" data-action="remove-deadline" data-index="${i}" aria-label="Remover este prazo" title="Remover prazo">${icon('close')} Remover prazo</button></div>`;
   }
-
+  function collectDeadlines(form,existing){
+    const fd=new FormData(form),result=[];
+    for(let i=0;i<state.formDeadlineCount;i++){
+      const day=String(fd.get('deadline-date-'+i)||'');
+      if(!day)continue;
+      const time=String(fd.get('deadline-time-'+i)||'23:59'),step=String(fd.get('deadline-step-'+i)||'Prazo');
+      const chosen=typeof fd.getAll==='function'?fd.getAll('deadline-assignee-'+i):[];
+      const userIds=[],names=[];
+      chosen.forEach(v=>{
+        const raw=String(v),tag=raw.slice(0,2),ref=raw.slice(tag==='u:'||tag==='c:'?2:7);
+        if(tag==='u:'){
+          const user=state.data.users.find(u=>String(u.id)===ref);
+          if(user){userIds.push(String(user.id));names.push(String(user.name));}
+        }else if(tag==='c:'){
+          const c=state.data.committees.find(c=>String(c.id)===ref);
+          if(c)names.push(String(c.name));
+        }else if(raw.startsWith('legacy:'))names.push(raw.slice(7));
+      });
+      const unique=[...new Set(names)],old=existing?.deadlines?.[i]||null;
+      result.push({label:step==='Publicação'?'Publicar':step,assigneeIds:[...new Set(userIds)],assigneeNames:unique,
+        assigneeId:userIds[0]||null,assigneeName:unique.join(', '),dueAt:day+'T'+(time||'23:59')+':00',completedAt:old?.completedAt||null});
+    }
+    return result;
+  }
+  function saveDeadlineSection(form){
+    if(!state.demo){showToast('Salvamento disponível após a integração segura.');return;}
+    const id=String(form?.dataset?.id||''),task=tasks().find(t=>String(t.id)===id);
+    if(!task){
+      if(typeof form.requestSubmit==='function')form.requestSubmit();
+      else showToast('Cadastre a demanda antes de salvar seus prazos.');
+      return;
+    }
+    const next=collectDeadlines(form,task),previous=JSON.stringify(taskDeadlines(task));
+    if(previous===JSON.stringify(next)){showToast('Nenhuma alteração nos prazos.');return;}
+    const actor=actorDemo(),now=new Date().toISOString();
+    task.deadlines=next;
+    task.revisions=[...(task.revisions||[]),{action:'Prazos atualizados',actorName:actor?.name||'Demonstração',at:now}];
+    task.lastEditedBy=actor?.name||'Demonstração';task.lastEditedAt=now;
+    if(saveLocalDemoWrites()){render();showToast('Prazos salvos neste navegador.');}
+    else showToast('Não foi possível salvar os prazos.');
+  }
   function renderRegister(){
     const id=getRoute().id||'';
     const task=id?tasks().find(t=>String(t.id)===String(id)):null;
@@ -580,7 +638,7 @@
     <div class="register-two"><label>Data de postagem <span class="required-star">*</span><input type="date" name="postingAt" required value="${escapeText(String(task?.postingAt||'').slice(0,10))}"></label>
       <label>Situação da demanda<select name="status" class="select"><option value="pendente" ${(!task||!isCompleted(task))&&task?.reviewStatus!=='liberado'?'selected':''}>Pendente</option><option value="concluida" ${task&&isCompleted(task)?'selected':''}>Concluída</option><option value="aprovada" ${task&&!isCompleted(task)&&task.reviewStatus==='liberado'?'selected':''}>Aprovada</option></select></label></div>
     ${renderAssignmentPreview()}
-    <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button></div>
+    <div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><div class="deadline-toolbar-actions"><button class="button ghost" type="button" data-action="add-deadline">${icon('plus')} Adicionar prazo</button><button class="button primary deadline-save-button" type="button" data-action="save-deadlines">${icon('check')} Salvar prazos</button></div></div>
     ${Array.from({length:state.formDeadlineCount},(_,i)=>registerDeadlineRow(i,task?.deadlines?.[i])).join('')}</div>
     ${task?`<section class="edit-copy-section observations-editor"><div class="edit-section-title"><h2>Observações</h2><p>Edite o conteúdo da demanda. O histórico registra quem salvou e quando.</p></div>
       <div class="observation-editor-head"><label for="edit-caption-text">Texto da atividade (opcional)</label><button type="button" class="button ghost copy-observations" data-action="copy-observations" title="Copiar observações">${icon('copy')} Copiar</button></div>
@@ -604,18 +662,10 @@
     if(!state.demo){showToast('Cadastro disponível após a integração segura.');return;}
     const x=new FormData(form),title=String(x.get('title')||'').trim();
     if(!title){showToast('Informe o título da demanda.');return;}
-    const deadlines=[];
     const id=String(form.dataset.id||'');
     const existing=id?tasks().find(t=>String(t.id)===id):null;
     if(id&&!existing){showToast('Demanda não encontrada.');return;}
-    for(let i=0;i<state.formDeadlineCount;i++){
-      const day=String(x.get('deadline-date-'+i)||''),hour=String(x.get('deadline-time-'+i)||'23:59');
-      if(day){
-        const step=String(x.get('deadline-step-'+i)||'Prazo'),who=String(x.get('deadline-assignee-'+i)||'').trim();
-        const person=state.data.users.find(u=>u.name===who);
-        deadlines.push({label:step==='Publicação'?'Publicar':step,assigneeName:who,assigneeId:person?.id||null,dueAt:day+'T'+(hour||'23:59')+':00',completedAt:existing?.deadlines?.[i]?.completedAt||null});
-      }
-    }
+    const deadlines=collectDeadlines(form,existing);
     const chosenStatus=String(x.get('status')||'pendente');
     const status=chosenStatus==='concluida'?'concluida':'pendente';
     const postingAt=String(x.get('postingAt')||'').trim();
@@ -787,11 +837,13 @@
           } else showToast('Limite de oito prazos por atividade.');
           break;
         }
+        case 'save-deadlines':{const form=document.querySelector('#register-task-form');if(form)saveDeadlineSection(form);break;}
         case 'remove-deadline':{
           const row=b.closest('.register-deadline');
           if(row){row.remove();showToast('Prazo retirado do formulário. Salve a demanda para confirmar a alteração.');}
           break;
         }
+        case 'toggle-deadline-picker':{break;}
         case 'copy-observations':{
           const textField=document.querySelector('#edit-caption-text');
           const details=getRoute().id?tasks().find(t=>String(t.id)===String(getRoute().id)):null;
@@ -816,7 +868,13 @@
         state.assignmentPicked=el.checked?[...new Set([...state.assignmentPicked,id])]:state.assignmentPicked.filter(v=>v!==id);
         return;
       }
-      const field=el.dataset.field;
+      if(el.name?.startsWith('deadline-assignee-') && el.type==='checkbox'){
+        const picker=el.closest('.deadline-assignee-picker');
+        if(picker){const chosen=[...picker.querySelectorAll('input:checked')].map(e=>e.closest('label')?.querySelector('span')?.textContent?.replace(/ · (comissão|referência anterior)$/,'')||'').filter(Boolean);
+          const caption=picker.querySelector('.deadline-assignee-caption');if(caption)caption.textContent=chosen.length?chosen.join(', '):'Selecionar responsáveis';}
+        return;
+      }
+            const field=el.dataset.field;
       if(field==='month'){state.month=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
       if(field==='year'){state.year=Number(el.value);state.week=1;state.commissionWeek='all';state.selectedDay=1;}
       if(field==='week'){state.week=Number(el.value);}
