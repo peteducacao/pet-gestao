@@ -128,7 +128,11 @@
   function available(){return state.connected;}
   function sessionUser(){return state.data.session?.user||null;}
   function safeHref(id){return encodeURIComponent(String(id));}
-  function getRoute(){const raw=decodeURIComponent((location.hash||'#/inicio').replace(/^#\/?/,''));const [base,...sub]=raw.split('/');return {base:routeTitles[base]?base:'inicio',id:sub.join('/')};}
+  function getRoute(){
+    let raw='inicio';
+    try{raw=decodeURIComponent((location.hash||'#/inicio').replace(/^#\/?/,''));}catch{return {base:'inicio',id:''};}
+    const [base,...sub]=raw.split('/');return {base:routeTitles[base]?base:'inicio',id:sub.join('/')};
+  }
   function empty(iconName,title,detail,small=false){return `<div class="empty${small?' small':''}"><span class="empty-icon">${icon(iconName)}</span><h3>${escapeText(title)}</h3><p>${escapeText(detail)}</p></div>`;}
   function tag(label,kind=''){return `<span class="pill${kind?' '+kind:''}">${escapeText(label)}</span>`;}
   function header(eyebrow,title,subtitle,actions=''){
@@ -702,7 +706,7 @@
   }
   function safeAttachmentURL(value){
     const url=String(value||'');
-    return /^data:[\w.+/-]+;base64,[A-Za-z0-9+/=]+$/.test(url)&&url.length<=ATTACHMENT_MAX_BYTES*1.5+500?url:'';
+    return /^data:(?:application\/(?:pdf|msword|vnd\.ms-excel|vnd\.openxmlformats-officedocument\.wordprocessingml\.document|vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|octet-stream)|image\/(?:png|jpeg|webp)|text\/plain);base64,[A-Za-z0-9+/=]+$/i.test(url)&&url.length<=ATTACHMENT_MAX_BYTES*1.5+500?url:'';
   }
   function readableSize(size){return (Math.round((Number(size)||0)/102.4)/10).toLocaleString('pt-BR')+' KB';}
   function renderAttachmentList(t,editable=false){
@@ -867,7 +871,8 @@
     const existing=id?tasks().find(t=>String(t.id)===id):null;
     if(id&&!existing){showToast('Demanda não encontrada.');return;}
     const deadlines=collectDeadlines(form,existing);
-    const chosenStatus=String(x.get('status')||(existing?(isCompleted(existing)?'concluida':isApproved(existing)?'aprovada':'pendente'):'pendente'));
+    const requestedStatus=x.get('status');
+    const chosenStatus=String(requestedStatus||(existing?(isCompleted(existing)?'concluida':isApproved(existing)?'aprovada':'pendente'):'pendente'));
     const status=chosenStatus==='concluida'?'concluida':'pendente';
     const postingAt=String(x.get('postingAt')||'').trim();
     if(!postingAt){showToast('Informe a data obrigatória de postagem.');return;}
@@ -884,7 +889,7 @@
       const newText=String(x.get('captionText')??priorText);
       // A observação e o seletor de liberação são exclusivos da tutoria e administração.
       const obs=''; // Observações agora são o texto único da atividade, não comentários separados.
-      const choice=chosenStatus==='aprovada'?'liberado':chosenStatus==='pendente'?'aguardando':null;
+      const choice=requestedStatus?(chosenStatus==='aprovada'?'liberado':chosenStatus==='pendente'?'aguardando':null):null;
       const textChanged=newText!==priorText;
       const observationsChanged=Boolean(obs);
       const edits=[];
