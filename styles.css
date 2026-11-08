@@ -12,3 +12,39 @@
 /* PET Gestão: painel semanal com origem das memórias e status sem duplicações. */
 .weekly-focus{min-width:0}.weekly-focus .section-head{gap:12px}.weekly-controls{display:flex;gap:14px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;padding:0 0 12px;border-bottom:1px solid var(--line)}.weekly-controls .filter-item{min-width:190px;max-width:275px;flex:1}.weekly-controls .select{width:100%}.weekly-counts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-bottom:1px}.weekly-counts>span{font-size:11px;font-weight:800;border-radius:999px;padding:7px 10px}.weekly-pending{color:#9a6929;background:#fff3e4}.weekly-done{color:#287755;background:#e8f7ef}.weekly-item{display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid var(--line);min-width:0;text-decoration:none}.weekly-item:hover .weekly-description strong,.weekly-meetings a:hover{color:var(--primary)}.weekly-symbol{width:31px;height:31px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;background:#fff4e8;color:#c08a42}.weekly-symbol.success{background:#e9f7ef;color:#359468}.weekly-symbol svg{width:16px;height:16px}.weekly-description{min-width:0;flex:1}.weekly-description strong{font-size:12px;display:block;line-height:1.4}.weekly-description small{color:#9993aa;display:block;font-size:10.5px;margin-top:4px;line-height:1.5}.weekly-item .pill{flex:none}.weekly-more{font-size:11px;color:#817991;font-weight:600;margin:10px 0 0}.weekly-meetings{background:#faf9fe;border:1px solid #eeeafa;border-radius:12px;padding:12px;margin-top:15px}.weekly-meetings>strong{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px}.weekly-meetings>strong svg{width:15px;height:15px;color:#6d4bd1}.weekly-meetings a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;font-size:11px;color:#6c6282}.weekly-meetings a svg{height:15px;width:15px}.demo-banner{background:#f2efff;border-color:#ddd6fa;color:#63508f}.demo-banner strong{color:#5b40a1}.committee-group{margin-top:17px}.committee-group:first-child{margin-top:0}.committee-group-label{font-size:12px;font-weight:800;color:#65558c;background:#f7f4ff;border-radius:9px;padding:10px 12px;margin:0 0 5px}.committee-group-label small{font-weight:500;color:#8e88a4}
 @media(max-width:680px){.weekly-controls .filter-item{min-width:130px}.weekly-item{gap:8px}.weekly-item .pill{font-size:9px;padding:6px 7px}.weekly-symbol{height:28px;width:28px}.weekly-focus .section-head{align-items:flex-start;flex-wrap:wrap}.weekly-counts>span{font-size:10px}}
+
+/* Prazos resumidos sem informações duplicadas */
+.upcoming-row>div:first-child{min-width:0;flex:1}.upcoming-row .pill{flex:none}
+.activity-details-link{display:inline-flex;align-items:center;gap:6px;color:var(--primary);font-size:11px;font-weight:800;line-height:1.45;margin-top:6px;text-decoration:none}
+.activity-details-link svg{width:14px;height:14px;transition:transform .16s ease}
+.activity-details-link:hover{text-decoration:underline}.activity-details-link:hover svg{transform:translateX(3px)}
+/* Detalhamento de atividades e responsabilidades */
+.activity-overview{margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.detail-kicker{font-size:12px;font-weight:700;color:#7d748d;flex:1}
+.activity-overview .activity-info,.activity-overview .activity-description{width:100%;padding-top:14px;border-top:1px solid var(--line)}
+.activity-info{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.activity-info>span{font-size:12px;color:var(--soft)}.activity-info>strong{font-size:13px;color:var(--primary)}
+.activity-description h2{font-size:13px;font-weight:800;margin:0 0 7px}.activity-description p{font-size:12.5px;line-height:1.75;margin:0;color:#666377;white-space:pre-wrap}
+.activity-grid{align-items:start}
+.deadline-record{display:grid;grid-template-columns:minmax(120px,1fr) minmax(115px,1fr) minmax(140px,1.15fr) auto;align-items:center;gap:12px;padding:16px 0;border-bottom:1px solid var(--line)}
+.deadline-record:last-child{border-bottom:0}
+.deadline-step{display:flex;align-items:center;gap:8px;color:#54427d}
+.deadline-step svg{height:17px;width:17px;color:var(--primary)}
+.deadline-step strong,.deadline-field strong{font-size:12px;line-height:1.5;font-weight:800}
+.deadline-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.deadline-field small{color:#9893aa;font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+.deadline-field strong{overflow-wrap:anywhere}
+.deadline-record .pill{font-size:10px}
+.assigned-pills{display:flex;flex-wrap:wrap;gap:7px}.assigned-pills>.pill{margin:0}
+.assignment-modes{display:flex;gap:4px;margin:4px 0 13px}
+.assignment-modes button{flex:1;min-width:0}
+.assignment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;max-height:250px;overflow:auto;padding-right:2px}
+.assignment-option{display:flex;align-items:center;gap:9px;cursor:pointer;background:#faf9ff;border:1px solid #efebf8;border-radius:10px;padding:10px 11px;font-size:11.5px;font-weight:700;color:#544963;min-width:0}
+.assignment-option span{overflow-wrap:anywhere}.assignment-option:hover{background:#f1eaff}
+.assignment-option input{accent-color:var(--primary);width:15px;height:15px;flex:none;cursor:pointer}
+.assignment-option:has(input:checked){border-color:#bda8f3;background:#f4efff}
+.assignment-all{display:flex;align-items:center;gap:10px;padding:13px;background:#f3efff;border-radius:12px;color:#5f4992;font-weight:700;font-size:12px;line-height:1.5}.assignment-all svg{width:20px;height:20px}
+.assignment-preview-note{margin:13px 0 0;color:#9893a7;font-size:10.5px;line-height:1.6}
+@media(max-width:1150px){.deadline-record{grid-template-columns:1fr 1fr}.deadline-record>:last-child{justify-self:end}}
+@media(max-width:700px){.deadline-record{grid-template-columns:1fr 1fr;gap:13px}.deadline-record .pill{align-self:start}.activity-overview .activity-info{align-items:flex-start;flex-direction:column;gap:4px}.assignment-options{grid-template-columns:1fr 1fr}}
+@media(max-width:360px){.assignment-options{grid-template-columns:1fr}.assignment-modes button{font-size:11px;padding:8px 6px}}
