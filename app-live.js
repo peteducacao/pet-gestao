@@ -5,7 +5,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").replace(/\/$/,"");
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
-let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null;
+let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 const state={year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
@@ -22,8 +22,10 @@ const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name||"Comissão").join(", ");
 const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||selectedCommitteeNames(t)||"A definir";
-const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
-const isAdmin=()=>me?.role==="admin";
+// Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
+const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor"].includes(me.role));
+const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminToken&&me?.role==="admin");
+const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
 const stateBadge=t=>t.archivedAt?'<span class="pill mint">Concluída</span>':isLate(t)?'<span class="pill overdue-pill">Atrasada</span>':t.status==="aprovada"?'<span class="pill mint">Aprovada</span>':'<span class="pill soft">Pendente</span>';
@@ -48,11 +50,28 @@ async function request(path,method="GET",payload,scope){
 }
 async function reload(){
  try{
-   const b=await request("/bootstrap");data=b;me=b.session?.user||null;
+   const inAdmin=routeParts().page==="admin";
+   let b=await request("/bootstrap","GET",undefined,inAdmin?"admin":"user");
+   // Sessões de versões antigas entravam no Admin pela conta comum. Isolá-las automaticamente.
+   if(!inAdmin&&b.session?.user?.role==="admin"){
+     if(!adminToken){adminToken=token;sessionStorage.setItem(adminTokenKey,adminToken);}
+     token="";sessionStorage.removeItem(tokenKey);
+     b=await request("/bootstrap","GET",undefined,"guest");
+   }
+   data=b;me=b.session?.user||null;
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
-   if(routeParts().page==="admin"){
+   if(inAdmin){
      if(adminToken&&(!me||me.role!=="admin")){adminToken="";sessionStorage.removeItem(adminTokenKey);me=null;}
-   }else if(token&&!me){token="";sessionStorage.removeItem(tokenKey)}
+     // O cabeçalho sempre representa a conta pessoal, nunca a sessão administrativa.
+     if(token){
+       const personal=await request("/auth/me","GET",undefined,"user").catch(()=>null);
+       regularMe=personal?.user?.role==="admin"?null:personal?.user||null;
+       if(!personal?.user||personal.user.role==="admin"){token="";sessionStorage.removeItem(tokenKey);}
+     }else regularMe=null;
+   }else{
+     if(token&&!me){token="";sessionStorage.removeItem(tokenKey);}
+     regularMe=me;
+   }
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
  }catch(e){data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}};me=null;
@@ -62,8 +81,15 @@ async function reload(){
 function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","atividade","reunioes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
- if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button> <a href="#/inicio">PET Educação</a> <span class="breadcrumb-slash">/</span> '+esc(routeNames[page]||"PET Gestão");
- const account=$("#account-button");if(account){account.innerHTML=ico("user")+'<span>'+esc(me?.name||"Acessar conta")+'</span>';account.setAttribute("aria-label",me?"Minha conta":"Entrar")}
+ if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
+ const account=$("#account-button");
+ if(account){
+   const person=regularMe, logged=Boolean(person);
+   account.innerHTML=ico("user")+'<span class="account-identification"><strong>'+esc(logged?person.name:"Entrar")+'</strong>'+(logged?'<small>'+esc(roleLabel(person.role))+'</small>':"")+'</span>';
+   account.classList.toggle("logged-in",logged);
+   account.setAttribute("aria-label",logged?"Minha conta: "+person.name+" ("+roleLabel(person.role)+")":"Entrar");
+   account.title=logged?"Conectado como "+person.name+" — "+roleLabel(person.role):"Entrar";
+ }
  const admin=$("#admin-link");if(admin){admin.hidden=false;admin.classList.toggle("nav-locked",!adminToken);admin.setAttribute("aria-label","Abrir acesso à Administração");admin.innerHTML=ico("settings")+'<span>Administração</span>';admin.title="Administração"}
  $$(".nav-link[data-route]").forEach(el=>{el.classList.toggle("active",el.dataset.route===page);if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite()});
  $("#today-label").textContent=textDate(new Date());
@@ -472,7 +498,7 @@ function onNavigation(){
 function start(){
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
- $("#account-button")?.addEventListener("click",()=>{location.hash=me?"#/conta":"#/login"});
+ $("#account-button")?.addEventListener("click",()=>{location.hash=regularMe?"#/conta":"#/login"});
  $("#admin-link")?.addEventListener("click",()=>{location.hash="#/admin"});
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
