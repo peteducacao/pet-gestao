@@ -372,18 +372,27 @@ async function loadAdminUsers(){
  }catch(e){setToast(e.message)}
 }
 async function loadMailHistory(){
- try{const r=await request("/mail"),box=$("#mail-history");if(box)box.innerHTML=r.items.length?r.items.map(x=>'<div class="live-admin-row"><div><strong>'+esc(x.subject)+'</strong><small>'+textDate(x.scheduled_at)+' · '+x.recipientEmails.length+' destinatários</small><small>'+esc(x.error_message||"")+'</small></div><span class="pill '+(x.status==="enviado"?"mint":"soft")+'">'+esc(x.status)+'</span>'+(x.status==="falhou"&&!x.body?.startsWith("[Envio com anexos")?'<button type="button" class="button ghost small-action" data-do="retry-mail" data-id="'+esc(x.id)+'">Tentar novamente</button>':"")+'</div>').join(""):empty("Nenhum e-mail registrado");
+ try{const r=await request("/mail","GET",undefined,"admin"),box=$("#mail-history");if(box)box.innerHTML=r.items.length?r.items.map(x=>'<div class="live-admin-row"><div><strong>'+esc(x.subject)+'</strong><small>'+textDate(x.scheduled_at)+' · '+(Array.isArray(x.recipientEmails)?x.recipientEmails.length:0)+' destinatários</small><small>'+esc(x.error_message||"")+'</small></div><span class="pill '+(x.status==="enviado"?"mint":"soft")+'">'+esc(x.status)+'</span>'+(x.status==="falhou"&&!x.body?.startsWith("[Envio com anexos")?'<button type="button" class="button ghost small-action" data-do="retry-mail" data-id="'+esc(x.id)+'">Tentar novamente</button>':"")+'</div>').join(""):empty("Nenhum e-mail registrado");
  }catch(e){setToast(e.message)}
 }
 const fileData=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file)});
 async function sendMail(form){
  const f=userFields(form),ids=$('input[name="mail-target"]:checked').map(el=>el.value),userIds=state.mailAudience==="usuarios"?ids:[],committeeIds=state.mailAudience==="comissoes"?ids:[];
  if(state.mailScheduled&&!f.sendAt)return setToast("Informe a data de envio.");
- const scheduledAt=state.mailScheduled?new Date(f.sendAt).toISOString():null;
+ const when=state.mailScheduled?new Date(f.sendAt):null;
+ if(when&&Number.isNaN(when.getTime()))return setToast("Informe uma data e horário válidos.");
+ const scheduledAt=when?when.toISOString():null;
  if(state.mailAudience!=="todos"&&!ids.length)return setToast("Selecione ao menos um destinatário.");
  const attachments=state.mailScheduled?[]:await Promise.all(state.mailFiles.map(async file=>({nome:file.name,mimeType:file.type||"application/octet-stream",base64:await fileData(file)})));
- const ok=await saveAndReload(()=>request("/mail","POST",{all:state.mailAudience==="todos",userIds,committeeIds,subject:f.subject,message:f.message,scheduledAt,attachments}),state.mailScheduled?"E-mail agendado.":"E-mail registrado para envio.");
- if(ok){state.mailFiles=[];loadMailHistory()}
+ try{
+  const result=await request("/mail","POST",{all:state.mailAudience==="todos",userIds,committeeIds,subject:f.subject,message:f.message,scheduledAt,attachments},"admin");
+  state.mailFiles=[];
+  form.reset();
+  state.mailScheduled=false;
+  renderMailScheduling();
+  await loadMailHistory();
+  setToast(result.status==="enviado"?"E-mail enviado.":result.status==="agendado"?"E-mail agendado.":"E-mail registrado na fila de envio.");
+ }catch(e){setToast("Não foi possível registrar o envio: "+e.message)}
 }
 async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
