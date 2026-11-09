@@ -86,14 +86,14 @@
     if(user){
       meetings=(await db.prepare("SELECT * FROM meetings ORDER BY meeting_date DESC LIMIT 250").all()).results.map(m=>({id:m.id,title:m.title,date:m.meeting_date,rawNotes:m.raw_notes,theme:m.theme,colorA:m.color_a,colorB:m.color_b,updatedAt:m.updated_at}));
       users=(await db.prepare("SELECT id,name,role FROM users ORDER BY name").all()).results.map(idName);
-      history=(await db.prepare("SELECT task_id,actor_name,action,details,created_at FROM task_history ORDER BY created_at DESC LIMIT 800").all()).results;
+      history=(await db.prepare("SELECT h.task_id,h.actor_name,h.action,h.details,h.created_at,u.role AS actor_role FROM task_history h LEFT JOIN users u ON u.id=h.actor_id ORDER BY h.created_at DESC LIMIT 800").all()).results;
     }else{
       meetings=(await db.prepare("SELECT id,title,meeting_date AS date FROM meetings ORDER BY meeting_date DESC LIMIT 100").all()).results;
     }
     const counts=Object.create(null);
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
     return {session:user?{user:userPublic(user)}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:user?(counts[c.id]||[]):[]})),
-      tasks:rawTasks.map(t=>user?privateTask(t):publicTask(t)),meetings,events:history.filter(x=>/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:user?history:[],settings};
+      tasks:rawTasks.map(t=>user?privateTask(t):publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:user?history:[],settings};
   }
   async function authorizedMail(env,recipients,subject,message,attachments=[]){
     if(!env.MAIL_BRIDGE_URL||!env.MAIL_BRIDGE_TOKEN)throw new Error("Integração do e-mail não configurada.");
@@ -419,7 +419,7 @@
       }
       if(path==="/api/v1/mail"&&method==="GET"){
         ensure(user,true);
-        const items=(await db.prepare("SELECT id,kind,recipient_emails,subject,scheduled_at,status,attempts,error_message,created_at,sent_at FROM email_queue ORDER BY created_at DESC LIMIT 250").all()).results;
+        const items=(await db.prepare("SELECT id,kind,recipient_emails,subject,body,scheduled_at,status,attempts,error_message,created_at,sent_at FROM email_queue ORDER BY created_at DESC LIMIT 250").all()).results;
         return answer({items:items.map(x=>({...x,recipientEmails:asJson(x.recipient_emails,[])}))});
       }
       if(path==="/api/v1/mail"&&method==="POST"){
