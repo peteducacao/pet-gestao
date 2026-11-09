@@ -1,14 +1,22 @@
 // PET Gestão — preparação auditável do deploy. Nunca imprime credenciais.
 import fs from "node:fs";
 import path from "node:path";
-const id=process.env.CLOUDFLARE_ACCOUNT_ID||"";
-const token=process.env.CLOUDFLARE_API_TOKEN||"";
+const id=(process.env.CLOUDFLARE_ACCOUNT_ID||"").trim();
+const token=(process.env.CLOUDFLARE_API_TOKEN||"").trim();
 if(!id||!token)throw Error("Configure CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_API_TOKEN como GitHub Secrets.");
+if(!/^[a-f0-9]{32}$/i.test(id))throw Error("CLOUDFLARE_ACCOUNT_ID deve ser o identificador da conta Cloudflare (32 caracteres hexadecimais), não um link ou ID de banco.");
 async function cloudflare(endpoint){
  const response=await fetch("https://api.cloudflare.com/client/v4"+endpoint,{
    headers:{"Authorization":"Bearer "+token,"Accept":"application/json"}});
  const payload=await response.json();
- if(!response.ok||!payload.success)throw Error("Cloudflare API falhou em "+endpoint+": "+JSON.stringify(payload.errors||[]));
+ if(!response.ok||!payload.success){
+   const codes=(payload.errors||[]).map(x=>x.code).filter(x=>x!==undefined);
+   if(codes.includes(10000)||response.status===401||response.status===403){
+     const service=endpoint.includes("/d1/database")?"D1":endpoint.includes("/workers/subdomain")?"Workers":"recurso solicitado";
+     throw Error("Cloudflare negou o acesso ao "+service+" (HTTP "+response.status+", códigos "+codes.join(",")+"). Confira em GitHub → Settings → Secrets and variables → Actions: CLOUDFLARE_API_TOKEN (token válido, não ID de token nem Global API Key), CLOUDFLARE_ACCOUNT_ID (conta correta) e permissões da mesma conta: D1 Write/Edit para migrações e Workers Scripts Write/Editor para publicação. Confira também restrições de IP e validade do token. Não compartilhe credenciais em conversas nem commits.");
+   }
+   throw Error("Cloudflare falhou ao consultar "+(endpoint.includes("/d1/database")?"D1":"Workers")+" (HTTP "+response.status+", códigos "+codes.join(",")+"). Verifique o painel da Cloudflare.");
+ }
  return payload.result;
 }
 let databases=[];
