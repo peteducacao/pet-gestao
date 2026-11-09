@@ -288,4 +288,17 @@ await test("login opcional persiste somente token e recuperação abre popup leg
  assert.ok(css.includes('.auth-message-shade{'));
  assert.ok(css.includes('backdrop-filter:blur('));
 });
+await test("responsáveis humanos não se confundem com nome da comissão",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const js=readFileSync("app-live.js","utf8");
+ assert.ok(js.includes('const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido"'));
+ assert.ok(!js.includes('||selectedCommitteeNames(t)||"A definir"'));
+ assert.ok(js.includes('"Comissão: ":"Comissões: "'));
+ assert.ok(js.includes('assigned.join(", ")||"Não definido"'));
+ assert.ok(js.includes('inheritedAssigneeLabel()'));
+ assert.ok(js.includes('syncStageAssigneePlaceholder()'));
+ assert.ok(js.includes('state.selectedUsers.size>0'));
+ assert.ok(!js.includes('defaultTutor=owners[0]'));
+ assert.ok(!js.includes('person.value=data.users.find(x=>x.role==="tutor")'));
+});
 console.log(tests+" testes passaram no banco local isolado");

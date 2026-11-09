@@ -345,3 +345,6 @@ body.auth-message-open{overflow:hidden}
 .auth-message-box p{color:#66607a;font-size:15px;line-height:1.7;margin:0 0 26px;overflow-wrap:anywhere}
 .auth-message-button{width:100%;min-height:46px;justify-content:center}
 @media(max-width:460px){.auth-message-box{padding:29px 21px 23px;border-radius:20px}.auth-message-box h2{font-size:21px}}
+
+/* Associação de comissões e atribuições individuais explicitamente diferenciadas. */
+.assignment-help{font-size:12px;line-height:1.55;color:#7a7189;margin:8px 0 13px}

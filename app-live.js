@@ -28,7 +28,7 @@ const active=t=>!t.archivedAt;
 const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name||"Comissão").join(", ");
-const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||selectedCommitteeNames(t)||"A definir";
+const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido";
 // Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
 const hasAdminRole=u=>Boolean(u&&["tutor","admin"].includes(u.role));
@@ -195,7 +195,7 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
 }
 function taskCard(t,commissionId){
  const total=(t.commissionIds||[]).length,done=completedCount(t);
- return '<article class="placeholder-row task-list-row"><div class="task-list-body"><div class="task-title-row"><strong>'+esc(t.title)+'</strong><span class="task-date-badge">'+ico("calendar")+' '+textDate(taskDate(t))+'</span></div><small>'+esc(selectedCommitteeNames(t)||"Demanda geral")+'</small>'+
+ return '<article class="placeholder-row task-list-row"><div class="task-list-body"><div class="task-title-row"><strong>'+esc(t.title)+'</strong><span class="task-date-badge">'+ico("calendar")+' '+textDate(taskDate(t))+'</span></div><small>'+esc((t.commissionIds||[]).length?((t.commissionIds||[]).length===1?"Comissão: ":"Comissões: ")+selectedCommitteeNames(t):"Demanda geral")+'</small>'+
  (me?'<a class="activity-details-link" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'">Ver detalhes '+ico("arrow")+'</a>':"")+'</div><div class="task-row-meta"><span class="task-assignee-label">'+(me?'<strong>Responsáveis:</strong> '+esc(who(t)):"")+'</span>'+stateBadge(t)+(total>1&&done?'<span class="pill soft">'+done+'/'+total+' comissões concluídas</span>':"")+'</div></article>'
 }
 function renderHome(){
@@ -273,16 +273,24 @@ function assignmentView(){
  const users=data.users||[],comms=data.committees||[];
  const choices=state.assignmentScope==="comissoes"?comms.map(x=>({key:x.id,name:x.name})):users.map(x=>({key:x.id,name:x.name,role:x.role}));
  const currentSelection=state.assignmentScope==="comissoes"?state.selectedCommissions:state.selectedUsers;
- return '<div class="register-assignment"><h3>Responsáveis *</h3><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
+ return '<div class="register-assignment"><h3>Responsáveis e comissões *</h3><p class="assignment-help">A comissão identifica a equipe. Apenas as pessoas selecionadas aparecem como responsáveis individuais.</p><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
  (state.assignmentScope==="todos"?'<p class="assignment-all">Todos(as) os(as) usuários(as) cadastrados(as) serão responsáveis.</p>':choices.map(x=>'<label class="assignment-option"><input type="checkbox" data-assign="'+state.assignmentScope+'" value="'+esc(x.key)+'" '+(currentSelection.has(x.key)?"checked":"")+'><span>'+esc(x.name)+'</span></label>').join(""))+
- '<p class="notice-line">Pessoas: '+state.selectedUsers.size+' · Comissões: '+state.selectedCommissions.size+'</p></div>';
+ '<p class="notice-line">Responsáveis individuais: '+(state.assignmentScope==="todos"?data.users.length:state.selectedUsers.size)+' · Comissões: '+state.selectedCommissions.size+'</p></div>';
+}
+// Sem pessoa cadastrada, a comissão NÃO é automaticamente tratada como responsável individual.
+function inheritedAssigneeLabel(){
+ const hasPeople=state.assignmentScope==="todos"?data.users.length>0:state.selectedUsers.size>0;
+ return hasPeople?"Responsáveis da demanda":"Não definido";
+}
+function syncStageAssigneePlaceholder(){
+ $$('.live-stage select[data-stage="assignee"] option[value=""]').forEach(o=>{o.textContent=inheritedAssigneeLabel()});
 }
 function stageRow(stage={},i=0){
- const tutor=data.users.filter(x=>x.role==="tutor"),owners=stage.assigneeIds||[],defaultTutor=owners[0]||(stage.label==="Correção"?tutor[0]?.id:"")||"";
+ const owners=stage.assigneeIds||[],selectedOwner=owners[0]||"";
  return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
  '<label>Data<input type="date" data-stage="day" value="'+esc((stage.dueAt||"").slice(0,10))+'" min="'+current.getFullYear()+'-01-01"></label>'+
  '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
- '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">Responsáveis da demanda</option>'+data.users.map(u=>opt(u.id,u.role==="tutor"?"Tutor(a) — "+u.name:u.name,defaultTutor)).join("")+'</select></label>'+
+ '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+data.users.map(u=>opt(u.id,u.role==="tutor"?"Tutor(a) — "+u.name:u.name,selectedOwner)).join("")+'</select></label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function renderTaskForm(routeId){
@@ -329,7 +337,7 @@ function renderDetail(taskId,contextCid){
  '<div class="activity-detail-grid"><div class="stack"><section class="card card-pad"><h2>Prazos e etapas</h2>'+
  stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Responsável</small><strong>'+esc((s.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||who(t))+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+ (s.completedAt||contextCid&&s.commissionCompleted?.[contextCid]?'<span class="pill mint">Concluído</span>':Object.keys(s.commissionCompleted||{}).length?'<span class="pill soft">'+Object.keys(s.commissionCompleted||{}).length+' comissão(ões) concluída(s)</span>':'<span class="pill soft">Pendente</span>')+'</div>').join("")+
  '</section><section class="card card-pad"><div class="section-head"><h2>Observações</h2><button class="button ghost" data-do="edit-notes" type="button" title="Editar observações">✏️ Editar</button></div><p class="saved-activity-text" id="notes-preview">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p><div id="notes-editor" hidden><textarea id="notes-content" rows="6">'+esc(t.captionText||"")+'</textarea><button class="button primary" type="button" data-do="save-notes" data-id="'+esc(t.id)+'">Salvar observações</button></div></section></div>'+
- '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(assigned.join(", ")||selectedCommitteeNames(t)||"A definir")+'</p></section>'+
+ '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(assigned.join(", ")||"Não definido")+'</p><p class="assignment-help"><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Nenhuma")+'</p></section>'+
  '<section class="card card-pad"><h2>Conclusão por comissão</h2>'+
  ((t.commissionIds||[]).length?(t.commissionIds||[]).map(cid=>{
  const done=t.commissionDone?.[cid];return'<div class="live-commission-finish"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+(done?'<span class="pill mint">Concluída por '+esc(done.byName||"integrante")+'</span>':!t.archivedAt?'<button type="button" class="button ghost" data-do="finish-commission" data-id="'+esc(t.id)+'" data-commission="'+esc(cid)+'">Marcar concluída</button>':"")+'</div>';
@@ -595,7 +603,7 @@ async function handleClick(e){
  }
  if(action==="mode"){state.mode=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
- if(action==="assignment-scope"){state.assignmentScope=b.dataset.value;$("#assignment-container").innerHTML=assignmentView();return}
+ if(action==="assignment-scope"){state.assignmentScope=b.dataset.value;$("#assignment-container").innerHTML=assignmentView();syncStageAssigneePlaceholder();return}
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
  if(action==="reset-color"){$('input[name="backgroundColor"]').value="#f7f3ff";return}
@@ -732,10 +740,11 @@ async function handleSubmit(e){
 }
 async function handleChange(e){
  const t=e.target;if(!t)return;
- if(t.dataset.stage==="label"&&t.value==="Correção"){const person=t.closest(".live-stage")?.querySelector('[data-stage="assignee"]');if(person&&!person.value)person.value=data.users.find(x=>x.role==="tutor")?.id||"";return;}
+ // A etapa de Correção não deve atribuir tutor automaticamente sem confirmação explícita.
+ if(t.dataset.stage==="label")return;
  if(t.dataset.assign){
    const set=t.dataset.assign==="comissoes"?state.selectedCommissions:state.selectedUsers;
-   if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();return;
+   if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncStageAssigneePlaceholder();return;
  }
  if(t.dataset.filter){
    const val=Number(t.value);
