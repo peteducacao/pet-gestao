@@ -133,6 +133,8 @@
     return id;
   }
   async function processQueue(env,limit=10){
+    // Envios interrompidos não são reenviados automaticamente: evita duplicar e-mails.
+    await env.DB.prepare("UPDATE email_queue SET status='falhou',error_message='Processamento interrompido; verificar antes de reenviar' WHERE status='processando' AND scheduled_at<?").bind(isoAfter(-60)).run();
     const list=(await env.DB.prepare("SELECT * FROM email_queue WHERE status='pendente' AND scheduled_at<=? ORDER BY scheduled_at LIMIT ?").bind(now(),limit).all()).results;
     for(const item of list){
       const claimed=await env.DB.prepare("UPDATE email_queue SET status='processando',attempts=attempts+1 WHERE id=? AND status='pendente'").bind(item.id).run();
@@ -171,8 +173,8 @@
     if(stages.some(d=>!["Prazo","Correção","Postagem"].includes(d.label)||!d.dueAt))fail("Etapa inválida ou sem data.");
     if(!old&&stages.some(d=>Number(d.dueAt.slice(0,4))<currentYear()))fail("Não é permitido cadastrar datas de anos anteriores.");
     const limits=["Prazo","Correção","Postagem"].map(s=>stages.filter(d=>d.label===s).map(x=>x.dueAt).sort());
-    if(limits[0].length&&limits[1].length&&limits[1][0]<limits[0][0])fail("A correção não pode acontecer antes do prazo.");
-    if(limits[2].length&&((limits[1].length&&limits[2][0]<limits[1][0])||(!limits[1].length&&limits[2][0]<limits[0][0])))fail("A postagem não pode acontecer antes da etapa anterior.");
+    if(limits[0].length&&limits[1].length&&limits[1][0]<limits[0][limits[0].length-1])fail("A correção não pode acontecer antes do prazo.");
+    if(limits[2].length&&((limits[1].length&&limits[2][0]<limits[1][limits[1].length-1])||(!limits[1].length&&limits[2][0]<limits[0][limits[0].length-1])))fail("A postagem não pode acontecer antes da etapa anterior.");
     return {title,description:str(payload.description,12000),captionText:String(payload.captionText??old?.captionText??"").slice(0,30000),assigneeIds,commissionIds,deadlines:stages};
   }
   function fullAfter(t,patch){return {...t,...patch}};
