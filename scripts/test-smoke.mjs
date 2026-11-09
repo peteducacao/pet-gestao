@@ -405,7 +405,7 @@ await test("Meu perfil fica em PESSOAL e a saída e identificação são legíve
 await test("edição de demanda apresenta Anotações sem alterar descrição de comissão",async()=>{
  const {readFileSync}=await import("node:fs");
  const ui=readFileSync("app-live.js","utf8");
- assert.ok(ui.includes('(t?"Anotações":"Descrição (opcional)")'),"Anotações é o rótulo na edição de demanda.");
+ assert.ok(ui.includes('<label>Anotações<textarea rows="3" name="description"'),"Anotações deve aparecer tanto no cadastro quanto na edição da demanda.");
  assert.ok(ui.includes('name="description"'),"Preserva campo e dados gravados.");
  assert.ok(ui.includes('<label>Descrição (opcional)<textarea name="description"'),"Não alterar formulário de comissão.");
 });

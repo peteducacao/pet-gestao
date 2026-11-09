@@ -346,7 +346,7 @@ function renderTaskForm(routeId){
  }
  return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",backButton())+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
- '<label>'+(t?"Anotações":"Descrição (opcional)")+'<textarea rows="3" name="description">'+esc(t?.description||"")+'</textarea></label>'+
+ '<label>Anotações<textarea rows="3" name="description">'+esc(t?.description||"")+'</textarea></label>'+
  '<div id="assignment-container">'+assignmentView()+'</div>'+
  '<div class="register-deadlines"><div class="section-head"><h3>Prazos por etapa</h3><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?.deadlines?.length?t.deadlines:[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
  '<label>Observações (opcional)<textarea name="captionText" rows="4">'+esc(t?.captionText||"")+'</textarea></label>'+
