@@ -49,6 +49,7 @@ for(const file of ["index.html","styles.css","live.css","app-live.js"]){
  fs.copyFileSync(file,path.join(out,file));
 }
 fs.cpSync("assets",path.join(out,"assets"),{recursive:true});
+fs.copyFileSync("site.webmanifest",path.join(out,"site.webmanifest"));
 fs.writeFileSync(path.join(out,"config.js"),"window.PET_GESTAO_CONFIG=Object.freeze("+JSON.stringify({apiBaseUrl,appName:"PET Gestão",demoMode:false,locale:"pt-BR"})+");\n");
 fs.writeFileSync("api-url.txt",apiBaseUrl+"\n");
 console.log("D1 encontrado; Worker configurado; site preparado para "+new URL(apiBaseUrl).host);
