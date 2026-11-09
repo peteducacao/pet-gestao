@@ -366,6 +366,11 @@ async function handleClick(e){
    if(!t?.archivedAt||!window.confirm('Excluir definitivamente a demanda "'+t.title+'", incluindo etapas, observações e histórico? Essa ação não pode ser desfeita.'))return;
    await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE"),"Demanda removida definitivamente.");return;
  }
+ if(action==="admin-signout"){
+   try{await request("/auth/logout","POST",{},"admin")}catch{}
+   adminToken="";sessionStorage.removeItem(adminTokenKey);
+   await reload();setToast("Sessão administrativa encerrada.");return;
+ }
  if(action==="logout"){try{await request("/auth/logout","POST",{})}catch{}token="";me=null;sessionStorage.removeItem(tokenKey);await reload();location.hash="#/inicio";return}
  if(action==="move-commission"){
    const ids=data.committees.map(x=>x.id),old=ids.indexOf(tid),target=old+Number(b.dataset.direction);[ids[old],ids[target]]=[ids[target],ids[old]];
@@ -391,10 +396,17 @@ async function handleClick(e){
 async function handleSubmit(e){
  const form=e.target;if(!form.id)return;e.preventDefault();
  try{
- if(form.id==="login-form"||form.id==="admin-login-form"){
-   const f=userFields(form),r=await request("/auth/login","POST",f);
-   if(form.id==="admin-login-form"&&r.user.role!=="admin")throw Error("Esta conta não possui permissão de Administração.");
-   token=r.token;sessionStorage.setItem(tokenKey,token);await reload();location.hash=r.user.mustChangePassword?"#/conta":form.id==="admin-login-form"?"#/admin":"#/inicio";setToast("Acesso autorizado.");return;
+ if(form.id==="admin-login-form"){
+   const f=userFields(form),r=await request("/auth/admin-login","POST",f,"guest");
+   if(r.user.role!=="admin")throw Error("Esta conta não tem permissão de Administração.");
+   if(r.user.mustChangePassword)throw Error("Altere sua senha temporária pela conta antes de acessar a Administração.");
+   adminToken=r.token;sessionStorage.setItem(adminTokenKey,adminToken);
+   await reload();setToast("Administração desbloqueada.");return;
+ }
+ if(form.id==="login-form"){
+   const f=userFields(form),r=await request("/auth/login","POST",f,"guest");
+   token=r.token;sessionStorage.setItem(tokenKey,token);
+   await reload();location.hash=r.user.mustChangePassword?"#/conta":"#/inicio";setToast("Acesso autorizado.");return;
  }
  if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
  if(form.id==="forgot-form"){const r=await request("/auth/forgot","POST",userFields(form));setToast(r.message);return}
@@ -429,7 +441,12 @@ async function handleChange(e){
    const reader=new FileReader();reader.onload=()=>{$('input[name="imageData"]').value=String(reader.result)};reader.readAsDataURL(file);return;
  }
 }
-function onNavigation(){if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}render();window.scrollTo({top:0})}
+function onNavigation(){
+ const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
+ if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
+ if(wasAdmin!==nowAdmin)reload();else render();
+ window.scrollTo({top:0});
+}
 function start(){
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
