@@ -20,8 +20,8 @@
   const validEmail=s=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
   const isArr=v=>Array.isArray(v)?v:[];
   const unique=v=>[...new Set(isArr(v).map(String).filter(Boolean))];
-  const idName=row=>({id:row.id,name:row.name,role:row.role});
-  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password});
+  const idName=row=>({id:row.id,name:row.name,role:row.role_override||row.role});
+  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role_override||u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password});
   const color=s=>/^#[0-9a-fA-F]{6}$/.test(String(s))?s:"#f7f3ff";
   const arrayToJson=v=>JSON.stringify(v);
   const standardTime=d=>/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(String(d||""))?String(d):"";
@@ -60,7 +60,9 @@
     const token=header.match(/^Bearer ([A-Za-z0-9_-]{20,})$/);
     if(!token)return null;
     const digest=await sha(token[1]);
-    return db.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?").bind(digest,now()).first();
+    const u=await db.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?").bind(digest,now()).first();
+    if(u)u.role=u.role_override||u.role;
+    return u;
   }
   function ensure(user,admin=false){
     if(!user)fail("Entre na sua conta para continuar.",401);
@@ -95,7 +97,7 @@
     let meetings=[],users=[],history=[];
     if(user){
       meetings=(await db.prepare("SELECT * FROM meetings ORDER BY meeting_date DESC LIMIT 250").all()).results.map(m=>({id:m.id,title:m.title,date:m.meeting_date,rawNotes:m.raw_notes,theme:m.theme,colorA:m.color_a,colorB:m.color_b,updatedAt:m.updated_at}));
-      users=(await db.prepare("SELECT id,name,role FROM users ORDER BY name").all()).results.map(idName);
+      users=(await db.prepare("SELECT id,name,role,role_override FROM users ORDER BY name").all()).results.map(idName);
       history=(await db.prepare("SELECT h.task_id,h.actor_name,h.action,h.details,h.created_at,u.role AS actor_role FROM task_history h LEFT JOIN users u ON u.id=h.actor_id ORDER BY h.created_at DESC LIMIT 800").all()).results;
     }else{
       meetings=(await db.prepare("SELECT id,title,meeting_date AS date FROM meetings ORDER BY meeting_date DESC LIMIT 100").all()).results;
@@ -213,7 +215,7 @@
         if(name.length<2||!validEmail(mail)||pw.length<10||pw.length>200)fail("Informe nome, e-mail válido e senha com pelo menos 10 caracteres.");
         if(await db.prepare("SELECT id FROM users WHERE email=?").bind(mail).first())fail("E-mail já cadastrado.",409);
         const salt=randomToken(),stamp=now();
-        await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,created_at,updated_at) VALUES(?,?,?,?,?,'petiano',?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,stamp,stamp).run();
+        await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,stamp,stamp).run();
         return answer({ok:true},201);
       }
       if(path==="/api/v1/auth/login"&&method==="POST"){
@@ -223,6 +225,21 @@
         const u=await db.prepare("SELECT * FROM users WHERE email=?").bind(mail).first();
         if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,mail);fail("Credenciais inválidas.",401)}
         await resetRate(db,mail);return answer(await createSession(db,u));
+      }
+      if(path==="/api/v1/auth/admin-login"&&method==="POST"){
+        const b=await body(req),identifier=String(b.identifier||b.email||"").trim().toLowerCase(),pw=String(b.password||"");
+        if(!identifier||identifier.length>250||!pw||pw.length>200)fail("Credenciais administrativas inválidas.",401);
+        const key=identifier==="admin"?"admin":email(identifier);
+        const attempts=await db.prepare("SELECT * FROM auth_attempts WHERE email=?").bind(key).first();
+        if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
+        const admin=identifier==="admin"
+          ?await db.prepare("SELECT * FROM users WHERE role='admin' ORDER BY created_at ASC LIMIT 1").first()
+          :await db.prepare("SELECT * FROM users WHERE email=? AND role='admin'").bind(key).first();
+        if(!admin||await pwHash(pw,admin.pass_salt)!==admin.pass_hash){
+          await rateFail(db,key);fail("Credenciais administrativas inválidas.",401);
+        }
+        await resetRate(db,key);
+        return answer(await createSession(db,admin));
       }
       if(path==="/api/v1/auth/logout"&&method==="POST"){
         if(user){const token=(req.headers.get("authorization")||"").slice(7);await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await sha(token)).run()}
@@ -272,20 +289,22 @@
         return answer({ok:true});
       }
       if(path==="/api/v1/admin/users"&&method==="GET"){
-        ensure(user,true);return answer({users:(await db.prepare("SELECT id,name,email,role,notification_enabled,must_change_password,created_at FROM users ORDER BY name").all()).results.map(userPublic)});
+        ensure(user,true);return answer({users:(await db.prepare("SELECT id,name,email,role,role_override,notification_enabled,must_change_password,created_at FROM users ORDER BY name").all()).results.map(userPublic)});
       }
       let match=path.match(/^\/api\/v1\/admin\/users\/([^/]+)$/);
       if(match&&method==="PATCH"){
         ensure(user,true);const b=await body(req),target=await db.prepare("SELECT * FROM users WHERE id=?").bind(match[1]).first();
         if(!target)fail("Usuário não encontrado.",404);
-        const role=["petiano","tutor","admin"].includes(b.role)?b.role:target.role;
+        const desired=["usuario","petiano","tutor","admin"].includes(b.role)?b.role:(target.role_override||target.role);
+        const role=desired==="usuario"?"petiano":desired;
+        const override=desired==="usuario"?"usuario":null;
         if(target.role==="admin"&&role!=="admin"){
           const count=await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='admin'").first();
           if(count.n<=1)fail("Não é possível remover o último administrador.");
         }
         const name=b.name!==undefined?str(b.name,120):target.name;
         if(name.length<2)fail("Nome inválido.");
-        await db.prepare("UPDATE users SET name=?,role=?,notification_enabled=?,updated_at=? WHERE id=?").bind(name,role,b.notificationEnabled===undefined?target.notification_enabled:b.notificationEnabled?1:0,now(),target.id).run();
+        await db.prepare("UPDATE users SET name=?,role=?,role_override=?,notification_enabled=?,updated_at=? WHERE id=?").bind(name,role,override,b.notificationEnabled===undefined?target.notification_enabled:b.notificationEnabled?1:0,now(),target.id).run();
         return answer({ok:true});
       }
       match=path.match(/^\/api\/v1\/admin\/users\/([^/]+)\/temporary-password$/);
