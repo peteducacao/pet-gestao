@@ -72,3 +72,28 @@ button,select,input,textarea{font:inherit}
  .commission-tile-main .commission-default-art{font-size:43px}
  .commission-tile-main{gap:12px}
 }
+
+/* Identificação clara da conta pessoal, inclusive nos celulares. */
+.topbar-context .breadcrumb-current{font-weight:800;color:#555570}
+.topbar-context .crumb{display:inline-flex;align-items:center;justify-content:center;margin-right:5px}
+.profile-button{min-width:0;max-width:240px;gap:9px}
+.profile-button .account-identification{display:flex;flex-direction:column;align-items:flex-start;min-width:0;line-height:1.2;text-align:left}
+.profile-button .account-identification strong{font-size:12px;font-weight:800;color:#322b51;max-width:175px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-button .account-identification small{font-size:10px;font-weight:700;color:#72638c;max-width:175px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-button.logged-in{background:#f8f5ff;border-color:#ded6ed}
+@media(max-width:680px){
+ .topbar{padding:0 12px;gap:8px}
+ .topbar-left{min-width:0;flex:1 1 auto;gap:7px}
+ .topbar-right{flex:0 0 auto;max-width:50%;min-width:0;gap:4px}
+ .topbar-context{display:flex;align-items:center;min-width:0;overflow:hidden;white-space:nowrap}
+ .topbar-context .breadcrumb-current{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+ .profile-button{width:auto;height:auto;min-height:39px;max-width:144px;padding:6px 9px;gap:7px;justify-content:flex-start}
+ .profile-button span.account-identification{display:flex}
+ .profile-button .account-identification strong{max-width:96px;font-size:11px}
+ .profile-button .account-identification small{max-width:96px;font-size:9px}
+ .profile-button svg{width:16px;height:16px}
+}
+@media(max-width:375px){
+ .profile-button{max-width:118px;padding:5px 7px;gap:5px}
+ .profile-button .account-identification strong,.profile-button .account-identification small{max-width:75px}
+}
