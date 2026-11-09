@@ -6,7 +6,7 @@ const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").repl
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
 let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,mailItems:[],year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -284,7 +284,7 @@ function renderAdmin(){
  data.committees.map((c,i)=>'<div class="admin-commission-item"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div><button class="button primary admin-save-button" data-do="save-vagas" data-id="'+esc(c.id)+'">Salvar</button></div></div>').join("")+'</div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática dos cronogramas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label>Mensagem<textarea name="message" rows="6" required></textarea></label><label><input type="checkbox" id="mail-scheduled"> Agendar envio</label><div id="mail-scheduling"></div><div id="mail-attachments"></div><button class="button primary" type="submit">Registrar envio</button></form></section>'+
- '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico de e-mails</h2><button class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></div><div id="mail-history"><p>Carregando...</p></div></section>';
+ '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<button class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'" data-do="admin-tab" data-value="'+tab[0]+'" type="button">'+ico(tab[2])+'<span>'+tab[1]+'</span></button>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
@@ -307,7 +307,7 @@ function renderAdmin(){
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
  '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>'+esc(me.name)+'</strong><small>'+esc(roleLabel(me.role))+'</small></span></div></div>'+
  '<div class="admin-page"><div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
- dashboard+adminPanels+'</div></div></div>';
+ dashboard+adminPanels+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
 }
 function renderMailRecipients(){
  const el=$("#mail-recipients");if(!el)return;
@@ -389,9 +389,57 @@ async function loadAdminUsers(){
  target.innerHTML=users.map(u=>'<div class="live-admin-row"><div><strong>'+esc(u.name)+'</strong><small>'+esc(u.email)+'</small></div><select class="select" data-role="'+esc(u.id)+'">'+[["usuario","Usuário"],["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select><label><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'> Notificações</label><button class="button ghost small-action" data-do="save-user" data-id="'+esc(u.id)+'">Salvar</button><button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">Senha temporária</button></div>').join("");
  }catch(e){setToast(e.message)}
 }
+const mailQueueStatuses=new Set(["pendente","processando","agendado"]);
+const mailStatusLabel=x=>({pendente:"Pendente",processando:"Processando",agendado:"Agendado",enviado:"Enviado",falhou:"Falhou"}[x]||x||"Desconhecido");
+const mailRecipients=x=>Array.isArray(x.recipientEmails)?x.recipientEmails:[];
+function mailStatusPanel(){
+ const c=state.mailConnection;
+ if(!c)return '<div class="mail-connection mail-checking">Verificando a integração com o Gmail...</div>';
+ return '<div class="mail-connection '+(c.connected?"mail-ready":"mail-warning")+'"><strong>'+(c.connected?"Integração Gmail autenticada":"A integração precisa de atenção")+'</strong><span>'+esc(c.message||"Sem detalhes disponíveis.")+'</span>'+
+ (c.connected&&Number.isFinite(c.quota)?'<small>Quota restante informada pelo Google: '+c.quota+' destinatários</small>':"")+'</div>';
+}
+function mailEntry(x){
+ const recipients=mailRecipients(x),failed=x.status==="falhou";
+ const mayRetry=failed&&state.mailConnection?.connected&&!String(x.body||"").startsWith("[Envio com anexos");
+ return '<article class="mail-history-item"><div class="mail-history-header"><strong>'+esc(x.subject||"Sem assunto")+'</strong><span class="mail-state mail-state-'+esc(x.status||"desconhecido")+'">'+esc(mailStatusLabel(x.status))+'</span></div>'+
+ '<div class="mail-history-meta">'+(recipients.length?esc(recipients.join(", "))+" · ":"")+esc(textDate(x.sent_at||x.scheduled_at||x.created_at))+' · '+recipients.length+' destinatário(s)</div>'+
+ (failed?'<p class="mail-history-error">'+esc(x.error_message||"O envio foi recusado.")+'</p>':"")+
+ (mayRetry?'<button type="button" class="button ghost" data-do="retry-mail" data-id="'+esc(x.id)+'">Tentar novamente</button>':"")+'</article>';
+}
+function renderMailMonitorModal(){
+ const items=Array.isArray(state.mailItems)?state.mailItems:[];
+ const queued=items.filter(x=>mailQueueStatuses.has(x.status));
+ const past=items.filter(x=>!mailQueueStatuses.has(x.status)).slice(0,25);
+ return '<div class="mail-monitor-shade"><section class="mail-monitor-dialog" role="dialog" aria-modal="true" aria-labelledby="mail-monitor-heading">'+
+ '<div class="mail-monitor-heading"><div><h2 id="mail-monitor-heading">Fila e histórico do Gmail</h2><p>Confira mensagens pendentes, enviadas e com falha.</p></div><button type="button" class="mail-monitor-close" data-do="mail-monitor-close" aria-label="Fechar acompanhamento">×</button></div>'+
+ '<div class="mail-monitor-content">'+mailStatusPanel()+
+ '<div class="mail-monitor-section-title"><h3>Fila atual ('+queued.length+')</h3><button type="button" class="button ghost" data-do="mail-monitor-refresh">Atualizar</button></div>'+
+ (queued.length?queued.map(mailEntry).join(""):'<div class="mail-monitor-empty">Nenhum e-mail aguardando envio.</div>')+
+ '<h3 class="mail-monitor-subtitle">Histórico recente ('+past.length+')</h3>'+
+ (past.length?past.map(mailEntry).join(""):'<div class="mail-monitor-empty">Nenhum e-mail finalizado.</div>')+
+ '<p class="mail-monitor-footnote">Enviado significa que a ponte Gmail confirmou o envio. A chegada à caixa de entrada depende do provedor.</p></div></section></div>';
+}
 async function loadMailHistory(){
- try{const r=await request("/mail","GET",undefined,"admin"),box=$("#mail-history");state.mailItems=Array.isArray(r.items)?r.items:[];const metric=$("#admin-mail-count");if(metric)metric.textContent=String(state.mailItems.length);if(box)box.innerHTML=state.mailItems.length?state.mailItems.map(x=>'<div class="live-admin-row"><div><strong>'+esc(x.subject)+'</strong><small>'+textDate(x.scheduled_at)+' · '+(Array.isArray(x.recipientEmails)?x.recipientEmails.length:0)+' destinatários</small><small>'+esc(x.error_message||"")+'</small></div><span class="pill '+(x.status==="enviado"?"mint":"soft")+'">'+esc(x.status)+'</span>'+(x.status==="falhou"&&!x.body?.startsWith("[Envio com anexos")?'<button type="button" class="button ghost small-action" data-do="retry-mail" data-id="'+esc(x.id)+'">Tentar novamente</button>':"")+'</div>').join(""):empty("Nenhum e-mail registrado");
- }catch(e){setToast(e.message)}
+ try{
+   const [r,c]=await Promise.all([
+     request("/mail","GET",undefined,"admin"),
+     request("/mail/status","GET",undefined,"admin").catch(e=>({connected:false,message:e.message}))
+   ]);
+   state.mailItems=Array.isArray(r.items)?r.items:[];
+   state.mailConnection=c;
+   const metric=$("#admin-mail-count");
+   if(metric)metric.textContent=String(state.mailItems.length);
+   const queued=state.mailItems.filter(x=>mailQueueStatuses.has(x.status));
+   const errors=state.mailItems.filter(x=>x.status==="falhou");
+   const box=$("#mail-history");
+   if(box)box.innerHTML=mailStatusPanel()+'<div class="mail-summary-stats"><span><strong>'+queued.length+'</strong> na fila</span><span><strong>'+errors.length+'</strong> com falha</span><span><strong>'+state.mailItems.length+'</strong> registros</span></div>';
+   const modal=$("#mail-monitor-container");
+   if(modal)modal.innerHTML=state.mailMonitorOpen?renderMailMonitorModal():"";
+ }catch(e){
+   state.mailConnection={connected:false,message:e.message};
+   const box=$("#mail-history");if(box)box.innerHTML=mailStatusPanel();
+   setToast("Não foi possível atualizar a fila: "+e.message);
+ }
 }
 const fileData=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file)});
 async function sendMail(form){
@@ -428,6 +476,9 @@ async function handleClick(e){
   return;
  }
  if(action==="admin-menu"){state.adminMenuOpen=!state.adminMenuOpen;render();return}
+ if(action==="mail-monitor-open"){state.mailMonitorOpen=true;render();return}
+ if(action==="mail-monitor-close"){state.mailMonitorOpen=false;render();return}
+ if(action==="mail-monitor-refresh"){await loadMailHistory();return}
  if(action==="back"){if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}else location.hash="#/inicio";return}
  if(action==="mode"){state.mode=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
@@ -484,7 +535,13 @@ async function handleClick(e){
    try{const v=await request("/admin/users/"+id(tid)+"/temporary-password","POST",{});window.prompt("Senha temporária (copie agora; não será exibida novamente):",v.temporaryPassword);setToast("Senha temporária gerada.");}catch(e){setToast(e.message)}return;
  }
  if(action==="clear-mail"){if(!window.confirm("Limpar apenas registros de e-mails enviados ou com falha? Os pendentes e agendados serão preservados."))return;await saveAndReload(()=>request("/mail/clear","POST",{}),"Histórico finalizado limpo.");return}
- if(action==="retry-mail"){await saveAndReload(()=>request("/mail/retry","POST",{id:tid}),"Nova tentativa solicitada.");return}
+ if(action==="retry-mail"){
+   if(!state.mailConnection?.connected)return setToast("Corrija primeiro a integração Gmail antes de repetir o envio.");
+   if(!window.confirm("Tentar novamente este e-mail? Confirme que ele não foi enviado anteriormente."))return;
+   try{await request("/mail/retry","POST",{id:tid},"admin");await loadMailHistory();setToast("Nova tentativa registrada na fila.");}
+   catch(err){setToast(err.message)}
+   return;
+ }
  if(action==="remove-mail-file"){state.mailFiles.splice(Number(b.dataset.index),1);renderMailScheduling();return}
 }
 async function handleSubmit(e){
