@@ -1,0 +1,51 @@
+name: PET Gestão — testes de integração isolados
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - 'scripts/test-smoke.mjs'
+      - '.github/workflows/integration-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar Wrangler
+        run: npm install -g wrangler@4
+      - name: Configurar banco de teste local
+        run: |
+          cat > test-wrangler.json <<'JSON'
+          {
+            "name":"pet-gestao-test",
+            "main":"worker/src/index.js",
+            "compatibility_date":"2026-11-09",
+            "d1_databases":[{"binding":"DB","database_name":"pet-gestao-db","database_id":"00000000-0000-4000-8000-000000000001","migrations_dir":"worker/migrations"}],
+            "vars":{"PUBLIC_SITE_URL":"http://127.0.0.1:8000/"}
+          }
+          JSON
+          wrangler d1 migrations apply pet-gestao-db --local --config test-wrangler.json
+      - name: Subir API isolada
+        run: |
+          wrangler dev --local --ip 127.0.0.1 --port 8787 --config test-wrangler.json --var ADMIN_EMAIL:teste-admin@pet.local --var ADMIN_INITIAL_PASSWORD:SenhaLocalSegura123! > /tmp/pet-worker-test.log 2>&1 &
+          echo $! > /tmp/pet-worker-test.pid
+          for i in $(seq 1 35); do
+            if curl --silent --fail http://127.0.0.1:8787/api/v1/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/pet-worker-test.log
+          exit 1
+      - name: Testar operações de criação, edição, ordenação e exclusão
+        env:
+          TEST_ADMIN_EMAIL: teste-admin@pet.local
+          TEST_ADMIN_PASSWORD: SenhaLocalSegura123!
+        run: node scripts/test-smoke.mjs
+      - name: Logs em caso de falha
+        if: failure()
+        run: tail -80 /tmp/pet-worker-test.log || true
