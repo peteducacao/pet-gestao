@@ -227,7 +227,7 @@ function renderAccount(){
 }
 function renderAdmin(){
  if(!me)return header("Sistema","Administração","Acesso restrito.")+'<section class="card card-pad"><h2>Entre como administrador(a)</h2><p>Faça login com a conta administrativa para acessar usuários, comissões e configurações.</p>'+button("Entrar","login",true)+'</section>';
- if(!isAdmin())return header("Sistema","Administração","Acesso restrito.")+'<section class="card card-pad"><h2>Permissão necessária</h2><p>Sua conta está conectada, mas somente o cargo Administração pode abrir este painel.</p>'+button("Minha conta","conta")+'</section>';
+ if(!isAdmin())return header("Sistema","Administração","Entrar com uma conta administrativa.")+'<section class="card card-pad"><h2>Login administrativo</h2><p>Você está conectado(a) como '+esc(me.name)+' ('+esc(me.email)+'). Para acessar o painel, entre com o e-mail e a senha da conta de Administração.</p><form id="admin-login-form" class="register-form"><label>E-mail administrativo<input type="email" name="email" required autocomplete="username"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><button type="submit" class="button primary">Entrar na Administração</button></form><p>O acesso só será liberado para uma conta com permissão administrativa.</p></section>';
  return header("Sistema","Administração","Contas, vagas, ordem e notificações.")+
  '<section class="card card-pad"><h2>Usuários</h2><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad"><h2>Vagas e ordem das comissões</h2><p>Use ↑ e ↓ para organizar a ordem de exibição.</p>'+
@@ -385,9 +385,10 @@ async function handleClick(e){
 async function handleSubmit(e){
  const form=e.target;if(!form.id)return;e.preventDefault();
  try{
- if(form.id==="login-form"){
+ if(form.id==="login-form"||form.id==="admin-login-form"){
    const f=userFields(form),r=await request("/auth/login","POST",f);
-   token=r.token;sessionStorage.setItem(tokenKey,token);await reload();location.hash=r.user.mustChangePassword?"#/conta":"#/inicio";setToast("Acesso autorizado.");return;
+   if(form.id==="admin-login-form"&&r.user.role!=="admin")throw Error("Esta conta não possui permissão de Administração.");
+   token=r.token;sessionStorage.setItem(tokenKey,token);await reload();location.hash=r.user.mustChangePassword?"#/conta":form.id==="admin-login-form"?"#/admin":"#/inicio";setToast("Acesso autorizado.");return;
  }
  if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
  if(form.id==="forgot-form"){const r=await request("/auth/forgot","POST",userFields(form));setToast(r.message);return}
