@@ -501,7 +501,7 @@ async function handleSubmit(e){
    token=r.token;sessionStorage.setItem(tokenKey,token);
    // Não conservar uma antiga sessão de outro administrador ao entrar com nova conta.
    adminToken="";sessionStorage.removeItem(adminTokenKey);
-   await reload();location.hash=r.user.mustChangePassword?"#/conta":adminRole(r.user)?"#/admin":"#/inicio";setToast("Acesso autorizado.");return;
+   await reload();location.hash=r.user.mustChangePassword?"#/conta":r.user.role==="admin"?"#/admin":"#/inicio";setToast("Acesso autorizado.");return;
  }
  if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
  if(form.id==="forgot-form"){const r=await request("/auth/forgot","POST",userFields(form));setToast(r.message);return}
