@@ -213,17 +213,17 @@ function renderMemory(routeId){
 }
 function authRequired(){return header("Acesso","Entre na sua conta","Esta funcionalidade exige autenticação.")+'<section class="card card-pad">'+button("Entrar","login",true)+'</section>'}
 function renderLogin(){
- return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<input type="password" name="password" required autocomplete="current-password"></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p></section>';
+ return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p></section>';
 }
-function renderRegisterAccount(){return header("Conta","Criar conta","Nome, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Nome<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<input name="password" type="password" required minlength="10" autocomplete="new-password"></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
+function renderRegisterAccount(){return header("Conta","Criar conta","Nome, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Nome<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<span class="password-control"><input name="password" type="password" required minlength="10" autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
 function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos um link para o e-mail cadastrado.")+'<section class="card card-pad live-auth"><form id="forgot-form" class="register-form"><label>E-mail<input type="email" name="email" required></label><button type="submit" class="button primary">Enviar link</button></form></section>'}
-function renderReset(tokenPart){return header("Conta","Redefinir senha","O link é válido por 30 minutos e pode ser usado uma única vez.")+'<section class="card card-pad live-auth"><form id="reset-form" data-token="'+esc(tokenPart)+'" class="register-form"><label>Nova senha<input type="password" name="password" minlength="10" required></label><button class="button primary" type="submit">Alterar senha</button></form></section>'}
+function renderReset(tokenPart){return header("Conta","Redefinir senha","O link é válido por 30 minutos e pode ser usado uma única vez.")+'<section class="card card-pad live-auth"><form id="reset-form" data-token="'+esc(tokenPart)+'" class="register-form"><label>Nova senha<span class="password-control"><input type="password" name="password" minlength="10" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Alterar senha</button></form></section>'}
 function renderAccount(){
  if(!me)return authRequired();
  return header("Pessoal","Minha conta","Identificação e preferências.")+'<section class="card card-pad live-auth"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Cargo:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":"Administração")+'</p>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
- '<h3>Alterar senha</h3><form id="change-password-form" class="register-form"><label>Senha atual<input type="password" name="password" required></label><label>Nova senha<input type="password" name="newPassword" required minlength="10"></label><button type="submit" class="button primary">Alterar senha</button></form><button class="button ghost" type="button" data-do="logout">Sair da conta</button></section>';
+ '<h3>Alterar senha</h3><form id="change-password-form" class="register-form"><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><button class="button ghost" type="button" data-do="logout">Sair da conta</button></section>';
 }
 function renderAdmin(){
  if(!isAdmin())return authRequired();
@@ -431,7 +431,21 @@ function start(){
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true});
- document.addEventListener("click",e=>{if(e.target.closest("[data-do]"))handleClick(e).catch(err=>setToast(err.message))});
+ document.addEventListener("click",e=>{
+   const toggle=e.target.closest("[data-password-toggle]");
+   if(toggle){
+     const input=toggle.closest(".password-control")?.querySelector("input");
+     if(!input)return;
+     const show=input.type==="password";
+     input.type=show?"text":"password";
+     toggle.textContent=show?"Ocultar":"Mostrar";
+     toggle.setAttribute("aria-label",show?"Ocultar senha":"Mostrar senha");
+     toggle.setAttribute("title",show?"Ocultar senha":"Mostrar senha");
+     toggle.setAttribute("aria-pressed",String(show));
+     return;
+   }
+   if(e.target.closest("[data-do]"))handleClick(e).catch(err=>setToast(err.message));
+ });
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("change",e=>handleChange(e).catch(err=>setToast(err.message)));
  reload();
