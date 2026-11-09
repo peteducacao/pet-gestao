@@ -225,6 +225,7 @@
         if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
         const u=await db.prepare("SELECT * FROM users WHERE email=?").bind(mail).first();
         if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,mail);fail("Credenciais inválidas.",401)}
+        if(u.role==="admin")fail("Use o acesso separado Administração para entrar como Admin.",403);
         await resetRate(db,mail);return answer(await createSession(db,u));
       }
       if(path==="/api/v1/auth/admin-login"&&method==="POST"){
