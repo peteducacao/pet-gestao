@@ -55,12 +55,12 @@ async function reload(){
    $("#connection-label").textContent="Sem conexão";$("#connection-dot")?.classList.remove("online");setToast(e.message);}
  render();
 }
-function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","login","cadastro","esqueci","redefinir","conta"].includes(p)}
+function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button> <a href="#/inicio">PET Educação</a> <span class="breadcrumb-slash">/</span> '+esc(routeNames[page]||"PET Gestão");
  const account=$("#account-button");if(account){account.innerHTML=ico("user")+'<span>'+esc(me?.name||"Acessar conta")+'</span>';account.setAttribute("aria-label",me?"Minha conta":"Entrar")}
- const admin=$("#admin-link");if(admin){admin.hidden=!isAdmin();admin.classList.remove("nav-locked");admin.removeAttribute("aria-disabled");admin.innerHTML=ico("settings")+'<span>Administração</span>';admin.title="Administração"}
+ const admin=$("#admin-link");if(admin){admin.hidden=false;admin.classList.toggle("nav-locked",!isAdmin());admin.setAttribute("aria-label",isAdmin()?"Abrir administração":"Administração — acesso restrito");admin.innerHTML=ico("settings")+'<span>Administração</span>';admin.title="Administração"}
  $$(".nav-link[data-route]").forEach(el=>{el.classList.toggle("active",el.dataset.route===page);if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite()});
  $("#today-label").textContent=textDate(new Date());
  document.title=(routeNames[page]||"PET Educação")+" | PET Educação";
@@ -226,7 +226,8 @@ function renderAccount(){
  '<h3>Alterar senha</h3><form id="change-password-form" class="register-form"><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><button class="button ghost" type="button" data-do="logout">Sair da conta</button></section>';
 }
 function renderAdmin(){
- if(!isAdmin())return authRequired();
+ if(!me)return header("Sistema","Administração","Acesso restrito.")+'<section class="card card-pad"><h2>Entre como administrador(a)</h2><p>Faça login com a conta administrativa para acessar usuários, comissões e configurações.</p>'+button("Entrar","login",true)+'</section>';
+ if(!isAdmin())return header("Sistema","Administração","Acesso restrito.")+'<section class="card card-pad"><h2>Permissão necessária</h2><p>Sua conta está conectada, mas somente o cargo Administração pode abrir este painel.</p>'+button("Minha conta","conta")+'</section>';
  return header("Sistema","Administração","Contas, vagas, ordem e notificações.")+
  '<section class="card card-pad"><h2>Usuários</h2><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad"><h2>Vagas e ordem das comissões</h2><p>Use ↑ e ↓ para organizar a ordem de exibição.</p>'+
@@ -426,7 +427,7 @@ function start(){
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
  $("#account-button")?.addEventListener("click",()=>{location.hash=me?"#/conta":"#/login"});
- $("#admin-link")?.addEventListener("click",()=>{if(isAdmin())location.hash="#/admin"});
+ $("#admin-link")?.addEventListener("click",()=>{location.hash="#/admin"});
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
