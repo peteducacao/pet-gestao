@@ -1,80 +1,55 @@
-# Contrato proposto de integração
+# Contrato API PET Gestão (v1)
 
-Este documento prepara a implantação **futura**. Não representa endpoints já existentes.
+Base: Worker pet-gestao, URLs com prefixo /api/v1. Respostas JSON. Erros com HTTP apropriado e formato {"error":"mensagem"}; nunca retornar segredos. Na interface hospedada pelo GitHub Pages, enviar cabeçalho Authorization: Bearer TOKEN após login. Somente as informações de visualização pública são retornadas sem token. O token fica na sessionStorage do navegador.
 
-## Autenticação e segurança
+## Públicas
+| Método | Rota | Entrada / resultado |
+|---|---|---|
+| GET | /health | ok, service, database, now |
+| GET | /bootstrap | comissões, resumos de demandas, sessões e dados autorizados |
+| POST | /auth/register | name, email, password; cadastra PETiano(a) |
+| POST | /auth/login | email, password; retorna token e user |
+| POST | /auth/forgot | email; mensagem genérica, envio de link se cadastrado |
+| POST | /auth/reset | token, password; link válido por 30 minutos e uma vez |
 
-- Sessão autenticada por cookie seguro (`HttpOnly`, `Secure`, `SameSite` adequado) e proteção contra CSRF nas ações de escrita.
-- Verificação de permissões no servidor, inclusive quando uma pessoa possui mais de um papel.
-- Identidade nunca é aceita somente a partir de parâmetro enviado pelo navegador.
-- API com limites de requisição, validação dos payloads, logs de auditoria e proteção contra edição concorrente.
-- Caso não autenticado: `401`. Sem permissão: `403`. Falha de validação: `422`.
+## Autenticadas
+| Método | Rota | Entrada / resultado |
+|---|---|---|
+| GET | /auth/me | dados da conta atual |
+| POST | /auth/logout | revoga sessão |
+| POST | /auth/change-password | password, newPassword; revoga outras sessões |
+| PATCH | /account | notificationEnabled |
+| POST | /commissions | name, description, backgroundColor, imageData |
+| PUT | /commissions/:id | edita comissão; apenas Admin muda maxMembers |
+| POST | /commissions/:id/join | inscreve a pessoa, respeitando vagas |
+| POST | /commissions/:id/leave | sai da comissão |
+| POST | /tasks | title, description, captionText, assigneeIds[], commissionIds[], deadlines[], notify |
+| PUT | /tasks/:id | mesmos campos; controle de versão |
+| PATCH | /tasks/:id/notes | captionText, notify |
+| PATCH | /tasks/:id/status | status = pendente/aprovada, notify |
+| PATCH | /tasks/:id/finish | commissionId, early, notify |
+| DELETE | /tasks/:id | só demanda arquivada; exclusão definitiva |
+| POST | /meetings | title, date, rawNotes, theme, colorA, colorB |
+| PUT | /meetings/:id | atualiza a memória |
+| DELETE | /meetings/:id | exclui memória, não apaga demandas |
 
-## Leitura do painel
+Campo deadlines[]: cada elemento tem id, label (Prazo, Correção, Postagem), dueAt (YYYY-MM-DDTHH:mm:ss), assigneeIds[]. Pelo menos uma etapa Prazo com data. commissionDone armazena a conclusão independente de cada comissão, com autoria/hora. O sistema exige confirmação no front-end quando uma conclusão for antecipada, e o Worker registra a escolha explicitamente no campo early.
 
-`GET /api/v1/bootstrap`
+## Exclusivas da Administração
+| Método | Rota | Entrada |
+|---|---|---|
+| GET | /admin/users | listagem de contas, cargos e preferências |
+| PATCH | /admin/users/:id | name, role, notificationEnabled |
+| POST | /admin/users/:id/temporary-password | retorna temporaryPassword **uma vez** |
+| PUT | /admin/settings | autoMonth, autoWeek |
+| PUT | /admin/commission-order | ids[] na ordem desejada |
+| DELETE | /commissions/:id | exclui comissão sem demandas vinculadas |
+| GET | /mail | fila e histórico (últimos 250 registros) |
+| POST | /mail | all, userIds[], committeeIds[], subject, message, scheduledAt (opcional), attachments[] somente imediato |
+| POST | /mail/clear | limpa status enviado/falhou, preserva pendentes |
+| POST | /mail/retry | id de envio com falha (sem reenvio de anexos que não foram armazenados) |
 
-Retorna apenas informações autorizadas para a sessão atual, por exemplo:
+Anexo manual: objeto com nome, mimeType e base64. Limite de 10 MB por arquivo e limite conservador total de 14 MB. E-mails agendados **não** permitem anexos.
 
-```json
-{
-  "session": {
-    "user": {"id": "id-do-usuario", "name": "Nome", "roles": ["petiano"]}
-  },
-  "users": [],
-  "committees": [],
-  "meetings": [],
-  "tasks": [],
-  "events": []
-}
-```
-
-Campos esperados:
-
-| Entidade | Propriedades de leitura |
-| --- | --- |
-| Usuário | `id`, `name`, `roles` |
-| Comissão | `id`, `name`, `memberIds[]` |
-| Reunião | `id`, `title`, `date`, `rawNotes`, `taskIds[]`, `theme`, `colorA`, `colorB` |
-| Atividade | `id`, `title`, `description`, `committeeId` (compatibilidade), `commissionIds[]`, `meetingId` (opcional/legado), `assigneeIds[]`, `createdAt`, `registeredAt`, `status`, `reviewStatus`, `stageName`, `completedAt`, `deadlines[]`, `observations[]`, `postingAt` (obrigatório) |
-| Prazo | `label`, `kind`, `assigneeIds[]`, `assigneeNames[]`, `assigneeId`/`assigneeName` (legado), `dueAt`, `completedAt` |
-| Observação | `id`, `body`, `authorId`, `authorName`, `createdAt` |
-| Evento | `id`, `summary`, `actorId`, `actorName`, `createdAt` |
-
-As datas são ISO 8601. Prazos com horário devem conter timezone explícito. Para registros cuja data não possui horário, usar `YYYY-MM-DD`. O horário 23:59 é apenas o valor inicial sugerido no formulário de novos prazos; nunca sobrescrever horários cadastrados.
-
-## Operações previstas, ainda não implementadas
-
-- `GET/POST/PATCH/DELETE /api/v1/committees`
-- `GET/POST/PATCH/DELETE /api/v1/tasks`
-- `GET/POST/PATCH/DELETE /api/v1/meetings`
-- `POST /api/v1/meetings/:id/extract-tasks` (revisão obrigatória antes de persistir)
-- `GET/POST/PATCH/DELETE /api/v1/users` (restrito à Administração)
-- `POST /api/v1/tasks/:id/observations`
-- `POST /api/v1/tasks/:id/deadlines`
-- `POST /api/v1/email/send`, `POST /api/v1/email/schedule`, `PATCH /api/v1/email/schedules/:id`, `DELETE /api/v1/email/schedules/:id` (restrito)
-- `GET/PATCH /api/v1/settings` (conforme cargo)
-
-Os nomes e formatos finais serão validados durante a implementação do backend. Não os considere APIs em produção. O status da demanda é selecionado como Pendente, Concluída ou Aprovada; para compatibilidade com a prévia, Aprovada corresponde a `status=pendente` com `reviewStatus=liberado`. Este mapeamento pode ser simplificado no contrato definitivo.
-
-## Etapas padronizadas
-
-A estrutura de dados é única para todas as comissões. O catálogo global de etapas pode ser editado pela Administração; **Publicar** é uma etapa possível, com `assigneeId` próprio. As tarefas de etapas contam também para as pendências individuais, sem duplicação de tarefa. `reviewStatus=liberado` representa **APROVADO** e pode ser definido por PETianos(as), tutores ou administradores; `status=concluida` é um ato separado que arquiva a atividade.
-
-## Notificações
-
-Gatilhos de tutoria são gerados por eventos autenticados de escrita, não por texto de formulário contendo o nome de uma pessoa. O serviço valida o papel do autor, resolve os responsáveis pela atividade, elimina destinatários repetidos e monta o e-mail com dados de auditoria. O bloco `observacao` só é incluído no template quando houver conteúdo preenchido.
-
-Envio manual da Administração constitui fluxo independente, com editor de conteúdo e fila de agendamento. Jobs idempotentes impedem disparos duplicados quando um trabalho é reprocessado.
-
-## Hospedagem futura
-
-- Front-end estático hospedado em domínio institucional adequado.
-- Backend Cloudflare Workers ou serviço equivalente, com armazenamento D1 ou banco equivalente.
-- Arquivos enviados em armazenamento privado apropriado e URLs com autorização.
-- Serviço de e-mail transacional configurado com domínio verificado, SPF/DKIM e gerenciamento de falhas.
-- Rotina agendada executada no servidor, não no navegador do usuário.
-
-## Comissões e prazos — atualização da prévia
-
-A prévia contém criação, edição e exclusão de comissões, com seleção de `memberIds[]`, mas não envia alterações ao servidor. Prazos aceitam múltiplos responsáveis; **Salvar prazos** é uma atualização parcial da atividade existente. No backend deverão existir operações transacionais autenticadas, auditadas e sujeitas a permissões.
+## Privacidade / permissões
+O Worker aplica validações, credenciais e papéis a cada operação. Requisições HTTP sem token não são autorizadas a alterar nada, mesmo que o usuário manipule o HTML. Conteúdo completo de demandas, e-mails e históricos só aparece em bootstrap autenticado. Senha, salt e tokens nunca são retornados.
