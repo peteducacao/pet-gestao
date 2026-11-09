@@ -236,3 +236,53 @@ body.admin-ui-active #screen{width:100%;max-width:none}
  .admin-toolbar-account strong{max-width:112px}
  .admin-page{padding:21px 13px 34px}
 }
+
+
+/* Acompanhamento Gmail: fila separada, estado real e histórico legível no celular. */
+.mail-monitor-shade{position:fixed;inset:0;background:#101729a8;z-index:90;display:grid;place-items:center;padding:18px}
+.mail-monitor-dialog{width:min(720px,100%);max-height:min(90vh,930px);min-height:270px;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e5e8ef;border-radius:24px;background:#fff;box-shadow:0 30px 65px #10152a48;color:#1f2b43}
+.mail-monitor-heading{display:flex;align-items:center;gap:14px;justify-content:space-between;padding:27px 30px 20px}
+.mail-monitor-heading h2{font-size:clamp(20px,3vw,26px);line-height:1.25;margin:0 0 7px}
+.mail-monitor-heading p{font-size:13px;line-height:1.5;color:#718093;margin:0}
+.mail-monitor-close{display:grid;place-items:center;border:0;background:#f1f4f8;color:#27354b;border-radius:13px;width:42px;height:42px;flex:none;cursor:pointer;font-size:26px;font-weight:400}
+.mail-monitor-content{overflow-y:auto;min-height:0;padding:0 30px 30px;overscroll-behavior:contain}
+.mail-connection{display:flex;flex-direction:column;gap:5px;border-radius:17px;padding:17px 18px;margin:7px 0 22px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.mail-connection strong{font-size:14px}
+.mail-connection small{font-size:12px}
+.mail-ready{background:#e5f6ef;color:#24715d}
+.mail-warning{background:#fff1ee;color:#944940}
+.mail-checking{background:#eff1f6;color:#65748c}
+.mail-monitor-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mail-monitor-section-title h3,.mail-monitor-subtitle{font-size:20px;letter-spacing:-.4px;margin:6px 0 14px;color:#1e2b43}
+.mail-monitor-section-title .button{padding:8px 13px;min-height:36px}
+.mail-monitor-subtitle{margin:24px 0 16px}
+.mail-monitor-empty{min-height:140px;display:grid;place-items:center;text-align:center;border-radius:19px;background:#fcfcfd;box-shadow:0 13px 28px #15162c0a;color:#8290a1;font-size:14px;padding:30px 18px}
+.mail-history-item{padding:17px 18px;margin:0 0 12px;border-radius:15px;border:1px solid #e3e6eb;background:#fff}
+.mail-history-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.mail-history-header strong{font-size:14px;line-height:1.45;overflow-wrap:anywhere;color:#27344b;flex:1;min-width:0}
+.mail-state{font-size:11px;font-weight:800;white-space:nowrap;padding:6px 9px;border-radius:20px;color:#697486;background:#f1f2f6}
+.mail-state-enviado{background:#e2f6ec;color:#157652}
+.mail-state-falhou{background:#ffebe7;color:#a04335}
+.mail-state-processando,.mail-state-pendente{background:#fff4d8;color:#976719}
+.mail-state-agendado{background:#ede9ff;color:#6349a4}
+.mail-history-meta{color:#768291;font-size:12px;line-height:1.55;margin-top:7px;overflow-wrap:anywhere}
+.mail-history-error{font-size:12px;color:#9b4d43;line-height:1.5;margin:8px 0}
+.mail-history-item .button{margin-top:10px}
+.mail-monitor-footnote{font-size:12px;line-height:1.55;color:#7b8496;margin:22px 0 0}
+.mail-summary-stats{display:flex;gap:10px;flex-wrap:wrap;margin:5px 0 17px}
+.mail-summary-stats span{padding:8px 12px;background:#f4f1fb;border-radius:12px;color:#635679;font-size:12px}
+.mail-summary-stats strong{color:#382d66;font-weight:800}
+.admin-mail-history>.section-head{margin-bottom:14px}
+.admin-mail-history>.section-head h2{font-size:20px}
+.admin-mail-history>.button.ghost{margin-top:8px}
+@media(max-width:760px){
+ .mail-monitor-shade{padding:9px}
+ .mail-monitor-dialog{max-height:94dvh;border-radius:22px}
+ .mail-monitor-heading{padding:23px 19px 16px}
+ .mail-monitor-content{padding:0 19px 25px}
+ .mail-monitor-close{height:39px;width:39px}
+ .mail-monitor-section-title h3,.mail-monitor-subtitle{font-size:19px}
+ .mail-history-item{padding:15px 14px}
+ .admin-mail-history>.section-head{align-items:stretch}
+ .admin-mail-history>.section-head .button{width:100%}
+}
