@@ -387,4 +387,19 @@ await test("roteamento por comissão, pessoas e todos; somente conclusão como s
  assert.ok(worker.includes('if(!member)fail('));
  assert.ok(worker.includes('const finished=commissionIds.every('));
 });
+await test("Meu perfil fica em PESSOAL e a saída e identificação são legíveis",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const index=readFileSync("index.html","utf8"),ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
+ const personal=index.indexOf('PESSOAL'),profile=index.indexOf('data-route="conta"'),system=index.indexOf('id="admin-nav-caption"');
+ assert.ok(personal>=0&&profile>personal&&profile<system,"Meu perfil pertence ao menu PESSOAL");
+ assert.ok(index.includes('<span>Meu perfil</span>'));
+ assert.ok(index.includes('href="#/conta" hidden'));
+ assert.ok(ui.includes('if(el.dataset.route==="conta")el.hidden=!Boolean(regularMe)'),"Somente uma conta conectada vê Meu perfil");
+ assert.ok(ui.includes('header("Pessoal","Meu perfil"'));
+ assert.ok(ui.includes('class="button ghost account-logout-button"'));
+ assert.ok(css.includes('.account-profile .account-logout-button{'));
+ assert.ok(css.includes('min-height:51px'));
+ assert.ok(css.includes('.topbar .today-label{font-size:15px'));
+ assert.ok(css.includes('.topbar .profile-button .account-identification strong{font-size:14px'));
+});
 console.log(tests+" testes passaram no banco local isolado");
