@@ -11,7 +11,12 @@ const dueAt=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
 await test("saúde",async()=>{assert.equal(good(await api("/health")).database,true)});
 await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,10);assert.equal(r.session,null)});
 await test("controle de acesso",async()=>{assert.equal((await api("/admin/users")).status,401)});
-await test("login",async()=>{const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD}));token=r.token;assert.equal(r.user.role,"admin")});
+await test("login Admin separado",async()=>{const r=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:process.env.TEST_ADMIN_PASSWORD}));token=r.token;assert.equal(r.user.role,"admin")});
+await test("login comum não aceita conta Admin",async()=>{
+ const r=await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD});
+ assert.equal(r.status,403);
+ assert.match(r.error,/Administração/);
+});
 let a,b,task,meeting;
 await test("login administrativo independente",async()=>{
  const bad=await api("/auth/admin-login","POST",{identifier:"Admin",password:"errada"});
@@ -68,4 +73,17 @@ await test("criar memória",async()=>{good(await api("/meetings","POST",{title:"
 await test("editar e excluir memória",async()=>{good(await api("/meetings/"+meeting,"PUT",{title:"Memória Editada",date:dueAt}));good(await api("/meetings/"+meeting,"DELETE"))});
 await test("excluir comissões",async()=>{good(await api("/commissions/"+a,"DELETE"));good(await api("/commissions/"+b,"DELETE"))});
 await test("logout",async()=>{good(await api("/auth/logout","POST"));assert.equal((await api("/auth/me")).status,401)});
+
+await test("interface separa identidade pessoal e administrativa",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const js=readFileSync("app-live.js","utf8");
+ const css=readFileSync("live.css","utf8");
+ const html=readFileSync("index.html","utf8");
+ assert.ok(js.includes('const roleLabel=role=>'));
+ assert.ok(js.includes('const person=regularMe, logged=Boolean(person)'));
+ assert.ok(js.includes('if(!inAdmin&&b.session?.user?.role==="admin")'));
+ assert.ok(js.includes('["petiano","tutor"].includes(me.role)'));
+ assert.ok(css.includes('.profile-button span.account-identification{display:flex}'));
+ assert.ok(html.includes('id="account-button"'));
+});
 console.log(tests+" testes passaram no banco local isolado");
