@@ -374,6 +374,12 @@
         await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Alteração de demanda","alterou dados e prazos");
         return answer({ok:true});
       }
+      if(match&&method==="DELETE"){
+        ensure(user);const old=await readTask(db,match[1]);
+        if(!old.archivedAt)fail("Somente demandas arquivadas podem ser excluídas definitivamente.");
+        await db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id).run();
+        return answer({ok:true});
+      }
       match=path.match(/^\/api\/v1\/tasks\/([^/]+)\/(status|notes|finish)$/);
       if(match&&method==="PATCH"){
         ensure(user);const old=await readTask(db,match[1]),b=await body(req),stamp=now();
@@ -411,12 +417,6 @@
         await audit(db,old.id,user,commissionId?"Concluiu participação da comissão "+(await db.prepare("SELECT name FROM commissions WHERE id=?").bind(commissionId).first())?.name:"Concluiu a demanda",b.early?"Conclusão antecipada confirmada":"");
         await askNotify(db,env,ctx,user,b,old,"Conclusão","concluiu a atividade");
         return answer({ok:true,archived:finished,remaining:ids.filter(x=>!done[x])});
-      }
-      if(match&&method==="DELETE"){
-        ensure(user);const old=await readTask(db,match[1]);
-        if(!old.archivedAt)fail("Somente demandas arquivadas podem ser excluídas definitivamente.");
-        await db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id).run();
-        return answer({ok:true});
       }
       if(path==="/api/v1/meetings"&&method==="POST"){
         ensure(user);const b=await body(req),title=str(b.title,180),date=standardTime(b.date);
