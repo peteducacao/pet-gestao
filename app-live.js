@@ -47,7 +47,7 @@ async function request(path,method="GET",payload){
 async function reload(){
  try{
    const b=await request("/bootstrap");data=b;me=b.session?.user||null;
-   if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(sessionStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
+   if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
    if(token&&!me){token="";sessionStorage.removeItem(tokenKey)}
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
@@ -269,7 +269,7 @@ function render(){
 }
 function askNotification(){return canNotify()?window.confirm("Deseja notificar os(as) responsáveis por e-mail sobre esta alteração?"):false}
 async function saveAndReload(action,success="Alterações salvas."){
- try{await action();await reload();setToast(success)}catch(e){setToast(e.message)}
+ try{await action();await reload();setToast(success);return true}catch(e){setToast(e.message);return false}
 }
 function userFields(form){return Object.fromEntries(new FormData(form).entries())}
 async function saveTask(form){
@@ -302,12 +302,11 @@ async function finishTask(t,cid){
  const message=(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?\n\n":"Confirmar conclusão desta participação?\n\n")+
  (remaining.length?"A demanda só será arquivada quando "+remaining.map(x=>committee(x)?.name||x).join(", ")+" também concluir.":"A demanda será arquivada após a confirmação.");
  if(!window.confirm(message))return;
- await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify:askNotification()}),remaining.length?"Participação concluída. A outra comissão ainda precisa confirmar.":"Demanda concluída e arquivada.");
- if(cid)location.hash="#/comissoes/"+id(cid);
- else location.hash="#/demandas";
+ const saved=await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify:askNotification()}),remaining.length?"Participação concluída. A outra comissão ainda precisa confirmar.":"Demanda concluída e arquivada.");
+ if(saved)location.hash=cid?"#/comissoes/"+id(cid):"#/demandas";
 }
 async function saveCommission(form){
- const values=userFields(form);await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");location.hash="#/comissoes";
+ const values=userFields(form);const ok=await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");if(ok)location.hash="#/comissoes";
 }
 async function loadAdminUsers(){
  try{
@@ -324,17 +323,16 @@ async function sendMail(form){
  const f=userFields(form),ids=$('input[name="mail-target"]:checked').map(el=>el.value),userIds=state.mailAudience==="usuarios"?ids:[],committeeIds=state.mailAudience==="comissoes"?ids:[];
  if(state.mailScheduled&&!f.sendAt)return setToast("Informe a data de envio.");
  const scheduledAt=state.mailScheduled?new Date(f.sendAt).toISOString():null;
- if(state.mailScheduled&&!f.sendAt)return setToast("Informe a data de envio.");
  if(state.mailAudience!=="todos"&&!ids.length)return setToast("Selecione ao menos um destinatário.");
  const attachments=state.mailScheduled?[]:await Promise.all(state.mailFiles.map(async file=>({nome:file.name,mimeType:file.type||"application/octet-stream",base64:await fileData(file)})));
- await saveAndReload(()=>request("/mail","POST",{all:state.mailAudience==="todos",userIds,committeeIds,subject:f.subject,message:f.message,scheduledAt,attachments}),state.mailScheduled?"E-mail agendado.":"E-mail registrado para envio.");
- state.mailFiles=[];loadMailHistory();
+ const ok=await saveAndReload(()=>request("/mail","POST",{all:state.mailAudience==="todos",userIds,committeeIds,subject:f.subject,message:f.message,scheduledAt,attachments}),state.mailScheduled?"E-mail agendado.":"E-mail registrado para envio.");
+ if(ok){state.mailFiles=[];loadMailHistory()}
 }
 async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
- if(action==="back"){location.hash=state.previousRoute||"#/inicio";return}
+ if(action==="back"){if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}else location.hash="#/inicio";return}
  if(action==="mode"){state.mode=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
  if(action==="assignment-scope"){state.assignmentScope=b.dataset.value;$("#assignment-container").innerHTML=assignmentView();return}
@@ -396,7 +394,7 @@ async function handleSubmit(e){
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";sessionStorage.removeItem(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
- if(form.id==="meeting-form"){const f=userFields(form);await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Memória salva.");location.hash="#/demandas";return}
+ if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Memória salva.");if(ok)location.hash="#/demandas";return}
  if(form.id==="mail-form"){await sendMail(form);return}
  }catch(err){setToast(err.message)}
 }
@@ -412,7 +410,7 @@ async function handleChange(e){
    if(t.dataset.filter==="month"){state.month=val;state.week=0}
    if(t.dataset.filter==="year"){state.year=val;state.week=0}
    if(t.dataset.filter==="week")state.week=val;
-   sessionStorage.setItem("pet-gestao:period",JSON.stringify({year:state.year,month:state.month,week:state.week}));render();return;
+   localStorage.setItem("pet-gestao:period",JSON.stringify({year:state.year,month:state.month,week:state.week}));render();return;
  }
  if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
@@ -423,14 +421,15 @@ async function handleChange(e){
    const reader=new FileReader();reader.onload=()=>{$('input[name="imageData"]').value=String(reader.result)};reader.readAsDataURL(file);return;
  }
 }
-function onNavigation(){if(lastHash!==location.hash){state.previousRoute=lastHash;lastHash=location.hash}render();window.scrollTo({top:0})}
+function onNavigation(){if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}render();window.scrollTo({top:0})}
 function start(){
+ state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
  $("#account-button")?.addEventListener("click",()=>{location.hash=me?"#/conta":"#/login"});
  $("#admin-link")?.addEventListener("click",()=>{if(isAdmin())location.hash="#/admin"});
- $("#open-menu")?.addEventListener("click",()=>$("#sidebar").classList.add("open"));
- $("#close-menu")?.addEventListener("click",()=>$("#sidebar").classList.remove("open"));
- $("#overlay")?.addEventListener("click",()=>$("#sidebar").classList.remove("open"));
+ $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
+ $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
+ $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true});
  document.addEventListener("click",e=>{if(e.target.closest("[data-do]"))handleClick(e).catch(err=>setToast(err.message))});
  document.addEventListener("submit",e=>handleSubmit(e));
