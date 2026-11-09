@@ -36,14 +36,24 @@
   }
   async function seedAdmin(db,env){
     if(!env.ADMIN_EMAIL||!env.ADMIN_INITIAL_PASSWORD)return;
-    const exists=await db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first();
-    if(exists)return;
-    const mail=email(env.ADMIN_EMAIL),pw=String(env.ADMIN_INITIAL_PASSWORD);
-    if(!validEmail(mail)||pw.length<10)throw new Error("ADMIN_EMAIL ou ADMIN_INITIAL_PASSWORD inválido.");
-    const collision=await db.prepare("SELECT id FROM users WHERE email=?").bind(mail).first();
-    if(collision)throw new Error("O endereço do administrador pertence a uma conta não administrativa.");
-    const salt=randomToken(),hash=await pwHash(pw,salt),stamp=now();
-    await db.prepare("INSERT INTO users (id,name,email,pass_hash,pass_salt,role,created_at,updated_at) VALUES (?,?,?,?,?,'admin',?,?)").bind(uid(),"Admin",mail,hash,salt,stamp,stamp).run();
+    let phase="check-admin";
+    try {
+      const exists=await db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first();
+      if(exists)return;
+      phase="validate-admin";
+      const mail=email(env.ADMIN_EMAIL),pw=String(env.ADMIN_INITIAL_PASSWORD);
+      if(!validEmail(mail)||pw.length<10||pw.length>200)throw new Error("Credenciais iniciais inválidas.");
+      phase="check-email";
+      const collision=await db.prepare("SELECT id FROM users WHERE email=?").bind(mail).first();
+      if(collision)throw new Error("O endereço do administrador pertence a uma conta não administrativa.");
+      phase="hash-password";
+      const salt=randomToken(),hash=await pwHash(pw,salt),stamp=now();
+      phase="insert-admin";
+      await db.prepare("INSERT INTO users (id,name,email,pass_hash,pass_salt,role,created_at,updated_at) VALUES (?,?,?,?,?,'admin',?,?)").bind(uid(),"Admin",mail,hash,salt,stamp,stamp).run();
+    }catch(err){
+      err.safeStage="admin-"+phase;
+      throw err;
+    }
   }
   async function currentUser(req,db){
     const header=req.headers.get("authorization")||"";
@@ -466,7 +476,7 @@
     }catch(err){
       if((err.status||500)>=500)console.error("PET Gestão Worker:",diagnosticStage,err.message);
       const safeCode=err.message==="ADMIN_EMAIL ou ADMIN_INITIAL_PASSWORD inválido."?"ADMIN_SETUP_INVALID":(/D1_ERROR|no such table|SQLITE_|constraint failed/i.test(err.message)?"DATABASE_FAILURE":"SERVER_FAILURE");
-      return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:diagnosticStage},err.status||500);
+      return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
 export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil(processQueue(env,15))};
