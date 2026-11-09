@@ -13,6 +13,26 @@ await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));
 await test("controle de acesso",async()=>{assert.equal((await api("/admin/users")).status,401)});
 await test("login",async()=>{const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD}));token=r.token;assert.equal(r.user.role,"admin")});
 let a,b,task,meeting;
+await test("login administrativo independente",async()=>{
+ const bad=await api("/auth/admin-login","POST",{identifier:"Admin",password:"errada"});
+ assert.equal(bad.status,401);
+ const r=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:process.env.TEST_ADMIN_PASSWORD}));
+ assert.equal(r.user.role,"admin");assert.ok(r.token);
+});
+await test("cadastro começa como Usuário",async()=>{
+ good(await api("/auth/register","POST",{name:"Pessoa Teste",email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}),201);
+ const r=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
+ assert.equal(r.user.role,"usuario");
+ const users=good(await api("/admin/users")).users;
+ assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
+});
+await test("admin pode promover ou voltar à categoria Usuário",async()=>{
+ const id=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
+ good(await api("/admin/users/"+id,"PATCH",{role:"petiano",notificationEnabled:false}));
+ assert.equal(good(await api("/admin/users")).users.find(u=>u.id===id).role,"petiano");
+ good(await api("/admin/users/"+id,"PATCH",{role:"usuario",notificationEnabled:false}));
+ assert.equal(good(await api("/admin/users")).users.find(u=>u.id===id).role,"usuario");
+});
 await test("criar comissões",async()=>{good(await api("/commissions","POST",{name:"Teste Comissão A"}));good(await api("/commissions","POST",{name:"Teste Comissão B"}));const c=good(await api("/bootstrap")).committees;a=c.find(x=>x.name==="Teste Comissão A").id;b=c.find(x=>x.name==="Teste Comissão B").id});
 await test("editar comissão",async()=>{good(await api("/commissions/"+a,"PUT",{name:"Teste Renomeada",backgroundColor:"#123456"}));assert.equal(good(await api("/bootstrap")).committees.find(x=>x.id===a).backgroundColor,"#123456")});
 await test("mover comissões",async()=>{const ids=good(await api("/bootstrap")).committees.map(x=>x.id).reverse();good(await api("/admin/commission-order","PUT",{ids}));assert.equal(good(await api("/bootstrap")).committees[0].id,ids[0])});
