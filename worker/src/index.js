@@ -11,7 +11,7 @@
   const sha=async s=>hex(await crypto.subtle.digest("SHA-256",utf8.encode(s)));
   async function pwHash(password,salt){
     const key=await crypto.subtle.importKey("raw",utf8.encode(password),"PBKDF2",false,["deriveBits"]);
-    return hex(await crypto.subtle.deriveBits({name:"PBKDF2",salt:utf8.encode(salt),iterations:160000,hash:"SHA-256"},key,256));
+    return hex(await crypto.subtle.deriveBits({name:"PBKDF2",salt:utf8.encode(salt),iterations:100000,hash:"SHA-256"},key,256));
   }
   const json=(payload,status=200,origin="")=>new Response(JSON.stringify(payload),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Access-Control-Allow-Origin":origin,"Vary":"Origin"}});
   const fail=(message,status=400)=>{const e=new Error(message);e.status=status;throw e};
