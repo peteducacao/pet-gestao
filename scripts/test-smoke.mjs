@@ -417,7 +417,7 @@ await test("comissão exibe demanda mesmo fora da semana ou mês selecionado",as
  assert.ok(js.includes('const otherDates=all.filter(t=>!inPeriod.includes(t))'));
  assert.ok(js.includes('otherDates.map(t=>taskCard(t,cid))'));
  assert.ok(js.includes('state.assignmentScope=cid||t?.commissionIds?.length'));
- assert.ok(js.includes('(t?"Anotações":"Descrição (opcional)")'),"Preservar o rótulo Anotações na edição.");
+ assert.ok(js.includes('<label>Anotações<textarea rows="3" name="description"'),"Anotações no cadastro e na edição.");
  assert.ok(worker.includes('JSON.stringify(t.commissionIds)'),"A API deve guardar a comissão vinculada.");
 });
 await test("novo card grande compartilhado nas três áreas mostra foto da comissão",async()=>{
