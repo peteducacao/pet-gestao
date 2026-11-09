@@ -4,8 +4,8 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").replace(/\/$/,"");
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const current=new Date(), tokenKey="pet-gestao:session-token";
-let token=sessionStorage.getItem(tokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null;
+const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
+let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null;
 const state={year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
@@ -35,9 +35,11 @@ function empty(title,sub=""){return'<div class="empty"><span class="empty-icon">
 function button(label,route,primary=false){return'<a href="#/'+route+'" class="button '+(primary?"primary":"ghost")+'">'+esc(label)+'</a>'}
 function backButton(){return'<button type="button" class="button ghost" data-do="back">'+ico("chevron-left")+' Voltar</button>'}
 function routeParts(){const raw=decodeURIComponent((location.hash||"#/inicio").slice(2));const parts=raw.split("/");return{page:parts[0]||"inicio",parts:parts.slice(1)}}
-async function request(path,method="GET",payload){
+async function request(path,method="GET",payload,scope){
  if(!API)throw Error("URL da API ainda não publicada.");
- const headers={"Accept":"application/json"};if(token)headers.Authorization="Bearer "+token;
+ const headers={"Accept":"application/json"};
+ const activeToken=scope==="guest"?"":scope==="admin"||(!scope&&routeParts().page==="admin")?adminToken:token;
+ if(activeToken)headers.Authorization="Bearer "+activeToken;
  if(payload!==undefined)headers["Content-Type"]="application/json";
  const res=await fetch(API+"/api/v1"+path,{method,headers,body:payload===undefined?undefined:JSON.stringify(payload),cache:"no-store"});
  const obj=await res.json().catch(()=>({error:"Resposta inválida do servidor."}));
@@ -48,7 +50,9 @@ async function reload(){
  try{
    const b=await request("/bootstrap");data=b;me=b.session?.user||null;
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
-   if(token&&!me){token="";sessionStorage.removeItem(tokenKey)}
+   if(routeParts().page==="admin"){
+     if(adminToken&&(!me||me.role!=="admin")){adminToken="";sessionStorage.removeItem(adminTokenKey);me=null;}
+   }else if(token&&!me){token="";sessionStorage.removeItem(tokenKey)}
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
  }catch(e){data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}};me=null;
@@ -60,7 +64,7 @@ function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button> <a href="#/inicio">PET Educação</a> <span class="breadcrumb-slash">/</span> '+esc(routeNames[page]||"PET Gestão");
  const account=$("#account-button");if(account){account.innerHTML=ico("user")+'<span>'+esc(me?.name||"Acessar conta")+'</span>';account.setAttribute("aria-label",me?"Minha conta":"Entrar")}
- const admin=$("#admin-link");if(admin){admin.hidden=false;admin.classList.toggle("nav-locked",!isAdmin());admin.setAttribute("aria-label",isAdmin()?"Abrir administração":"Administração — acesso restrito");admin.innerHTML=ico("settings")+'<span>Administração</span>';admin.title="Administração"}
+ const admin=$("#admin-link");if(admin){admin.hidden=false;admin.classList.toggle("nav-locked",!adminToken);admin.setAttribute("aria-label","Abrir acesso à Administração");admin.innerHTML=ico("settings")+'<span>Administração</span>';admin.title="Administração"}
  $$(".nav-link[data-route]").forEach(el=>{el.classList.toggle("active",el.dataset.route===page);if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite()});
  $("#today-label").textContent=textDate(new Date());
  document.title=(routeNames[page]||"PET Educação")+" | PET Educação";
@@ -220,7 +224,7 @@ function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos 
 function renderReset(tokenPart){return header("Conta","Redefinir senha","O link é válido por 30 minutos e pode ser usado uma única vez.")+'<section class="card card-pad live-auth"><form id="reset-form" data-token="'+esc(tokenPart)+'" class="register-form"><label>Nova senha<span class="password-control"><input type="password" name="password" minlength="10" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Alterar senha</button></form></section>'}
 function renderAccount(){
  if(!me)return authRequired();
- return header("Pessoal","Minha conta","Identificação e preferências.")+'<section class="card card-pad live-auth"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Cargo:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":"Administração")+'</p>'+
+ return header("Pessoal","Minha conta","Identificação e preferências.")+'<section class="card card-pad live-auth"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Cargo:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
  '<h3>Alterar senha</h3><form id="change-password-form" class="register-form"><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><button class="button ghost" type="button" data-do="logout">Sair da conta</button></section>';
@@ -312,7 +316,7 @@ async function saveCommission(form){
 async function loadAdminUsers(){
  try{
  const {users}=await request("/admin/users"),target=$("#admin-users");if(!target)return;
- target.innerHTML=users.map(u=>'<div class="live-admin-row"><div><strong>'+esc(u.name)+'</strong><small>'+esc(u.email)+'</small></div><select class="select" data-role="'+esc(u.id)+'">'+[["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select><label><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'> Notificações</label><button class="button ghost small-action" data-do="save-user" data-id="'+esc(u.id)+'">Salvar</button><button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">Senha temporária</button></div>').join("");
+ target.innerHTML=users.map(u=>'<div class="live-admin-row"><div><strong>'+esc(u.name)+'</strong><small>'+esc(u.email)+'</small></div><select class="select" data-role="'+esc(u.id)+'">'+[["usuario","Usuário"],["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select><label><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'> Notificações</label><button class="button ghost small-action" data-do="save-user" data-id="'+esc(u.id)+'">Salvar</button><button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">Senha temporária</button></div>').join("");
  }catch(e){setToast(e.message)}
 }
 async function loadMailHistory(){
