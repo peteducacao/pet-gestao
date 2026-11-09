@@ -81,6 +81,8 @@ jobs:
           printf '%s' "$ADMIN_INITIAL_PASSWORD" | wrangler secret put ADMIN_INITIAL_PASSWORD --config wrangler.json
           printf '%s' "$MAIL_BRIDGE_TOKEN" | wrangler secret put MAIL_BRIDGE_TOKEN --config wrangler.json
           printf '%s' "$MAIL_BRIDGE_URL" | wrangler secret put MAIL_BRIDGE_URL --config wrangler.json
+      - name: Verificar Gmail sem enviar mensagens
+        run: node scripts/check-mail-bridge.mjs
       - name: Testar API após publicação
         run: |
           API_URL="$(cat api-url.txt)"
