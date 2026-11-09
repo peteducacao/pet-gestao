@@ -24,8 +24,9 @@ const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name|
 const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||selectedCommitteeNames(t)||"A definir";
 // Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
-const adminRole=u=>Boolean(u&&!u.mustChangePassword&&["tutor","admin"].includes(u.role));
-const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
+const hasAdminRole=u=>Boolean(u&&["tutor","admin"].includes(u.role));
+const adminRole=u=>Boolean(hasAdminRole(u)&&!u.mustChangePassword);
+const isAdmin=()=>Boolean(routeParts().page==="admin"&&hasAdminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
@@ -61,7 +62,7 @@ async function reload(){
    const b=await request("/bootstrap","GET",undefined,scope);
    data=b;
    me=inAdmin&&adminRole(regularMe)?regularMe:b.session?.user||null;
-   if(inAdmin&&adminToken&&!adminRole(me)){adminToken="";sessionStorage.removeItem(adminTokenKey)}
+   if(inAdmin&&adminToken&&!hasAdminRole(me)){adminToken="";sessionStorage.removeItem(adminTokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
