@@ -402,4 +402,11 @@ await test("Meu perfil fica em PESSOAL e a saída e identificação são legíve
  assert.ok(css.includes('.topbar .today-label{font-size:15px'));
  assert.ok(css.includes('.topbar .profile-button .account-identification strong{font-size:14px'));
 });
+await test("edição de demanda apresenta Anotações sem alterar descrição de comissão",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8");
+ assert.ok(ui.includes('(t?"Anotações":"Descrição (opcional)")'),"Anotações é o rótulo na edição de demanda.");
+ assert.ok(ui.includes('name="description"'),"Preserva campo e dados gravados.");
+ assert.ok(ui.includes('<label>Descrição (opcional)<textarea name="description"'),"Não alterar formulário de comissão.");
+});
 console.log(tests+" testes passaram no banco local isolado");
