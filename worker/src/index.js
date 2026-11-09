@@ -185,12 +185,19 @@
     if(origin&&!allowed.includes(origin))return json({error:"Origem não autorizada."},403,"");
     if(method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Methods":"GET,POST,PUT,PATCH,DELETE,OPTIONS","Access-Control-Allow-Headers":"Content-Type,Authorization","Access-Control-Max-Age":"3600","Vary":"Origin"}});
     const answer=(data,status=200)=>json(data,status,origin);
+    let diagnosticStage="request";
     try{
       if(path==="/api/v1/health")return answer({ok:true,service:"PET Gestão",database:!!db,now:now()});
       if(!db)fail("Banco D1 não conectado.",503);
+      diagnosticStage="admin-initialization";
       await seedAdmin(db,env);
+      diagnosticStage="session";
       const user=await currentUser(req,db);
-      if(path==="/api/v1/bootstrap"&&method==="GET")return answer(await bootstrap(db,user));
+      if(path==="/api/v1/bootstrap"&&method==="GET"){
+        diagnosticStage="bootstrap-query";
+        return answer(await bootstrap(db,user));
+      }
+      diagnosticStage="request";
       if(path==="/api/v1/auth/register"&&method==="POST"){
         const b=await body(req),name=str(b.name,120),mail=email(b.email),pw=String(b.password||"");
         if(name.length<2||!validEmail(mail)||pw.length<10||pw.length>200)fail("Informe nome, e-mail válido e senha com pelo menos 10 caracteres.");
@@ -457,8 +464,9 @@
       }
       fail("Rota não encontrada.",404);
     }catch(err){
-      if((err.status||500)>=500)console.error("PET Gestão Worker:",err.message);
-      return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente."},err.status||500);
+      if((err.status||500)>=500)console.error("PET Gestão Worker:",diagnosticStage,err.message);
+      const safeCode=err.message==="ADMIN_EMAIL ou ADMIN_INITIAL_PASSWORD inválido."?"ADMIN_SETUP_INVALID":(/D1_ERROR|no such table|SQLITE_|constraint failed/i.test(err.message)?"DATABASE_FAILURE":"SERVER_FAILURE");
+      return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:diagnosticStage},err.status||500);
     }
   }
 export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil(processQueue(env,15))};
