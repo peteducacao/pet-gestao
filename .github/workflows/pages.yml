@@ -2,6 +2,16 @@ name: PET Gestão — publicar aplicação real
 on:
   push:
     branches: [main]
+    paths:
+      - 'index.html'
+      - 'app-live.js'
+      - 'styles.css'
+      - 'live.css'
+      - 'config.js'
+      - 'assets/**'
+      - 'worker/**'
+      - 'scripts/prepare-deploy.mjs'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,7 +19,7 @@ permissions:
   id-token: write
 concurrency:
   group: pet-gestao-producao
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
