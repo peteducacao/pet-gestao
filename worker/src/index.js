@@ -67,6 +67,7 @@
   function ensure(user,admin=false){
     if(!user)fail("Entre na sua conta para continuar.",401);
     if(user.must_change_password)fail("Troque sua senha temporária antes de continuar.",403);
+    if((user.role_override||user.role)==="usuario")fail("Usuários possuem acesso somente à visualização.",403);
     if(admin&&user.role!=="admin")fail("Acesso restrito à Administração.",403);
   }
   function requireLogin(user){if(!user)fail("É necessário entrar na sua conta.",401)}
