@@ -319,6 +319,7 @@ function renderMailScheduling(){
 }
 function render(){
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
+ document.body.classList.toggle("admin-ui-active",page==="admin"&&isAdmin()&&!me?.mustChangePassword);
  if(!allowPage(page)){location.hash=me?"#/inicio":"#/login";if(me)setToast("Seu perfil possui acesso somente para visualização.");return}
  if(me?.mustChangePassword&&page!=="conta"&&page!=="admin"){location.hash="#/conta";return}
  let html="";
@@ -338,7 +339,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
- if(page==="admin"&&adminToken&&isAdmin()){loadAdminUsers();loadMailHistory();renderMailRecipients();renderMailScheduling()}
+ if(page==="admin"&&isAdmin()&&!me?.mustChangePassword){loadAdminUsers();loadMailHistory();if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling()}}
 }
 function askNotification(){return canNotify()?window.confirm("Deseja notificar os(as) responsáveis por e-mail sobre esta alteração?"):false}
 async function saveAndReload(action,success="Alterações salvas."){
@@ -388,7 +389,7 @@ async function loadAdminUsers(){
  }catch(e){setToast(e.message)}
 }
 async function loadMailHistory(){
- try{const r=await request("/mail","GET",undefined,"admin"),box=$("#mail-history");if(box)box.innerHTML=r.items.length?r.items.map(x=>'<div class="live-admin-row"><div><strong>'+esc(x.subject)+'</strong><small>'+textDate(x.scheduled_at)+' · '+(Array.isArray(x.recipientEmails)?x.recipientEmails.length:0)+' destinatários</small><small>'+esc(x.error_message||"")+'</small></div><span class="pill '+(x.status==="enviado"?"mint":"soft")+'">'+esc(x.status)+'</span>'+(x.status==="falhou"&&!x.body?.startsWith("[Envio com anexos")?'<button type="button" class="button ghost small-action" data-do="retry-mail" data-id="'+esc(x.id)+'">Tentar novamente</button>':"")+'</div>').join(""):empty("Nenhum e-mail registrado");
+ try{const r=await request("/mail","GET",undefined,"admin"),box=$("#mail-history");state.mailItems=Array.isArray(r.items)?r.items:[];const metric=$("#admin-mail-count");if(metric)metric.textContent=String(state.mailItems.length);if(box)box.innerHTML=state.mailItems.length?state.mailItems.map(x=>'<div class="live-admin-row"><div><strong>'+esc(x.subject)+'</strong><small>'+textDate(x.scheduled_at)+' · '+(Array.isArray(x.recipientEmails)?x.recipientEmails.length:0)+' destinatários</small><small>'+esc(x.error_message||"")+'</small></div><span class="pill '+(x.status==="enviado"?"mint":"soft")+'">'+esc(x.status)+'</span>'+(x.status==="falhou"&&!x.body?.startsWith("[Envio com anexos")?'<button type="button" class="button ghost small-action" data-do="retry-mail" data-id="'+esc(x.id)+'">Tentar novamente</button>':"")+'</div>').join(""):empty("Nenhum e-mail registrado");
  }catch(e){setToast(e.message)}
 }
 const fileData=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file)});
@@ -414,6 +415,15 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="admin-tab"){
+  if(!isAdmin())return;
+  state.adminTab=b.dataset.value;
+  state.adminMenuOpen=false;
+  render();
+  window.scrollTo({top:0});
+  return;
+ }
+ if(action==="admin-menu"){state.adminMenuOpen=!state.adminMenuOpen;render();return}
  if(action==="back"){if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}else location.hash="#/inicio";return}
  if(action==="mode"){state.mode=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
@@ -442,11 +452,16 @@ async function handleClick(e){
    await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE"),"Demanda removida definitivamente.");return;
  }
  if(action==="admin-signout"){
+   if(adminRole(regularMe)){
+     state.adminTab="painel";state.adminMenuOpen=false;
+     location.hash="#/inicio";setToast("Você voltou ao PET Gestão.");return;
+   }
    try{await request("/auth/logout","POST",{},"admin")}catch{}
    adminToken="";sessionStorage.removeItem(adminTokenKey);
-   await reload();setToast("Sessão administrativa encerrada.");return;
+   state.adminTab="painel";state.adminMenuOpen=false;
+   location.hash="#/inicio";setToast("Sessão administrativa encerrada.");return;
  }
- if(action==="logout"){try{await request("/auth/logout","POST",{})}catch{}token="";me=null;sessionStorage.removeItem(tokenKey);await reload();location.hash="#/inicio";return}
+ if(action==="logout"){try{await request("/auth/logout","POST",{},"user")}catch{}token="";me=null;regularMe=null;adminToken="";sessionStorage.removeItem(tokenKey);sessionStorage.removeItem(adminTokenKey);await reload();location.hash="#/inicio";return}
  if(action==="move-commission"){
    const ids=data.committees.map(x=>x.id),old=ids.indexOf(tid),target=old+Number(b.dataset.direction);[ids[old],ids[target]]=[ids[target],ids[old]];
    await saveAndReload(()=>request("/admin/commission-order","PUT",{ids}),"Ordem salva.");return;
@@ -525,7 +540,7 @@ async function handleChange(e){
 function onNavigation(){
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
- if(wasAdmin!==nowAdmin)reload();else render();
+ if(wasAdmin!==nowAdmin){state.adminMenuOpen=false;reload()}else render();
  window.scrollTo({top:0});
 }
 function start(){
