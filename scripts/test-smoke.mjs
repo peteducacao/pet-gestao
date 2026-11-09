@@ -420,4 +420,24 @@ await test("comissão exibe demanda mesmo fora da semana ou mês selecionado",as
  assert.ok(js.includes('(t?"Anotações":"Descrição (opcional)")'),"Preservar o rótulo Anotações na edição.");
  assert.ok(worker.includes('JSON.stringify(t.commissionIds)'),"A API deve guardar a comissão vinculada.");
 });
+await test("novo card grande compartilhado nas três áreas mostra foto da comissão",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
+ assert.ok(ui.includes('class="placeholder-row task-list-row demand-activity-card"'));
+ assert.ok(ui.includes('const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean)'));
+ assert.ok(ui.includes("selected?.imageData"));
+ assert.ok(ui.includes("commissionDefaultArt(selected.name)"),"Sem foto usa arte padrão da comissão.");
+ assert.ok(ui.includes('class="demand-activity-photo"'));
+ assert.ok(ui.includes('class="activity-details-link demand-activity-action"'));
+ assert.ok(ui.includes('Data</span>'));
+ assert.ok(ui.includes('Responsáveis</span>'));
+ assert.ok(ui.includes('const progress=taskProgress(t)'));
+ assert.ok(ui.includes('next.map(t=>taskCard(t))'),"Visão geral usa mesmo card.");
+ assert.ok(ui.includes('inPeriod.map(t=>taskCard(t,cid))'),"Comissão usa mesmo card.");
+ assert.ok(ui.includes('otherDates.map(t=>taskCard(t,cid))'),"Comissão mantém tarefas fora do período.");
+ assert.ok(ui.includes('list.map(t=>'));
+ assert.ok(css.includes('#screen .demand-activity-card{'));
+ assert.ok(css.includes('#screen .dashboard-grid .demand-activity-card{'));
+ assert.ok(css.includes('@media(max-width:560px)'));
+});
 console.log(tests+" testes passaram no banco local isolado");

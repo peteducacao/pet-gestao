@@ -199,10 +199,33 @@ function filtered(t,mode=state.mode){
 function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()-2+i);
  return'<div class="filters"><div class="filter-item"><label>MÊS</label><select class="select" data-filter="month">'+MONTHS.map((v,i)=>opt(i,v,state.month)).join("")+'</select></div><div class="filter-item"><label>ANO</label><select class="select" data-filter="year">'+years.map(y=>opt(y,y,state.year)).join("")+'</select></div><div class="filter-item"><label>SEMANA</label><select class="select" data-filter="week"><option value="0">Todas as semanas</option>'+weeks(state.year,state.month).map(w=>opt(w.n,"Semana "+w.n+" ("+w.start+"–"+w.end+")",state.week)).join("")+'</select></div><button type="button" class="button ghost" data-do="today">Hoje</button></div>'
 }
+// Card único para Visão geral, Demandas, Comissões, Cronograma e Minhas pendências.
+// Prioriza a imagem específica da comissão onde a tarefa está sendo consultada.
 function taskCard(t,commissionId){
+ const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean);
  const progress=taskProgress(t);
- return '<article class="placeholder-row task-list-row"><div class="task-list-body"><div class="task-title-row"><strong>'+esc(t.title)+'</strong><span class="task-date-badge">'+ico("calendar")+' '+textDate(taskDate(t))+'</span></div><small>'+esc((t.commissionIds||[]).length?((t.commissionIds||[]).length===1?"Comissão: ":"Comissões: ")+selectedCommitteeNames(t):"Demanda geral")+'</small>'+
- (me?'<a class="activity-details-link" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'">Ver detalhes '+ico("arrow")+'</a>':"")+'</div><div class="task-row-meta"><span class="task-assignee-label">'+(me?'<strong>Responsáveis:</strong> '+esc(who(t)):"")+'</span>'+stateBadge(t)+(me&&!t.archivedAt&&progress.done?'<span class="pill soft">'+progress.done+'/'+progress.total+' participações concluídas</span>':"")+'</div></article>';
+ const photo=selected?.imageData
+  ?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="Imagem da comissão '+esc(selected.name)+'" loading="lazy">'
+  :selected?commissionDefaultArt(selected.name):ico("checklist");
+ const groupLabel=ids.length?selectedCommitteeNames(t):"Demanda geral";
+ const date=textDate(taskDate(t));
+ return '<article class="placeholder-row task-list-row demand-activity-card">'+
+  '<div class="demand-activity-identity">'+
+   '<span class="demand-activity-art" aria-hidden="true">'+photo+'</span>'+
+   '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+
+    '<span class="demand-activity-commission">'+ico("users")+'<span>'+(ids.length?(ids.length===1?"Comissão: ":"Comissões: "):"")+esc(groupLabel)+'</span></span>'+
+   '</div></div>'+
+  '<div class="demand-activity-fact demand-activity-date">'+
+    '<span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
+    '<div><span class="demand-activity-label">Data</span><strong>'+esc(date)+'</strong></div></div>'+
+  (me?'<div class="demand-activity-fact demand-activity-owners">'+
+    '<span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
+    '<div><span class="demand-activity-label">Responsáveis</span><strong class="'+((t.assigneeIds||[]).length?"":"demand-activity-undesignated")+'">'+esc(who(t))+'</strong>'+
+    (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+
+    (t.archivedAt?'<small class="demand-activity-progress demand-activity-complete">Concluída</small>':"")+
+    '</div></div>':"")+
+  (me?'<a class="activity-details-link demand-activity-action" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'" aria-label="Ver detalhes de '+esc(t.title)+'">'+ico("search")+'<span>Ver detalhes</span>'+ico("arrow")+'</a>':"")+
+ '</article>';
 }
 function renderHome(){
  const all=data.tasks.filter(active),next=[...all].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=all.filter(isLate).length;
