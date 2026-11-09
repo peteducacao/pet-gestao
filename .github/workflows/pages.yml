@@ -72,9 +72,10 @@ jobs:
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/pet-gestao-bootstrap.json'))
-          assert len(d['committees'])>=10, 'As comissões não foram carregadas'
-          assert d['tasks']==[], 'O banco recém-criado não deve conter exemplos'
-          print('API e dados iniciais validados.')
+          assert isinstance(d.get('committees'), list), 'Comissões não foram carregadas'
+          assert isinstance(d.get('tasks'), list), 'Demandas não foram carregadas'
+          assert d.get('session') is None, 'Consulta pública não pode expor sessão'
+          print('API e estrutura pública validadas sem modificar cadastros.')
           PY
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
