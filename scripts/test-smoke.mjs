@@ -179,7 +179,7 @@ await test("painel de e-mails apresenta monitoramento sem enviar automaticamente
  assert.ok(js.includes('Fila atual ('));
  assert.ok(js.includes('Histórico recente ('));
  assert.ok(js.includes('mail-monitor-refresh'));
- assert.ok(js.includes('mail-status'));
+ assert.ok(js.includes('mailStatusPanel'));
  assert.ok(worker.includes('if(path==="/api/v1/mail/status"'));
  assert.ok(worker.includes('if(!health.connected)fail('));
 });
