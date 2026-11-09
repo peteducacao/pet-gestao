@@ -55,9 +55,14 @@ await test("Tutor possui acesso administrativo completo",async()=>{
    assert.equal(scheduled.status,"agendado");
    const history=good(await api("/mail")).items;
    assert.ok(history.some(x=>x.id===scheduled.id&&x.recipientEmails.includes("teste-usuario@pet.local")));
+   const status=good(await api("/mail/status"));
+   assert.equal(status.connected,false,"O teste isolado não pode fingir que existe integração Gmail.");
+   assert.equal(status.code,"UNCONFIGURED");
+   const before=good(await api("/mail")).items.length;
    const immediate=await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de fila imediata local",message:"Fila isolada, não enviada ao Gmail."});
-   assert.equal(immediate.ok,true);
-   assert.ok(immediate.id);
+   assert.equal(immediate.status,503,"Não se deve registrar um envio quando a integração está desconectada.");
+   assert.equal(good(await api("/mail")).items.length,before,"Falha da ponte não pode criar e-mail pendente.");
+   assert.equal((await api("/mail/retry","POST",{id:scheduled.id})).status,503);
    assert.equal((await api("/mail","POST",{all:false,userIds:[],subject:"Sem destino",message:"Não pode enviar"})).status,400);
  }finally{
    token=admin;
@@ -137,5 +142,45 @@ await test("painel usa apenas áreas existentes e respeita identidade",async()=>
  assert.ok(css.includes('.admin-layout{'));
  assert.ok(css.includes('#admin-link[hidden]{display:none!important}'));
  assert.ok(html.includes('id="account-button"'));
+});
+await test("ponte Google Apps Script rejeita token inválido e testa sem enviar",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const {runInNewContext}=await import("node:vm");
+ const source=readFileSync("integracoes/AppsScript_PET_Gestao.gs","utf8");
+ const tokenValue="x".repeat(48),outbox=[];
+ const props={PET_GESTAO_MAIL_TOKEN:tokenValue};
+ const environment={
+  JSON,Array,String,Error,Number,
+  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||""})},
+  ContentService:{MimeType:{JSON:"JSON"},createTextOutput:content=>({setMimeType(){return this},getContent(){return content}})},
+  MailApp:{getRemainingDailyQuota:()=>500,sendEmail:x=>{outbox.push(x)}},
+  LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock:()=>{}})},
+  Utilities:{base64Decode:base64=>Buffer.from(base64,"base64"),newBlob:(bytes,mime,name)=>({bytes,mime,name})}
+ };
+ runInNewContext(source,environment,{timeout:1500});
+ const post=obj=>JSON.parse(environment.doPost({postData:{contents:JSON.stringify(obj)}}).getContent());
+ const denied=post({acao:"enviar",token:"errada",para:["teste@pet.local"],assunto:"Teste",mensagem:"Teste"});
+ assert.equal(denied.codigo,"NAO_AUTORIZADO");
+ assert.equal(outbox.length,0);
+ const status=post({acao:"status",token:tokenValue});
+ assert.equal(status.ok,true);
+ assert.equal(status.servico,"pet-gestao");
+ assert.equal(outbox.length,0,"Consulta de status não deve enviar mensagem.");
+ const sent=post({acao:"enviar",token:tokenValue,para:["teste@pet.local"],assunto:"Teste controlado",mensagem:"Mensagem simulada."});
+ assert.equal(sent.ok,true);
+ assert.equal(outbox.length,1,"Simulação deve registrar só um envio, sem chamar Gmail real.");
+ assert.equal(outbox[0].to,"teste@pet.local");
+ assert.equal(post({acao:"enviar",token:tokenValue,para:[],assunto:"Teste",mensagem:"Teste"}).ok,false);
+});
+await test("painel de e-mails apresenta monitoramento sem enviar automaticamente",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const js=readFileSync("app-live.js","utf8");
+ const worker=readFileSync("worker/src/index.js","utf8");
+ assert.ok(js.includes('Fila atual ('));
+ assert.ok(js.includes('Histórico recente ('));
+ assert.ok(js.includes('mail-monitor-refresh'));
+ assert.ok(js.includes('mail-status'));
+ assert.ok(worker.includes('if(path==="/api/v1/mail/status"'));
+ assert.ok(worker.includes('if(!health.connected)fail('));
 });
 console.log(tests+" testes passaram no banco local isolado");
