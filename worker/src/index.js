@@ -88,8 +88,8 @@
     await db.prepare("INSERT INTO auth_attempts(email,attempts,started_at,blocked_until) VALUES(?,?,?,?) ON CONFLICT(email) DO UPDATE SET attempts=excluded.attempts,started_at=excluded.started_at,blocked_until=excluded.blocked_until").bind(mail,attempts,recent?prev.started_at:now(),attempts>=6?isoAfter(15):null).run();
   }
   const privateTask=t=>{
-    const o={...t,commissionIds:asJson(t.commission_ids,[]),assigneeIds:asJson(t.assignee_ids,[]),commissionDone:asJson(t.commission_done,{}),deadlines:asJson(t.deadlines,[])};
-    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,deadlines:o.deadlines,status:o.status,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
+    const o={...t,commissionIds:asJson(t.commission_ids,[]),assigneeIds:asJson(t.assignee_ids,[]),commissionDone:asJson(t.commission_done,{}),userDone:asJson(t.user_done,{}),deadlines:asJson(t.deadlines,[])};
+    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
   };
   const publicTask=t=>({id:t.id,title:t.title,registeredAt:t.registered_at,commissionIds:asJson(t.commission_ids,[]),commissionDone:asJson(t.commission_done,{}),status:t.status,archivedAt:t.archived_at,deadlines:asJson(t.deadlines,[]).map(d=>({label:d.label,dueAt:d.dueAt,completedAt:d.completedAt||null}))});
   async function bootstrap(db,user){
@@ -416,6 +416,7 @@
         if(t.commissionIds.some(x=>!validC.includes(x))||t.assigneeIds.some(x=>!validU.includes(x)))fail("Comissão ou responsável inválido.");
         const gone=Object.keys(old.commissionDone||{}).some(id=>!t.commissionIds.includes(id));
         if(gone)fail("Não remova comissões que já concluíram a demanda.");
+        if(Object.keys(old.userDone||{}).some(id=>!t.assigneeIds.includes(id)))fail("Não remova pessoas que já concluíram sua participação.");
         const oldStages=new Map(old.deadlines.map(d=>[d.id,d]));
         t.deadlines=t.deadlines.map(d=>{const previous=oldStages.get(d.id);return previous&&previous.label===d.label&&previous.dueAt===d.dueAt?{...d,completedAt:previous.completedAt||null,commissionCompleted:previous.commissionCompleted||{}}:{...d,completedAt:null,commissionCompleted:{}}});
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),user.id,stamp,old.id,old.version).run();
@@ -441,32 +442,35 @@
           await askNotify(db,env,ctx,user,b,old,"Observações","atualizou as observações");
           return answer({ok:true});
         }
-        if(match[2]==="status"){
-          if(!["pendente","aprovada"].includes(b.status))fail("Situação inválida.");
-          await db.prepare("UPDATE tasks SET status=?,updated_by=?,updated_at=?,version=version+1 WHERE id=?").bind(b.status,user.id,stamp,old.id).run();
-          await audit(db,old.id,user,b.status==="aprovada"?"Aprovou e liberou para postagem":"Marcou como pendente");
-          await askNotify(db,env,ctx,user,b,old,"Situação","alterou a situação");
-          return answer({ok:true});
+        if(match[2]==="status")fail("Utilize apenas a opção Concluir, sem estados de pendência ou aprovação.",410);
+        // Conclusão pessoal é estritamente da conta autenticada.
+        // Conclusão da comissão pode ser registrada somente por integrante.
+        const commissionIds=old.commissionIds||[],assigneeIds=old.assigneeIds||[];
+        const commissionId=str(b.commissionId,100),done={...old.commissionDone},userDone={...(old.userDone||{})};
+        if(commissionId){
+          if(!commissionIds.includes(commissionId))fail("Comissão não vinculada à demanda.",403);
+          const member=await db.prepare("SELECT 1 AS allowed FROM commission_members WHERE commission_id=? AND user_id=?").bind(commissionId,user.id).first();
+          if(!member)fail("Somente integrantes desta comissão podem concluir sua participação.",403);
+          if(done[commissionId])return answer({ok:true,alreadyDone:true,archived:false});
+          done[commissionId]={at:stamp,by:user.id,byName:user.name};
+        }else{
+          if(!assigneeIds.includes(user.id))fail("A demanda não está atribuída à sua conta.",403);
+          if(userDone[user.id])return answer({ok:true,alreadyDone:true,archived:false});
+          userDone[user.id]={at:stamp,by:user.id,byName:user.name};
         }
-        const ids=old.commissionIds,commissionId=str(b.commissionId,100);
-        if(ids.length&&!ids.includes(commissionId))fail("Selecione uma comissão vinculada.");
-        if(!ids.length&&commissionId)fail("Esta demanda não tem comissão vinculada.");
-        const done={...old.commissionDone};if(commissionId&&done[commissionId])return answer({ok:true,alreadyDone:true});
-        if(!commissionId&&old.status==="concluida")return answer({ok:true,alreadyDone:true});
-        if(commissionId)done[commissionId]={at:stamp,by:user.id,byName:user.name};
-        const finished=ids.length?ids.every(x=>Boolean(done[x])):true;
+        const finished=commissionIds.every(id=>Boolean(done[id]))&&assigneeIds.every(id=>Boolean(userDone[id]));
         const stages=old.deadlines.map(d=>{
           const copy={...d,commissionCompleted:{...(d.commissionCompleted||{})}};
           if(commissionId)copy.commissionCompleted[commissionId]={at:stamp,by:user.id};
           if(finished)copy.completedAt=stamp;
           return copy;
         });
-        // Controle de versão para duas comissões concluídas simultaneamente.
-        const result=await db.prepare("UPDATE tasks SET commission_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
-        if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e confirme novamente.",409);
-        await audit(db,old.id,user,commissionId?"Concluiu participação da comissão "+(await db.prepare("SELECT name FROM commissions WHERE id=?").bind(commissionId).first())?.name:"Concluiu a demanda",b.early?"Conclusão antecipada confirmada":"");
-        await askNotify(db,env,ctx,user,b,old,"Conclusão","concluiu a atividade");
-        return answer({ok:true,archived:finished,remaining:ids.filter(x=>!done[x])});
+        const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
+        if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
+        const action=commissionId?"Concluiu participação da comissão "+(await db.prepare("SELECT name FROM commissions WHERE id=?").bind(commissionId).first())?.name:"Concluiu sua participação individual";
+        await audit(db,old.id,user,action,b.early?"Conclusão antecipada confirmada":"");
+        await askNotify(db,env,ctx,user,b,old,"Conclusão","concluiu sua participação");
+        return answer({ok:true,archived:finished,remainingCommissions:commissionIds.filter(id=>!done[id]),remainingUsers:assigneeIds.filter(id=>!userDone[id])});
       }
       if(path==="/api/v1/meetings"&&method==="POST"){
         ensure(user);const b=await body(req),title=str(b.title,180),date=standardTime(b.date);

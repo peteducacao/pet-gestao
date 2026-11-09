@@ -135,10 +135,67 @@ await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir
  }finally{token=original}
 });
 await test("editar demanda",async()=>{good(await api("/tasks/"+task,"PUT",{title:"Teste Editado",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}));assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===task).title,"Teste Editado")});
-await test("observações e aprovação",async()=>{good(await api("/tasks/"+task+"/notes","PATCH",{captionText:"Observação"}));good(await api("/tasks/"+task+"/status","PATCH",{status:"aprovada"}))});
-await test("conclusão independente",async()=>{const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:a,early:true}));assert.equal(r.archived,false)});
+await test("observações e sem status antigos",async()=>{
+ good(await api("/tasks/"+task+"/notes","PATCH",{captionText:"Observação"}));
+ assert.equal((await api("/tasks/"+task+"/status","PATCH",{status:"aprovada"})).status,410);
+});
+await test("conclusão independente",async()=>{
+ for(const cid of [a,b]){
+   const row=good(await api("/bootstrap")).committees.find(c=>c.id===cid);
+   good(await api("/commissions/"+cid,"PUT",{name:row.name,maxMembers:1}));
+   good(await api("/commissions/"+cid+"/join","POST",{});
+ }
+ const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:a,early:true}));
+ assert.equal(r.archived,false);
+ assert.equal(r.remainingCommissions.length,1);
+});
 await test("arquivamento",async()=>{const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:b,early:true}));assert.equal(r.archived,true)});
 await test("exclusão definitiva",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
+await test("cada pessoa conclui apenas sua própria tarefa e a última conclusão arquiva",async()=>{
+ const adminToken=token,admin=good(await api("/auth/me")).user;
+ const other=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+ good(await api("/admin/users/"+other.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+ try{
+   const created=good(await api("/tasks","POST",{
+     title:"Teste duas participações individuais",commissionIds:[],assigneeIds:[admin.id,other.id],
+     deadlines:[{id:"prazoIndividual",label:"Prazo",dueAt}]
+   }),201).id;
+   const petToken=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+   token=petToken;
+   assert.equal((await api("/tasks/"+created+"/finish","PATCH",{commissionId:a})).status,403,"Não pode concluir como comissão não atribuída.");
+   const r=good(await api("/tasks/"+created+"/finish","PATCH",{userId:admin.id,early:true}));
+   assert.equal(r.archived,false);
+   const state=good(await api("/bootstrap")).tasks.find(x=>x.id===created);
+   assert.ok(state.userDone[other.id]);
+   assert.ok(!state.userDone[admin.id],"Não pode marcar conclusão de outra pessoa.");
+   assert.ok(!state.archivedAt);
+   assert.equal(good(await api("/tasks/"+created+"/finish","PATCH",{})).alreadyDone,true);
+   token=adminToken;
+   const ended=good(await api("/tasks/"+created+"/finish","PATCH",{}));
+   assert.equal(ended.archived,true);
+   const saved=good(await api("/bootstrap")).tasks.find(x=>x.id===created);
+   assert.ok(saved.userDone[admin.id]&&saved.userDone[other.id]&&saved.archivedAt);
+   good(await api("/tasks/"+created,"DELETE"));
+ }finally{
+   token=adminToken;
+   good(await api("/admin/users/"+other.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+ }
+});
+await test("comissão e pessoa podem concluir independentemente na mesma demanda",async()=>{
+ const admin=good(await api("/auth/me")).user;
+ const created=good(await api("/tasks","POST",{
+   title:"Teste comissão e pessoa",commissionIds:[a],assigneeIds:[admin.id],
+   deadlines:[{id:"prazoMisto",label:"Prazo",dueAt}]
+ }),201).id;
+ const first=good(await api("/tasks/"+created+"/finish","PATCH",{commissionId:a}));
+ assert.equal(first.archived,false);
+ const interim=good(await api("/bootstrap")).tasks.find(x=>x.id===created);
+ assert.ok(interim.commissionDone[a]);
+ assert.ok(!interim.userDone[admin.id]);
+ const last=good(await api("/tasks/"+created+"/finish","PATCH",{}));
+ assert.equal(last.archived,true);
+ good(await api("/tasks/"+created,"DELETE"));
+});
 await test("criar memória",async()=>{good(await api("/meetings","POST",{title:"Memória Teste",date:dueAt,rawNotes:"Responsável: teste"}));meeting=good(await api("/bootstrap")).meetings.find(x=>x.title==="Memória Teste").id});
 await test("editar e excluir memória",async()=>{good(await api("/meetings/"+meeting,"PUT",{title:"Memória Editada",date:dueAt}));good(await api("/meetings/"+meeting,"DELETE"))});
 await test("excluir comissões",async()=>{good(await api("/commissions/"+a,"DELETE"));good(await api("/commissions/"+b,"DELETE"))});
@@ -310,5 +367,24 @@ await test("seção SISTEMA e Administração somente Admin e Tutor sem piscar n
  assert.ok(src.includes('const adminVisible=adminRole(regularMe);'));
  assert.ok(src.includes('if(adminCaption)adminCaption.hidden=!adminVisible'));
  assert.ok(src.includes('if(adminGroup)adminGroup.hidden=!adminVisible'));
+});
+await test("roteamento por comissão, pessoas e todos; somente conclusão como status visível",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8"),worker=readFileSync("worker/src/index.js","utf8");
+ const migration=readFileSync("worker/migrations/0004_user_done.sql","utf8");
+ assert.ok(migration.includes("ALTER TABLE tasks ADD COLUMN user_done"));
+ assert.ok(ui.includes('isTaskAssignedToMe(t)&&!isUserDone(t,me.id)'));
+ assert.ok(ui.includes('data-do="finish-personal"'));
+ assert.ok(ui.includes('canCompleteCommission(cid)'));
+ assert.ok(ui.includes('const taskProgress='));
+ assert.ok(ui.includes('state.assignmentScope==="todos"?data.users.filter'));
+ assert.ok(ui.includes('commissions=state.assignmentScope==="todos"?[]'));
+ assert.ok(!ui.includes('data-do="save-status"'));
+ assert.ok(!ui.includes('data-do="choose-status"'));
+ assert.ok(!ui.includes('["pendentes","Pendentes"]'));
+ assert.ok(!ui.includes('["aprovadas","Aprovadas"]'));
+ assert.ok(worker.includes('if(!assigneeIds.includes(user.id))'));
+ assert.ok(worker.includes('if(!member)fail('));
+ assert.ok(worker.includes('const finished=commissionIds.every('));
 });
 console.log(tests+" testes passaram no banco local isolado");

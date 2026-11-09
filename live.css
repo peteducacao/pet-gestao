@@ -348,3 +348,10 @@ body.auth-message-open{overflow:hidden}
 
 /* Associação de comissões e atribuições individuais explicitamente diferenciadas. */
 .assignment-help{font-size:12px;line-height:1.55;color:#7a7189;margin:8px 0 13px}
+
+/* Conclusão pessoal: ação própria visível na lista, sem estados intermediários. */
+.mine-task-item{padding:0 0 16px;margin-bottom:16px;border-bottom:1px solid #ece9f5}
+.mine-task-item:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+.mine-task-item>.task-list-row{border:0!important}
+.mine-task-item>.button{margin:8px 0 0 14px;font-weight:750}
+@media(max-width:600px){.mine-task-item>.button{display:flex;width:calc(100% - 28px);justify-content:center}}

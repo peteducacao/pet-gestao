@@ -37,8 +37,12 @@ const isAdmin=()=>Boolean(routeParts().page==="admin"&&hasAdminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
-const stateBadge=t=>t.archivedAt?'<span class="pill mint">Concluída</span>':isLate(t)?'<span class="pill overdue-pill">Atrasada</span>':t.status==="aprovada"?'<span class="pill mint">Aprovada</span>':'<span class="pill soft">Pendente</span>';
+const stateBadge=t=>t.archivedAt?'<span class="pill mint">Concluída</span>':"";
 const completedCount=t=>Object.keys(t.commissionDone||{}).length;
+const isUserDone=(task,uid)=>Boolean(task.userDone?.[uid]);
+const isTaskAssignedToMe=task=>Boolean(me&&(task.assigneeIds||[]).includes(me.id));
+const canCompleteCommission=cid=>Boolean(me&&(committee(cid)?.memberIds||[]).includes(me.id));
+const taskProgress=task=>({done:Object.keys(task.commissionDone||{}).length+Object.keys(task.userDone||{}).length,total:(task.commissionIds||[]).length+(task.assigneeIds||[]).length});
 const commissionFinished=(t,cid)=>Boolean(t.commissionDone?.[cid]);
 function setConnecting(show,label="Conectando ao PET Gestão..."){
  const modal=$("#connecting-popup");
@@ -187,8 +191,6 @@ function taskDate(t){return stages(t).filter(x=>!x.completedAt&&x.dueAt).map(x=>
 function filtered(t,mode=state.mode){
  if(mode==="arquivo")return Boolean(t.archivedAt);
  if(!active(t))return false;
- if(mode==="aprovadas")return t.status==="aprovada";
- if(mode==="pendentes")return t.status!=="aprovada";
  const d=dt(taskDate(t));if(!d)return false;
  if(d.getFullYear()!==state.year||d.getMonth()!==state.month)return false;
  if(mode==="semanal")return !state.week||weekFor(d)===state.week;
@@ -198,19 +200,19 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
  return'<div class="filters"><div class="filter-item"><label>MÊS</label><select class="select" data-filter="month">'+MONTHS.map((v,i)=>opt(i,v,state.month)).join("")+'</select></div><div class="filter-item"><label>ANO</label><select class="select" data-filter="year">'+years.map(y=>opt(y,y,state.year)).join("")+'</select></div><div class="filter-item"><label>SEMANA</label><select class="select" data-filter="week"><option value="0">Todas as semanas</option>'+weeks(state.year,state.month).map(w=>opt(w.n,"Semana "+w.n+" ("+w.start+"–"+w.end+")",state.week)).join("")+'</select></div><button type="button" class="button ghost" data-do="today">Hoje</button></div>'
 }
 function taskCard(t,commissionId){
- const total=(t.commissionIds||[]).length,done=completedCount(t);
+ const progress=taskProgress(t);
  return '<article class="placeholder-row task-list-row"><div class="task-list-body"><div class="task-title-row"><strong>'+esc(t.title)+'</strong><span class="task-date-badge">'+ico("calendar")+' '+textDate(taskDate(t))+'</span></div><small>'+esc((t.commissionIds||[]).length?((t.commissionIds||[]).length===1?"Comissão: ":"Comissões: ")+selectedCommitteeNames(t):"Demanda geral")+'</small>'+
- (me?'<a class="activity-details-link" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'">Ver detalhes '+ico("arrow")+'</a>':"")+'</div><div class="task-row-meta"><span class="task-assignee-label">'+(me?'<strong>Responsáveis:</strong> '+esc(who(t)):"")+'</span>'+stateBadge(t)+(total>1&&done?'<span class="pill soft">'+done+'/'+total+' comissões concluídas</span>':"")+'</div></article>'
+ (me?'<a class="activity-details-link" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'">Ver detalhes '+ico("arrow")+'</a>':"")+'</div><div class="task-row-meta"><span class="task-assignee-label">'+(me?'<strong>Responsáveis:</strong> '+esc(who(t)):"")+'</span>'+stateBadge(t)+(me&&!t.archivedAt&&progress.done?'<span class="pill soft">'+progress.done+'/'+progress.total+' participações concluídas</span>':"")+'</div></article>';
 }
 function renderHome(){
  const all=data.tasks.filter(active),next=[...all].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=all.filter(isLate).length;
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[all.filter(t=>t.status!=="aprovada").length,"Pendentes","clock"],[late,"Atrasadas","alert"],[all.filter(t=>t.status==="aprovada").length,"Aprovadas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[all.filter(t=>isTaskAssignedToMe(t)&&!isUserDone(t,me.id)).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
  '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver cronograma","cronograma")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 function renderDemandas(){
- const options=[["mensal","Mensal"],["semanal","Semanal"],["pendentes","Pendentes"],["aprovadas","Aprovadas"],["arquivo","Arquivadas"]];
+ const options=[["mensal","Mensal"],["semanal","Semanal"],["arquivo","Concluídas"]];
  const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
  let list=data.tasks.filter(t=>filtered(t));
  if(state.mode==="arquivo"){
@@ -269,21 +271,21 @@ function renderCommitteeEdit(cid){
 }
 function renderMine(){
  if(!canWrite())return authRequired();
- const a=data.tasks.filter(t=>active(t)&&((t.assigneeIds||[]).includes(me.id)||stages(t).some(stage=>(stage.assigneeIds||[]).includes(me.id))));
- return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad">'+(a.length?a.map(t=>taskCard(t)).join(""):empty("Nenhuma pendência atribuída"))+'</section>';
+ const a=data.tasks.filter(t=>active(t)&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id));
+ return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t)+'<button type="button" class="button primary" data-do="finish-personal" data-id="'+esc(t.id)+'">Marcar como concluída</button></div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
 }
 function assignmentView(){
- const opts=[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","PETianos(as)"]];
- const users=data.users||[],comms=data.committees||[];
+ const opts=[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Pessoas"]];
+ const users=(data.users||[]).filter(x=>["petiano","tutor","admin"].includes(x.role)),comms=data.committees||[];
  const choices=state.assignmentScope==="comissoes"?comms.map(x=>({key:x.id,name:x.name})):users.map(x=>({key:x.id,name:x.name,role:x.role}));
  const currentSelection=state.assignmentScope==="comissoes"?state.selectedCommissions:state.selectedUsers;
- return '<div class="register-assignment"><h3>Responsáveis e comissões *</h3><p class="assignment-help">A comissão identifica a equipe. Apenas as pessoas selecionadas aparecem como responsáveis individuais.</p><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
- (state.assignmentScope==="todos"?'<p class="assignment-all">Todos(as) os(as) usuários(as) cadastrados(as) serão responsáveis.</p>':choices.map(x=>'<label class="assignment-option"><input type="checkbox" data-assign="'+state.assignmentScope+'" value="'+esc(x.key)+'" '+(currentSelection.has(x.key)?"checked":"")+'><span>'+esc(x.name)+'</span></label>').join(""))+
- '<p class="notice-line">Responsáveis individuais: '+(state.assignmentScope==="todos"?data.users.length:state.selectedUsers.size)+' · Comissões: '+state.selectedCommissions.size+'</p></div>';
+ return '<div class="register-assignment"><h3>Direcionar demanda *</h3><p class="assignment-help">Comissões: aparece na comissão e na Visão geral. Pessoas: aparece nas Minhas pendências de cada selecionado. Todos(as): aparece nas Minhas pendências de todas as pessoas com permissão de concluir. Tudo aparece também na Visão geral.</p><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
+ (state.assignmentScope==="todos"?'<p class="assignment-all">Todas as pessoas com permissão de concluir recebem a demanda em Minhas pendências.</p>':choices.map(x=>'<label class="assignment-option"><input type="checkbox" data-assign="'+state.assignmentScope+'" value="'+esc(x.key)+'" '+(currentSelection.has(x.key)?"checked":"")+'><span>'+esc(x.name)+'</span></label>').join(""))+
+ '<p class="notice-line">Responsáveis individuais: '+(state.assignmentScope==="todos"?users.length:state.selectedUsers.size)+' · Comissões: '+state.selectedCommissions.size+'</p></div>';
 }
 // Sem pessoa cadastrada, a comissão NÃO é automaticamente tratada como responsável individual.
 function inheritedAssigneeLabel(){
- const hasPeople=state.assignmentScope==="todos"?data.users.length>0:state.selectedUsers.size>0;
+ const hasPeople=state.assignmentScope==="todos"?data.users.some(u=>["petiano","tutor","admin"].includes(u.role)):state.selectedUsers.size>0;
  return hasPeople?"Responsáveis da demanda":"Não definido";
 }
 function syncStageAssigneePlaceholder(){
@@ -307,7 +309,7 @@ function renderTaskForm(routeId){
    state.taskFormId=routeId;
    state.selectedUsers=new Set(t?.assigneeIds||[]);
    state.selectedCommissions=new Set(t?.commissionIds||(cid?[cid]:[]));
-   state.assignmentScope="usuarios";
+   state.assignmentScope=t?.commissionIds?.length&&!t?.assigneeIds?.length?"comissoes":"usuarios";
  }
  return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",backButton())+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
@@ -318,14 +320,14 @@ function renderTaskForm(routeId){
  '<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div></form></section>';
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
-function statusSelect(t){return '<div class="quick-task-status"><div class="quick-task-status-title"><span>Situação da demanda</span><strong>'+esc(t.status==="aprovada"?"Aprovada":t.archivedAt?"Concluída":"Pendente")+'</strong></div><div class="quick-task-status-actions">'+[["pendente","Pendente"],["aprovada","Aprovada"],["concluida","Concluída"]].map(([s,label])=>'<button type="button" class="quick-status-choice '+(t.status===s?"active status-"+s:"")+'" data-do="choose-status" data-value="'+s+'">'+label+'</button>').join("")+'</div><div class="form-actions"><button class="button primary" type="button" data-do="save-status" data-id="'+esc(t.id)+'">Salvar situação</button></div></div>'}
+
 function renderDetailReadOnly(t){
  const history=historyFor(t.id);
- const status=t.archivedAt?"Concluída":t.status==="aprovada"?"Aprovada":"Pendente";
+
  return header("Atividade",t.title,"Visualização somente leitura",backButton())+
- '<section class="card card-pad"><h2>Situação</h2><p>'+esc(status)+'</p><p><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Demanda geral")+'</p><p><strong>Responsáveis:</strong> '+esc(who(t))+'</p></section>'+
+ '<section class="card card-pad"><h2>Vínculos</h2>'+(t.archivedAt?'<span class="pill mint">Concluída</span>':"")+'<p><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Demanda geral")+'</p><p><strong>Responsáveis:</strong> '+esc(who(t))+'</p></section>'+
  '<section class="card card-pad"><h2>Prazos e etapas</h2>'+
- (stages(t).length?stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div><div class="deadline-field"><small>Situação</small><strong>'+(s.completedAt?"Concluída":"Pendente")+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>'+
+ (stages(t).length?stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+(s.completedAt?'<span class="pill mint">Concluída</span>':"")+'</div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>'+
  '<section class="card card-pad"><h2>Observações</h2><p class="saved-activity-text">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p></section>'+
  '<details class="card card-pad"><summary><strong>Histórico</strong> ('+history.length+')</summary><div class="revision-list">'+(history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+'</small></div>').join(""):'<p>Sem alterações registradas.</p>')+'</div></details>';
 }
@@ -333,19 +335,19 @@ function renderDetail(taskId,contextCid){
  if(!me)return authRequired();
  const t=data.tasks.find(t=>t.id===taskId);if(!t)return empty("Demanda não encontrada");
  if(!canWrite())return renderDetailReadOnly(t);
- if(state.statusTaskId!==taskId){state.statusTaskId=taskId;state.selectedStatus=t.status}
+
  const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
  const details=historyFor(taskId);
  return header("Atividade",t.title,"",button("Editar demanda","registrar/"+id(t.id))+backButton())+
- '<section class="card card-pad activity-status-panel">'+statusSelect(t)+'</section>'+
+ '<section class="card card-pad activity-status-panel">'+(t.archivedAt?'<span class="pill mint">Concluída</span>':isTaskAssignedToMe(t)?(isUserDone(t,me.id)?'<span class="pill mint">Sua participação foi concluída</span>':'<button class="button primary" type="button" data-do="finish-personal" data-id="'+esc(t.id)+'">Marcar minha participação como concluída</button>'):'<p class="assignment-help">Somente pessoas atribuídas e integrantes das comissões vinculadas podem concluir suas participações.</p>')+'</section>'+
  '<div class="activity-detail-grid"><div class="stack"><section class="card card-pad"><h2>Prazos e etapas</h2>'+
- stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Responsável</small><strong>'+esc((s.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||who(t))+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+ (s.completedAt||contextCid&&s.commissionCompleted?.[contextCid]?'<span class="pill mint">Concluído</span>':Object.keys(s.commissionCompleted||{}).length?'<span class="pill soft">'+Object.keys(s.commissionCompleted||{}).length+' comissão(ões) concluída(s)</span>':'<span class="pill soft">Pendente</span>')+'</div>').join("")+
+ stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Responsável</small><strong>'+esc((s.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||who(t))+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+ (s.completedAt||contextCid&&s.commissionCompleted?.[contextCid]?'<span class="pill mint">Concluído</span>':Object.keys(s.commissionCompleted||{}).length?'<span class="pill soft">'+Object.keys(s.commissionCompleted||{}).length+' comissão(ões) concluída(s)</span>':"")+'</div>').join("")+
  '</section><section class="card card-pad"><div class="section-head"><h2>Observações</h2><button class="button ghost" data-do="edit-notes" type="button" title="Editar observações">✏️ Editar</button></div><p class="saved-activity-text" id="notes-preview">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p><div id="notes-editor" hidden><textarea id="notes-content" rows="6">'+esc(t.captionText||"")+'</textarea><button class="button primary" type="button" data-do="save-notes" data-id="'+esc(t.id)+'">Salvar observações</button></div></section></div>'+
  '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(assigned.join(", ")||"Não definido")+'</p><p class="assignment-help"><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Nenhuma")+'</p></section>'+
  '<section class="card card-pad"><h2>Conclusão por comissão</h2>'+
  ((t.commissionIds||[]).length?(t.commissionIds||[]).map(cid=>{
- const done=t.commissionDone?.[cid];return'<div class="live-commission-finish"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+(done?'<span class="pill mint">Concluída por '+esc(done.byName||"integrante")+'</span>':!t.archivedAt?'<button type="button" class="button ghost" data-do="finish-commission" data-id="'+esc(t.id)+'" data-commission="'+esc(cid)+'">Marcar concluída</button>':"")+'</div>';
- }).join(""):t.archivedAt?'<span class="pill mint">Concluída</span>':'<button class="button ghost" data-do="finish-commission" data-id="'+esc(t.id)+'" data-commission="">Concluir demanda</button>')+'</section>'+
+ const done=t.commissionDone?.[cid];return'<div class="live-commission-finish"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+(done?'<span class="pill mint">Concluída por '+esc(done.byName||"integrante")+'</span>':!t.archivedAt&&canCompleteCommission(cid)?'<button type="button" class="button ghost" data-do="finish-commission" data-id="'+esc(t.id)+'" data-commission="'+esc(cid)+'">Marcar concluída</button>':"")+'</div>';
+ }).join(""):'<p class="assignment-help">Nenhuma comissão vinculada.</p>')+'</section>'+
  '<details class="card card-pad"><summary><strong>Histórico de alterações</strong> ('+details.length+')</summary><div class="revision-list">'+(details.length?details.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+'</div></details></div></div>';
 }
 function renderMemory(routeId){
@@ -461,29 +463,24 @@ async function saveTask(form){
  if(!stages.some(x=>x.label==="Prazo"&&x.dueAt))return setToast("Uma etapa Prazo com data é obrigatória.");
  if(stages.some(x=>!x.dueAt))return setToast("Informe a data de todas as etapas inseridas.");
  if(stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores.");
- const users=state.assignmentScope==="todos"?data.users.map(x=>x.id):[...state.selectedUsers],commissions=[...state.selectedCommissions];
- if(!users.length&&!commissions.length)return setToast("Selecione ao menos um responsável ou comissão.");
+ const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
+ if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,notify:askNotification()},taskId=form.dataset.id;
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
    state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
  },"Demanda salva com sucesso.");
 }
-async function chooseStatusSave(taskId){
- const t=data.tasks.find(x=>x.id===taskId);if(!t)return;
- if(state.selectedStatus==="concluida"){
-   if((t.commissionIds||[]).length!==1){setToast("Conclua cada comissão na seção de conclusão abaixo.");return}
-   await finishTask(t,t.commissionIds[0]);return;
- }
- await saveAndReload(()=>request("/tasks/"+id(taskId)+"/status","PATCH",{status:state.selectedStatus,notify:askNotification()}),"Situação atualizada.");
-}
 async function finishTask(t,cid){
- const future=stages(t).some(s=>dt(s.dueAt)>new Date()),remaining=(t.commissionIds||[]).filter(x=>x!==cid&&!t.commissionDone?.[x]);
- const message=(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?\n\n":"Confirmar conclusão desta participação?\n\n")+
- (remaining.length?"A demanda só será arquivada quando "+remaining.map(x=>committee(x)?.name||x).join(", ")+" também concluir.":"A demanda será arquivada após a confirmação.");
+ const future=stages(t).some(s=>dt(s.dueAt)>new Date());
+ const remainingCommissions=(t.commissionIds||[]).filter(x=>x!==cid&&!t.commissionDone?.[x]);
+ const remainingPeople=(t.assigneeIds||[]).filter(x=>cid||x!==me?.id).filter(x=>!t.userDone?.[x]);
+ const remaining=remainingCommissions.length+remainingPeople.length;
+ const message=(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?\n\n":"Deseja marcar sua participação como concluída?\n\n")+
+ (remaining?"A demanda será arquivada quando as demais participações forem concluídas.":"Essa é a última participação; a demanda será arquivada.");
  if(!window.confirm(message))return;
- const saved=await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify:askNotification()}),remaining.length?"Participação concluída. A outra comissão ainda precisa confirmar.":"Demanda concluída e arquivada.");
- if(saved)location.hash=cid?"#/comissoes/"+id(cid):"#/demandas";
+ const success=await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify:askNotification()}),remaining?"Sua participação foi concluída. Outras pessoas ou comissões ainda precisam concluir.":"Demanda concluída e arquivada.");
+ if(success)location.hash=cid?workspaceHash("comissoes/"+id(cid)):workspaceHash("minhas-pendencias");
 }
 async function saveCommission(form){
  const values=userFields(form);const ok=await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");if(ok)location.hash=workspaceHash("comissoes");
@@ -607,12 +604,15 @@ async function handleClick(e){
  }
  if(action==="mode"){state.mode=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
- if(action==="assignment-scope"){state.assignmentScope=b.dataset.value;$("#assignment-container").innerHTML=assignmentView();syncStageAssigneePlaceholder();return}
+ if(action==="assignment-scope"){
+  if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
+  state.assignmentScope=b.dataset.value;
+  $("#assignment-container").innerHTML=assignmentView();syncStageAssigneePlaceholder();return;
+ }
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
  if(action==="reset-color"){$('input[name="backgroundColor"]').value="#f7f3ff";return}
- if(action==="choose-status"){state.selectedStatus=b.dataset.value;$$(".quick-status-choice").forEach(x=>x.classList.toggle("active",x.dataset.value===state.selectedStatus));return}
- if(action==="save-status"){await chooseStatusSave(tid);return}
+ if(action==="finish-personal"){const t=data.tasks.find(x=>x.id===tid);if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id))await finishTask(t,"");return}
  if(action==="finish-commission"){const t=data.tasks.find(x=>x.id===tid);if(t)await finishTask(t,b.dataset.commission||"");return}
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
  if(action==="save-notes"){await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:$("#notes-content").value,notify:askNotification()}),"Observações salvas.");return}
