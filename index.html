@@ -2,6 +2,14 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
+  <style>
+    html.pet-booting .app-shell{visibility:hidden!important}
+    #startup-loading{display:none}
+    html.pet-booting #startup-loading{display:grid!important;position:fixed;inset:0;z-index:245;place-items:center;background:#f7f5fd;color:#39265b;font-family:system-ui,sans-serif}
+    html.pet-booting #startup-loading .startup-spinner{width:43px;height:43px;border:4px solid #ddd1f9;border-top-color:#724ac9;border-radius:50%;animation:startup-spin .85s linear infinite}
+    @keyframes startup-spin{to{transform:rotate(360deg)}}
+  </style>
+  <script>document.documentElement.classList.add("pet-booting");</script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#592FAF" />
   <meta name="application-name" content="PET Gestão" />
@@ -18,9 +26,9 @@
   <link rel="shortcut icon" type="image/svg+xml" href="assets/gestao-icon.svg?v=identidade-20261109" />
   <link rel="manifest" href="site.webmanifest" />
   <link rel="stylesheet" href="styles.css?v=prod-20261109-gmail-monitor-v13" />
-  <link rel="stylesheet" href="live.css?v=prod-20261109-admin-nav-v14" />
+  <link rel="stylesheet" href="live.css?v=prod-20261109-vagas-boot-v15" />
   <script src="config.js?v=prod-20261109-gmail-monitor-v13"></script>
-  <script src="app-live.js?v=prod-20261109-admin-nav-v14" defer></script>
+  <script src="app-live.js?v=prod-20261109-vagas-boot-v15" defer></script>
 </head>
 <body>
   <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -75,7 +83,7 @@
         </nav>
         <p class="nav-caption separated">SISTEMA</p>
         <nav class="nav-group" aria-label="Administração">
-          <button class="nav-link" id="admin-link" type="button"><svg><use href="#i-settings"/></svg><span>Administração</span></button>
+          <button class="nav-link" id="admin-link" type="button" hidden><svg><use href="#i-settings"/></svg><span>Administração</span></button>
         </nav>
       </div>
       <div class="sidebar-footer"><span class="connection-dot" id="connection-dot"></span><div><strong id="connection-label">Conectando...</strong><small>PET Gestão · Dados institucionais</small></div></div>
@@ -95,6 +103,10 @@
       <footer class="footer">PET Educação <span>·</span> Universidade Federal de Sergipe</footer>
     </div>
   </div>
+  <div id="startup-loading" role="status" aria-live="polite">
+    <div class="startup-loading-card"><span class="startup-spinner" aria-hidden="true"></span><strong>Conectando ao PET Gestão...</strong><small>Preparando sua área de trabalho</small></div>
+  </div>
+  <div id="commission-dialog" class="commission-dialog" hidden></div>
   <div id="connecting-popup" class="connecting-popup" role="status" aria-live="polite" hidden>
     <div class="connecting-card"><span class="connecting-spinner" aria-hidden="true"></span><strong class="connecting-message">Conectando ao PET Gestão...</strong><span class="connecting-hint">Validando seu acesso</span></div>
   </div>

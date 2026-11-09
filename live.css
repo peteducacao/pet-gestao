@@ -302,3 +302,26 @@ body.admin-ui-active #screen{width:100%;max-width:none}
 .admin-navigation button.admin-menu-link{font-family:inherit}
 .admin-sidebar-footer>button{width:100%;justify-content:flex-start}
 @media(max-width:760px){.admin-embedded-view .page-header{margin-bottom:17px}}
+
+/* Estado inicial: toda atualização só mostra uma tela limpa até a sessão ser validada. */
+#startup-loading[hidden]{display:none!important}
+.startup-loading-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;width:min(320px,calc(100vw - 40px));padding:36px 28px;border-radius:22px;background:white;border:1px solid #ebe6f6;box-shadow:0 22px 50px #30245513;text-align:center}
+.startup-loading-card strong{font-size:17px;color:#2f2550}
+.startup-loading-card small{font-size:12px;color:#7e7695}
+#admin-link[hidden]{display:none!important}
+/* Participar de comissões: diálogo moderno, acessível e sem alert nativo. */
+body.commission-dialog-open{overflow:hidden}
+.commission-dialog[hidden]{display:none!important}
+.commission-dialog{position:fixed;inset:0;z-index:275;display:grid;place-items:center;padding:18px}
+.commission-dialog-shade{position:absolute;inset:0;background:rgba(17,13,39,.58);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.commission-dialog-box{position:relative;z-index:1;width:min(420px,100%);border-radius:24px;background:#fff;color:#29203b;padding:32px 30px 27px;text-align:center;box-shadow:0 32px 90px #1110234d;animation:commission-pop .18s ease-out}
+.commission-dialog-emblem{width:62px;height:62px;display:grid;place-items:center;margin:0 auto 19px;border-radius:19px;color:#6141b6;background:linear-gradient(145deg,#f0e8ff,#ebe5ff)}
+.commission-dialog-emblem svg{width:30px;height:30px;stroke-width:1.9}
+.commission-dialog-emblem-warn{color:#a26c1b;background:linear-gradient(145deg,#fff6df,#ffeccf)}
+.commission-dialog-box h2{font-size:22px;letter-spacing:-.5px;line-height:1.25;margin:0 0 13px}
+.commission-dialog-box p{font-size:14px;line-height:1.65;color:#6e6681;overflow-wrap:anywhere;margin:0 0 24px}
+.commission-dialog-box p strong{color:#383049}
+.commission-dialog-actions{display:flex;gap:10px;justify-content:center}
+.commission-dialog-actions .button{flex:1;min-height:43px;max-width:220px;white-space:normal}
+@keyframes commission-pop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:460px){.commission-dialog-box{padding:28px 21px 23px;border-radius:20px}.commission-dialog-actions{flex-direction:column-reverse}.commission-dialog-actions .button{max-width:none;width:100%}}

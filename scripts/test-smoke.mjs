@@ -70,6 +70,33 @@ await test("Tutor possui acesso administrativo completo",async()=>{
  }
 });
 await test("criar comissões",async()=>{good(await api("/commissions","POST",{name:"Teste Comissão A"}));good(await api("/commissions","POST",{name:"Teste Comissão B"}));const c=good(await api("/bootstrap")).committees;a=c.find(x=>x.name==="Teste Comissão A").id;b=c.find(x=>x.name==="Teste Comissão B").id});
+await test("vagas zero impedem participar; limite configurado é respeitado",async()=>{
+  const commissionId=a;
+  const current=good(await api("/bootstrap")).committees.find(c=>c.id===commissionId);
+  assert.equal(current.maxMembers,0,"Comissão nova deve iniciar sem vagas definidas");
+  const denied=await api("/commissions/"+commissionId+"/join","POST",{});
+  assert.equal(denied.status,409,"Zero não pode funcionar como vagas ilimitadas.");
+  assert.match(denied.error,/vagas definidas/);
+  good(await api("/commissions/"+commissionId,"PUT",{name:current.name,maxMembers:1}));
+  good(await api("/commissions/"+commissionId+"/join","POST",{}));
+  assert.equal(good(await api("/bootstrap")).committees.find(c=>c.id===commissionId).memberCount,1);
+  const adminToken=token;
+  const pet=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
+  good(await api("/admin/users/"+pet.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+  try{
+    const login=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
+    token=login.token;
+    const full=await api("/commissions/"+commissionId+"/join","POST",{});
+    assert.equal(full.status,409,"Não ultrapassar o limite mesmo quando botão é ignorado.");
+    assert.match(full.error,/vagas preenchidas/);
+  }finally{
+    token=adminToken;
+    good(await api("/admin/users/"+pet.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  }
+  good(await api("/commissions/"+commissionId+"/leave","POST",{}));
+  good(await api("/commissions/"+commissionId,"PUT",{name:current.name,maxMembers:0}));
+  assert.equal((await api("/commissions/"+commissionId+"/join","POST",{})).status,409);
+});
 await test("editar comissão",async()=>{good(await api("/commissions/"+a,"PUT",{name:"Teste Renomeada",backgroundColor:"#123456"}));assert.equal(good(await api("/bootstrap")).committees.find(x=>x.id===a).backgroundColor,"#123456")});
 await test("mover comissões",async()=>{const ids=good(await api("/bootstrap")).committees.map(x=>x.id).reverse();good(await api("/admin/commission-order","PUT",{ids}));assert.equal(good(await api("/bootstrap")).committees[0].id,ids[0])});
 await test("configurações",async()=>{good(await api("/admin/settings","PUT",{autoWeek:false,autoMonth:false}));assert.equal(good(await api("/bootstrap")).settings.autoWeek,false)});
@@ -212,5 +239,26 @@ await test("Admin mantém ferramentas no painel novo e mostra popup de conexão"
  assert.ok(index.includes('id="connecting-popup"'));
  assert.ok(js.includes('if(isLogin)setConnecting(true'));
  assert.ok(css.includes('.admin-embedded-view{'));
+});
+await test("F5 não exibe layout antigo nem acesso Admin antes de carregar o usuário",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8");
+ assert.ok(index.includes('document.documentElement.classList.add("pet-booting")'));
+ assert.ok(index.includes('html.pet-booting .app-shell{visibility:hidden!important}'));
+ assert.match(index,/<button class="nav-link" id="admin-link" type="button" hidden>/);
+ assert.ok(index.includes('id="startup-loading"'));
+ assert.ok(src.includes('document.documentElement.classList.remove("pet-booting")'));
+});
+await test("Comissão utiliza popup customizado central com fundo desfocado",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
+ assert.ok(index.includes('id="commission-dialog"'));
+ assert.ok(src.includes('showCommissionDialog('));
+ assert.ok(src.includes('vagas definidas'));
+ assert.ok(src.includes('commission-dialog-confirm'));
+ assert.ok(!src.includes('window.confirm(action==="join-commission"'));
+ assert.ok(!src.includes('(cmax&&members>=cmax?"disabled":"")'));
+ assert.ok(css.includes('.commission-dialog-shade{'));
+ assert.ok(css.includes('backdrop-filter:blur('));
 });
 console.log(tests+" testes passaram no banco local isolado");

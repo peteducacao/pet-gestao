@@ -6,7 +6,7 @@ const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").repl
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
 let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -51,6 +51,46 @@ function adminEmbeddedView(parts){
  if(page==="minhas-pendencias")return renderMine();
  return empty("Página administrativa não encontrada");
 }
+
+// Janela de confirmação e orientação de vagas: não usa alert/confirm do navegador.
+let lastCommissionFocus=null;
+function closeCommissionDialog(){
+ const layer=$("#commission-dialog");
+ if(layer){layer.innerHTML="";layer.hidden=true}
+ state.commissionAction=null;
+ document.body.classList.remove("commission-dialog-open");
+ if(lastCommissionFocus?.isConnected)lastCommissionFocus.focus();
+ lastCommissionFocus=null;
+}
+function showCommissionDialog(kind,commission,reason=""){
+ const layer=$("#commission-dialog");if(!layer||!commission)return;
+ const members=Number(commission.memberCount??commission.memberIds?.length??0);
+ const limit=Number(commission.maxMembers||0);
+ const blocked=kind==="join"&&(limit<=0||members>=limit);
+ const noLimit=limit<=0;
+ const title=reason?"Não foi possível atualizar a participação":kind==="leave"?"Sair da comissão?":blocked?(noLimit?"Vagas ainda não definidas":"Vagas esgotadas"):"Participar desta comissão?";
+ const message=reason||(
+   kind==="leave"?'Você deseja deixar a comissão <strong>'+esc(commission.name)+'</strong>? A equipe será atualizada imediatamente.':
+   blocked?(noLimit?'A comissão <strong>'+esc(commission.name)+'</strong> ainda não possui vagas cadastradas pela Administração. Aguarde a definição para fazer parte.':
+   'Todas as vagas da comissão <strong>'+esc(commission.name)+'</strong> estão ocupadas. Aguarde a liberação de uma vaga.'):
+   'Confirma sua participação na comissão <strong>'+esc(commission.name)+'</strong>? Há '+(limit-members)+' vaga(s) disponível(is).');
+ const confirm=!blocked&&!reason;
+ state.commissionAction=confirm?{kind,id:commission.id}:null;
+ lastCommissionFocus=document.activeElement;
+ layer.innerHTML='<div class="commission-dialog-shade" data-do="commission-dialog-close"></div>'+
+ '<section class="commission-dialog-box" role="dialog" aria-modal="true" aria-labelledby="commission-dialog-title" aria-describedby="commission-dialog-description">'+
+ '<div class="commission-dialog-emblem '+(blocked||reason?"commission-dialog-emblem-warn":"")+'">'+
+ (blocked||reason?ico("info"):kind==="leave"?ico("users"):ico("checklist"))+'</div>'+
+ '<h2 id="commission-dialog-title">'+esc(title)+'</h2>'+
+ '<p id="commission-dialog-description">'+message+'</p>'+
+ '<div class="commission-dialog-actions">'+
+ (confirm?'<button type="button" class="button ghost" data-do="commission-dialog-close">Cancelar</button><button type="button" class="button primary" data-do="commission-dialog-confirm">'+(kind==="leave"?"Confirmar saída":"Confirmar participação")+'</button>':
+ '<button type="button" class="button primary" data-do="commission-dialog-close">Entendi</button>')+
+ '</div></section>';
+ layer.hidden=false;
+ document.body.classList.add("commission-dialog-open");
+ layer.querySelector('[data-do="commission-dialog-close"],[data-do="commission-dialog-confirm"]')?.focus();
+}
 function setToast(message){const box=$("#toast");if(!box)return;box.textContent=message;box.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>box.hidden=true,5200)}
 function header(eye,title,sub="",actions=""){return '<div class="page-header"><div><div class="eyebrow">'+esc(eye)+'</div><h1 class="page-title">'+esc(title)+'</h1>'+(sub?'<p class="page-subtitle">'+esc(sub)+'</p>':"")+'</div><div class="page-actions">'+actions+'</div></div>'}
 function empty(title,sub=""){return'<div class="empty"><span class="empty-icon">'+ico("folder")+'</span><h3>'+esc(title)+'</h3><p>'+esc(sub)+'</p></div>'}
@@ -88,7 +128,7 @@ async function reload(){
    data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}};
    me=null;$("#connection-label").textContent="Sem conexão";$("#connection-dot")?.classList.remove("online");setToast(e.message);
  }
- render();
+ try{render()}finally{document.documentElement.classList.remove("pet-booting")}
 }
 function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","atividade","reunioes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
 function nav(){
@@ -170,9 +210,9 @@ function renderComissoes(){
  '<section class="card card-pad"><div class="section-head"><h2>Comissões cadastradas</h2><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="commission-cards-grid">'+data.committees.map(c=>{
  const members=c.memberCount??(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
  const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="#/comissoes/'+id(c.id)+'"':"";
- return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="'+esc(c.name)+'">':commissionDefaultArt(c.name))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
+ return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="'+esc(c.name)+'">':commissionDefaultArt(c.name))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes'+(!cmax?' · Vagas a definir':"")+'</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
  (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
- (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'" '+(cmax&&members>=cmax?"disabled":"")+'>Fazer parte</button>')+'</div></details>':"")+'</article>'
+ (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>'
  }).join("")+'</div></section>';
 }
 function renderCommittee(cid){
@@ -534,8 +574,24 @@ async function handleClick(e){
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
  if(action==="save-notes"){await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:$("#notes-content").value,notify:askNotification()}),"Observações salvas.");return}
  if(action==="join-commission"||action==="leave-commission"){
-   const c=committee(tid);if(!window.confirm(action==="join-commission"?"Deseja fazer parte da comissão "+c?.name+"?":"Deseja sair da comissão "+c?.name+"?"))return;
-   await saveAndReload(()=>request("/commissions/"+id(tid)+"/"+(action==="join-commission"?"join":"leave"),"POST",{}),"Participação atualizada.");return;
+   showCommissionDialog(action==="join-commission"?"join":"leave",committee(tid));return;
+ }
+ if(action==="commission-dialog-close"){closeCommissionDialog();return}
+ if(action==="commission-dialog-confirm"){
+   const pending=state.commissionAction;
+   if(!pending)return;
+   const submit=$("#commission-dialog-confirm")||b;
+   submit.disabled=true;
+   try{
+     await request("/commissions/"+id(pending.id)+"/"+pending.kind,"POST",{});
+     await reload();
+     closeCommissionDialog();
+     setToast(pending.kind==="join"?"Você agora faz parte desta comissão.":"Você saiu da comissão.");
+   }catch(err){
+     const c=committee(pending.id);
+     showCommissionDialog(pending.kind,c,err.message);
+   }finally{if(submit.isConnected)submit.disabled=false}
+   return;
  }
  if(action==="delete-commission"){
    if(!isAdmin())return;const c=committee(tid);
@@ -661,7 +717,9 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true});
+ window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog()});
+ window.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}});
+
  document.addEventListener("click",e=>{
    const innerLink=e.target.closest(".admin-layout a[href^='#/']");
    if(innerLink&&isAdmin()){

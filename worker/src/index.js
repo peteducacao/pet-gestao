@@ -388,8 +388,10 @@
         if(match[2]==="leave"){await db.prepare("DELETE FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).run();return answer({ok:true})}
         const existing=await db.prepare("SELECT 1 AS n FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).first();
         if(existing)return answer({ok:true});
-        // Inserção com condição atômica para não ultrapassar vagas concorrentes.
-        const result=await db.prepare("INSERT OR IGNORE INTO commission_members(commission_id,user_id,created_at) SELECT ?,?,? WHERE (SELECT max_members FROM commissions WHERE id=?)=0 OR (SELECT COUNT(*) FROM commission_members WHERE commission_id=?) < (SELECT max_members FROM commissions WHERE id=?)").bind(c.id,user.id,now(),c.id,c.id,c.id).run();
+        // 0 significa que a Administração ainda NÃO definiu as vagas; jamais tratar como ilimitado.
+        if(!Number.isInteger(c.max_members)||c.max_members<=0)fail("Esta comissão ainda não possui vagas definidas pela Administração.",409);
+        // Condição atômica: respeita as vagas mesmo com duas inscrições simultâneas.
+        const result=await db.prepare("INSERT OR IGNORE INTO commission_members(commission_id,user_id,created_at) SELECT ?,?,? WHERE (SELECT max_members FROM commissions WHERE id=?)>0 AND (SELECT COUNT(*) FROM commission_members WHERE commission_id=?) < (SELECT max_members FROM commissions WHERE id=?)").bind(c.id,user.id,now(),c.id,c.id,c.id).run();
         if(!result.meta.changes)fail("Esta comissão está com todas as vagas preenchidas.",409);
         return answer({ok:true});
       }
