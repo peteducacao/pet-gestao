@@ -108,9 +108,36 @@
     return {session:user?{user:userPublic(user)}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:user?(counts[c.id]||[]):[]})),
       tasks:rawTasks.map(t=>user?privateTask(t):publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:user?history:[],settings};
   }
+  const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
+  const bridgePost=async(env,payload)=>{
+    const response=await fetch(env.MAIL_BRIDGE_URL,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({...payload,token:env.MAIL_BRIDGE_TOKEN}),redirect:"follow"});
+    const body=await response.text();
+    const data=asJson(body,null);
+    if(!response.ok||!data?.ok){
+      const reason=String(data?.erro||data?.error||"").slice(0,160);
+      if(/n[aã]o autorizado|unauthori[sz]ed|token|chave inv[aá]lida/i.test(reason)||data?.codigo==="NAO_AUTORIZADO"){
+        throw new Error("Autorização do Gmail recusada. Confira se MAIL_BRIDGE_TOKEN no Worker é igual a PET_GESTAO_MAIL_TOKEN no Google Apps Script e se a implantação está atualizada.");
+      }
+      if(!data)throw new Error("O Apps Script não retornou JSON válido. Confira o acesso público da implantação e a URL /exec.");
+      throw new Error("Ponte Gmail: "+(reason||"solicitação recusada pelo serviço"));
+    }
+    return data;
+  };
+  async function mailBridgeStatus(env){
+    if(!env.MAIL_BRIDGE_URL||!env.MAIL_BRIDGE_TOKEN)return {connected:false,code:"UNCONFIGURED",message:"Integração Gmail ainda não configurada no Worker."};
+    if(!bridgeUrlOk(env.MAIL_BRIDGE_URL))return {connected:false,code:"INVALID_URL",message:"URL do Google Apps Script inválida."};
+    try{
+      const result=await bridgePost(env,{acao:"status"});
+      if(result.acao!=="status"||result.servico!=="pet-gestao"){
+        return {connected:false,code:"INCOMPATIBLE",message:"O Apps Script respondeu, mas não é a ponte de envio do PET Gestão. Publique a versão própria do Gestão."};
+      }
+      return {connected:true,code:"READY",message:"Ponte Gmail autenticada e pronta para receber envios.",quota:typeof result.quota==="number"?result.quota:null};
+    }catch(error){return {connected:false,code:"ERROR",message:error.message};}
+  }
   async function authorizedMail(env,recipients,subject,message,attachments=[]){
     if(!env.MAIL_BRIDGE_URL||!env.MAIL_BRIDGE_TOKEN)throw new Error("Integração do e-mail não configurada.");
-    if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(env.MAIL_BRIDGE_URL))throw new Error("URL do Apps Script inválida.");
+    if(!bridgeUrlOk(env.MAIL_BRIDGE_URL))throw new Error("URL do Apps Script inválida.");
     const emailList=unique(recipients.map(email)).filter(validEmail);
     if(!emailList.length)throw new Error("Nenhum destinatário válido.");
     if(attachments.length&&emailList.length>50)throw new Error("Anexos exigem no máximo 50 destinatários por envio.");
@@ -125,9 +152,8 @@
     }
     if(total>14*1024*1024)throw new Error("O tamanho total de anexos excede o limite deste envio.");
     for(let i=0;i<emailList.length;i+=45){
-      const res=await fetch(env.MAIL_BRIDGE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"enviar",token:env.MAIL_BRIDGE_TOKEN,para:emailList.slice(i,i+45),assunto:subject,mensagem:message,tipo:"imediato",anexos:attachments}),redirect:"follow"});
-      const text=await res.text();const reply=asJson(text,null);
-      if(!res.ok||!reply?.ok)throw new Error("Falha no serviço de e-mail: "+(reply?.erro||"resposta inválida"));
+      const response=await bridgePost(env,{acao:"enviar",para:emailList.slice(i,i+45),assunto:subject,mensagem:message,tipo:"imediato",anexos:attachments});
+      if(response.servico!=="pet-gestao")throw new Error("Ponte de e-mail incompatível com o PET Gestão. Atualize o Apps Script antes de reenviar.");
     }
   }
   async function recipientEmails(db,data){
@@ -453,6 +479,10 @@
       }
       if(match&&method==="DELETE"){
         ensure(user);await db.prepare("DELETE FROM meetings WHERE id=?").bind(match[1]).run();return answer({ok:true});
+      }
+      if(path==="/api/v1/mail/status"&&method==="GET"){
+        ensure(user,true);
+        return answer(await mailBridgeStatus(env));
       }
       if(path==="/api/v1/mail"&&method==="GET"){
         ensure(user,true);
