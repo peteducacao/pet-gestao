@@ -38,6 +38,27 @@ await test("editar comissão",async()=>{good(await api("/commissions/"+a,"PUT",{
 await test("mover comissões",async()=>{const ids=good(await api("/bootstrap")).committees.map(x=>x.id).reverse();good(await api("/admin/commission-order","PUT",{ids}));assert.equal(good(await api("/bootstrap")).committees[0].id,ids[0])});
 await test("configurações",async()=>{good(await api("/admin/settings","PUT",{autoWeek:false,autoMonth:false}));assert.equal(good(await api("/bootstrap")).settings.autoWeek,false)});
 await test("criar demanda",async()=>{task=good(await api("/tasks","POST",{title:"Teste Demanda",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}),201).id});
+await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir",async()=>{
+ const original=token;
+ const login=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
+ try{
+   token=login.token;
+   const preview=good(await api("/bootstrap"));
+   assert.equal(preview.session.user.role,"usuario");
+   assert.ok(preview.tasks.some(x=>x.id===task));
+   assert.equal((await api("/tasks","POST",{title:"Proibido"})).status,403);
+   assert.equal((await api("/tasks/"+task,"PUT",{title:"Alteração proibida"})).status,403);
+   assert.equal((await api("/tasks/"+task+"/notes","PATCH",{captionText:"Proibido"})).status,403);
+   assert.equal((await api("/tasks/"+task+"/status","PATCH",{status:"aprovada"})).status,403);
+   assert.equal((await api("/tasks/"+task+"/finish","PATCH",{commissionId:a})).status,403);
+   assert.equal((await api("/tasks/"+task,"DELETE")).status,403);
+   assert.equal((await api("/commissions","POST",{name:"Proibido"})).status,403);
+   assert.equal((await api("/commissions/"+a,"PUT",{name:"Proibido"})).status,403);
+   assert.equal((await api("/commissions/"+a+"/join","POST",{})).status,403);
+   assert.equal((await api("/meetings","POST",{title:"Proibido",date:dueAt})).status,403);
+   assert.equal((await api("/admin/users")).status,403);
+ }finally{token=original}
+});
 await test("editar demanda",async()=>{good(await api("/tasks/"+task,"PUT",{title:"Teste Editado",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}));assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===task).title,"Teste Editado")});
 await test("observações e aprovação",async()=>{good(await api("/tasks/"+task+"/notes","PATCH",{captionText:"Observação"}));good(await api("/tasks/"+task+"/status","PATCH",{status:"aprovada"}))});
 await test("conclusão independente",async()=>{const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:a,early:true}));assert.equal(r.archived,false)});
