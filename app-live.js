@@ -6,7 +6,7 @@ const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").repl
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
 let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -33,6 +33,24 @@ const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.d
 const stateBadge=t=>t.archivedAt?'<span class="pill mint">Concluída</span>':isLate(t)?'<span class="pill overdue-pill">Atrasada</span>':t.status==="aprovada"?'<span class="pill mint">Aprovada</span>':'<span class="pill soft">Pendente</span>';
 const completedCount=t=>Object.keys(t.commissionDone||{}).length;
 const commissionFinished=(t,cid)=>Boolean(t.commissionDone?.[cid]);
+function setConnecting(show,label="Conectando ao PET Gestão..."){
+ const modal=$("#connecting-popup");
+ if(!modal)return;
+ if(show){const message=modal.querySelector(".connecting-message");if(message)message.textContent=label;}
+ modal.hidden=!show;
+}
+function workspaceHash(route){return routeParts().page==="admin"?"#/admin/"+route:"#/"+route;}
+function adminEmbeddedView(parts){
+ const [page,...args]=parts,route=args.join("/");
+ if(page==="demandas")return renderDemandas();
+ if(page==="cronograma")return renderCronograma();
+ if(page==="comissoes")return !route?renderComissoes():args[0]==="nova"?renderCommitteeEdit(""):args[0]==="editar"?renderCommitteeEdit(args.slice(1).join("/")):renderCommittee(route);
+ if(page==="registrar")return renderTaskForm(route);
+ if(page==="atividade")return renderDetail(args[0]||"",args[1]||"");
+ if(page==="reunioes")return renderMemory(route);
+ if(page==="minhas-pendencias")return renderMine();
+ return empty("Página administrativa não encontrada");
+}
 function setToast(message){const box=$("#toast");if(!box)return;box.textContent=message;box.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>box.hidden=true,5200)}
 function header(eye,title,sub="",actions=""){return '<div class="page-header"><div><div class="eyebrow">'+esc(eye)+'</div><h1 class="page-title">'+esc(title)+'</h1>'+(sub?'<p class="page-subtitle">'+esc(sub)+'</p>':"")+'</div><div class="page-actions">'+actions+'</div></div>'}
 function empty(title,sub=""){return'<div class="empty"><span class="empty-icon">'+ico("folder")+'</span><h3>'+esc(title)+'</h3><p>'+esc(sub)+'</p></div>'}
@@ -293,21 +311,22 @@ function renderAdmin(){
  const recent=(data.history||[]).slice(0,4);
  const dashboard=state.adminTab==="painel"?'<div class="admin-metrics">'+stats.map(metric).join("")+'</div>'+
  '<section class="admin-box"><h2>Ações rápidas</h2><div class="admin-shortcuts">'+
- '<a href="#/registrar/novo">'+ico("plus")+'<span>Nova demanda</span></a>'+
+ '<a href="#/admin/registrar">'+ico("plus")+'<span>Nova demanda</span></a>'+
  '<button type="button" data-do="admin-tab" data-value="comissoes">'+ico("users")+'<span>Gerenciar comissões</span></button>'+
  '<button type="button" data-do="admin-tab" data-value="usuarios">'+ico("user")+'<span>Gerenciar usuários</span></button>'+
  '<button type="button" data-do="admin-tab" data-value="emails">'+ico("mail")+'<span>Enviar e-mail</span></button></div></section>'+
  '<section class="admin-box"><h2>Últimas alterações</h2>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
+ const subroute=routeParts().parts,embedded=subroute.length?adminEmbeddedView(subroute):"";
  const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",configuracoes:"Configurações"};
  return '<div class="admin-layout">'+
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
- '<nav class="admin-navigation">'+nav(tabs[0])+'<a class="admin-menu-link" href="#/demandas">'+ico("list")+'<span>Demandas</span></a>'+tabs.slice(1).map(nav).join("")+'</nav>'+
- '<div class="admin-sidebar-footer"><a href="#/inicio">'+ico("chevron-left")+' Voltar ao sistema</a><button type="button" data-do="admin-signout">'+ico("close")+' Sair da administração</button></div></aside>'+
+ '<nav class="admin-navigation">'+nav(tabs[0])+'<button type="button" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade","reunioes"].includes(subroute[0])?"active":"")+'" data-do="admin-route" data-value="demandas">'+ico("list")+'<span>Demandas</span></button>'+tabs.slice(1).map(nav).join("")+'</nav>'+
+ '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("close")+' Sair do modo Admin</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
  '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>'+esc(me.name)+'</strong><small>'+esc(roleLabel(me.role))+'</small></span></div></div>'+
- '<div class="admin-page"><div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
- dashboard+adminPanels+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
+ '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
+ dashboard+adminPanels)+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
 }
 function renderMailRecipients(){
  const el=$("#mail-recipients");if(!el)return;
@@ -340,7 +359,11 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
- if(page==="admin"&&isAdmin()&&!me?.mustChangePassword){loadAdminUsers();loadMailHistory();if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling()}}
+ if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&!parts.length){
+   if(state.adminTab==="usuarios")loadAdminUsers();
+   if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();loadMailHistory();}
+   if(state.adminTab==="painel")loadMailHistory();
+ }
 }
 function askNotification(){return canNotify()?window.confirm("Deseja notificar os(as) responsáveis por e-mail sobre esta alteração?"):false}
 async function saveAndReload(action,success="Alterações salvas."){
@@ -361,7 +384,7 @@ async function saveTask(form){
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,notify:askNotification()},taskId=form.dataset.id;
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
-   state.taskFormId=null;location.hash="#/demandas";return r;
+   state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
  },"Demanda salva com sucesso.");
 }
 async function chooseStatusSave(taskId){
@@ -381,7 +404,7 @@ async function finishTask(t,cid){
  if(saved)location.hash=cid?"#/comissoes/"+id(cid):"#/demandas";
 }
 async function saveCommission(form){
- const values=userFields(form);const ok=await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");if(ok)location.hash="#/comissoes";
+ const values=userFields(form);const ok=await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");if(ok)location.hash=workspaceHash("comissoes");
 }
 async function loadAdminUsers(){
  try{
@@ -471,7 +494,18 @@ async function handleClick(e){
   if(!isAdmin())return;
   state.adminTab=b.dataset.value;
   state.adminMenuOpen=false;
-  render();
+  if(routeParts().parts.length)location.hash="#/admin";
+  else render();
+  window.scrollTo({top:0});
+  return;
+ }
+ if(action==="admin-route"){
+  if(!isAdmin())return;
+  state.adminMenuOpen=false;
+  const section=b.dataset.value;
+  if(!["demandas","cronograma","comissoes","registrar"].includes(section))return;
+  if(location.hash==="#/admin/"+section)render();
+  else location.hash="#/admin/"+section;
   window.scrollTo({top:0});
   return;
  }
@@ -479,7 +513,15 @@ async function handleClick(e){
  if(action==="mail-monitor-open"){state.mailMonitorOpen=true;render();return}
  if(action==="mail-monitor-close"){state.mailMonitorOpen=false;render();return}
  if(action==="mail-monitor-refresh"){await loadMailHistory();return}
- if(action==="back"){if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}else location.hash="#/inicio";return}
+ if(action==="back"){
+   if(routeParts().page==="admin"){
+     const previous=state.navStack?.at(-2);
+     if(previous?.startsWith("#/admin")){state.navStack.pop();state.goingBack=true;location.hash=previous;}
+     else location.hash="#/admin/demandas";
+   }else if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}
+   else location.hash="#/inicio";
+   return;
+ }
  if(action==="mode"){state.mode=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
  if(action==="assignment-scope"){state.assignmentScope=b.dataset.value;$("#assignment-container").innerHTML=assignmentView();return}
@@ -500,7 +542,7 @@ async function handleClick(e){
    if(!window.confirm('Excluir definitivamente a comissão "'+c?.name+'"? Os registros vinculados impedem a exclusão.'))return;
    await saveAndReload(()=>request("/commissions/"+id(tid),"DELETE"),"Comissão excluída.");return;
  }
- if(action==="delete-meeting"){if(!window.confirm("Excluir esta memória? As demandas vinculadas não serão apagadas."))return;await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Memória excluída.");location.hash="#/demandas";return}
+ if(action==="delete-meeting"){if(!window.confirm("Excluir esta memória? As demandas vinculadas não serão apagadas."))return;await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Memória excluída.");location.hash=workspaceHash("demandas");return}
  if(action==="delete-task"){
    const t=data.tasks.find(x=>x.id===tid);
    if(!t?.archivedAt||!window.confirm('Excluir definitivamente a demanda "'+t.title+'", incluindo etapas, observações e histórico? Essa ação não pode ser desfeita.'))return;
@@ -546,6 +588,8 @@ async function handleClick(e){
 }
 async function handleSubmit(e){
  const form=e.target;if(!form.id)return;e.preventDefault();
+ const isLogin=form.id==="login-form"||form.id==="admin-login-form";
+ if(isLogin)setConnecting(true,form.id==="admin-login-form"?"Conectando à Administração...":"Conectando ao PET Gestão...");
  try{
  if(form.id==="admin-login-form"){
    const f=userFields(form),r=await request("/auth/admin-login","POST",f,"guest");
@@ -556,9 +600,12 @@ async function handleSubmit(e){
  if(form.id==="login-form"){
    const f=userFields(form),r=await request("/auth/login","POST",f,"guest");
    token=r.token;sessionStorage.setItem(tokenKey,token);
-   // Não conservar uma antiga sessão de outro administrador ao entrar com nova conta.
    adminToken="";sessionStorage.removeItem(adminTokenKey);
-   await reload();location.hash=r.user.mustChangePassword?"#/conta":r.user.role==="admin"?"#/admin":"#/inicio";setToast("Acesso autorizado.");return;
+   const destination=r.user.mustChangePassword?"#/conta":r.user.role==="admin"?"#/admin":"#/inicio";
+   state.authTransition=true;
+   location.hash=destination;
+   try{await reload();}finally{state.authTransition=false;}
+   setToast("Acesso autorizado.");return;
  }
  if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
  if(form.id==="forgot-form"){const r=await request("/auth/forgot","POST",userFields(form));setToast(r.message);return}
@@ -571,9 +618,10 @@ async function handleSubmit(e){
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";sessionStorage.removeItem(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
- if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Memória salva.");if(ok)location.hash="#/demandas";return}
+ if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Memória salva.");if(ok)location.hash=workspaceHash("demandas");return}
  if(form.id==="mail-form"){await sendMail(form);return}
- }catch(err){setToast(err.message)}
+ }catch(err){state.authTransition=false;setToast(err.message)}
+ finally{if(isLogin)setConnecting(false)}
 }
 async function handleChange(e){
  const t=e.target;if(!t)return;
@@ -601,19 +649,29 @@ async function handleChange(e){
 function onNavigation(){
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
- if(wasAdmin!==nowAdmin){state.adminMenuOpen=false;reload()}else render();
+ if(state.authTransition){window.scrollTo({top:0});return}
+ if(wasAdmin!==nowAdmin){state.adminMenuOpen=false;reload().finally(()=>setConnecting(false))}else render();
  window.scrollTo({top:0});
 }
 function start(){
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
  $("#account-button")?.addEventListener("click",()=>{location.hash=regularMe?"#/conta":"#/login"});
- $("#admin-link")?.addEventListener("click",()=>{location.hash="#/admin"});
+ $("#admin-link")?.addEventListener("click",()=>{setConnecting(true,"Conectando ao painel administrativo...");location.hash="#/admin"});
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true});
  document.addEventListener("click",e=>{
+   const innerLink=e.target.closest(".admin-layout a[href^='#/']");
+   if(innerLink&&isAdmin()){
+     const href=innerLink.getAttribute("href")||"";
+     if(!href.startsWith("#/admin")){
+       e.preventDefault();
+       location.hash="#/admin"+href.slice(1);
+       return;
+     }
+   }
    const toggle=e.target.closest("[data-password-toggle]");
    if(toggle){
      const input=toggle.closest(".password-control")?.querySelector("input");

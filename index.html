@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="styles.css?v=prod-20261109-gmail-monitor-v13" />
   <link rel="stylesheet" href="live.css?v=prod-20261109-gmail-monitor-v13" />
   <script src="config.js?v=prod-20261109-gmail-monitor-v13"></script>
-  <script src="app-live.js?v=prod-20261109-gmail-monitor-v13" defer></script>
+  <script src="app-live.js?v=prod-20261109-admin-nav-v14" defer></script>
 </head>
 <body>
   <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -94,6 +94,9 @@
       <main class="content" id="content" tabindex="-1"><div id="screen"></div></main>
       <footer class="footer">PET Educação <span>·</span> Universidade Federal de Sergipe</footer>
     </div>
+  </div>
+  <div id="connecting-popup" class="connecting-popup" role="status" aria-live="polite" hidden>
+    <div class="connecting-card"><span class="connecting-spinner" aria-hidden="true"></span><strong class="connecting-message">Conectando ao PET Gestão...</strong><span class="connecting-hint">Validando seu acesso</span></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </body>

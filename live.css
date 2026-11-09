@@ -286,3 +286,19 @@ body.admin-ui-active #screen{width:100%;max-width:none}
  .admin-mail-history>.section-head{align-items:stretch}
  .admin-mail-history>.section-head .button{width:100%}
 }
+
+/* Modal de conexão: login e acesso administrativo. */
+.connecting-popup{position:fixed;inset:0;z-index:250;display:grid;place-items:center;background:rgba(17,20,48,.55);padding:20px;backdrop-filter:blur(3px)}
+.connecting-popup[hidden]{display:none!important}
+.connecting-card{width:min(320px,100%);display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px 24px;border:1px solid #ece7f6;border-radius:22px;background:#fff;box-shadow:0 25px 65px #19133235;text-align:center;color:#231a41}
+.connecting-spinner{display:block;width:44px;height:44px;border-radius:50%;border:4px solid #e9defb;border-top-color:#7143d0;animation:pet-connecting-spin .8s linear infinite}
+.connecting-message{font-size:18px;font-weight:800}
+.connecting-hint{font-size:13px;color:#7e7695}
+@keyframes pet-connecting-spin{to{transform:rotate(360deg)}}
+/* Ferramentas existentes continuam dentro do painel Admin após navegar. */
+.admin-embedded-view{width:100%;min-width:0}
+.admin-embedded-view .page-header{margin:0 0 22px}
+.admin-embedded-view .card{max-width:100%}
+.admin-navigation button.admin-menu-link{font-family:inherit}
+.admin-sidebar-footer>button{width:100%;justify-content:flex-start}
+@media(max-width:760px){.admin-embedded-view .page-header{margin-bottom:17px}}

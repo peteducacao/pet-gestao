@@ -183,4 +183,22 @@ await test("painel de e-mails apresenta monitoramento sem enviar automaticamente
  assert.ok(worker.includes('if(path==="/api/v1/mail/status"'));
  assert.ok(worker.includes('if(!health.connected)fail('));
 });
+await test("Admin mantém ferramentas no painel novo e mostra popup de conexão",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const js=readFileSync("app-live.js","utf8");
+ const index=readFileSync("index.html","utf8");
+ const css=readFileSync("live.css","utf8");
+ assert.match(js,/data-do="admin-route" data-value="demandas"/);
+ assert.match(js,/function adminEmbeddedView\(parts\)/);
+ assert.match(js,/if\(page==="demandas"\)return renderDemandas\(\)/);
+ assert.match(js,/if\(page==="registrar"\)return renderTaskForm\(route\)/);
+ assert.match(js,/location.hash=workspaceHash\("demandas"\)/);
+ assert.match(js,/location.hash=workspaceHash\("comissoes"\)/);
+ assert.match(js,/location.hash="#\/admin"\+href.slice\(1\)/);
+ assert.ok(!js.includes(' Voltar ao sistema</a>'));
+ assert.ok(js.includes(' Sair do modo Admin</button>'));
+ assert.ok(index.includes('id="connecting-popup"'));
+ assert.ok(js.includes('if(isLogin)setConnecting(true'));
+ assert.ok(css.includes('.admin-embedded-view{'));
+});
 console.log(tests+" testes passaram no banco local isolado");
