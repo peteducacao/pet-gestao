@@ -85,6 +85,13 @@ await test("senha administrativa temporária pode ser trocada sem login comum",a
 });
 await test("logout",async()=>{good(await api("/auth/logout","POST"));assert.equal((await api("/auth/me")).status,401)});
 
+await test("envio de e-mail usa lista de destinatários corretamente",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const js=readFileSync("app-live.js","utf8");
+ assert.ok(js.includes('ids=$(\'input[name="mail-target"]:checked\').map(el=>el.value)'));
+ assert.ok(js.includes('class="admin-commission-item"'));
+ assert.ok(!js.includes('ids=$(\'input[name="mail-target"]:checked\').map'));
+});
 await test("interface separa identidade pessoal e administrativa",async()=>{
  const {readFileSync}=await import("node:fs");
  const js=readFileSync("app-live.js","utf8");
