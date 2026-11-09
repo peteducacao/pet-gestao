@@ -351,7 +351,7 @@ function renderCommitteeEdit(cid){
 function renderMine(){
  if(!canWrite())return authRequired();
  const a=data.tasks.filter(t=>active(t)&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id));
- return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t)+'<button type="button" class="button primary" data-do="finish-personal" data-id="'+esc(t.id)+'">Marcar como concluída</button></div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
+ return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad mine-list">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t)+'<button type="button" class="button primary" data-do="finish-personal" data-id="'+esc(t.id)+'">Marcar como concluída</button></div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
 }
 function assignmentView(){
  const opts=[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Pessoas"]];
