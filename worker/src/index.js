@@ -499,6 +499,12 @@
         if(scheduled&&attachments.length)fail("E-mails agendados não aceitam anexos.");
         const recipients=await recipientEmails(db,b);
         if(!recipients.length)fail("Nenhum destinatário selecionado.");
+        // Evita registrar um envio imediato em uma fila que já sabemos que será recusada.
+        // Um agendamento futuro permanece possível enquanto a integração é configurada.
+        if(!scheduled){
+          const health=await mailBridgeStatus(env);
+          if(!health.connected)fail("Gmail indisponível: "+health.message,503);
+        }
         if(attachments.length){
           // Anexos via ponte Gmail, sem persistir conteúdo dos arquivos em D1 ou no GitHub.
           const logId=uid(),stamp=now();
@@ -519,6 +525,8 @@
       }
       if(path==="/api/v1/mail/retry"&&method==="POST"){
         ensure(user,true);const b=await body(req);
+        const health=await mailBridgeStatus(env);
+        if(!health.connected)fail("Não é possível tentar novamente: "+health.message,503);
         await db.prepare("UPDATE email_queue SET status='pendente',scheduled_at=?,error_message=NULL WHERE id=? AND status='falhou' AND kind!='manual-attachment' AND body NOT LIKE '[Envio com anexos%'").bind(now(),str(b.id,100)).run();
         ctx.waitUntil(processQueue(env,2));return answer({ok:true});
       }
