@@ -6,7 +6,7 @@ const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").repl
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
 let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,mailItems:[],year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -23,8 +23,9 @@ const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name||"Comissão").join(", ");
 const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||selectedCommitteeNames(t)||"A definir";
 // Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
-const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor"].includes(me.role));
-const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminToken&&me?.role==="admin");
+const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
+const adminRole=u=>Boolean(u&&!u.mustChangePassword&&["tutor","admin"].includes(u.role));
+const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
@@ -40,7 +41,8 @@ function routeParts(){const raw=decodeURIComponent((location.hash||"#/inicio").s
 async function request(path,method="GET",payload,scope){
  if(!API)throw Error("URL da API ainda não publicada.");
  const headers={"Accept":"application/json"};
- const activeToken=scope==="guest"?"":scope==="admin"||(!scope&&routeParts().page==="admin")?adminToken:token;
+ const inAdmin=scope==="admin"||(!scope&&routeParts().page==="admin");
+ const activeToken=scope==="guest"?"":inAdmin?adminRole(regularMe)&&token?token:adminToken:token;
  if(activeToken)headers.Authorization="Bearer "+activeToken;
  if(payload!==undefined)headers["Content-Type"]="application/json";
  const res=await fetch(API+"/api/v1"+path,{method,headers,body:payload===undefined?undefined:JSON.stringify(payload),cache:"no-store"});
@@ -51,31 +53,22 @@ async function request(path,method="GET",payload,scope){
 async function reload(){
  try{
    const inAdmin=routeParts().page==="admin";
-   let b=await request("/bootstrap","GET",undefined,inAdmin?"admin":"user");
-   // Sessões de versões antigas entravam no Admin pela conta comum. Isolá-las automaticamente.
-   if(!inAdmin&&b.session?.user?.role==="admin"){
-     if(!adminToken){adminToken=token;sessionStorage.setItem(adminTokenKey,adminToken);}
-     token="";sessionStorage.removeItem(tokenKey);
-     b=await request("/bootstrap","GET",undefined,"guest");
-   }
-   data=b;me=b.session?.user||null;
+   // Uma conta Tutor(a) ou Administração utiliza sua sessão pessoal, sem outro login.
+   const personal=token?await request("/auth/me","GET",undefined,"user").catch(()=>null):null;
+   regularMe=personal?.user||null;
+   if(token&&!regularMe){token="";sessionStorage.removeItem(tokenKey)}
+   const scope=inAdmin&&!adminRole(regularMe)?"admin":"user";
+   const b=await request("/bootstrap","GET",undefined,scope);
+   data=b;
+   me=inAdmin&&adminRole(regularMe)?regularMe:b.session?.user||null;
+   if(inAdmin&&adminToken&&!adminRole(me)){adminToken="";sessionStorage.removeItem(adminTokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
-   if(inAdmin){
-     if(adminToken&&(!me||me.role!=="admin")){adminToken="";sessionStorage.removeItem(adminTokenKey);me=null;}
-     // O cabeçalho sempre representa a conta pessoal, nunca a sessão administrativa.
-     if(token){
-       const personal=await request("/auth/me","GET",undefined,"user").catch(()=>null);
-       regularMe=personal?.user?.role==="admin"?null:personal?.user||null;
-       if(!personal?.user||personal.user.role==="admin"){token="";sessionStorage.removeItem(tokenKey);}
-     }else regularMe=null;
-   }else{
-     if(token&&!me){token="";sessionStorage.removeItem(tokenKey);}
-     regularMe=me;
-   }
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
- }catch(e){data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}};me=null;
-   $("#connection-label").textContent="Sem conexão";$("#connection-dot")?.classList.remove("online");setToast(e.message);}
+ }catch(e){
+   data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}};
+   me=null;$("#connection-label").textContent="Sem conexão";$("#connection-dot")?.classList.remove("online");setToast(e.message);
+ }
  render();
 }
 function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","atividade","reunioes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
@@ -90,7 +83,7 @@ function nav(){
    account.setAttribute("aria-label",logged?"Minha conta: "+person.name+" ("+roleLabel(person.role)+")":"Entrar");
    account.title=logged?"Conectado como "+person.name+" — "+roleLabel(person.role):"Entrar";
  }
- const admin=$("#admin-link");if(admin){admin.hidden=false;admin.classList.toggle("nav-locked",!adminToken);admin.setAttribute("aria-label","Abrir acesso à Administração");admin.innerHTML=ico("settings")+'<span>Administração</span>';admin.title="Administração"}
+ const admin=$("#admin-link");if(admin){const visible=adminRole(regularMe);admin.hidden=!visible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
  $$(".nav-link[data-route]").forEach(el=>{el.classList.toggle("active",el.dataset.route===page);if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite()});
  $("#today-label").textContent=textDate(new Date());
  document.title=(routeNames[page]||"PET Educação")+" | PET Educação";
@@ -457,14 +450,16 @@ async function handleSubmit(e){
  try{
  if(form.id==="admin-login-form"){
    const f=userFields(form),r=await request("/auth/admin-login","POST",f,"guest");
-   if(r.user.role!=="admin")throw Error("Esta conta não tem permissão de Administração.");
+   if(!["tutor","admin"].includes(r.user.role))throw Error("Esta conta não tem permissão administrativa.");
    adminToken=r.token;sessionStorage.setItem(adminTokenKey,adminToken);
    await reload();setToast("Administração desbloqueada.");return;
  }
  if(form.id==="login-form"){
    const f=userFields(form),r=await request("/auth/login","POST",f,"guest");
    token=r.token;sessionStorage.setItem(tokenKey,token);
-   await reload();location.hash=r.user.mustChangePassword?"#/conta":"#/inicio";setToast("Acesso autorizado.");return;
+   // Não conservar uma antiga sessão de outro administrador ao entrar com nova conta.
+   adminToken="";sessionStorage.removeItem(adminTokenKey);
+   await reload();location.hash=r.user.mustChangePassword?"#/conta":adminRole(r.user)?"#/admin":"#/inicio";setToast("Acesso autorizado.");return;
  }
  if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
  if(form.id==="forgot-form"){const r=await request("/auth/forgot","POST",userFields(form));setToast(r.message);return}
