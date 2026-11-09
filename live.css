@@ -531,3 +531,122 @@ body.notice-open{overflow:hidden}
 .notice-secret input{width:100%;min-width:0;padding:12px;text-align:center;border:1px solid #dbd1f2;border-radius:9px;font-size:15px;background:white}
 .notice-secret .button{align-self:center;min-height:42px}
 @media(max-width:480px){.notice-dialog-card{padding:29px 21px 24px;border-radius:20px}.notice-dialog-card h2{font-size:21px}.notice-dialog-card p{font-size:14px}.notice-dialog-actions{flex-direction:column-reverse}}
+/* PET Gestão — ajuste responsivo dos cards e alinhamentos (09/11/2026). */
+/* A regra geral do formulário usa coluna: a opção de login precisa de linha. */
+#screen .register-form>label.remember-login-option{
+  display:flex!important;flex-direction:row!important;align-items:flex-start!important;
+  width:100%;gap:10px!important;margin:2px 0 4px;
+}
+#screen .remember-login-option>input[type="checkbox"]{
+  display:block;flex:0 0 19px;width:19px;height:19px;margin:2px 0 0;
+}
+#screen .remember-login-option>span{min-width:0;flex:1 1 auto;gap:3px}
+#screen .remember-login-option strong{line-height:1.4}
+
+/* Densidade uniforme: Visão geral, Demandas, Comissões e Cronograma. */
+#screen .demand-activity-card{
+  grid-template-columns:minmax(185px,1.5fr) minmax(120px,.7fr) minmax(150px,.85fr) auto;
+  gap:16px;min-height:122px;padding:17px 19px 17px 17px;
+  margin-bottom:12px;border-radius:17px;
+}
+#screen .demand-activity-identity{gap:13px}
+#screen .demand-activity-art{width:64px;height:64px;flex-basis:64px;border-radius:15px}
+#screen .demand-activity-art>svg{width:30px;height:30px}
+#screen .demand-activity-art>.commission-default-art{font-size:36px!important}
+#screen .demand-activity-heading{gap:7px}
+#screen .demand-activity-title{font-size:18px;line-height:1.28}
+#screen .demand-activity-commission{min-height:29px;padding:5px 9px;font-size:11.5px}
+#screen .demand-activity-fact{gap:9px;min-width:0}
+#screen .demand-activity-date,#screen .demand-activity-owners{padding-left:14px}
+#screen .demand-activity-fact-icon{flex-basis:22px}
+#screen .demand-activity-fact-icon svg{width:22px;height:22px}
+#screen .demand-activity-label{font-size:12px}
+#screen .demand-activity-fact strong{font-size:14px}
+#screen .demand-activity-card .activity-details-link.demand-activity-action{
+  min-height:44px;padding:11px 14px!important;font-size:13px;gap:8px;border-radius:11px;
+}
+#screen .demand-activity-card .activity-details-link.demand-activity-action svg{width:16px;height:16px}
+
+/* A Visão geral tem painéis mais estreitos: economizar largura e altura. */
+#screen .dashboard-grid .demand-activity-card{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 10px;padding:15px 14px;min-height:0;
+}
+#screen .dashboard-grid .demand-activity-art{width:52px;height:52px;flex-basis:52px}
+#screen .dashboard-grid .demand-activity-title{font-size:16px}
+#screen .dashboard-grid .demand-activity-fact strong{font-size:12.5px}
+#screen .dashboard-grid .demand-activity-fact-icon svg{width:19px;height:19px}
+#screen .dashboard-grid .demand-activity-identity,
+#screen .dashboard-grid .demand-activity-action{grid-column:1/-1}
+#screen .dashboard-grid .section-head{gap:9px}
+#screen .dashboard-grid .section-head .button{min-height:35px;padding:8px 11px;font-size:11.5px}
+
+/* Minhas pendências: o botão de conclusão passa a fazer parte do mesmo cartão. */
+#screen .mine-list{background:transparent;border:0;box-shadow:none;padding:0}
+#screen .mine-task-item{
+  margin:0 0 13px;padding:0;overflow:hidden;background:#fff;
+  border:1px solid #e9e3f4;border-left:5px solid #7445d7;
+  border-radius:17px;box-shadow:0 8px 22px rgba(61,36,111,.075);
+}
+#screen .mine-task-item:last-child{margin-bottom:0;padding:0}
+#screen .mine-task-item>.demand-activity-card{
+  margin:0;padding-bottom:12px;border:0!important;border-left:0!important;
+  border-radius:0;box-shadow:none;overflow:visible;
+}
+#screen .mine-task-item>.demand-activity-card:hover{transform:none;box-shadow:none}
+#screen .mine-task-item>.button{
+  display:flex;align-items:center;justify-content:center;
+  width:calc(100% - 30px);min-height:43px;
+  margin:0 15px 15px;font-size:12.5px;white-space:normal;border-radius:11px;
+}
+@media(max-width:1320px){
+  #screen .demand-activity-card{
+    grid-template-columns:minmax(190px,1.3fr) minmax(120px,.7fr) minmax(145px,.8fr);
+    gap:13px;
+  }
+}
+@media(max-width:850px){
+  #screen .demand-activity-card{
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px;
+    padding:15px;min-height:0;
+  }
+  #screen .demand-activity-identity,
+  #screen .demand-activity-card .demand-activity-action{grid-column:1/-1}
+  #screen .demand-activity-date,#screen .demand-activity-owners{padding:0;border:0}
+}
+@media(max-width:560px){
+  #screen .demand-activity-card,#screen .dashboard-grid .demand-activity-card{
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 8px;
+    padding:13px 12px;border-radius:15px;
+  }
+  #screen .demand-activity-art,#screen .dashboard-grid .demand-activity-art{
+    width:48px;height:48px;flex-basis:48px;border-radius:12px;
+  }
+  #screen .demand-activity-art>svg{width:25px;height:25px}
+  #screen .demand-activity-art>.commission-default-art{font-size:29px!important}
+  #screen .demand-activity-identity{gap:10px}
+  #screen .demand-activity-title,#screen .dashboard-grid .demand-activity-title{font-size:15.5px}
+  #screen .demand-activity-commission{font-size:10.5px;min-height:26px;padding:4px 7px;gap:5px}
+  #screen .demand-activity-commission svg{width:15px;height:15px}
+  #screen .demand-activity-fact{gap:6px;align-items:flex-start}
+  #screen .demand-activity-fact-icon{flex-basis:17px}
+  #screen .demand-activity-fact-icon svg,
+  #screen .dashboard-grid .demand-activity-fact-icon svg{width:17px;height:17px}
+  #screen .demand-activity-label{font-size:11px}
+  #screen .demand-activity-fact strong,
+  #screen .dashboard-grid .demand-activity-fact strong{font-size:12px}
+  #screen .demand-activity-card .activity-details-link.demand-activity-action{
+    min-height:42px;padding:10px 12px!important;font-size:12.5px;
+  }
+  #screen .demand-activity-identity,
+  #screen .demand-activity-card .demand-activity-action{grid-column:1/-1}
+  #screen .mine-task-item>.demand-activity-card{border-radius:0}
+  #screen .mine-task-item>.button{width:calc(100% - 24px);margin:0 12px 12px;min-height:42px}
+  #screen .mine-task-item{border-radius:15px}
+  #screen .dashboard-grid>.card.card-pad{padding:15px}
+}
+@media(max-width:310px){
+  #screen .demand-activity-card,#screen .dashboard-grid .demand-activity-card{
+    grid-template-columns:minmax(0,1fr);
+  }
+}
