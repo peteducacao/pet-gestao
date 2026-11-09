@@ -12,10 +12,10 @@ await test("saúde",async()=>{assert.equal(good(await api("/health")).database,t
 await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,10);assert.equal(r.session,null)});
 await test("controle de acesso",async()=>{assert.equal((await api("/admin/users")).status,401)});
 await test("login Admin separado",async()=>{const r=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:process.env.TEST_ADMIN_PASSWORD}));token=r.token;assert.equal(r.user.role,"admin")});
-await test("login comum não aceita conta Admin",async()=>{
- const r=await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD});
- assert.equal(r.status,403);
- assert.match(r.error,/Administração/);
+await test("Admin pode entrar diretamente pela conta principal",async()=>{
+ const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD}));
+ assert.equal(r.user.role,"admin");
+ assert.ok(r.token);
 });
 let a,b,task,meeting;
 await test("login administrativo independente",async()=>{
@@ -37,6 +37,30 @@ await test("admin pode promover ou voltar à categoria Usuário",async()=>{
  assert.equal(good(await api("/admin/users")).users.find(u=>u.id===id).role,"petiano");
  good(await api("/admin/users/"+id,"PATCH",{role:"usuario",notificationEnabled:false}));
  assert.equal(good(await api("/admin/users")).users.find(u=>u.id===id).role,"usuario");
+});
+await test("Tutor possui acesso administrativo completo",async()=>{
+ const admin=token;
+ const id=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
+ good(await api("/admin/users/"+id,"PATCH",{role:"tutor",notificationEnabled:false}));
+ try{
+   const tutor=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
+   assert.equal(tutor.user.role,"tutor");
+   token=tutor.token;
+   good(await api("/admin/users"));
+   good(await api("/bootstrap"));
+   good(await api("/admin/settings","PUT",{autoWeek:true,autoMonth:false}));
+   const recipient=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
+   const scheduled=good(await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de agendamento local",message:"Teste isolado sem envio ao Gmail.",scheduledAt:new Date(Date.now()+86400000).toISOString()}),201);
+   assert.equal(scheduled.status,"agendado");
+   const history=good(await api("/mail")).items;
+   assert.ok(history.some(x=>x.id===scheduled.id&&x.recipientEmails.includes("teste-usuario@pet.local")));
+   const immediate=good(await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de fila imediata local",message:"Fila isolada, não enviada ao Gmail."}),201);
+   assert.ok(immediate.id);
+   assert.equal((await api("/mail","POST",{all:false,userIds:[],subject:"Sem destino",message:"Não pode enviar"})).status,400);
+ }finally{
+   token=admin;
+   good(await api("/admin/users/"+id,"PATCH",{role:"usuario",notificationEnabled:false}));
+ }
 });
 await test("criar comissões",async()=>{good(await api("/commissions","POST",{name:"Teste Comissão A"}));good(await api("/commissions","POST",{name:"Teste Comissão B"}));const c=good(await api("/bootstrap")).committees;a=c.find(x=>x.name==="Teste Comissão A").id;b=c.find(x=>x.name==="Teste Comissão B").id});
 await test("editar comissão",async()=>{good(await api("/commissions/"+a,"PUT",{name:"Teste Renomeada",backgroundColor:"#123456"}));assert.equal(good(await api("/bootstrap")).committees.find(x=>x.id===a).backgroundColor,"#123456")});
@@ -85,24 +109,31 @@ await test("senha administrativa temporária pode ser trocada sem login comum",a
 });
 await test("logout",async()=>{good(await api("/auth/logout","POST"));assert.equal((await api("/auth/me")).status,401)});
 
-await test("envio de e-mail usa lista de destinatários corretamente",async()=>{
+await test("seleção múltipla de e-mails executa sem erro de map",async()=>{
  const {readFileSync}=await import("node:fs");
  const js=readFileSync("app-live.js","utf8");
- assert.ok(js.includes('ids=$(\'input[name="mail-target"]:checked\').map(el=>el.value)'));
+ const selector=js.match(/const f=userFields\(form\),ids=([^,]+),userIds=/);
+ assert.ok(selector,"Expressão de seleção dos destinatários não encontrada");
+ const evaluate=new Function("$","$$","return "+selector[1]);
+ const selection=evaluate(()=>({value:"incorreto"}),()=>[{value:"pessoa-1"},{value:"pessoa-2"}]);
+ assert.deepEqual(selection,["pessoa-1","pessoa-2"]);
  assert.ok(js.includes('class="admin-commission-item"'));
- assert.ok(!js.includes('ids=$(\'input[name="mail-target"]:checked\').map'));
+ assert.ok(js.includes('class="admin-layout"'));
 });
-await test("interface separa identidade pessoal e administrativa",async()=>{
+await test("painel usa apenas áreas existentes e respeita identidade",async()=>{
  const {readFileSync}=await import("node:fs");
  const js=readFileSync("app-live.js","utf8");
  const css=readFileSync("live.css","utf8");
  const html=readFileSync("index.html","utf8");
  assert.ok(js.includes('const roleLabel=role=>'));
  assert.ok(js.includes('const person=regularMe, logged=Boolean(person)'));
- assert.ok(js.includes('if(!inAdmin&&b.session?.user?.role==="admin")'));
- assert.ok(js.includes('id="admin-change-password-form"'));
- assert.ok(js.includes('["petiano","tutor"].includes(me.role)'));
- assert.ok(css.includes('.profile-button span.account-identification{display:flex}'));
+ assert.ok(js.includes('["tutor","admin"].includes(u.role)'));
+ assert.ok(js.includes('admin-menu-link'));
+ assert.ok(js.includes('data-value="emails"'));
+ assert.ok(js.includes('data-value="comissoes"'));
+ assert.ok(js.includes('admin-signout'));
+ assert.ok(css.includes('.admin-layout{'));
+ assert.ok(css.includes('#admin-link[hidden]{display:none!important}'));
  assert.ok(html.includes('id="account-button"'));
 });
 console.log(tests+" testes passaram no banco local isolado");
