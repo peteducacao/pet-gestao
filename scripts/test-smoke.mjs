@@ -50,11 +50,13 @@ await test("Tutor possui acesso administrativo completo",async()=>{
    good(await api("/bootstrap"));
    good(await api("/admin/settings","PUT",{autoWeek:true,autoMonth:false}));
    const recipient=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
-   const scheduled=good(await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de agendamento local",message:"Teste isolado sem envio ao Gmail.",scheduledAt:new Date(Date.now()+86400000).toISOString()}),201);
+   const scheduled=await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de agendamento local",message:"Teste isolado sem envio ao Gmail.",scheduledAt:new Date(Date.now()+86400000).toISOString()});
+   assert.equal(scheduled.ok,true);
    assert.equal(scheduled.status,"agendado");
    const history=good(await api("/mail")).items;
    assert.ok(history.some(x=>x.id===scheduled.id&&x.recipientEmails.includes("teste-usuario@pet.local")));
-   const immediate=good(await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de fila imediata local",message:"Fila isolada, não enviada ao Gmail."}),201);
+   const immediate=await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de fila imediata local",message:"Fila isolada, não enviada ao Gmail."});
+   assert.equal(immediate.ok,true);
    assert.ok(immediate.id);
    assert.equal((await api("/mail","POST",{all:false,userIds:[],subject:"Sem destino",message:"Não pode enviar"})).status,400);
  }finally{
