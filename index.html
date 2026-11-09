@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="styles.css?v=prod-20261109-gmail-monitor-v13" />
   <link rel="stylesheet" href="live.css?v=prod-20261109-responsaveis-v17" />
   <script src="config.js?v=prod-20261109-gmail-monitor-v13"></script>
-  <script src="app-live.js?v=prod-20261109-responsaveis-v17" defer></script>
+  <script src="app-live.js?v=prod-20261109-sistema-v18" defer></script>
 </head>
 <body>
   <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -81,8 +81,8 @@
         <nav class="nav-group" aria-label="Área pessoal">
           <a class="nav-link" data-route="minhas-pendencias" href="#/minhas-pendencias"><svg><use href="#i-checklist"/></svg><span>Minhas pendências</span></a>
         </nav>
-        <p class="nav-caption separated">SISTEMA</p>
-        <nav class="nav-group" aria-label="Administração">
+        <p class="nav-caption separated" id="admin-nav-caption" hidden>SISTEMA</p>
+        <nav class="nav-group" id="admin-nav-group" aria-label="Administração" hidden>
           <button class="nav-link" id="admin-link" type="button" hidden><svg><use href="#i-settings"/></svg><span>Administração</span></button>
         </nav>
       </div>

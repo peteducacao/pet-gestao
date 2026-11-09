@@ -301,4 +301,14 @@ await test("responsáveis humanos não se confundem com nome da comissão",async
  assert.ok(!js.includes('defaultTutor=owners[0]'));
  assert.ok(!js.includes('person.value=data.users.find(x=>x.role==="tutor")'));
 });
+await test("seção SISTEMA e Administração somente Admin e Tutor sem piscar no F5",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8");
+ assert.match(index,/<p class="nav-caption separated" id="admin-nav-caption" hidden>SISTEMA<\/p>/);
+ assert.match(index,/<nav class="nav-group" id="admin-nav-group" aria-label="Administração" hidden>/);
+ assert.match(index,/<button class="nav-link" id="admin-link" type="button" hidden>/);
+ assert.ok(src.includes('const adminVisible=adminRole(regularMe);'));
+ assert.ok(src.includes('if(adminCaption)adminCaption.hidden=!adminVisible'));
+ assert.ok(src.includes('if(adminGroup)adminGroup.hidden=!adminVisible'));
+});
 console.log(tests+" testes passaram no banco local isolado");
