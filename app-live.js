@@ -8,7 +8,7 @@ const current=new Date(), tokenKey="pet-gestao:session-token";
 let token=sessionStorage.getItem(tokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null;
 const state={year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
-let toastTimer,lastHash=location.hash||"#/inicio";
+let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const id=v=>encodeURIComponent(String(v));
 const ico=(name)=>'<svg aria-hidden="true"><use href="#i-'+name+'"></use></svg>';
@@ -47,6 +47,7 @@ async function request(path,method="GET",payload){
 async function reload(){
  try{
    const b=await request("/bootstrap");data=b;me=b.session?.user||null;
+   if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(sessionStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0}catch{}}
    if(token&&!me){token="";sessionStorage.removeItem(tokenKey)}
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
@@ -64,8 +65,8 @@ function nav(){
  $("#today-label").textContent=textDate(new Date());
  document.title=(routeNames[page]||"PET Educação")+" | PET Educação";
 }
-function weeks(y,m){const d=new Date(y,m+1,0).getDate(),arr=[];for(let start=1;start<=d;start+=7)arr.push({n:arr.length+1,start,end:Math.min(start+6,d)});return arr}
-function weekFor(d){const x=dt(d);return x?Math.floor((x.getDate()-1)/7)+1:0}
+function weeks(y,m){const days=new Date(y,m+1,0).getDate(),firstDay=new Date(y,m,1).getDay(),firstMonday=1+((8-firstDay)%7),arr=[];let start=1,end=Math.min(days,firstMonday+6);while(start<=days){arr.push({n:arr.length+1,start,end});start=end+1;end=Math.min(days,start+6)}return arr}
+function weekFor(d){const x=dt(d);return x?weeks(x.getFullYear(),x.getMonth()).find(w=>x.getDate()>=w.start&&x.getDate()<=w.end)?.n||0:0}
 function taskDate(t){return stages(t).find(x=>x.label==="Postagem")?.dueAt||stages(t).find(x=>x.label==="Prazo")?.dueAt||t.registeredAt}
 function filtered(t,mode=state.mode){
  if(mode==="arquivo")return Boolean(t.archivedAt);
@@ -74,7 +75,7 @@ function filtered(t,mode=state.mode){
  if(mode==="pendentes")return t.status!=="aprovada";
  const d=dt(taskDate(t));if(!d)return false;
  if(d.getFullYear()!==state.year||d.getMonth()!==state.month)return false;
- if(mode==="semanal")return weekFor(d)!==0&&weekFor(d)===state.week;
+ if(mode==="semanal")return !state.week||weekFor(d)===state.week;
  return true;
 }
 function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()-2+i);
@@ -115,7 +116,7 @@ function renderCronograma(){
 function renderComissoes(){
  return header("Trabalho em equipe","Comissões","Organização das equipes.",canWrite()?button("+ Nova comissão","comissoes/nova",true):"")+
  '<section class="card card-pad"><div class="section-head"><h2>Comissões cadastradas</h2><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="commission-cards-grid">'+data.committees.map(c=>{
- const members=(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
+ const members=c.memberCount??(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
  return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><a href="#/comissoes/'+id(c.id)+'" class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':ico("users"))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes</div><span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span></a>'+
  (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
  (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'" '+(cmax&&members>=cmax?"disabled":"")+'>Fazer parte</button>')+'</div></details>':"")+'</article>'
@@ -154,11 +155,11 @@ function assignmentView(){
  '<p class="notice-line">Pessoas: '+state.selectedUsers.size+' · Comissões: '+state.selectedCommissions.size+'</p></div>';
 }
 function stageRow(stage={},i=0){
- const tutor=data.users.filter(x=>x.role==="tutor"),owners=stage.assigneeIds||[];
+ const tutor=data.users.filter(x=>x.role==="tutor"),owners=stage.assigneeIds||[],defaultTutor=owners[0]||(stage.label==="Correção"?tutor[0]?.id:"")||"";
  return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
  '<label>Data<input type="date" data-stage="day" value="'+esc((stage.dueAt||"").slice(0,10))+'" min="'+current.getFullYear()+'-01-01"></label>'+
  '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
- '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">Responsáveis da demanda</option>'+data.users.map(u=>opt(u.id,u.role==="tutor"?"Tutor(a) — "+u.name:u.name,owners[0]||"")).join("")+'</select></label>'+
+ '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">Responsáveis da demanda</option>'+data.users.map(u=>opt(u.id,u.role==="tutor"?"Tutor(a) — "+u.name:u.name,defaultTutor)).join("")+'</select></label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function renderTaskForm(routeId){
@@ -186,6 +187,7 @@ function statusSelect(t){return '<div class="quick-task-status"><div class="quic
 function renderDetail(taskId,contextCid){
  if(!canWrite())return authRequired();
  const t=data.tasks.find(t=>t.id===taskId);if(!t)return empty("Demanda não encontrada");
+ if(state.statusTaskId!==taskId){state.statusTaskId=taskId;state.selectedStatus=t.status}
  const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
  const details=historyFor(taskId);
  return header("Atividade",t.title,"",button("Editar demanda","registrar/"+id(t.id))+backButton())+
@@ -396,6 +398,7 @@ async function handleSubmit(e){
 }
 async function handleChange(e){
  const t=e.target;if(!t)return;
+ if(t.dataset.stage==="label"&&t.value==="Correção"){const person=t.closest(".live-stage")?.querySelector('[data-stage="assignee"]');if(person&&!person.value)person.value=data.users.find(x=>x.role==="tutor")?.id||"";return;}
  if(t.dataset.assign){
    const set=t.dataset.assign==="comissoes"?state.selectedCommissions:state.selectedUsers;
    if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();return;
@@ -405,7 +408,7 @@ async function handleChange(e){
    if(t.dataset.filter==="month"){state.month=val;state.week=0}
    if(t.dataset.filter==="year"){state.year=val;state.week=0}
    if(t.dataset.filter==="week")state.week=val;
-   render();return;
+   sessionStorage.setItem("pet-gestao:period",JSON.stringify({year:state.year,month:state.month,week:state.week}));render();return;
  }
  if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
