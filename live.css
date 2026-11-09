@@ -1,0 +1,46 @@
+/* PET Gestão — complementos da interface de produção. A base visual permanece em styles.css. */
+[hidden]{display:none!important}
+button,select,input,textarea{font:inherit}
+.crumb{border:0;background:none;color:inherit;vertical-align:middle;cursor:pointer;padding:4px}
+.crumb svg{width:16px;height:16px;vertical-align:middle}
+.topbar-context a{color:inherit;text-decoration:none}
+.live-task-card{position:relative;border-bottom:1px solid #ebe8f1}
+.live-task-card:last-child{border-bottom:0}
+.live-task-card>.button{margin:0 0 12px 14px}
+.live-stage{display:flex;flex-wrap:wrap;align-items:end;gap:10px;padding:12px;background:#faf9fd;border:1px solid #ebe6f5;border-radius:12px;margin:10px 0}
+.live-stage label{flex:1;min-width:135px;display:grid;gap:6px;font-weight:600;font-size:.86rem}
+.live-stage input,.live-stage select{width:100%;min-height:40px;padding:7px;border:1px solid #d7d3e3;border-radius:9px;background:#fff}
+.live-color-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0}
+.live-color-row input[type=color]{height:43px;width:80px;padding:4px;border:1px solid #ccc;border-radius:7px}
+.live-commission-finish{padding:12px 0;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;border-bottom:1px solid #eee}
+.live-admin-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #ede9f3}
+.live-admin-row>div:first-child{flex:1 1 150px}
+.live-admin-row small{display:block;margin-top:3px;color:#666}
+.live-admin-row input[type=number]{width:80px;min-height:36px;padding:5px;border:1px solid #ddd;border-radius:7px}
+.live-admin-row select{max-width:180px}
+.live-admin-row label{display:flex;align-items:center;gap:8px}
+.live-auth{max-width:640px;margin:auto}
+.live-auth>p{display:flex;gap:10px;flex-wrap:wrap}
+.live-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}
+.live-toggle input{width:17px;height:17px}
+.live-memory-text{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.7}
+.register-form input[type=file]{display:block;width:100%;max-width:100%}
+#notes-content{display:block;width:100%;min-height:140px;margin:12px 0;padding:12px;border:1px solid #d2cde2;border-radius:10px}
+.live-admin-list .button,.live-admin-row .button{white-space:nowrap}
+.commission-tile-menu-items .button{border:0;padding:9px 12px;text-align:left;justify-content:flex-start;min-height:auto}
+.commission-tile-menu-items button:disabled{opacity:.45}
+.assignment-option{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px}
+.assignment-option input{margin:0}
+.register-deadlines{margin:14px 0;padding:14px;border:1px solid #e7e3f1;border-radius:12px}
+.card.card-pad{margin-bottom:16px}
+.activity-detail-grid details.card summary{cursor:pointer;list-style:auto}
+#mail-file-list p{margin:6px 0}
+#mail-file-list button{border:0;background:none;color:#6343ab;text-decoration:underline;cursor:pointer}
+@media(max-width:720px){
+  .live-admin-row>*{max-width:100%}
+  .live-admin-row label{width:auto}
+  .live-stage{display:grid;grid-template-columns:1fr 1fr}
+  .live-stage label{min-width:0}
+  .live-stage button{grid-column:span 2}
+  .topbar-context{font-size:.8rem}
+}
