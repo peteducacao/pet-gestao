@@ -511,3 +511,23 @@ body.auth-message-open{overflow:hidden}
 .register-deadlines .section-head>button{flex:0 0 auto}
 .register-assignment .assignment-modes{margin-bottom:13px}
 @media(max-width:650px){.task-form-help{padding:16px 13px;gap:11px}.task-form-help-icon{width:37px;height:37px;flex-basis:37px}.task-form-help h3,.task-form-deadlines-heading h3{font-size:15px}.task-form-help p,.task-form-deadlines-heading p{font-size:12.5px}.register-deadlines .section-head{flex-direction:column}.register-deadlines .section-head>button{width:100%;justify-content:center}}
+
+/* Popups personalizados: feedback, campos obrigatórios e confirmações. */
+body.notice-open{overflow:hidden}
+.notice-dialog[hidden]{display:none!important}
+.notice-dialog{position:fixed;inset:0;z-index:320;display:grid;place-items:center;padding:18px}
+.notice-dialog-shade{position:absolute;inset:0;background:rgba(19,15,40,.65);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.notice-dialog-card{position:relative;z-index:1;width:min(465px,100%);padding:34px 32px 28px;background:white;border:1px solid #eadff8;border-radius:24px;box-shadow:0 32px 90px rgba(21,13,53,.3);text-align:center;animation:commission-pop .2s ease-out}
+.notice-dialog-icon{display:grid;place-items:center;width:66px;height:66px;margin:0 auto 21px;border-radius:18px;background:#eee5ff;color:#6440b6}
+.notice-dialog-icon svg{height:33px;width:33px;stroke-width:1.9}
+.notice-dialog-success{color:#16805a;background:#e3f8ee}
+.notice-dialog-warning{color:#ad6921;background:#fff1dc}
+.notice-dialog-card h2{font-size:23px;line-height:1.3;font-weight:850;letter-spacing:-.5px;margin:0 0 12px;color:#2c2442}
+.notice-dialog-card p{font-size:15px;line-height:1.7;color:#6e6682;margin:0 0 25px;white-space:pre-line;overflow-wrap:anywhere}
+.notice-dialog-actions{display:flex;gap:11px;justify-content:center}
+.notice-dialog-actions .button{flex:1;min-height:48px;justify-content:center;padding:12px 15px;font-size:14px;font-weight:800;border-radius:12px;white-space:normal}
+.notice-dialog-actions .notice-dialog-danger{background:#b9334d!important;border-color:#b9334d!important}
+.notice-secret{display:flex;flex-direction:column;gap:9px;margin:0 0 21px;padding:13px;background:#f9f5ff;border:1px solid #ede5fa;border-radius:12px}
+.notice-secret input{width:100%;min-width:0;padding:12px;text-align:center;border:1px solid #dbd1f2;border-radius:9px;font-size:15px;background:white}
+.notice-secret .button{align-self:center;min-height:42px}
+@media(max-width:480px){.notice-dialog-card{padding:29px 21px 24px;border-radius:20px}.notice-dialog-card h2{font-size:21px}.notice-dialog-card p{font-size:14px}.notice-dialog-actions{flex-direction:column-reverse}}

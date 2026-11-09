@@ -125,7 +125,53 @@ function showAuthMessage(title,message,isError=false){
  document.body.classList.add("auth-message-open");
  layer.querySelector(".auth-message-button")?.focus();
 }
-function setToast(message){const box=$("#toast");if(!box)return;box.textContent=message;box.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>box.hidden=true,5200)}
+
+// Um único diálogo para avisos, confirmações e informações importantes.
+let noticePromiseResolve=null,noticeReturnFocus=null;
+function closeNotice(confirmed=false){
+ const layer=$("#notice-dialog");
+ if(layer){layer.hidden=true;layer.innerHTML=""}
+ document.body.classList.remove("notice-open");
+ if(noticePromiseResolve){const resolve=noticePromiseResolve;noticePromiseResolve=null;resolve(Boolean(confirmed))}
+ if(noticeReturnFocus?.isConnected)noticeReturnFocus.focus();
+ noticeReturnFocus=null;
+}
+function showNotice(message,{title="",kind="info",confirm=false,danger=false,secret="",focusAfter=null}={}){
+ const layer=$("#notice-dialog");if(!layer)return confirm?Promise.resolve(false):undefined;
+ if(!layer.hidden)closeNotice(false);
+ noticeReturnFocus=focusAfter||document.activeElement;
+ const warning=kind==="warning"||danger,success=kind==="success";
+ const heading=title||(confirm?(danger?"Confirmar exclusão":"Confirmar ação"):warning?"Atenção":success?"Tudo certo!":"Aviso do PET Gestão");
+ layer.innerHTML='<div class="notice-dialog-shade" data-do="notice-cancel"></div>'+
+ '<section class="notice-dialog-card" role="dialog" aria-modal="true" aria-labelledby="notice-title" aria-describedby="notice-description">'+
+ '<div class="notice-dialog-icon notice-dialog-'+(warning?"warning":success?"success":"info")+'">'+ico(warning?"alert":success?"check":"info")+'</div>'+
+ '<h2 id="notice-title">'+esc(heading)+'</h2>'+
+ '<p id="notice-description">'+esc(message)+'</p>'+
+ (secret?'<div class="notice-secret"><input id="notice-secret-value" type="text" readonly aria-label="Senha temporária" value="'+esc(secret)+'"><button type="button" class="button ghost" data-do="notice-copy">'+ico("copy")+' Copiar senha</button></div>':"")+
+ '<div class="notice-dialog-actions">'+
+ (confirm?'<button class="button ghost" type="button" data-do="notice-cancel">Cancelar</button><button class="button primary'+(danger?" notice-dialog-danger":"")+'" type="button" data-do="notice-confirm">'+(danger?"Excluir definitivamente":"Confirmar")+'</button>':
+ '<button class="button primary" type="button" data-do="notice-cancel">Fechar</button>')+
+ '</div></section>';
+ layer.hidden=false;document.body.classList.add("notice-open");
+ layer.querySelector(confirm?'[data-do="notice-confirm"]':'.notice-dialog-actions [data-do="notice-cancel"]')?.focus();
+ if(confirm)return new Promise(resolve=>{noticePromiseResolve=resolve});
+}
+function setToast(message,kind="auto"){
+ const text=String(message||"");
+ const error=/\b(erro|falha|falhou|recusad|inválid|indisponível|obrigatóri|não foi possível|não pode|não é possível|não encontrou|preencha|informe|selecione|corrija|atenção|ausente|excede)\b/i.test(text);
+ const success=/\b(salv|conclu|criad|atualiz|autorizad|enviad|removid|registrad|desbloquead|copiad|sucesso)\w*/i.test(text);
+ return showNotice(text,{kind:kind==="auto"?(error?"warning":success?"success":"info"):kind});
+}
+const askConfirm=(message,options={})=>showNotice(message,{...options,confirm:true});
+function invalidFieldMessage(field){
+ const validity=field.validity||{};
+ const label=String(field.closest("label")?.childNodes?.[0]?.textContent||field.getAttribute("aria-label")||field.name||"campo").replace(/[\s*]+$/g,"").trim();
+ if(validity.valueMissing)return "Preencha o campo obrigatório: "+label+".";
+ if(validity.typeMismatch&&field.type==="email")return "Digite um endereço de e-mail válido.";
+ if(validity.tooShort)return "O campo "+label+" precisa ter pelo menos "+field.minLength+" caracteres.";
+ return "Confira o preenchimento do campo "+label+" antes de continuar.";
+}
+
 function header(eye,title,sub="",actions=""){return '<div class="page-header"><div><div class="eyebrow">'+esc(eye)+'</div><h1 class="page-title">'+esc(title)+'</h1>'+(sub?'<p class="page-subtitle">'+esc(sub)+'</p>':"")+'</div><div class="page-actions">'+actions+'</div></div>'}
 function empty(title,sub=""){return'<div class="empty"><span class="empty-icon">'+ico("folder")+'</span><h3>'+esc(title)+'</h3><p>'+esc(sub)+'</p></div>'}
 function button(label,route,primary=false){return'<a href="#/'+route+'" class="button '+(primary?"primary":"ghost")+'">'+esc(label)+'</a>'}
@@ -481,7 +527,7 @@ function render(){
    if(state.adminTab==="painel")loadMailHistory();
  }
 }
-function askNotification(){return canNotify()?window.confirm("Deseja notificar os(as) responsáveis por e-mail sobre esta alteração?"):false}
+async function askNotification(){return canNotify()?await askConfirm("Deseja notificar os(as) responsáveis por e-mail sobre esta alteração?",{title:"Enviar notificação por e-mail?"}):false}
 async function saveAndReload(action,success="Alterações salvas."){
  try{await action();await reload();setToast(success);return true}catch(e){setToast(e.message);return false}
 }
@@ -497,7 +543,8 @@ async function saveTask(form){
  if(stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores.");
  const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
  if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
- const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,notify:askNotification()},taskId=form.dataset.id;
+ const notify=await askNotification();
+ const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,notify},taskId=form.dataset.id;
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
    state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
@@ -510,8 +557,9 @@ async function finishTask(t,cid){
  const remaining=remainingCommissions.length+remainingPeople.length;
  const message=(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?\n\n":"Deseja marcar sua participação como concluída?\n\n")+
  (remaining?"A demanda será arquivada quando as demais participações forem concluídas.":"Essa é a última participação; a demanda será arquivada.");
- if(!window.confirm(message))return;
- const success=await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify:askNotification()}),remaining?"Sua participação foi concluída. Outras pessoas ou comissões ainda precisam concluir.":"Demanda concluída e arquivada.");
+ if(!await askConfirm(message,{title:future?"Conclusão antecipada":"Concluir participação"}))return;
+ const notify=await askNotification();
+ const success=await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify}),remaining?"Sua participação foi concluída. Outras pessoas ou comissões ainda precisam concluir.":"Demanda concluída e arquivada.");
  if(success)location.hash=cid?workspaceHash("comissoes/"+id(cid)):workspaceHash("minhas-pendencias");
 }
 async function saveCommission(form){
@@ -602,6 +650,14 @@ async function handleClick(e){
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
  if(action==="auth-message-close"){closeAuthMessage();return}
+ if(action==="notice-confirm"){closeNotice(true);return}
+ if(action==="notice-cancel"){closeNotice(false);return}
+ if(action==="notice-copy"){
+   const field=$("#notice-secret-value");if(!field)return;
+   try{await navigator.clipboard.writeText(field.value);b.textContent="Copiado!";}
+   catch{field.focus();field.select();b.textContent="Selecione e copie";}
+   return;
+ }
  if(action==="admin-tab"){
   if(!isAdmin())return;
   state.adminTab=b.dataset.value;
@@ -647,7 +703,7 @@ async function handleClick(e){
  if(action==="finish-personal"){const t=data.tasks.find(x=>x.id===tid);if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id))await finishTask(t,"");return}
  if(action==="finish-commission"){const t=data.tasks.find(x=>x.id===tid);if(t)await finishTask(t,b.dataset.commission||"");return}
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
- if(action==="save-notes"){await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:$("#notes-content").value,notify:askNotification()}),"Observações salvas.");return}
+ if(action==="save-notes"){const content=$("#notes-content").value;const notify=await askNotification();await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:content,notify}),"Observações salvas.");return}
  if(action==="join-commission"||action==="leave-commission"){
    showCommissionDialog(action==="join-commission"?"join":"leave",committee(tid));return;
  }
@@ -670,13 +726,13 @@ async function handleClick(e){
  }
  if(action==="delete-commission"){
    if(!isAdmin())return;const c=committee(tid);
-   if(!window.confirm('Excluir definitivamente a comissão "'+c?.name+'"? Os registros vinculados impedem a exclusão.'))return;
+   if(!await askConfirm('Excluir definitivamente a comissão "'+c?.name+'"? Os registros vinculados impedem a exclusão.',{danger:true}))return;
    await saveAndReload(()=>request("/commissions/"+id(tid),"DELETE"),"Comissão excluída.");return;
  }
- if(action==="delete-meeting"){if(!window.confirm("Excluir esta memória? As demandas vinculadas não serão apagadas."))return;await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Memória excluída.");location.hash=workspaceHash("demandas");return}
+ if(action==="delete-meeting"){if(!await askConfirm("Excluir esta memória? As demandas vinculadas não serão apagadas.",{danger:true}))return;await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Memória excluída.");location.hash=workspaceHash("demandas");return}
  if(action==="delete-task"){
    const t=data.tasks.find(x=>x.id===tid);
-   if(!t?.archivedAt||!window.confirm('Excluir definitivamente a demanda "'+t.title+'", incluindo etapas, observações e histórico? Essa ação não pode ser desfeita.'))return;
+   if(!t?.archivedAt||!await askConfirm('Excluir definitivamente a demanda "'+t.title+'", incluindo etapas, observações e histórico? Essa ação não pode ser desfeita.',{danger:true}))return;
    await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE"),"Demanda removida definitivamente.");return;
  }
  if(action==="admin-signout"){
@@ -711,13 +767,13 @@ async function handleClick(e){
    await saveAndReload(()=>request("/admin/users/"+id(tid),"PATCH",{role,notificationEnabled}),"Perfil atualizado.");return;
  }
  if(action==="temp-pass"){
-   if(!window.confirm("Gerar uma nova senha temporária? A senha anterior deixará de funcionar e a pessoa precisará alterá-la ao entrar."))return;
-   try{const v=await request("/admin/users/"+id(tid)+"/temporary-password","POST",{});window.prompt("Senha temporária (copie agora; não será exibida novamente):",v.temporaryPassword);setToast("Senha temporária gerada.");}catch(e){setToast(e.message)}return;
+   if(!await askConfirm("Gerar uma nova senha temporária? A senha anterior deixará de funcionar e a pessoa precisará alterá-la ao entrar.",{title:"Gerar senha temporária?"}))return;
+   try{const v=await request("/admin/users/"+id(tid)+"/temporary-password","POST",{});showNotice("Copie a senha temporária agora. Ela não será exibida novamente.",{title:"Senha temporária gerada",kind:"success",secret:v.temporaryPassword});}catch(e){setToast(e.message)}return;
  }
- if(action==="clear-mail"){if(!window.confirm("Limpar apenas registros de e-mails enviados ou com falha? Os pendentes e agendados serão preservados."))return;await saveAndReload(()=>request("/mail/clear","POST",{}),"Histórico finalizado limpo.");return}
+ if(action==="clear-mail"){if(!await askConfirm("Limpar apenas registros de e-mails enviados ou com falha? Os pendentes e agendados serão preservados.",{title:"Limpar histórico de e-mails?"}))return;await saveAndReload(()=>request("/mail/clear","POST",{}),"Histórico finalizado limpo.");return}
  if(action==="retry-mail"){
    if(!state.mailConnection?.connected)return setToast("Corrija primeiro a integração Gmail antes de repetir o envio.");
-   if(!window.confirm("Tentar novamente este e-mail? Confirme que ele não foi enviado anteriormente."))return;
+   if(!await askConfirm("Tentar novamente este e-mail? Confirme que ele não foi enviado anteriormente.",{title:"Repetir tentativa de envio?"}))return;
    try{await request("/mail/retry","POST",{id:tid},"admin");await loadMailHistory();setToast("Nova tentativa registrada na fila.");}
    catch(err){setToast(err.message)}
    return;
@@ -813,9 +869,10 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage()});
+ window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false)});
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
-   if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
+   if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
+   else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
  }});
 
@@ -843,6 +900,12 @@ function start(){
    }
    if(e.target.closest("[data-do]"))handleClick(e).catch(err=>setToast(err.message));
  });
+ document.addEventListener("invalid",e=>{
+   const field=e.target;
+   if(!field?.closest?.("form"))return;
+   e.preventDefault();
+   if($("#notice-dialog")?.hidden)showNotice(invalidFieldMessage(field),{title:"Revise este campo",kind:"warning",focusAfter:field});
+ },true);
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("change",e=>handleChange(e).catch(err=>setToast(err.message)));
  reload();

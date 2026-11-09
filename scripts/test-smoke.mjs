@@ -450,4 +450,20 @@ await test("formulário explica responsáveis e prazos e etapa sem pessoa indica
  assert.ok(ui.includes('||"Não definido")'));
  assert.ok(styles.includes(".task-form-help{"));
 });
+await test("avisos e confirmações usam popup central sem caixas nativas",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8"),page=readFileSync("index.html","utf8"),css=readFileSync("live.css","utf8");
+ assert.ok(ui.includes("function showNotice("));
+ assert.ok(ui.includes("function setToast(message,kind="));
+ assert.ok(ui.includes("const askConfirm="));
+ assert.ok(ui.includes('document.addEventListener("invalid",e=>'));
+ assert.ok(ui.includes('showNotice(invalidFieldMessage(field)'));
+ assert.ok(ui.includes('if(action==="notice-confirm")'));
+ assert.ok(ui.includes('if(action==="notice-copy")'));
+ assert.ok(!ui.includes("window.confirm("));
+ assert.ok(!ui.includes("window.prompt("));
+ assert.ok(page.includes('id="notice-dialog"'));
+ assert.ok(css.includes(".notice-dialog-shade{"));
+ assert.ok(css.includes("backdrop-filter:blur(8px)"));
+});
 console.log(tests+" testes passaram no banco local isolado");
