@@ -282,6 +282,8 @@ function renderAdmin(){
  '<section class="card card-pad live-auth admin-signin"><h2>Entrar como Admin</h2><p>Use o acesso administrativo do PET Gestão. Sua conta de usuário continuará conectada.</p>'+
  '<form id="admin-login-form" class="register-form"><label>Admin ou e-mail<input name="identifier" type="text" value="Admin" required autocomplete="username" autocapitalize="none"></label><label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><button type="submit" class="button primary">Entrar na Administração</button></form>'+
  '<p>'+button("Voltar ao PET Gestão","inicio")+'</p></section>';
+ if(me?.mustChangePassword)return header("Administração","Alterar senha temporária","Essa alteração é obrigatória antes de usar o painel.")+
+ '<section class="card card-pad live-auth"><form id="admin-change-password-form" class="register-form"><label>Senha temporária<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input name="newPassword" type="password" minlength="10" required autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha administrativa</button></form></section>';
  return header("Sistema","Administração","Painel administrativo · acesso independente.",'<button type="button" class="button ghost" data-do="admin-signout">Sair da Administração</button>'+button("Voltar ao PET Gestão","inicio"))+
  '<section class="card card-pad"><h2>Usuários</h2><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad"><h2>Vagas e ordem das comissões</h2><p>Use ↑ e ↓ para organizar a ordem de exibição.</p>'+
@@ -302,7 +304,7 @@ function renderMailScheduling(){
 function render(){
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
  if(!allowPage(page)){location.hash=me?"#/inicio":"#/login";if(me)setToast("Seu perfil possui acesso somente para visualização.");return}
- if(me?.mustChangePassword&&page!=="conta"){location.hash="#/conta";return}
+ if(me?.mustChangePassword&&page!=="conta"&&page!=="admin"){location.hash="#/conta";return}
  let html="";
  if(page==="inicio")html=renderHome();
  else if(page==="demandas")html=renderDemandas();
@@ -447,7 +449,6 @@ async function handleSubmit(e){
  if(form.id==="admin-login-form"){
    const f=userFields(form),r=await request("/auth/admin-login","POST",f,"guest");
    if(r.user.role!=="admin")throw Error("Esta conta não tem permissão de Administração.");
-   if(r.user.mustChangePassword)throw Error("Altere sua senha temporária pela conta antes de acessar a Administração.");
    adminToken=r.token;sessionStorage.setItem(adminTokenKey,adminToken);
    await reload();setToast("Administração desbloqueada.");return;
  }
@@ -459,6 +460,11 @@ async function handleSubmit(e){
  if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
  if(form.id==="forgot-form"){const r=await request("/auth/forgot","POST",userFields(form));setToast(r.message);return}
  if(form.id==="reset-form"){await request("/auth/reset","POST",{token:form.dataset.token,password:userFields(form).password});location.hash="#/login";setToast("Senha redefinida.");return}
+ if(form.id==="admin-change-password-form"){
+   await request("/auth/change-password","POST",userFields(form),"admin");
+   adminToken="";sessionStorage.removeItem(adminTokenKey);
+   await reload();setToast("Senha administrativa atualizada. Entre novamente no Admin.");return;
+ }
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";sessionStorage.removeItem(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
