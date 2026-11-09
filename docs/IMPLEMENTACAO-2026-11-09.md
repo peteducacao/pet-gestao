@@ -14,7 +14,7 @@ Esta documentação descreve **o código preparado**, não é prova de publicaç
 Acesse Settings → Secrets and variables → Actions. Adicione:
 | Nome | Uso |
 |---|---|
-| CLOUDFLARE_API_TOKEN | Token da Cloudflare com Workers Scripts Edit e D1 Edit |
+| CLOUDFLARE_API_TOKEN | Valor do API Token da Cloudflare, autorizado na mesma conta para D1 Write (ou Edit) e Workers Scripts Write/Editor; não usar o ID do token nem a Global API Key |
 | CLOUDFLARE_ACCOUNT_ID | ID da conta Cloudflare |
 | ADMIN_EMAIL | Endereço da conta administrativa inicial |
 | ADMIN_INITIAL_PASSWORD | Senha inicial do Admin (mínimo de 10 caracteres) |
@@ -22,6 +22,20 @@ Acesse Settings → Secrets and variables → Actions. Adicione:
 | MAIL_BRIDGE_URL | URL /exec da implantação do Apps Script |
 
 Opcional: a **variável** PET_GESTAO_API_URL em Actions, se a descoberta automática do subdomínio Worker falhar. Nunca publicar valores de Secrets em código, capturas ou conversa.
+
+## Bloqueio de implantação verificado em 09/11/2026
+
+No GitHub Actions (execuções #114 e #115), a validação de JavaScript e a migração SQL local passaram, mas a preparação falhou antes de qualquer migração remota ou publicação. O retorno da API Cloudflare ao consultar o banco D1 foi **HTTP 401 / código 10000 (Authentication error)**. Esse erro pode indicar token inválido/expirado, escopo insuficiente, restrições de IP ou conta não autorizada pelo token. Não é evidência de falha no banco nem motivo para apagá-lo.
+
+Para resolver sem expor segredos:
+1. No painel Cloudflare, abra **My Profile → API Tokens** (ou a área equivalente de tokens da conta) e confira/crie um API Token autorizado para a **mesma conta** de `pet-gestao-db`.
+2. Conceda **D1 Write/Edit** na conta, necessária para aplicar migrações (D1 Read isolado não basta), e permissão **Workers Scripts Write / Worker Editor** para publicar o Worker existente. Quando disponível, selecione apenas os recursos necessários. Confira expiração e filtros de IP.
+3. No repositório GitHub, vá a **Settings → Secrets and variables → Actions** e **substitua** o segredo `CLOUDFLARE_API_TOKEN` pelo **valor** do token. Confirme que `CLOUDFLARE_ACCOUNT_ID` é o ID de 32 caracteres da mesma conta, sem divulgar nenhum dos dois.
+4. Execute manualmente **Actions → PET Gestão — publicar aplicação real → Run workflow**, ou publique um novo commit autorizado. Só avance aos testes funcionais depois de todos os passos terminarem em verde.
+
+**Nunca** incluir o token em issue, commit, print, conversa ou configuração pública. O GitHub mostra o estado do workflow, mas não fornece ao aplicativo o valor legível de Secrets já gravados.
+
+Links de referência: [Cloudflare — List D1 Databases](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/list/) e [Workers — permissões](https://developers.cloudflare.com/workers/authorization/workers/).
 
 ## Publicação
 O workflow .github/workflows/pages.yml, ao atualizar main:
