@@ -247,7 +247,7 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
 }
 // Card único para Visão geral, Demandas, Comissões, Cronograma e Minhas pendências.
 // Prioriza a imagem específica da comissão onde a tarefa está sendo consultada.
-function taskCard(t,commissionId){
+function taskCard(t,commissionId,withFinishAction=false){
  const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean);
  const progress=taskProgress(t);
  const photo=selected?.imageData
@@ -271,6 +271,7 @@ function taskCard(t,commissionId){
     (t.archivedAt?'<small class="demand-activity-progress demand-activity-complete">Concluída</small>':"")+
     '</div></div>':"")+
   (me?'<a class="activity-details-link demand-activity-action" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'" aria-label="Ver detalhes de '+esc(t.title)+'">'+ico("search")+'<span>Ver detalhes</span>'+ico("arrow")+'</a>':"")+
+ (withFinishAction?'<button type="button" class="button demand-finish-action" data-do="finish-personal" data-id="'+esc(t.id)+'">'+ico("check")+'<span>Marcar como concluída</span></button>':"")+
  '</article>';
 }
 function renderHome(){
@@ -351,7 +352,7 @@ function renderCommitteeEdit(cid){
 function renderMine(){
  if(!canWrite())return authRequired();
  const a=data.tasks.filter(t=>active(t)&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id));
- return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad mine-list">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t)+'<button type="button" class="button primary" data-do="finish-personal" data-id="'+esc(t.id)+'">Marcar como concluída</button></div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
+ return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad mine-list">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t,null,true)+'</div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
 }
 function assignmentView(){
  const opts=[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Pessoas"]];
