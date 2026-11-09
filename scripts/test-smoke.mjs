@@ -354,7 +354,7 @@ await test("responsáveis humanos não se confundem com nome da comissão",async
  assert.ok(js.includes('assigned.join(", ")||"Não definido"'));
  assert.ok(js.includes('inheritedAssigneeLabel()'));
  assert.ok(js.includes('syncStageAssigneePlaceholder()'));
- assert.ok(js.includes('state.selectedUsers.size>0'));
+ assert.ok(js.includes('function inheritedAssigneeLabel(){return "Não definido"}'));
  assert.ok(!js.includes('defaultTutor=owners[0]'));
  assert.ok(!js.includes('person.value=data.users.find(x=>x.role==="tutor")'));
 });
@@ -439,5 +439,15 @@ await test("novo card grande compartilhado nas três áreas mostra foto da comis
  assert.ok(css.includes('#screen .demand-activity-card{'));
  assert.ok(css.includes('#screen .dashboard-grid .demand-activity-card{'));
  assert.ok(css.includes('@media(max-width:560px)'));
+});
+await test("formulário explica responsáveis e prazos e etapa sem pessoa indica Não definido",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8"),styles=readFileSync("live.css","utf8");
+ assert.ok(ui.includes("Responsáveis pela demanda"));
+ assert.ok(ui.includes("Escolha quem ficará responsável por realizar esta atividade"));
+ assert.ok(ui.includes("Defina até quando os(as) PETianos(as) deverão concluir cada etapa"));
+ assert.ok(ui.includes("function inheritedAssigneeLabel(){return \"Não definido\"}"));
+ assert.ok(ui.includes('||"Não definido")'));
+ assert.ok(styles.includes(".task-form-help{"));
 });
 console.log(tests+" testes passaram no banco local isolado");

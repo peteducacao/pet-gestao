@@ -496,3 +496,18 @@ body.auth-message-open{overflow:hidden}
  #screen .demand-activity-card,#screen .dashboard-grid .demand-activity-card{grid-template-columns:minmax(0,1fr)}
  #screen .demand-activity-identity,#screen .demand-activity-action{grid-column:1}
 }
+
+/* Orientações no cadastro/edição de demandas, legíveis e integradas ao formulário. */
+.task-form-help{display:flex;align-items:flex-start;gap:15px;margin:0 0 17px;padding:18px 20px;border:1px solid #e4d9f7;border-radius:16px;background:linear-gradient(110deg,#faf7ff,#f5efff)}
+.task-form-help-icon{flex:0 0 43px;width:43px;height:43px;display:grid;place-items:center;border-radius:13px;background:#e9ddfc;color:#653db8}
+.task-form-help-icon svg{width:23px;height:23px}
+.task-form-help>div,.task-form-deadlines-heading>div{min-width:0}
+.task-form-help h3,.task-form-deadlines-heading h3{margin:0 0 9px;font-size:17px;font-weight:850;color:#322650;letter-spacing:-.3px}
+.task-form-required{color:#7646cf}
+.task-form-help p,.task-form-deadlines-heading p{margin:0;color:#6b6380;font-size:13px;line-height:1.7}
+.task-form-help p strong,.task-form-deadlines-heading p strong{color:#4b3581;font-weight:800}
+.task-form-deadlines-heading{display:flex;align-items:flex-start;gap:13px;min-width:0;max-width:780px}
+.register-deadlines .section-head{align-items:flex-start;gap:15px}
+.register-deadlines .section-head>button{flex:0 0 auto}
+.register-assignment .assignment-modes{margin-bottom:13px}
+@media(max-width:650px){.task-form-help{padding:16px 13px;gap:11px}.task-form-help-icon{width:37px;height:37px;flex-basis:37px}.task-form-help h3,.task-form-deadlines-heading h3{font-size:15px}.task-form-help p,.task-form-deadlines-heading p{font-size:12.5px}.register-deadlines .section-head{flex-direction:column}.register-deadlines .section-head>button{width:100%;justify-content:center}}
