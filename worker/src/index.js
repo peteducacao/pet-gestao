@@ -68,7 +68,7 @@
     if(!user)fail("Entre na sua conta para continuar.",401);
     if(user.must_change_password)fail("Troque sua senha temporária antes de continuar.",403);
     if((user.role_override||user.role)==="usuario")fail("Usuários possuem acesso somente à visualização.",403);
-    if(admin&&user.role!=="admin")fail("Acesso restrito à Administração.",403);
+    if(admin&&!["admin","tutor"].includes(user.role))fail("Acesso restrito à Administração e Tutoria.",403);
   }
   function requireLogin(user){if(!user)fail("É necessário entrar na sua conta.",401)}
   async function audit(db,taskId,user,action,details=""){
@@ -225,7 +225,6 @@
         if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
         const u=await db.prepare("SELECT * FROM users WHERE email=?").bind(mail).first();
         if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,mail);fail("Credenciais inválidas.",401)}
-        if(u.role==="admin")fail("Use o acesso separado Administração para entrar como Admin.",403);
         await resetRate(db,mail);return answer(await createSession(db,u));
       }
       if(path==="/api/v1/auth/admin-login"&&method==="POST"){
