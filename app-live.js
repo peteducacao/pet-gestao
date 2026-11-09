@@ -22,7 +22,7 @@ const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name||"Comissão").join(", ");
 const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||selectedCommitteeNames(t)||"A definir";
-const canWrite=()=>Boolean(me&&!me.mustChangePassword);
+const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
 const isAdmin=()=>me?.role==="admin";
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
