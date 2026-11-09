@@ -5,7 +5,14 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").replace(/\/$/,"");
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
-let token=sessionStorage.getItem(tokenKey)||"",adminToken=sessionStorage.getItem(adminTokenKey)||"",data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
+// "Manter-me conectado" guarda somente o token de sessão; nunca a senha.
+const readSessionToken=key=>sessionStorage.getItem(key)||localStorage.getItem(key)||"";
+function saveSessionToken(key,value,remember){
+ sessionStorage.removeItem(key);localStorage.removeItem(key);
+ (remember?localStorage:sessionStorage).setItem(key,value);
+}
+function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
+let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Minha conta",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
@@ -91,6 +98,29 @@ function showCommissionDialog(kind,commission,reason=""){
  document.body.classList.add("commission-dialog-open");
  layer.querySelector('[data-do="commission-dialog-close"],[data-do="commission-dialog-confirm"]')?.focus();
 }
+// Confirmação visual da recuperação de senha, com conteúdo grande e legível.
+let lastAuthMessageFocus=null;
+function closeAuthMessage(){
+ const layer=$("#auth-message-dialog");
+ if(layer){layer.innerHTML="";layer.hidden=true}
+ document.body.classList.remove("auth-message-open");
+ if(lastAuthMessageFocus?.isConnected)lastAuthMessageFocus.focus();
+ lastAuthMessageFocus=null;
+}
+function showAuthMessage(title,message,isError=false){
+ const layer=$("#auth-message-dialog");if(!layer)return;
+ lastAuthMessageFocus=document.activeElement;
+ layer.innerHTML='<div class="auth-message-shade" data-do="auth-message-close"></div>'+
+ '<section class="auth-message-box" role="dialog" aria-modal="true" aria-labelledby="auth-message-title" aria-describedby="auth-message-description">'+
+ '<div class="auth-message-icon'+(isError?" auth-message-icon-warn":"")+'">'+ico(isError?"info":"mail")+'</div>'+
+ '<h2 id="auth-message-title">'+esc(title)+'</h2>'+
+ '<p id="auth-message-description">'+esc(message)+'</p>'+
+ '<button type="button" class="button primary auth-message-button" data-do="auth-message-close">Fechar</button>'+
+ '</section>';
+ layer.hidden=false;
+ document.body.classList.add("auth-message-open");
+ layer.querySelector(".auth-message-button")?.focus();
+}
 function setToast(message){const box=$("#toast");if(!box)return;box.textContent=message;box.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>box.hidden=true,5200)}
 function header(eye,title,sub="",actions=""){return '<div class="page-header"><div><div class="eyebrow">'+esc(eye)+'</div><h1 class="page-title">'+esc(title)+'</h1>'+(sub?'<p class="page-subtitle">'+esc(sub)+'</p>':"")+'</div><div class="page-actions">'+actions+'</div></div>'}
 function empty(title,sub=""){return'<div class="empty"><span class="empty-icon">'+ico("folder")+'</span><h3>'+esc(title)+'</h3><p>'+esc(sub)+'</p></div>'}
@@ -115,12 +145,12 @@ async function reload(){
    // Uma conta Tutor(a) ou Administração utiliza sua sessão pessoal, sem outro login.
    const personal=token?await request("/auth/me","GET",undefined,"user").catch(()=>null):null;
    regularMe=personal?.user||null;
-   if(token&&!regularMe){token="";sessionStorage.removeItem(tokenKey)}
+   if(token&&!regularMe){token="";forgetSessionToken(tokenKey)}
    const scope=inAdmin&&!adminRole(regularMe)?"admin":"user";
    const b=await request("/bootstrap","GET",undefined,scope);
    data=b;
    me=inAdmin&&adminRole(regularMe)?regularMe:b.session?.user||null;
-   if(inAdmin&&adminToken&&!hasAdminRole(me)){adminToken="";sessionStorage.removeItem(adminTokenKey)}
+   if(inAdmin&&adminToken&&!hasAdminRole(me)){adminToken="";forgetSessionToken(adminTokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
@@ -317,7 +347,7 @@ function renderMemory(routeId){
 }
 function authRequired(){return header("Acesso","Entre na sua conta","Esta funcionalidade exige autenticação.")+'<section class="card card-pad">'+button("Entrar","login",true)+'</section>'}
 function renderLogin(){
- return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p></section>';
+ return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p></section>';
 }
 function renderRegisterAccount(){return header("Conta","Criar conta","Nome, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Nome<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<span class="password-control"><input name="password" type="password" required minlength="10" autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
 function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos um link para o e-mail cadastrado.")+'<section class="card card-pad live-auth"><form id="forgot-form" class="register-form"><label>E-mail<input type="email" name="email" required></label><button type="submit" class="button primary">Enviar link</button></form></section>'}
@@ -332,7 +362,7 @@ function renderAccount(){
 function renderAdmin(){
  if(!isAdmin())return header("Sistema","Administração","Acesso administrativo independente.")+
  '<section class="card card-pad live-auth admin-signin"><h2>Entrar como Admin</h2><p>Use o acesso administrativo do PET Gestão. Sua conta de usuário continuará conectada.</p>'+
- '<form id="admin-login-form" class="register-form"><label>Admin ou e-mail<input name="identifier" type="text" value="Admin" required autocomplete="username" autocapitalize="none"></label><label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><button type="submit" class="button primary">Entrar na Administração</button></form>'+
+ '<form id="admin-login-form" class="register-form"><label>Admin ou e-mail<input name="identifier" type="text" value="Admin" required autocomplete="username" autocapitalize="none"></label><label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button type="submit" class="button primary">Entrar na Administração</button></form>'+
  '<p>'+button("Voltar ao PET Gestão","inicio")+'</p></section>';
  if(me?.mustChangePassword)return header("Administração","Alterar senha temporária","Essa alteração é obrigatória antes de usar o painel.")+
  '<section class="card card-pad live-auth"><form id="admin-change-password-form" class="register-form"><label>Senha temporária<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input name="newPassword" type="password" minlength="10" required autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha administrativa</button></form></section>';
@@ -530,6 +560,7 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="auth-message-close"){closeAuthMessage();return}
  if(action==="admin-tab"){
   if(!isAdmin())return;
   state.adminTab=b.dataset.value;
@@ -610,11 +641,18 @@ async function handleClick(e){
      location.hash="#/inicio";setToast("Você voltou ao PET Gestão.");return;
    }
    try{await request("/auth/logout","POST",{},"admin")}catch{}
-   adminToken="";sessionStorage.removeItem(adminTokenKey);
+   adminToken="";forgetSessionToken(adminTokenKey);
    state.adminTab="painel";state.adminMenuOpen=false;
    location.hash="#/inicio";setToast("Sessão administrativa encerrada.");return;
  }
- if(action==="logout"){try{await request("/auth/logout","POST",{},"user")}catch{}token="";me=null;regularMe=null;adminToken="";sessionStorage.removeItem(tokenKey);sessionStorage.removeItem(adminTokenKey);await reload();location.hash="#/inicio";return}
+ if(action==="logout"){
+   try{await request("/auth/logout","POST",{},"user")}catch{}
+   // Invalida também sessão administrativa independente antes de limpar ambos os tipos de armazenamento.
+   if(adminToken){try{await request("/auth/logout","POST",{},"admin")}catch{}}
+   token="";me=null;regularMe=null;adminToken="";
+   forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);
+   await reload();location.hash="#/inicio";return;
+ }
  if(action==="move-commission"){
    const ids=data.committees.map(x=>x.id),old=ids.indexOf(tid),target=old+Number(b.dataset.direction);[ids[old],ids[target]]=[ids[target],ids[old]];
    await saveAndReload(()=>request("/admin/commission-order","PUT",{ids}),"Ordem salva.");return;
@@ -648,15 +686,17 @@ async function handleSubmit(e){
  if(isLogin)setConnecting(true,form.id==="admin-login-form"?"Conectando à Administração...":"Conectando ao PET Gestão...");
  try{
  if(form.id==="admin-login-form"){
-   const f=userFields(form),r=await request("/auth/admin-login","POST",f,"guest");
+   const f=userFields(form),rememberMe=form.elements.rememberMe?.checked===true;
+   const r=await request("/auth/admin-login","POST",{...f,rememberMe},"guest");
    if(!["tutor","admin"].includes(r.user.role))throw Error("Esta conta não tem permissão administrativa.");
-   adminToken=r.token;sessionStorage.setItem(adminTokenKey,adminToken);
+   adminToken=r.token;saveSessionToken(adminTokenKey,adminToken,rememberMe);
    await reload();setToast("Administração desbloqueada.");return;
  }
  if(form.id==="login-form"){
-   const f=userFields(form),r=await request("/auth/login","POST",f,"guest");
-   token=r.token;sessionStorage.setItem(tokenKey,token);
-   adminToken="";sessionStorage.removeItem(adminTokenKey);
+   const f=userFields(form),rememberMe=form.elements.rememberMe?.checked===true;
+   const r=await request("/auth/login","POST",{...f,rememberMe},"guest");
+   token=r.token;saveSessionToken(tokenKey,token,rememberMe);
+   adminToken="";forgetSessionToken(adminTokenKey);
    const destination=r.user.mustChangePassword?"#/conta":r.user.role==="admin"?"#/admin":"#/inicio";
    state.authTransition=true;
    location.hash=destination;
@@ -664,14 +704,25 @@ async function handleSubmit(e){
    setToast("Acesso autorizado.");return;
  }
  if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
- if(form.id==="forgot-form"){const r=await request("/auth/forgot","POST",userFields(form));setToast(r.message);return}
+ if(form.id==="forgot-form"){
+   const submit=form.querySelector('button[type="submit"]');
+   if(submit?.disabled)return;
+   if(submit)submit.disabled=true;
+   try{
+     const r=await request("/auth/forgot","POST",userFields(form));
+     showAuthMessage("Solicitação recebida",r.message||"Se o e-mail estiver cadastrado, enviaremos as instruções.");
+   }catch(err){
+     showAuthMessage("Não foi possível solicitar o link",err.message,true);
+   }finally{if(submit?.isConnected)submit.disabled=false}
+   return;
+ }
  if(form.id==="reset-form"){await request("/auth/reset","POST",{token:form.dataset.token,password:userFields(form).password});location.hash="#/login";setToast("Senha redefinida.");return}
  if(form.id==="admin-change-password-form"){
    await request("/auth/change-password","POST",userFields(form),"admin");
-   adminToken="";sessionStorage.removeItem(adminTokenKey);
+   adminToken="";forgetSessionToken(adminTokenKey);
    await reload();setToast("Senha administrativa atualizada. Entre novamente no Admin.");return;
  }
- if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";sessionStorage.removeItem(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
+ if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Memória salva.");if(ok)location.hash=workspaceHash("demandas");return}
@@ -717,8 +768,11 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog()});
- window.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}});
+ window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage()});
+ window.addEventListener("keydown",e=>{if(e.key==="Escape"){
+   if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
+   else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
+ }});
 
  document.addEventListener("click",e=>{
    const innerLink=e.target.closest(".admin-layout a[href^='#/']");

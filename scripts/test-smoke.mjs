@@ -17,6 +17,18 @@ await test("Admin pode entrar diretamente pela conta principal",async()=>{
  assert.equal(r.user.role,"admin");
  assert.ok(r.token);
 });
+await test("manter-me conectado diferencia validade e exige opt-in",async()=>{
+ const email=process.env.TEST_ADMIN_EMAIL,password=process.env.TEST_ADMIN_PASSWORD;
+ const regular=good(await api("/auth/login","POST",{email,password,rememberMe:false}));
+ const persistent=good(await api("/auth/login","POST",{email,password,rememberMe:true}));
+ const legacy=good(await api("/auth/login","POST",{email,password}));
+ const adminPersistent=good(await api("/auth/admin-login","POST",{identifier:"Admin",password,rememberMe:true}));
+ const days=r=>(Date.parse(r.expiresAt)-Date.now())/86400000;
+ assert.ok(days(regular)>6.95&&days(regular)<7.02,"Sessão comum: 7 dias");
+ assert.ok(days(legacy)>6.95&&days(legacy)<7.02,"Sessão sem opt-in: 7 dias");
+ assert.ok(days(persistent)>29.95&&days(persistent)<30.02,"Sessão mantida: 30 dias");
+ assert.ok(days(adminPersistent)>29.95&&days(adminPersistent)<30.02,"Admin mantido: 30 dias");
+});
 let a,b,task,meeting;
 await test("login administrativo independente",async()=>{
  const bad=await api("/auth/admin-login","POST",{identifier:"Admin",password:"errada"});
@@ -259,6 +271,21 @@ await test("Comissão utiliza popup customizado central com fundo desfocado",asy
  assert.ok(!src.includes('window.confirm(action==="join-commission"'));
  assert.ok(!src.includes('(cmax&&members>=cmax?"disabled":"")'));
  assert.ok(css.includes('.commission-dialog-shade{'));
+ assert.ok(css.includes('backdrop-filter:blur('));
+});
+await test("login opcional persiste somente token e recuperação abre popup legível",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const src=readFileSync("app-live.js","utf8"),index=readFileSync("index.html","utf8"),css=readFileSync("live.css","utf8");
+ assert.ok(src.includes('name="rememberMe"'));
+ assert.ok(src.includes('function saveSessionToken(key,value,remember)'));
+ assert.ok(src.includes('(remember?localStorage:sessionStorage).setItem(key,value)'));
+ assert.ok(src.includes('function forgetSessionToken(key)'));
+ assert.ok(src.includes('const r=await request("/auth/forgot","POST",userFields(form))'));
+ assert.ok(src.includes('showAuthMessage("Solicitação recebida"'));
+ assert.ok(src.includes('showAuthMessage("Não foi possível solicitar o link"'));
+ assert.ok(src.includes('data-do="auth-message-close"'));
+ assert.ok(index.includes('id="auth-message-dialog"'));
+ assert.ok(css.includes('.auth-message-shade{'));
  assert.ok(css.includes('backdrop-filter:blur('));
 });
 console.log(tests+" testes passaram no banco local isolado");

@@ -325,3 +325,23 @@ body.commission-dialog-open{overflow:hidden}
 .commission-dialog-actions .button{flex:1;min-height:43px;max-width:220px;white-space:normal}
 @keyframes commission-pop{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:460px){.commission-dialog-box{padding:28px 21px 23px;border-radius:20px}.commission-dialog-actions{flex-direction:column-reverse}.commission-dialog-actions .button{max-width:none;width:100%}}
+
+/* Login persistente: opção clara, sem alterar o campo de senha ou o layout. */
+.remember-login-option{display:flex!important;align-items:flex-start!important;gap:12px!important;margin:3px 0 6px;cursor:pointer;font-weight:400!important}
+.remember-login-option>input[type="checkbox"]{flex:none;width:19px;height:19px;margin:2px 0 0;accent-color:#6943c0;cursor:pointer}
+.remember-login-option>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.remember-login-option strong{font-size:14px;font-weight:700;color:#38285e}
+.remember-login-option small{font-size:12px;line-height:1.5;color:#79738c}
+/* Recuperação de senha: destaque central, fundo desfocado e fechamento explícito. */
+body.auth-message-open{overflow:hidden}
+.auth-message-dialog[hidden]{display:none!important}
+.auth-message-dialog{position:fixed;inset:0;z-index:280;display:grid;place-items:center;padding:18px}
+.auth-message-shade{position:absolute;inset:0;background:rgba(18,17,40,.64);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.auth-message-box{position:relative;z-index:1;width:min(445px,100%);border-radius:23px;background:#fff;color:#2d2543;padding:34px 31px 29px;box-shadow:0 32px 90px #17102f48;text-align:center;animation:commission-pop .18s ease-out}
+.auth-message-icon{width:66px;height:66px;margin:0 auto 20px;display:grid;place-items:center;border-radius:19px;background:#eee8ff;color:#6038b2}
+.auth-message-icon svg{width:32px;height:32px;stroke-width:1.8}
+.auth-message-icon-warn{background:#fff1df;color:#a4752b}
+.auth-message-box h2{font-size:23px;letter-spacing:-.55px;line-height:1.25;margin:0 0 13px;font-weight:800}
+.auth-message-box p{color:#66607a;font-size:15px;line-height:1.7;margin:0 0 26px;overflow-wrap:anywhere}
+.auth-message-button{width:100%;min-height:46px;justify-content:center}
+@media(max-width:460px){.auth-message-box{padding:29px 21px 23px;border-radius:20px}.auth-message-box h2{font-size:21px}}

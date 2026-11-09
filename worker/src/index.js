@@ -74,10 +74,12 @@
   async function audit(db,taskId,user,action,details=""){
     await db.prepare("INSERT INTO task_history (id,task_id,actor_id,actor_name,action,details,created_at) VALUES (?,?,?,?,?,?,?)").bind(uid(),taskId,user.id,user.name,action,details,now()).run();
   }
-  async function createSession(db,user){
+  async function createSession(db,user,rememberMe=false){
+    // A sessão comum dura 7 dias; a opção explícita permite até 30 dias.
     const token=randomToken(),digest=await sha(token);
-    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)").bind(digest,user.id,isoAfter(7*24*60),now()).run();
-    return {token,user:userPublic(user)};
+    const expiresAt=isoAfter((rememberMe===true?30:7)*24*60);
+    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)").bind(digest,user.id,expiresAt,now()).run();
+    return {token,user:userPublic(user),expiresAt};
   }
   async function resetRate(db,mail){await db.prepare("DELETE FROM auth_attempts WHERE email=?").bind(mail).run()}
   async function rateFail(db,mail){
@@ -251,7 +253,7 @@
         if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
         const u=await db.prepare("SELECT * FROM users WHERE email=?").bind(mail).first();
         if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,mail);fail("Credenciais inválidas.",401)}
-        await resetRate(db,mail);return answer(await createSession(db,u));
+        await resetRate(db,mail);return answer(await createSession(db,u,b.rememberMe===true));
       }
       if(path==="/api/v1/auth/admin-login"&&method==="POST"){
         const b=await body(req),identifier=String(b.identifier||b.email||"").trim().toLowerCase(),pw=String(b.password||"");
@@ -266,7 +268,7 @@
           await rateFail(db,key);fail("Credenciais administrativas inválidas.",401);
         }
         await resetRate(db,key);
-        return answer(await createSession(db,admin));
+        return answer(await createSession(db,admin,b.rememberMe===true));
       }
       if(path==="/api/v1/auth/logout"&&method==="POST"){
         if(user){const token=(req.headers.get("authorization")||"").slice(7);await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await sha(token)).run()}
