@@ -148,16 +148,28 @@ await test("ponte Google Apps Script rejeita token inválido e testa sem enviar"
  const {runInNewContext}=await import("node:vm");
  const source=readFileSync("integracoes/AppsScript_PET_Gestao.gs","utf8");
  const tokenValue="x".repeat(48),outbox=[];
- const props={PET_GESTAO_MAIL_TOKEN:tokenValue};
+ const props={PET_GESTAO_MAIL_TOKEN:tokenValue},executions=[];
  const environment={
   JSON,Array,String,Error,Number,
-  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||""})},
+  PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]||"",setProperty:(k,v)=>{props[k]=v}})},
+  Logger:{log:message=>executions.push(message)},
   ContentService:{MimeType:{JSON:"JSON"},createTextOutput:content=>({setMimeType(){return this},getContent(){return content}})},
   MailApp:{getRemainingDailyQuota:()=>500,sendEmail:x=>{outbox.push(x)}},
   LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock:()=>{}})},
-  Utilities:{base64Decode:base64=>Buffer.from(base64,"base64"),newBlob:(bytes,mime,name)=>({bytes,mime,name})}
+  Utilities:{getUuid:()=>"abc12345-ef12-4abc-b007-001122334455",base64Decode:base64=>Buffer.from(base64,"base64"),newBlob:(bytes,mime,name)=>({bytes,mime,name})}
  };
  runInNewContext(source,environment,{timeout:1500});
+ environment.gerarTokenPETGestao();
+ assert.equal(props.PET_GESTAO_MAIL_TOKEN,tokenValue,"Chave existente não pode ser substituída.");
+ assert.ok(executions.at(-1).includes(tokenValue),"Token precisa estar no registro de execução.");
+ delete props.PET_GESTAO_MAIL_TOKEN;
+ environment.gerarTokenPETGestao();
+ const freshToken=props.PET_GESTAO_MAIL_TOKEN;
+ assert.ok(freshToken.length>=32,"Nova chave precisa ter pelo menos 32 caracteres.");
+ assert.ok(executions.at(-1).includes(freshToken),"Nova chave deve ser exibida no registro.");
+ environment.gerarTokenPETGestao();
+ assert.equal(props.PET_GESTAO_MAIL_TOKEN,freshToken,"Uma segunda execução não deve trocar a chave.");
+ props.PET_GESTAO_MAIL_TOKEN=tokenValue; // Restaura chave dos testes de envio.
  const post=obj=>JSON.parse(environment.doPost({postData:{contents:JSON.stringify(obj)}}).getContent());
  const denied=post({acao:"enviar",token:"errada",para:["teste@pet.local"],assunto:"Teste",mensagem:"Teste"});
  assert.equal(denied.codigo,"NAO_AUTORIZADO");

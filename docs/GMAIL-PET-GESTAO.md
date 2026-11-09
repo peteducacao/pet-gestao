@@ -7,18 +7,25 @@ não é uma API genérica para e-mails manuais de outros sistemas.
 
 1. No Google Apps Script da conta do PET, crie um projeto separado para o Gestão.
 2. Cole integralmente `integracoes/AppsScript_PET_Gestao.gs` no editor.
-3. Em **Configurações do projeto → Propriedades do script**, crie
-   `PET_GESTAO_MAIL_TOKEN` com uma chave aleatória forte de 32 ou mais caracteres.
-4. **Implantar → Nova implantação → Aplicativo da Web**. Execute como a conta PET e
-   permita acesso a **Qualquer pessoa**. Autorize a permissão de envio do Gmail.
-5. Em **GitHub → pet-gestao → Settings → Secrets and variables → Actions**,
-   configure `MAIL_BRIDGE_URL` com o endereço `/exec` dessa implantação e
-   `MAIL_BRIDGE_TOKEN` com **o mesmo valor secreto** do passo 3.
-6. Reexecute a publicação "PET Gestão — publicar aplicação real" para transferir
-   os segredos ao Cloudflare Worker.
-7. Em **Administração → E-mails → Fila e histórico do Gmail**, clique
+3. No seletor de funções do Apps Script, escolha **`gerarTokenPETGestao`** e clique em
+   **Executar**. Conceda a autorização solicitada pelo Google. A função gera a chave
+   e a salva automaticamente como `PET_GESTAO_MAIL_TOKEN` nas propriedades do script.
+   **Não precisa criar a propriedade manualmente**.
+4. Abra o **Registro de execução** e copie o token gerado. Se a chave já existia,
+   a função mostra a mesma chave para evitar desencontro com o Worker.
+5. Em **Implantar → Nova implantação → Aplicativo da Web**, selecione **Executar como: eu**
+   (conta PET), acesso **Qualquer pessoa**, e autorize o envio de e-mails.
+   Copie a URL da implantação que termina em **`/exec`**. Se já havia uma implantação,
+   publique uma **nova versão** para atualizar o código servido.
+6. Em **GitHub → peteducacao/pet-gestao → Settings → Secrets and variables → Actions**,
+   atualize os dois segredos:
+   - `MAIL_BRIDGE_TOKEN` = o token do **Registro de execução** do passo 4.
+   - `MAIL_BRIDGE_URL` = a URL `/exec` da implantação do **PET Gestão** do passo 5.
+7. Execute novamente **PET Gestão — publicar aplicação real** em **Actions** para que
+   os segredos atualizados sejam transferidos ao Cloudflare Worker.
+8. Em **Administração → E-mails → Fila e histórico do Gmail**, clique
    em **Atualizar**. O estado deve ser "Integração Gmail autenticada".
-8. Envie uma mensagem a **um endereço autorizado da equipe** e verifique o
+9. Envie uma mensagem a **um endereço autorizado da equipe** e verifique o
    resultado no histórico. "Enviado" significa que a ponte aceitou a solicitação,
    não prova recebimento na caixa de entrada.
 

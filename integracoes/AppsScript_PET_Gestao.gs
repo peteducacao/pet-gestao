@@ -7,6 +7,26 @@
  * A chave nunca deve ser publicada no HTML, repositório ou resposta do serviço.
  * O endpoint aceita "status" sem enviar mensagem, e "enviar" quando autenticado.
  */
+/**
+ * Execute a função gerarTokenPETGestao uma vez no editor do Apps Script.
+ * Ela salva a chave automaticamente nas propriedades do projeto.
+ * Copie o valor exibido no "Registro de execução" para o segredo
+ * MAIL_BRIDGE_TOKEN do repositório peteducacao/pet-gestao.
+ *
+ * Se a propriedade já existir, a mesma chave será exibida sem substituí-la.
+ * Isso evita desautorizar o Worker por acidente.
+ */
+function gerarTokenPETGestao() {
+  var props=PropertiesService.getScriptProperties();
+  var token=props.getProperty("PET_GESTAO_MAIL_TOKEN")||"";
+  if(token.length<32){
+    token=Utilities.getUuid().replace(/-/g,"")+Utilities.getUuid().replace(/-/g,"");
+    props.setProperty("PET_GESTAO_MAIL_TOKEN",token);
+  }
+  Logger.log("PET Gestão — copie este valor para MAIL_BRIDGE_TOKEN no GitHub: "+token);
+  return "Chave salva em PET_GESTAO_MAIL_TOKEN. Abra o Registro de execução para copiar o token.";
+}
+
 function respostaPETGestao_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
