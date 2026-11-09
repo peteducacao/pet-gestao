@@ -143,7 +143,7 @@ await test("conclusão independente",async()=>{
  for(const cid of [a,b]){
    const row=good(await api("/bootstrap")).committees.find(c=>c.id===cid);
    good(await api("/commissions/"+cid,"PUT",{name:row.name,maxMembers:1}));
-   good(await api("/commissions/"+cid+"/join","POST",{});
+   good(await api("/commissions/"+cid+"/join","POST",{}));
  }
  const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:a,early:true}));
  assert.equal(r.archived,false);
