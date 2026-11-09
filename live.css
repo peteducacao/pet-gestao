@@ -44,3 +44,10 @@ button,select,input,textarea{font:inherit}
   .live-stage button{grid-column:span 2}
   .topbar-context{font-size:.8rem}
 }
+
+/* Senhas: campo e controle com largura responsiva. */
+.password-control{display:flex;align-items:stretch;gap:0;width:100%;min-width:0;position:relative}
+.password-control input{flex:1 1 auto;min-width:0;width:100%;border-top-right-radius:0!important;border-bottom-right-radius:0!important}
+.password-toggle{flex:0 0 auto;min-width:78px;padding:0 12px;min-height:42px;border:1px solid #cfc9df;border-left:0;border-radius:0 9px 9px 0;background:#f5f2fc;color:#503780;font-size:.85rem;font-weight:700;cursor:pointer}
+.password-toggle:hover,.password-toggle:focus-visible{background:#eae3f8;outline-offset:2px}
+#admin-link.nav-locked{opacity:.75}
