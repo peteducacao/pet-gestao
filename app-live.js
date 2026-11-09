@@ -67,7 +67,7 @@ function nav(){
 }
 function weeks(y,m){const days=new Date(y,m+1,0).getDate(),firstDay=new Date(y,m,1).getDay(),firstMonday=1+((8-firstDay)%7),arr=[];let start=1,end=Math.min(days,firstMonday+6);while(start<=days){arr.push({n:arr.length+1,start,end});start=end+1;end=Math.min(days,start+6)}return arr}
 function weekFor(d){const x=dt(d);return x?weeks(x.getFullYear(),x.getMonth()).find(w=>x.getDate()>=w.start&&x.getDate()<=w.end)?.n||0:0}
-function taskDate(t){return stages(t).find(x=>x.label==="Postagem")?.dueAt||stages(t).find(x=>x.label==="Prazo")?.dueAt||t.registeredAt}
+function taskDate(t){return stages(t).filter(x=>!x.completedAt&&x.dueAt).map(x=>x.dueAt).sort()[0]||t.registeredAt}
 function filtered(t,mode=state.mode){
  if(mode==="arquivo")return Boolean(t.archivedAt);
  if(!active(t))return false;
@@ -143,7 +143,7 @@ function renderCommitteeEdit(cid){
 }
 function renderMine(){
  if(!canWrite())return authRequired();
- const a=data.tasks.filter(t=>active(t)&&(t.assigneeIds||[]).includes(me.id));
+ const a=data.tasks.filter(t=>active(t)&&((t.assigneeIds||[]).includes(me.id)||stages(t).some(stage=>(stage.assigneeIds||[]).includes(me.id))));
  return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad">'+(a.length?a.map(t=>taskCard(t)).join(""):empty("Nenhuma pendência atribuída"))+'</section>';
 }
 function assignmentView(){
