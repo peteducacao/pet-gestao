@@ -59,7 +59,7 @@ async function reload(){
    $("#connection-label").textContent="Sem conexão";$("#connection-dot")?.classList.remove("online");setToast(e.message);}
  render();
 }
-function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
+function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","atividade","reunioes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button> <a href="#/inicio">PET Educação</a> <span class="breadcrumb-slash">/</span> '+esc(routeNames[page]||"PET Gestão");
@@ -88,7 +88,7 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
 function taskCard(t,commissionId){
  const total=(t.commissionIds||[]).length,done=completedCount(t);
  return '<article class="placeholder-row task-list-row"><div class="task-list-body"><div class="task-title-row"><strong>'+esc(t.title)+'</strong><span class="task-date-badge">'+ico("calendar")+' '+textDate(taskDate(t))+'</span></div><small>'+esc(selectedCommitteeNames(t)||"Demanda geral")+'</small>'+
- (canWrite()?'<a class="activity-details-link" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'">Ver detalhes '+ico("arrow")+'</a>':"")+'</div><div class="task-row-meta"><span class="task-assignee-label">'+(canWrite()?'<strong>Responsáveis:</strong> '+esc(who(t)):"")+'</span>'+stateBadge(t)+(total>1&&done?'<span class="pill soft">'+done+'/'+total+' comissões concluídas</span>':"")+'</div></article>'
+ (me?'<a class="activity-details-link" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'">Ver detalhes '+ico("arrow")+'</a>':"")+'</div><div class="task-row-meta"><span class="task-assignee-label">'+(me?'<strong>Responsáveis:</strong> '+esc(who(t)):"")+'</span>'+stateBadge(t)+(total>1&&done?'<span class="pill soft">'+done+'/'+total+' comissões concluídas</span>':"")+'</div></article>'
 }
 function renderHome(){
  const all=data.tasks.filter(active),next=[...all].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=all.filter(isLate).length;
@@ -121,8 +121,8 @@ function renderComissoes(){
  return header("Trabalho em equipe","Comissões","Organização das equipes.",canWrite()?button("+ Nova comissão","comissoes/nova",true):"")+
  '<section class="card card-pad"><div class="section-head"><h2>Comissões cadastradas</h2><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="commission-cards-grid">'+data.committees.map(c=>{
  const members=c.memberCount??(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
- const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="#/comissoes/'+id(c.id)+'"':"";
- return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':ico("users"))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
+ const linkTag=me?"a":"div",linkProps=me?' href="#/comissoes/'+id(c.id)+'"':"";
+ return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':ico("users"))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes</div>'+(me?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
  (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
  (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'" '+(cmax&&members>=cmax?"disabled":"")+'>Fazer parte</button>')+'</div></details>':"")+'</article>'
  }).join("")+'</div></section>';
@@ -189,9 +189,20 @@ function renderTaskForm(routeId){
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
 function statusSelect(t){return '<div class="quick-task-status"><div class="quick-task-status-title"><span>Situação da demanda</span><strong>'+esc(t.status==="aprovada"?"Aprovada":t.archivedAt?"Concluída":"Pendente")+'</strong></div><div class="quick-task-status-actions">'+[["pendente","Pendente"],["aprovada","Aprovada"],["concluida","Concluída"]].map(([s,label])=>'<button type="button" class="quick-status-choice '+(t.status===s?"active status-"+s:"")+'" data-do="choose-status" data-value="'+s+'">'+label+'</button>').join("")+'</div><div class="form-actions"><button class="button primary" type="button" data-do="save-status" data-id="'+esc(t.id)+'">Salvar situação</button></div></div>'}
+function renderDetailReadOnly(t){
+ const history=historyFor(t.id);
+ const status=t.archivedAt?"Concluída":t.status==="aprovada"?"Aprovada":"Pendente";
+ return header("Atividade",t.title,"Visualização somente leitura",backButton())+
+ '<section class="card card-pad"><h2>Situação</h2><p>'+esc(status)+'</p><p><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Demanda geral")+'</p><p><strong>Responsáveis:</strong> '+esc(who(t))+'</p></section>'+
+ '<section class="card card-pad"><h2>Prazos e etapas</h2>'+
+ (stages(t).length?stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div><div class="deadline-field"><small>Situação</small><strong>'+(s.completedAt?"Concluída":"Pendente")+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>'+
+ '<section class="card card-pad"><h2>Observações</h2><p class="saved-activity-text">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p></section>'+
+ '<details class="card card-pad"><summary><strong>Histórico</strong> ('+history.length+')</summary><div class="revision-list">'+(history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+'</small></div>').join(""):'<p>Sem alterações registradas.</p>')+'</div></details>';
+}
 function renderDetail(taskId,contextCid){
- if(!canWrite())return authRequired();
+ if(!me)return authRequired();
  const t=data.tasks.find(t=>t.id===taskId);if(!t)return empty("Demanda não encontrada");
+ if(!canWrite())return renderDetailReadOnly(t);
  if(state.statusTaskId!==taskId){state.statusTaskId=taskId;state.selectedStatus=t.status}
  const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
  const details=historyFor(taskId);
@@ -208,11 +219,12 @@ function renderDetail(taskId,contextCid){
  '<details class="card card-pad"><summary><strong>Histórico de alterações</strong> ('+details.length+')</summary><div class="revision-list">'+(details.length?details.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+'</div></details></div></div>';
 }
 function renderMemory(routeId){
- if(!canWrite())return authRequired();
+ if(!me)return authRequired();
  const editor=routeId==="nova"||routeId.startsWith("editar/");
+ if(editor&&!canWrite())return header("Memórias","Acesso somente leitura","Seu perfil não pode criar ou editar memórias.",backButton());
  const m=routeId==="nova"?null:data.meetings.find(x=>x.id===(editor?routeId.slice(7):routeId));
  if(!m&&routeId!=="nova")return empty("Memória não encontrada");
- if(!editor)return header("Demandas",m.title,"",button("Editar memória","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir memória</button>'+backButton())+'<section class="card card-pad"><p>'+textDate(m.date)+'</p><pre class="live-memory-text">'+esc(m.rawNotes||"")+'</pre></section>';
+ if(!editor)return header("Demandas",m.title,"",(canWrite()?button("Editar memória","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir memória</button>':"")+backButton())+'<section class="card card-pad"><p>'+textDate(m.date)+'</p><pre class="live-memory-text">'+esc(m.rawNotes||"")+'</pre></section>';
  return header("Memórias",m?"Editar memória":"Nova memória","",backButton())+'<section class="card card-pad register-page"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form"><label>Título *<input name="title" required value="'+esc(m?.title||"")+'"></label><label>Data *<input name="date" type="date" required value="'+esc(m?.date||dateKey(current))+'"></label><label>Memória da reunião<textarea name="rawNotes" rows="12">'+esc(m?.rawNotes||"")+'</textarea></label><button type="submit" class="button primary">Salvar memória</button></form></section>';
 }
 function authRequired(){return header("Acesso","Entre na sua conta","Esta funcionalidade exige autenticação.")+'<section class="card card-pad">'+button("Entrar","login",true)+'</section>'}
@@ -253,7 +265,7 @@ function renderMailScheduling(){
 }
 function render(){
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
- if(!allowPage(page)){location.hash="#/login";return}
+ if(!allowPage(page)){location.hash=me?"#/inicio":"#/login";if(me)setToast("Seu perfil possui acesso somente para visualização.");return}
  if(me?.mustChangePassword&&page!=="conta"){location.hash="#/conta";return}
  let html="";
  if(page==="inicio")html=renderHome();
@@ -272,7 +284,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
- if(page==="admin"&&isAdmin()){loadAdminUsers();loadMailHistory();renderMailRecipients();renderMailScheduling()}
+ if(page==="admin"&&adminToken&&isAdmin()){loadAdminUsers();loadMailHistory();renderMailRecipients();renderMailScheduling()}
 }
 function askNotification(){return canNotify()?window.confirm("Deseja notificar os(as) responsáveis por e-mail sobre esta alteração?"):false}
 async function saveAndReload(action,success="Alterações salvas."){
