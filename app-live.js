@@ -253,10 +253,20 @@ function renderComissoes(){
 }
 function renderCommittee(cid){
  const c=committee(cid);if(!c)return empty("Comissão não encontrada");
- const d=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
+ // A vinculação à comissão não depende da data: o filtro do período só organiza
+ // as atividades em duas áreas, sem ocultar uma demanda atribuída à equipe.
+ const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))
+   .sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
+ const inPeriod=all.filter(t=>filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
+ const otherDates=all.filter(t=>!inPeriod.includes(t));
  const actions=canWrite()?button("Editar comissão","comissoes/editar/"+id(cid))+button("+ Nova demanda","registrar/novo/"+id(cid),true):"";
  return header("Comissões",c.name,c.description||"",actions)+
- '<section class="card card-pad"><div class="section-head"><h2>Cronograma e atividades</h2><span class="pill soft">'+d.length+' registros</span></div>'+period()+(d.length?d.map(t=>taskCard(t,cid)).join(""):empty("Nenhuma demanda ativa neste período"))+'</section>';
+ '<section class="card card-pad"><div class="section-head"><div><h2>Atividades da comissão</h2><p>As demandas desta equipe continuam visíveis mesmo fora do período selecionado.</p></div><span class="pill soft">'+all.length+' em aberto</span></div>'+
+ (all.length?period()+
+ (inPeriod.length?'<div class="commission-period-group"><h3>Neste período</h3>'+inPeriod.map(t=>taskCard(t,cid)).join("")+'</div>':"")+
+ (otherDates.length?'<div class="commission-period-group commission-other-dates"><h3>Em outras datas</h3><p>Estas atividades também pertencem à comissão, mas têm prazo fora do mês ou semana selecionado.</p>'+otherDates.map(t=>taskCard(t,cid)).join("")+'</div>':""):
+ empty("Nenhuma demanda ativa nesta comissão","Ao escolher esta comissão como responsável, a demanda aparecerá aqui."))+
+ '</section>';
 }
 function renderCommitteeEdit(cid){
  if(!canWrite())return authRequired();
@@ -309,7 +319,7 @@ function renderTaskForm(routeId){
    state.taskFormId=routeId;
    state.selectedUsers=new Set(t?.assigneeIds||[]);
    state.selectedCommissions=new Set(t?.commissionIds||(cid?[cid]:[]));
-   state.assignmentScope=t?.commissionIds?.length&&!t?.assigneeIds?.length?"comissoes":"usuarios";
+   state.assignmentScope=cid||t?.commissionIds?.length&&!t?.assigneeIds?.length?"comissoes":"usuarios";
  }
  return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",backButton())+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+

@@ -409,4 +409,15 @@ await test("edição de demanda apresenta Anotações sem alterar descrição de
  assert.ok(ui.includes('name="description"'),"Preserva campo e dados gravados.");
  assert.ok(ui.includes('<label>Descrição (opcional)<textarea name="description"'),"Não alterar formulário de comissão.");
 });
+await test("comissão exibe demanda mesmo fora da semana ou mês selecionado",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const js=readFileSync("app-live.js","utf8"),worker=readFileSync("worker/src/index.js","utf8");
+ assert.ok(js.includes('const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))'));
+ assert.ok(js.includes('const inPeriod=all.filter(t=>filtered(t,"mensal")'));
+ assert.ok(js.includes('const otherDates=all.filter(t=>!inPeriod.includes(t))'));
+ assert.ok(js.includes('otherDates.map(t=>taskCard(t,cid))'));
+ assert.ok(js.includes('state.assignmentScope=cid||t?.commissionIds?.length'));
+ assert.ok(js.includes('(t?"Anotações":"Descrição (opcional)")'),"Preservar o rótulo Anotações na edição.");
+ assert.ok(worker.includes('JSON.stringify(t.commissionIds)'),"A API deve guardar a comissão vinculada.");
+});
 console.log(tests+" testes passaram no banco local isolado");

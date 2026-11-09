@@ -387,3 +387,11 @@ body.auth-message-open{overflow:hidden}
  .topbar .profile-button{max-width:132px;padding:7px 8px}
  .topbar .profile-button .account-identification strong,.topbar .profile-button .account-identification small{max-width:84px}
 }
+
+/* Demandas vinculadas à comissão continuam acessíveis fora dos filtros de semana/mês. */
+.commission-period-group{margin-top:16px;min-width:0}
+.commission-period-group h3{margin:0 0 9px;font-size:14px;font-weight:800;color:#3c3055}
+.commission-period-group>p{font-size:12px;line-height:1.55;color:#79718d;margin:0 0 12px}
+.commission-period-group .task-list-row{border-bottom:1px solid #eeecf4}
+.commission-period-group .task-list-row:last-child{border-bottom:0}
+.commission-other-dates{padding-top:19px;margin-top:19px;border-top:1px solid #e9e4f2}
