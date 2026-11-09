@@ -254,7 +254,7 @@ await test("Comissão utiliza popup customizado central com fundo desfocado",asy
  const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
  assert.ok(index.includes('id="commission-dialog"'));
  assert.ok(src.includes('showCommissionDialog('));
- assert.ok(src.includes('vagas definidas'));
+ assert.ok(src.includes('Vagas ainda não definidas'));
  assert.ok(src.includes('commission-dialog-confirm'));
  assert.ok(!src.includes('window.confirm(action==="join-commission"'));
  assert.ok(!src.includes('(cmax&&members>=cmax?"disabled":"")'));

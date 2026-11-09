@@ -369,7 +369,7 @@
         if(!c)fail("Comissão não encontrada.",404);
         const image=b.imageData===undefined?c.image_data:String(b.imageData);
         if(image.length>950000||image&&!/^data:image\/(png|jpeg|webp);base64,/.test(image))fail("Imagem inválida ou muito grande.");
-        const max=user.role==="admin"&&Number.isInteger(b.maxMembers)&&b.maxMembers>=0?b.maxMembers:c.max_members;
+        const max=["admin","tutor"].includes(user.role)&&Number.isInteger(b.maxMembers)&&b.maxMembers>=0?b.maxMembers:c.max_members;
         if(max>0){const count=await db.prepare("SELECT COUNT(*) AS n FROM commission_members WHERE commission_id=?").bind(c.id).first();if(count.n>max)fail("O limite não pode ser inferior à quantidade de integrantes atuais.")}
         await db.prepare("UPDATE commissions SET name=?,description=?,background_color=?,image_data=?,max_members=? WHERE id=?").bind(str(b.name||c.name,90),str(b.description??c.description,2000),color(b.backgroundColor||c.background_color),image,max,c.id).run();
         return answer({ok:true});
