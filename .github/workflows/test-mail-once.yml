@@ -1,0 +1,26 @@
+name: PET Gestão — teste único de envio Gmail
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/test-mail-once.yml']
+permissions:
+  contents: read
+concurrency:
+  group: pet-gestao-gmail-ensaio-pontual
+  cancel-in-progress: false
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    env:
+      MAIL_BRIDGE_URL: ${{ secrets.MAIL_BRIDGE_URL }}
+      MAIL_BRIDGE_TOKEN: ${{ secrets.MAIL_BRIDGE_TOKEN }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+    steps:
+      - name: Obter código
+        uses: actions/checkout@v4
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enviar somente um e-mail administrativo de teste
+        run: node scripts/test-mail-once.mjs
