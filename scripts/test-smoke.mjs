@@ -72,6 +72,17 @@ await test("exclusão definitiva",async()=>{good(await api("/tasks/"+task,"DELET
 await test("criar memória",async()=>{good(await api("/meetings","POST",{title:"Memória Teste",date:dueAt,rawNotes:"Responsável: teste"}));meeting=good(await api("/bootstrap")).meetings.find(x=>x.title==="Memória Teste").id});
 await test("editar e excluir memória",async()=>{good(await api("/meetings/"+meeting,"PUT",{title:"Memória Editada",date:dueAt}));good(await api("/meetings/"+meeting,"DELETE"))});
 await test("excluir comissões",async()=>{good(await api("/commissions/"+a,"DELETE"));good(await api("/commissions/"+b,"DELETE"))});
+await test("senha administrativa temporária pode ser trocada sem login comum",async()=>{
+ const admin=good(await api("/admin/users")).users.find(u=>u.role==="admin");
+ assert.ok(admin?.id);
+ const temporary=good(await api("/admin/users/"+admin.id+"/temporary-password","POST")).temporaryPassword;
+ assert.ok(temporary);
+ const entry=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:temporary}));
+ assert.equal(entry.user.mustChangePassword,true);
+ token=entry.token;
+ good(await api("/auth/change-password","POST",{password:temporary,newPassword:"SenhaNovaAdminSegura123!"}));
+ assert.equal((await api("/auth/me")).status,401);
+});
 await test("logout",async()=>{good(await api("/auth/logout","POST"));assert.equal((await api("/auth/me")).status,401)});
 
 await test("interface separa identidade pessoal e administrativa",async()=>{
@@ -82,6 +93,7 @@ await test("interface separa identidade pessoal e administrativa",async()=>{
  assert.ok(js.includes('const roleLabel=role=>'));
  assert.ok(js.includes('const person=regularMe, logged=Boolean(person)'));
  assert.ok(js.includes('if(!inAdmin&&b.session?.user?.role==="admin")'));
+ assert.ok(js.includes('id="admin-change-password-form"'));
  assert.ok(js.includes('["petiano","tutor"].includes(me.role)'));
  assert.ok(css.includes('.profile-button span.account-identification{display:flex}'));
  assert.ok(html.includes('id="account-button"'));
