@@ -51,6 +51,14 @@ jobs:
         run: |
           test -n "$ADMIN_EMAIL" && test -n "$ADMIN_INITIAL_PASSWORD"
           test -n "$MAIL_BRIDGE_TOKEN" && test -n "$MAIL_BRIDGE_URL"
+          if [ "${#ADMIN_INITIAL_PASSWORD}" -lt 10 ]; then
+            echo "::error::O secret ADMIN_INITIAL_PASSWORD deve ter pelo menos 10 caracteres."
+            exit 1
+          fi
+          if [[ ! "$ADMIN_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
+            echo "::error::O secret ADMIN_EMAIL não contém um e-mail válido."
+            exit 1
+          fi
       - name: Instalar Cloudflare Wrangler
         run: npm install -g wrangler@4
       - name: Aplicar migrações ao D1
@@ -68,7 +76,18 @@ jobs:
           API_URL="$(cat api-url.txt)"
           curl --fail --show-error --silent --retry 5 --retry-delay 3 "$API_URL/api/v1/health"
           echo
-          curl --fail --show-error --silent --retry 5 --retry-delay 3 "$API_URL/api/v1/bootstrap" > /tmp/pet-gestao-bootstrap.json
+          HTTP_CODE="$(curl --silent --show-error --retry 3 --retry-delay 3 -o /tmp/pet-gestao-bootstrap.json -w '%{http_code}' "$API_URL/api/v1/bootstrap")"
+          if [ "$HTTP_CODE" != "200" ]; then
+            python3 - <<'PY'
+          import json
+          try:
+              d=json.load(open('/tmp/pet-gestao-bootstrap.json'))
+          except Exception:
+              d={}
+          print("::error::API /bootstrap falhou; código HTTP e diagnóstico:", d.get("code","desconhecido"), d.get("stage","desconhecido"))
+          PY
+            exit 1
+          fi
           python3 - <<'PY'
           import json
           d=json.load(open('/tmp/pet-gestao-bootstrap.json'))
