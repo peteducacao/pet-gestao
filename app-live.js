@@ -401,16 +401,19 @@ async function sendMail(form){
  if(when&&Number.isNaN(when.getTime()))return setToast("Informe uma data e horário válidos.");
  const scheduledAt=when?when.toISOString():null;
  if(state.mailAudience!=="todos"&&!ids.length)return setToast("Selecione ao menos um destinatário.");
- const attachments=state.mailScheduled?[]:await Promise.all(state.mailFiles.map(async file=>({nome:file.name,mimeType:file.type||"application/octet-stream",base64:await fileData(file)})));
+ const button=form.querySelector('button[type="submit"]');
+ if(button?.disabled)return;
  try{
+  if(button)button.disabled=true;
+  const attachments=state.mailScheduled?[]:await Promise.all(state.mailFiles.map(async file=>({nome:file.name,mimeType:file.type||"application/octet-stream",base64:await fileData(file)})));
   const result=await request("/mail","POST",{all:state.mailAudience==="todos",userIds,committeeIds,subject:f.subject,message:f.message,scheduledAt,attachments},"admin");
-  state.mailFiles=[];
+  state.mailFiles=[];state.mailAudience="todos";state.mailScheduled=false;
   form.reset();
-  state.mailScheduled=false;
-  renderMailScheduling();
+  renderMailRecipients();renderMailScheduling();
   await loadMailHistory();
   setToast(result.status==="enviado"?"E-mail enviado.":result.status==="agendado"?"E-mail agendado.":"E-mail registrado na fila de envio.");
  }catch(e){setToast("Não foi possível registrar o envio: "+e.message)}
+ finally{if(button?.isConnected)button.disabled=false}
 }
 async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
