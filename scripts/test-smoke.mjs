@@ -228,8 +228,10 @@ await test("correção da Tutoria remove só a sua pendência, sem concluir dema
  let commissionId="";
  try{
   good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:true}));
-  const c=good(await api("/commissions","POST",{name:commissionName,description:"Comissão de teste isolada",maxMembers:2}));
-  commissionId=c.id;
+  good(await api("/commissions","POST",{name:commissionName,description:"Comissão de teste isolada"}));
+  commissionId=good(await api("/bootstrap")).committees.find(c=>c.name===commissionName)?.id;
+  assert.ok(commissionId,"Comissão de teste cadastrada corretamente");
+  good(await api("/commissions/"+commissionId,"PUT",{maxMembers:2}));
   const body={title:"Correção pendente da Tutoria",assignmentScope:"comissoes",
     assigneeIds:[admin.id],commissionIds:[commissionId],deadlines:[],captionText:"Texto antes"};
   const task1=good(await api("/tasks","POST",body),201).id;
