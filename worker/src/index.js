@@ -229,8 +229,8 @@
 
   // Arquivamento de eventos coletivos ao fim do dia em Sergipe (UTC−3).
   // Idempotente: uma mudança de versão concorrente impede atualização duplicada.
-  // Apenas eventos com etiqueta "Evento" são processados, preservando registros
-  // antigos de Todos(as) até serem explicitamente editados para o novo modelo.
+  // Registros antigos de Todos(as) também encerram no fim da data mais recente.
+  // Sem data, nenhum evento será arquivado automaticamente.
   async function autoCompleteCollectiveEvents(env){
     const db=env.DB,stamp=now(),clock=Date.now();
     const pending=(await db.prepare(
@@ -238,9 +238,11 @@
     ).all()).results;
     for(const task of pending){
       const stages=asJson(task.deadlines,[]);
-      if(stages.length!==1||stages[0]?.label!=="Evento")continue;
-      const raw=String(stages[0].dueAt||""),day=raw.slice(0,10);
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;
+      const days=stages.map(stage=>String(stage?.dueAt||"").slice(0,10))
+        .filter(day=>/^\d{4}-\d{2}-\d{2}$/.test(day));
+      if(!days.length)continue;
+      // Para dados legados com várias etapas, considerar a data final.
+      const day=days.sort().at(-1);
       const end=Date.parse(day+"T23:59:59-03:00");
       if(!Number.isFinite(end)||clock<end)continue;
       const people=unique(asJson(task.assignee_ids,[]));
@@ -276,10 +278,12 @@
       if(!membersByCommission.has(member.commission_id))membersByCommission.set(member.commission_id,[]);
       membersByCommission.get(member.commission_id).push(member.user_id);
     }
-    const tasks=(await db.prepare("SELECT id,title,assignee_ids,commission_ids,commission_done,user_done,deadlines,archived_at FROM tasks WHERE archived_at IS NULL").all()).results;
+    const tasks=(await db.prepare("SELECT id,title,assignee_ids,commission_ids,commission_done,user_done,deadlines,archived_at,assignment_scope FROM tasks WHERE archived_at IS NULL").all()).results;
     const clock=new Date(),today=reminderDateKey(clock),todayUTC=Date.parse(today+"T00:00:00Z");
     let registered=0;
     for(const task of tasks){
+      // Avisos de prazo valem para tarefas com etapas, não para eventos coletivos.
+      if(task.assignment_scope==="todos")continue;
       const stages=asJson(task.deadlines,[]);
       const donePeople=asJson(task.user_done,{}),doneCommissions=asJson(task.commission_done,{});
       const allTaskAssignees=asJson(task.assignee_ids,[]);
