@@ -198,8 +198,10 @@ secondPerson.checked=true;
 secondPerson.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 assert.ok(document.querySelector("#stage-rows"),"Duas pessoas voltam ao modo de etapas opcionais");
 assert.equal(document.querySelector("#collective-date-day"),null,"Múltiplas pessoas não ficam presas ao seletor simples");
-secondPerson.checked=false;
-secondPerson.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+const secondPersonAgain=document.querySelector('input[data-assign="usuarios"][value="u2"]');
+assert.ok(secondPersonAgain,"O seletor de participantes é atualizado após adicionar alguém");
+secondPersonAgain.checked=false;
+secondPersonAgain.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 assert.ok(document.querySelector("#collective-date-day"),"Ao voltar para uma pessoa, restaura data simples");
 tasks.splice(tasks.findIndex(t=>t.id==="t-single"),1);
 // Marcar somente a correção pessoal de uma demanda já presente no bootstrap.
