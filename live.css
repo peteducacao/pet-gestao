@@ -1835,3 +1835,50 @@ body.mail-preview-open{overflow:hidden}
 @media(max-width:500px){
  .finish-popup .finish-quick-actions{grid-template-columns:1fr}
 }
+
+
+/* Conta pessoal: exclusão definitiva com senha e confirmação consciente. */
+#screen .account-danger-zone{
+ margin-top:24px;padding:18px;border:1px solid #f1cfd3;
+ border-radius:15px;background:#fffafb;display:grid;gap:14px;
+}
+#screen .account-danger-zone h3{margin:0 0 6px;color:#8d2636;font-size:17px}
+#screen .account-danger-zone p{margin:0;color:#755c65;font-size:13px;line-height:1.65}
+#screen .account-danger-zone>.button{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;
+ border-color:#e7bfc5;background:white;color:#a02f42;min-height:48px}
+#screen .account-danger-zone>.button:hover{background:#ffedf0}
+.account-delete-dialog[hidden]{display:none!important}
+.account-delete-dialog{
+ position:fixed;inset:0;z-index:280;
+ display:grid;place-items:center;padding:15px;
+}
+.account-delete-backdrop{
+ position:absolute;inset:0;background:rgba(27,18,43,.66);
+ backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+}
+.account-delete-card{
+ position:relative;z-index:1;width:min(100%,490px);max-height:90dvh;overflow:auto;
+ padding:25px;border-radius:22px;background:white;
+ border:1px solid #f0d5db;box-shadow:0 23px 72px rgba(20,13,37,.25);
+}
+.account-delete-card h2{margin:0 0 12px;font-size:21px;color:#8e283b}
+.account-delete-card>p{margin:0 0 20px;font-size:13px;line-height:1.65;color:#665d70}
+.account-delete-card .register-form{display:grid;gap:16px}
+.account-delete-card .register-form label{display:grid;gap:8px;color:#383047;font-weight:700;font-size:13px}
+.account-delete-card .register-form input{
+ width:100%;min-width:0;min-height:47px;padding:11px 13px;
+ border-radius:11px;border:1px solid #dcd1e6;font-size:16px;
+}
+.account-delete-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:5px}
+.account-delete-actions .button{min-height:46px;flex:1 1 160px;display:flex;align-items:center;justify-content:center;gap:8px}
+.account-delete-confirm{
+ background:#ad3547!important;border:1px solid #ad3547!important;
+ border-radius:11px!important;color:#fff!important;font-weight:800;
+}
+.account-delete-confirm:hover{background:#90283c!important}
+.account-delete-confirm:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:540px){
+ .account-delete-card{padding:21px 18px}
+ .account-delete-actions{flex-direction:column}
+ .account-delete-actions .button{flex:0 0 auto;width:100%}
+}
