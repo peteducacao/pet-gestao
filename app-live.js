@@ -484,7 +484,9 @@ function renderTaskForm(routeId){
    state.selectedCommissions=new Set(t?.commissionIds||(cid?[cid]:[]));
    state.assignmentScope=cid||t?.commissionIds?.length&&!t?.assigneeIds?.length?"comissoes":"usuarios";
  }
- return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",backButton())+
+ return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",
+ backButton()+
+ (t?'<button type="submit" form="task-form" class="button primary task-form-header-save">'+ico("check")+' Salvar demanda</button>':""))+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
  '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
  '<div id="assignment-container">'+assignmentView()+'</div>'+
@@ -493,7 +495,7 @@ function renderTaskForm(routeId){
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
  '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Defina até quando os(as) PETianos(as) deverão concluir cada etapa da demanda. A etapa <strong>Prazo</strong> é obrigatória e indica a data de entrega. Se precisar, acrescente etapas para organizar a <strong>Correção</strong> pela tutoria ou a <strong>Postagem</strong>. Você pode escolher um responsável para cada etapa.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?.deadlines?.length?t.deadlines:[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
  '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+richEditor("captionText",t?.captionText||"")+
- '<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div></form></section>';
+ (t?"":'<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div>')+'</form></section>';
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
 
