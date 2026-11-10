@@ -490,7 +490,7 @@ function stageAssigneeField(selectedOwner=""){
   data.users.map(u=>opt(u.id,u.name,selectedOwner)).join("")+'</select>';
 }
 function syncStageAssigneePlaceholder(){
- $('.live-stage [data-stage="assignee"]').forEach(field=>{
+ $$('.live-stage [data-stage="assignee"]').forEach(field=>{
   const label=field.closest("label");
   if(!label)return;
   // O nome escolhido permanece no formulário caso a pessoa volte de Todos(as) para Pessoas.
