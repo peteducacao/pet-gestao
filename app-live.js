@@ -341,7 +341,7 @@ function taskCard(t,commissionId,withFinishAction=false){
  const taskHref=workspaceHash("atividade/"+id(t.id)+(commissionId?"/"+id(commissionId):""));
  const photo=selected?.imageData?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="" loading="lazy">':selected?commissionDefaultArt(selected.name):ico("checklist");
  const commissionNames=ids.map(cid=>committee(cid)?.name||"Comissão");
- const individualNames=me?(t.assigneeIds||[]).map(uid=>nameFor(uid)||"Responsável vinculado"):[];
+ const individualNames=me?(isEveryoneAssigned(t)?["Todos"]:(t.assigneeIds||[]).map(uid=>nameFor(uid)||"Responsável vinculado")):[];
  const selectors=cardPeoplePicker(commissionNames,"comissoes")+cardPeoplePicker(individualNames,"pessoas");
  return '<article class="placeholder-row task-list-row demand-activity-card status-'+status+'">'+
  (me?'<a class="demand-card-cover-link" href="'+taskHref+'" aria-label="Abrir demanda: '+esc(t.title)+'"></a>':"")+
@@ -539,7 +539,7 @@ function deadlineFacts(t){
    '<span class="stage-compact-icon" aria-hidden="true">'+ico(icon)+'</span>'+
    '<div class="stage-compact-info"><strong>'+esc(stage.label)+'</strong>'+
    '<time>'+textDate(stage.dueAt)+'</time>'+
-   '<small>Responsável: '+esc(stageResponsibleNames(stage,t))+'</small></div></div>';
+   '<div class="stage-responsible">'+ico("user")+'<span>Responsável: <strong>'+esc(stageResponsibleNames(stage,t))+'</strong></span></div></div></div>';
  };
  return '<section class="card card-pad details-facts detail-accent-card">'+
   '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("calendar")+'</span>Prazos e etapas</h2>'+
@@ -558,20 +558,40 @@ function historySymbol(action){
  if(/remov|exclu|apag/.test(a))return ["close","remove"];
  return ["clock","change"];
 }
+// "Todos" está guardado na lista de usuários elegíveis da época do cadastro.
+// Apresentar o rótulo quando o conjunto corresponde a todos os usuários atuais,
+// evitando confundir uma comissão vinculada com uma atribuição individual.
+function isEveryoneAssigned(t){
+ const everyone=(data.users||[]).filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>String(u.id));
+ const assigned=(t.assigneeIds||[]).map(String);
+ return !(t.commissionIds||[]).length&&everyone.length>1&&
+  new Set(assigned).size===everyone.length&&
+  everyone.every(uid=>assigned.includes(uid));
+}
 function renderAssignees(t){
- const people=(t.assigneeIds||[]).map(id=>nameFor(id)).filter(Boolean);
+ const people=(t.assigneeIds||[]).map(id=>nameFor(id)||"Responsável vinculado");
  const teams=(t.commissionIds||[]).map(cid=>committee(cid)).filter(Boolean);
- return '<section class="card card-pad assignee-card detail-accent-card"><h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("users")+'</span>Responsáveis</h2>'+
- (people.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("user")+' Pessoas</span>'+
- '<div class="assignee-chips">'+people.map(name=>'<span class="assignee-person">'+esc(name)+'</span>').join("")+'</div></div>':"")+
- (teams.length?'<div class="assignee-group">'+
- teams.map(c=>{
-  const members=(c.memberIds||[]).map(nameFor).filter(Boolean);
-  return '<div class="assignee-team"><strong>'+ico("users")+' '+esc(c.name)+'</strong>'+
-  (members.length?'<small>Integrantes: '+esc(members.slice(0,4).join(", "))+(members.length>4?' e mais '+(members.length-4):"")+'</small>':"")+'</div>';
- }).join("")+'</div>':"")+
- (!people.length&&!teams.length?'<p class="assignee-empty">Nenhum responsável vinculado.</p>':"")+
- '</section>';
+ const everyone=isEveryoneAssigned(t);
+ const peoplePanel=people.length?'<div class="assignee-group assignee-people-panel">'+
+  '<span class="assignee-column-heading">'+ico("user")+' Pessoas</span>'+
+  (everyone?'<div class="assignee-everyone">'+ico("users")+' <strong>Todos</strong></div>':
+   '<div class="assignee-chips">'+people.map(name=>'<span class="assignee-person">'+esc(name)+'</span>').join("")+'</div>')+
+  '</div>':"";
+ const teamsPanel=teams.length?'<div class="assignee-group assignee-commissions-panel">'+
+  '<span class="assignee-column-heading">'+ico("users")+' Comissões</span>'+
+  teams.map(c=>{
+   const members=(c.memberIds||[]).map(nameFor).filter(Boolean);
+   return '<div class="assignee-team"><strong>'+ico("users")+' '+esc(c.name)+'</strong>'+
+    (members.length?'<small>Integrantes: '+esc(members.slice(0,4).join(", "))+
+     (members.length>4?' e mais '+(members.length-4):"")+'</small>':"")+'</div>';
+  }).join("")+'</div>':"";
+ return '<section class="card card-pad assignee-card detail-accent-card"><h2 class="detail-card-heading">'+
+  '<span class="detail-heading-icon" aria-hidden="true">'+ico("users")+'</span>Responsáveis</h2>'+
+  ((people.length||teams.length)?
+    '<div class="assignee-columns'+(!(people.length&&teams.length)?' assignee-columns-single':"")+'">'+
+    peoplePanel+teamsPanel+'</div>':
+    '<p class="assignee-empty">Nenhum responsável vinculado.</p>')+
+  '</section>';
 }
 function renderHistory(t){
  const history=historyFor(t.id);

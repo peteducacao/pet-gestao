@@ -555,6 +555,18 @@ await test("comissões mostram só pendências sem filtros redundantes",async()=
  assert.ok(!section.includes('period()'));
  assert.ok(!section.includes('+ Nova demanda'));
 });
+await test("detalhes separam Pessoas de Comissões e destacam responsáveis por etapa",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
+ assert.ok(ui.includes('class="assignee-columns'),"Quadro usa duas colunas");
+ assert.ok(ui.includes('assignee-people-panel'),"Pessoas têm coluna própria");
+ assert.ok(ui.includes('assignee-commissions-panel'),"Comissões têm coluna própria");
+ assert.ok(ui.includes('function isEveryoneAssigned(t)'),"Identificar Todos por atribuições atuais");
+ assert.ok(ui.includes('assignee-everyone'),"Mostrar Todos como um único item");
+ assert.ok(ui.includes('class="stage-responsible"'),"Responsáveis de etapa com estilo legível");
+ assert.ok(css.includes(".assignee-card .assignee-columns{"),"Responsivo desktop separado");
+ assert.ok(css.includes(".stage-responsible strong"),"Nome da etapa em destaque");
+});
 await test("Postagem fica centralizada acima das duas etapas",async()=>{
  const {readFileSync}=await import("node:fs");
  const css=readFileSync("live.css","utf8");
