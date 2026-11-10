@@ -530,7 +530,7 @@ function collectiveEventDate(stage=null){
  // Os campos separados permitem deixar APENAS o ano atual preenchido.
  // <input type=date> não permite um ano sem dia/mês; permanece para o calendário nativo.
  const saved=(stage?.dueAt||"").slice(0,10);
- const parts=/^\\d{4}-\\d{2}-\\d{2}$/.test(saved)?saved.split("-"):[];
+ const parts=/^\d{4}-\d{2}-\d{2}$/.test(saved)?saved.split("-"):[];
  const yy=parts[0]||String(current.getFullYear()),mm=parts[1]||"",dd=parts[2]||"";
  return '<div class="collective-event-date"><div class="collective-date-fields" role="group" aria-label="Data do evento">'+
   '<span class="collective-date-label-text">Data do evento <span class="task-form-required" aria-hidden="true">*</span></span>'+
@@ -547,7 +547,7 @@ function collectiveSelectedDay(){
  const dd=$("#collective-date-day")?.value.trim()||"",
   mm=$("#collective-date-month")?.value.trim()||"",
   yy=$("#collective-date-year")?.value.trim()||"";
- if(!/^\\d{1,2}$/.test(dd)||!/^\\d{1,2}$/.test(mm)||!/^\\d{4}$/.test(yy))return "";
+ if(!/^\d{1,2}$/.test(dd)||!/^\d{1,2}$/.test(mm)||!/^\d{4}$/.test(yy))return "";
  const iso=yy+"-"+mm.padStart(2,"0")+"-"+dd.padStart(2,"0");
  const time=new Date(iso+"T12:00:00Z");
  return Number.isFinite(time.getTime())&&time.toISOString().slice(0,10)===iso?iso:"";
