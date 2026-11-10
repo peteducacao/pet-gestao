@@ -297,7 +297,7 @@ function taskCard(t,commissionId,withFinishAction=false){
  (me?'<div class="demand-activity-fact demand-activity-owners"><span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
  '<div><span class="demand-activity-label">Responsáveis</span><strong>'+esc(who(t))+'</strong>'+
  (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+'</div></div>':"")+
- (me?'<a class="activity-details-link demand-activity-action" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>':"")+
+ (me?'<a class="activity-details-link demand-activity-action" href="'+workspaceHash("atividade/"+id(t.id)+(commissionId?"/"+id(commissionId):""))+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>':"")+
  (withFinishAction?'<button type="button" class="button demand-finish-action" data-do="finish-personal" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+
  '</article>';
 }
@@ -344,7 +344,7 @@ function renderComissoes(){
  return header("Trabalho em equipe","Comissões","Organização das equipes.",canWrite()?button("+ Nova comissão","comissoes/nova",true):"")+
  '<section class="card card-pad"><div class="section-head"><h2>Comissões cadastradas</h2><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="commission-cards-grid">'+data.committees.map(c=>{
  const members=c.memberCount??(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
- const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="#/comissoes/'+id(c.id)+'"':"";
+ const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="'+workspaceHash("comissoes/"+id(c.id))+'"':"";
  return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="'+esc(c.name)+'">':commissionDefaultArt(c.name))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes'+(!cmax?' · Vagas a definir':"")+'</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
  (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
  (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>'
@@ -546,7 +546,7 @@ function renderAdmin(){
  '<button class="button primary" type="submit">Salvar modelo</button></form></section>'+
  '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
- const nav=tab=>'<button class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'" data-do="admin-tab" data-value="'+tab[0]+'" type="button">'+ico(tab[2])+'<span>'+tab[1]+'</span></button>';
+ const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
  const stats=[["Demandas",data.tasks.length,"list"],["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
  const metric=([name,value,iconName])=>'<div class="admin-metric"><span class="admin-metric-icon">'+ico(iconName)+'</span><strong '+(name==="E-mails"?'id="admin-mail-count"':"")+'>'+value+'</strong><span>'+name+'</span></div>';
@@ -558,12 +558,15 @@ function renderAdmin(){
  '<button type="button" data-do="admin-tab" data-value="usuarios">'+ico("user")+'<span>Gerenciar usuários</span></button>'+
  '<button type="button" data-do="admin-tab" data-value="emails">'+ico("mail")+'<span>Enviar e-mail</span></button></div></section>'+
  '<section class="admin-box"><h2>Últimas alterações</h2>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
- const subroute=routeParts().parts,embedded=subroute.length?adminEmbeddedView(subroute):"";
+ const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","emails","configuracoes"];
+ const tabRoute=adminParts.length===1&&tabNames.includes(adminParts[0])?adminParts[0]:null;
+ if(tabRoute)state.adminTab=tabRoute;
+ const subroute=tabRoute?[]:adminParts,embedded=subroute.length?adminEmbeddedView(subroute):"";
  const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",configuracoes:"Configurações"};
  return '<div class="admin-layout">'+
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
- '<nav class="admin-navigation">'+nav(tabs[0])+'<button type="button" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade","reunioes"].includes(subroute[0])?"active":"")+'" data-do="admin-route" data-value="demandas">'+ico("list")+'<span>Demandas</span></button>'+tabs.slice(1).map(nav).join("")+'</nav>'+
+ '<nav class="admin-navigation">'+nav(tabs[0])+'<a href="#/admin/demandas" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade"].includes(subroute[0])?"active":"")+'">'+ico("list")+'<span>Demandas</span></a><a href="#/admin/reunioes" class="admin-menu-link '+(subroute[0]==="reunioes"?"active":"")+'">'+ico("calendar")+'<span>Atas de Reunião</span></a>'+tabs.slice(1).map(nav).join("")+'</nav>'+
  '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("close")+' Sair do modo Admin</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
  '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>'+esc(me.name)+'</strong><small>'+esc(roleLabel(me.role))+'</small></span></div></div>'+
