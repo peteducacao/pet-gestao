@@ -33,7 +33,7 @@ await page.route("**/api/v1/**",async route=>{
  else if(p.startsWith("/tasks/")&&method==="PATCH"){task.userDone.u1={at:new Date().toISOString(),by:"u1"};task.commissionDone.videos={at:new Date().toISOString(),by:"u1"};task.archivedAt=new Date().toISOString();result={ok:true,archived:true};}
  await route.fulfill({status,contentType:"application/json; charset=utf-8",headers:{"access-control-allow-origin":"*","access-control-allow-headers":"*"},body:JSON.stringify(result)});
 });
-await page.addInitScript(()=>{
+await context.addInitScript(()=>{
  localStorage.setItem("pet-gestao:session-token","user-token");
  localStorage.setItem("pet-gestao:admin-session-token","admin-token");
 });
@@ -47,7 +47,7 @@ try{
  assert.equal(await page.locator('.task-status-atrasada').count()>0,true);
  assert.equal(await page.locator('a#account-button[href="#/conta"]').count(),1);
  const [extra]=await Promise.all([context.waitForEvent("page"),page.locator('a[data-route="comissoes"]').click({modifiers:["Control"]})]);
- await extra.waitForLoadState("domcontentloaded");assert.ok(extra.url().includes("#/comissoes"),"Comissão abre em outra guia");await extra.close();
+ await extra.waitForURL(/#\/comissoes/,{timeout:10000});assert.ok(extra.url().includes("#/comissoes"),"Comissão abre em outra guia");await extra.close();
  await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".meeting-card-link").waitFor({timeout:5000});
  await page.locator(".meeting-card-link").click();
