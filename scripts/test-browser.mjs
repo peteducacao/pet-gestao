@@ -526,7 +526,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok((await deleteArchived.innerText()).includes("Excluir definitivamente"));
  await deleteArchived.click();
  assert.ok((await page.locator("#notice-dialog").innerText()).includes("sem possibilidade de recuperação"),"Exclusão de arquivada exige confirmação");
- await page.locator('#notice-dialog [data-do="notice-cancel"]').click();
+ await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  assert.ok(tasks.some(x=>x.id==="t-archived"),"Cancelar mantém demanda concluída");
  await deleteArchived.click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
