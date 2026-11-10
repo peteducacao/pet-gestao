@@ -255,20 +255,20 @@ function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cro
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
- const account=$("#account-button");
- if(account){
-   const person=regularMe, logged=Boolean(person);
-   account.innerHTML=ico("user")+'<span class="account-identification"><strong>'+(logged?"Meu perfil":"Entrar")+'</strong></span>';
-   account.classList.toggle("logged-in",logged);account.href=logged?"#/conta":"#/login";
-   account.setAttribute("aria-label",logged?"Minha conta: "+person.name+" ("+roleLabel(person.role)+")":"Entrar");
-   account.title=logged?"Conectado como "+person.name+" — "+roleLabel(person.role):"Entrar";
- }
  const admin=$("#admin-link"),adminCaption=$("#admin-nav-caption"),adminGroup=$("#admin-nav-group");
  const adminVisible=routeParts().page==="admin"&&isAdmin();
  if(adminCaption)adminCaption.hidden=!adminVisible;
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
- $$(".nav-link[data-route]").forEach(el=>{el.classList.toggle("active",el.dataset.route===page);if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite();if(el.dataset.route==="conta")el.hidden=!Boolean(regularMe)});
+ $$(".nav-link[data-route]").forEach(el=>{
+   const profile=el.dataset.route==="conta";
+   el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===page);
+   if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite();
+   if(profile){
+     el.hidden=false;el.href=regularMe?"#/conta":"#/login";
+     const label=el.querySelector("span");if(label)label.textContent=regularMe?"Meu perfil":"Entrar";
+   }
+ });
  if($("#today-label"))$("#today-label").textContent=textDate(new Date());
  document.title=page==="inicio"?"PET Gestão | PET Educação UFS":(routeNames[page]||"PET Gestão")+" | PET Gestão";
 }
@@ -305,8 +305,8 @@ function taskCard(t,commissionId,withFinishAction=false){
  (me?'<div class="demand-activity-fact demand-activity-owners"><span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
  '<div><span class="demand-activity-label">Responsáveis</span><strong>'+esc(who(t))+'</strong>'+
  (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+'</div></div>':"")+
- (me?'<a class="activity-details-link demand-activity-action" href="'+taskHref+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>':"")+
- (withFinishAction&&(mine.personal||mine.committees.length)?'<button type="button" class="button demand-finish-action" data-do="finish-mine" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+
+ (me?'<div class="demand-card-actions"><a class="activity-details-link demand-activity-action" href="'+taskHref+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>'+
+ (withFinishAction&&(mine.personal||mine.committees.length)?'<button type="button" class="button demand-finish-action" data-do="finish-mine" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+'</div>':"")+
  '</article>';
 }
 
