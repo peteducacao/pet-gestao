@@ -16,7 +16,11 @@ function saveSessionToken(key,value,remember){
  (remember?localStorage:sessionStorage).setItem(key,value);
 }
 function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
-let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
+// Migração das sessões anteriores: a mesma sessão agora atende ao site inteiro.
+const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionToken(adminTokenKey);
+let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
+if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
+forgetSessionToken(adminTokenKey);
 const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
@@ -76,7 +80,7 @@ const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 // Comissões e atribuições individuais são participações distintas; nunca inferir
 // responsáveis individuais a partir da lista de integrantes de uma comissão.
-// Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
+// PETianos(as), Tutoria e Administração compartilham a área comum.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
 const hasAdminRole=u=>Boolean(u&&u.role==="admin");
 // O Worker valida o cargo e a origem da sessão; a interface apenas apresenta permissões.
@@ -87,10 +91,9 @@ const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notifica
 // Demandas ativas: qualquer integrante com cargo de edição pode excluir,
 // mesmo quando cadastradas pela Administração ou por outra pessoa.
 // Arquivadas: exclusão exclusiva da sessão administrativa.
-// Uma demanda arquivada só pode ser apagada usando a sessão própria do Admin.
-// Essa sessão pode continuar ativa quando o detalhe é aberto pela listagem comum.
+// A exclusão de arquivadas continua restrita ao escopo Admin autenticado.
 const canDeleteTask=t=>Boolean(me&&t&&(
-  t.archivedAt ? (adminRole(me)||Boolean(adminToken)) :
+  t.archivedAt ? adminRole(me) :
   (adminRole(me)||["petiano","tutor"].includes(me.role))
 ));
 const stageDueAt=value=>{
@@ -258,8 +261,7 @@ function routeParts(){const raw=decodeURIComponent((location.hash||"#/inicio").s
 async function request(path,method="GET",payload,scope){
  if(!API)throw Error("URL da API ainda não publicada.");
  const headers={"Accept":"application/json"};
- const inAdmin=scope==="admin"||(!scope&&routeParts().page==="admin");
- const activeToken=scope==="guest"?"":inAdmin?adminToken:token;
+ const activeToken=scope==="guest"?"":token;
  if(activeToken)headers.Authorization="Bearer "+activeToken;
  if(payload!==undefined)headers["Content-Type"]="application/json";
  const res=await fetch(API+"/api/v1"+path,{method,headers,body:payload===undefined?undefined:JSON.stringify(payload),cache:"no-store"});
@@ -269,17 +271,10 @@ async function request(path,method="GET",payload,scope){
 }
 async function reload(){
  try{
-   const inAdmin=routeParts().page==="admin";
-   // Tutoria usa a sessão pessoal; a Administração possui uma sessão separada.
-   const personal=token?await request("/auth/me","GET",undefined,"user").catch(()=>null):null;
-   regularMe=personal?.user||null;
-   if(token&&!regularMe){token="";forgetSessionToken(tokenKey)}
-   const scope=inAdmin?(adminToken?"admin":"guest"):
-    (!token&&adminToken&&routeParts().page==="conta"?"admin":"user");
-   const b=await request("/bootstrap","GET",undefined,scope);
-   data=b;
-   me=b.session?.user||null;
-   if(inAdmin&&adminToken&&!adminRole(me)){adminToken="";forgetSessionToken(adminTokenKey)}
+   // Toda a aplicação compartilha o mesmo perfil e token de autenticação.
+   const b=await request("/bootstrap","GET");
+   data=b;me=b.session?.user||null;regularMe=me;
+   if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
 
  }catch(e){
@@ -293,7 +288,7 @@ function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
  const admin=$("#admin-link"),adminCaption=$("#admin-nav-caption"),adminGroup=$("#admin-nav-group");
- const adminVisible=routeParts().page==="admin"&&isAdmin();
+ const adminVisible=adminRole(me)&&!me.mustChangePassword;
  if(adminCaption)adminCaption.hidden=!adminVisible;
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
@@ -414,7 +409,7 @@ function renderDemandas(){
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
  [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
- const adminArchive=done&&Boolean(adminToken)&&Boolean(me);
+ const adminArchive=done&&adminRole(me);
  if(!adminArchive||!done){state.archiveDeleteMode=false;state.archiveSelectedIds.clear();}
  // Seleções só podem incluir as demandas concluídas visíveis no período atual.
  const visibleIds=new Set(list.map(t=>t.id));
@@ -901,7 +896,7 @@ function renderMemory(routeId){
 
 function authRequired(){return header("Acesso","Entre na sua conta","Esta funcionalidade exige autenticação.")+'<section class="card card-pad">'+button("Entrar","login",true)+'</section>'}
 function renderLogin(){
- return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p><p class="admin-entry-link">'+button("Entrar na Administração","admin")+'</p></section>';
+ return header("Conta","Entrar","Uma única conta para suas demandas e, quando autorizado, o Painel Admin.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail ou Admin<input type="text" name="email" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Seu e-mail ou Admin"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p></section>';
 }
 function renderRegisterAccount(){return header("Conta","Criar conta","Usuário, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Usuário<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<span class="password-control"><input name="password" type="password" required minlength="10" autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
 function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos um link para o e-mail cadastrado.")+'<section class="card card-pad live-auth"><form id="forgot-form" class="register-form"><label>E-mail<input type="email" name="email" required></label><button type="submit" class="button primary">Enviar link</button></form></section>'}
@@ -946,14 +941,10 @@ function notificationTemplateFields(kind){
 function renderAdmin(){
  const adminPart=routeParts().parts;
  if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
- if(!isAdmin())return header("Sistema","Administração","Acesso administrativo independente.")+
- '<section class="card card-pad live-auth admin-signin"><h2>Entrar como Admin</h2><p>Use as credenciais exclusivas da conta Administração. O acesso da Tutoria é separado.</p>'+
- '<form id="admin-login-form" class="register-form"><label>Admin ou e-mail<input name="identifier" type="text" value="Admin" required autocomplete="username" autocapitalize="none"></label><label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button type="submit" class="button primary">Entrar na Administração</button></form>'+
- '<p>'+button("Voltar ao PET Gestão","inicio")+'</p></section>';
- if(me?.mustChangePassword)return header("Administração","Alterar senha temporária","Essa alteração é obrigatória antes de usar o painel.")+
- '<section class="card card-pad live-auth"><form id="admin-change-password-form" class="register-form"><label>Senha temporária<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input name="newPassword" type="password" minlength="10" required autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha administrativa</button></form></section>';
-
- const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3,overdueAudience:"pending"};
+ if(!isAdmin())return header("Sistema","Painel Admin","Acesso exclusivo da Administração.")+
+  '<section class="card card-pad live-auth"><p>'+(me?"Seu perfil não possui acesso administrativo.":"Entre com sua conta Admin pela mesma tela de login.")+'</p>'+
+  button(me?"Voltar à Visão geral":"Entrar",me?"inicio":"login",true)+'</section>';
+  const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3,overdueAudience:"pending"};
  const adminPanels='<section class="card card-pad admin-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><h2>Usuários</h2><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição. As alterações só serão aplicadas quando você salvar.</p></div><button type="button" class="button primary admin-save-all-button" data-do="save-all-commissions">'+ico("check")+' Salvar todas as alterações</button></div><div class="admin-commission-list">'+
  data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
@@ -992,7 +983,7 @@ function renderAdmin(){
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
  '<nav class="admin-navigation">'+nav(tabs[0])+'<a href="#/admin/demandas" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade"].includes(subroute[0])?"active":"")+'">'+ico("list")+'<span>Demandas</span></a><a href="#/admin/reunioes" class="admin-menu-link '+(subroute[0]==="reunioes"?"active":"")+'">'+ico("calendar")+'<span>Atas de Reunião</span></a>'+tabs.slice(1).map(nav).join("")+'</nav>'+
- '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("close")+' Sair do modo Admin</button></div></aside>'+
+ '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("chevron-left")+' Voltar ao PET Gestão</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
  '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>Administração</strong></span></div></div>'+
  '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
@@ -1067,7 +1058,7 @@ function render(){
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
  document.body.classList.toggle("admin-ui-active",page==="admin"&&isAdmin()&&!me?.mustChangePassword);
  if(!allowPage(page)){location.hash=me?"#/inicio":"#/login";if(me)setToast("Seu perfil possui acesso somente para visualização.");return}
- if(me?.mustChangePassword&&page!=="conta"&&page!=="admin"){location.hash="#/conta";return}
+ if(me?.mustChangePassword&&page!=="conta"){location.hash="#/conta";return}
  let html="";
  if(page==="inicio")html=renderHome();
  else if(page==="demandas")html=renderDemandas();
@@ -1358,21 +1349,21 @@ async function handleClick(e){
  }
  if(action==="delete-meeting"){if(!await askConfirm("Excluir esta ata? As demandas não serão apagadas.",{danger:true}))return;const ok=await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Ata excluída.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(action==="archive-selection-open"){
-   if(!adminToken||!me)return setToast("Entre na Administração para excluir demandas concluídas.");
+   if(!adminRole(me))return setToast("Entre na Administração para excluir demandas concluídas.");
    state.archiveDeleteMode=true;state.archiveSelectedIds.clear();render();return;
  }
  if(action==="archive-selection-cancel"){
    state.archiveDeleteMode=false;state.archiveSelectedIds.clear();render();return;
  }
  if(action==="archive-select-all"){
-   if(!adminToken||!state.archiveDeleteMode)return;
+   if(!adminRole(me)||!state.archiveDeleteMode)return;
    const visible=$$('[data-archive-select]');
    const allChecked=visible.length>0&&visible.every(x=>x.checked);
    state.archiveSelectedIds=allChecked?new Set():new Set(visible.map(x=>x.value));
    render();return;
  }
  if(action==="archive-delete-selected"){
-   if(!adminToken||!state.archiveDeleteMode)return setToast("Acesso exclusivo da Administração.");
+   if(!adminRole(me)||!state.archiveDeleteMode)return setToast("Acesso exclusivo da Administração.");
    const visible=new Set($$('[data-archive-select]').map(x=>x.value));
    const chosen=[...state.archiveSelectedIds].filter(x=>visible.has(x)&&data.tasks.some(t=>t.id===x&&t.archivedAt));
    if(!chosen.length)return setToast("Selecione pelo menos uma demanda concluída.");
@@ -1394,16 +1385,15 @@ async function handleClick(e){
    const task=data.tasks.find(x=>x.id===tid);
    if(!canDeleteTask(task))return setToast("Você não tem permissão para excluir esta demanda.");
    if(!await askConfirm('Excluir definitivamente a demanda "'+task.title+'"? Esta ação apagará a demanda, os prazos, as participações e o histórico, sem possibilidade de recuperação.',{danger:true,title:"Excluir demanda?"}))return;
-   const deleteScope=task.archivedAt?"admin":(me?.role==="admin"&&adminToken?"admin":undefined);
+   const deleteScope=task.archivedAt?"admin":undefined;
    const ok=await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE",undefined,deleteScope),"Demanda excluída definitivamente.");
    if(ok)location.hash=workspaceHash("demandas");
    return;
  }
  if(action==="admin-signout"){
-   try{await request("/auth/logout","POST",{},"admin")}catch{}
-   adminToken="";forgetSessionToken(adminTokenKey);
-   state.adminTab="painel";state.adminMenuOpen=false;
-   location.hash="#/inicio";setToast("Sessão administrativa encerrada.");return;
+  // Voltar ao site não encerra a sessão.
+  state.adminTab="painel";state.adminMenuOpen=false;
+  location.hash="#/inicio";return;
  }
  if(action==="account-delete-open"){
    const layer=$("#account-delete-dialog");if(!layer)return;
@@ -1414,12 +1404,10 @@ async function handleClick(e){
    const layer=$("#account-delete-dialog");if(layer)layer.hidden=true;return;
  }
  if(action==="logout"){
-   try{await request("/auth/logout","POST",{},"user")}catch{}
-   // Invalida também sessão administrativa independente antes de limpar ambos os tipos de armazenamento.
-   if(adminToken){try{await request("/auth/logout","POST",{},"admin")}catch{}}
-   token="";me=null;regularMe=null;adminToken="";
-   forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);
-   await reload();location.hash="#/inicio";return;
+  try{await request("/auth/logout","POST",{},"user")}catch{}
+  token="";me=null;regularMe=null;
+  forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);
+  await reload();location.hash="#/inicio";return;
  }
  if(action==="move-commission"){
    if(!isAdmin())return;
@@ -1488,21 +1476,14 @@ async function handleClick(e){
 }
 async function handleSubmit(e){
  const form=e.target;if(!form.id)return;e.preventDefault();
- const isLogin=form.id==="login-form"||form.id==="admin-login-form";
- if(isLogin)setConnecting(true,form.id==="admin-login-form"?"Conectando à Administração...":"Conectando ao PET Gestão...");
+ const isLogin=form.id==="login-form";
+ if(isLogin)setConnecting(true,"Conectando ao PET Gestão...");
  try{
- if(form.id==="admin-login-form"){
-   const f=userFields(form),rememberMe=form.elements.rememberMe?.checked===true;
-   const r=await request("/auth/admin-login","POST",{...f,rememberMe},"guest");
-   if(r.user.role!=="admin"||r.user.adminSession!==true)throw Error("Esta conta não tem permissão administrativa.");
-   adminToken=r.token;saveSessionToken(adminTokenKey,adminToken,rememberMe);
-   await reload();setToast("Administração desbloqueada.");return;
- }
  if(form.id==="login-form"){
    const f=userFields(form),rememberMe=form.elements.rememberMe?.checked===true;
    const r=await request("/auth/login","POST",{...f,rememberMe},"guest");
    token=r.token;saveSessionToken(tokenKey,token,rememberMe);
-   adminToken="";forgetSessionToken(adminTokenKey);
+   forgetSessionToken(adminTokenKey);
    const destination=r.user.mustChangePassword?"#/conta":"#/inicio";
    state.authTransition=true;
    location.hash=destination;
@@ -1523,11 +1504,6 @@ async function handleSubmit(e){
    return;
  }
  if(form.id==="reset-form"){await request("/auth/reset","POST",{token:form.dataset.token,password:userFields(form).password});location.hash="#/login";setToast("Senha redefinida.");return}
- if(form.id==="admin-change-password-form"){
-   await request("/auth/change-password","POST",userFields(form),"admin");
-   adminToken="";forgetSessionToken(adminTokenKey);
-   await reload();setToast("Senha administrativa atualizada. Entre novamente no Admin.");return;
- }
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="delete-account-form"){
    const fields=userFields(form);
@@ -1538,7 +1514,7 @@ async function handleSubmit(e){
    if(submit)submit.disabled=true;
    try{
      await request("/account","DELETE",{password:fields.password,confirmation:fields.confirmation},token?"user":"admin");
-     token="";adminToken="";me=null;regularMe=null;
+     token="";me=null;regularMe=null;
      forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);
      location.hash="#/login";
      await reload();
@@ -1563,7 +1539,7 @@ async function handleSubmit(e){
 async function handleChange(e){
  const t=e.target;if(!t)return;
  if(t.matches?.("[data-archive-select]")){
-   if(!adminToken||!state.archiveDeleteMode)return;
+   if(!adminRole(me)||!state.archiveDeleteMode)return;
    if(t.checked)state.archiveSelectedIds.add(t.value);
    else state.archiveSelectedIds.delete(t.value);
    render();return;
