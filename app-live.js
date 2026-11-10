@@ -84,10 +84,12 @@ const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
 const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
-const canDeleteTask=t=>Boolean(me&&t&&(
-  adminRole(me)||(me.role==="admin"&&Boolean(adminToken))||(me.role==="tutor"&&!t.archivedAt)||
-  (me.role==="petiano"&&!t.archivedAt&&t.createdBy===me.id)
-));
+// Demandas ativas: qualquer integrante com cargo de edição pode excluir,
+// mesmo quando cadastradas pela Administração ou por outra pessoa.
+// Arquivadas: exclusão exclusiva da sessão administrativa.
+const canDeleteTask=t=>Boolean(me&&t&&
+  (adminRole(me)||(!t.archivedAt&&["petiano","tutor"].includes(me.role)))
+);
 const stageDueAt=value=>{
  const raw=String(value||"");
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
