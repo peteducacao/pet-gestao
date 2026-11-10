@@ -80,7 +80,7 @@ await page.route("**/api/v1/**",async route=>{
  await route.fulfill({status,contentType:"application/json; charset=utf-8",headers:{"access-control-allow-origin":"*","access-control-allow-headers":"*"},body:JSON.stringify(result)});
 });
 await context.addInitScript(()=>{
- localStorage.setItem("pet-gestao:session-token","user-token");
+ if(!localStorage.getItem("pet-gestao:session-token"))localStorage.setItem("pet-gestao:session-token","user-token");
  // Administração obtém sessão pelo login comum, não por uma segunda sessão.
 });
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
