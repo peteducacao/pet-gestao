@@ -194,6 +194,18 @@ try{
  await page.locator("#collective-event-day").waitFor();
  await page.setViewportSize({width:390,height:844});
  const eventSettings=page.locator("#deadline-settings");
+ assert.equal(await page.locator(".assignment-all").innerText().then(x=>x.includes("permissão de concluir")),false,
+   "Texto Todos(as) não deve falar em permissão de concluir");
+ const eventInput=page.locator("#collective-event-day");
+ assert.equal(await eventInput.getAttribute("min"),null,"Qualquer ano deve ser selecionável");
+ const labelBounds=await eventSettings.locator(".collective-date-label-text").boundingBox();
+ const starBounds=await eventSettings.locator(".collective-date-label-text .task-form-required").boundingBox();
+ assert.ok(labelBounds&&starBounds&&starBounds.y>=labelBounds.y-2&&
+   starBounds.y+starBounds.height<=labelBounds.y+labelBounds.height+2,
+   "Asterisco fica alinhado ao texto Data do evento no celular");
+ await eventInput.fill("2015-04-12");
+ assert.equal(await eventInput.inputValue(),"2015-04-12","Seletor aceita qualquer ano passado");
+ await eventInput.fill("2026-12-01");
  assert.equal(await eventSettings.locator('input[type="date"]').count(),1,
    "No celular, Todos(as) tem exatamente um campo: a data");
  assert.equal(await eventSettings.locator('input[type="time"]').count(),0,
