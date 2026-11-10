@@ -418,15 +418,33 @@ function renderDetail(taskId,contextCid){
  }).join(""):'<p class="assignment-help">Nenhuma comissão vinculada.</p>')+'</section>'+
  '<details class="card card-pad"><summary><strong>Histórico de alterações</strong> ('+details.length+')</summary><div class="revision-list">'+(details.length?details.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+'</div></details></div></div>';
 }
+
+function renderMeetings(){
+ if(!me)return authRequired();
+ const items=[...(data.meetings||[])].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+ const showing=state.meetingView==="recentes"?items.slice(0,5):items;
+ return header("Registros","Atas de Reunião","Registros organizados das reuniões da equipe.",canWrite()?button("+ Criar ata","reunioes/nova",true):"")+
+ '<section class="card card-pad meeting-list"><div class="segmented"><button type="button" data-do="meetings-view" data-value="todas" class="'+(state.meetingView==="todas"?"active":"")+'">Todas</button><button type="button" data-do="meetings-view" data-value="recentes" class="'+(state.meetingView==="recentes"?"active":"")+'">Recentes</button></div>'+
+ (showing.length?showing.map(m=>'<article class="meeting-card"><a class="meeting-card-link" href="'+workspaceHash("reunioes/editar/"+id(m.id))+'"><span class="meeting-card-icon">'+ico("calendar")+'</span><span class="meeting-card-main"><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small><span class="meeting-card-preview">'+esc((m.rawNotes||"").replace(/<[^>]+>/g," ").slice(0,130))+'</span></span>'+ico("arrow")+'</a>'+
+ (canWrite()?'<details class="meeting-menu"><summary title="Opções da ata" aria-label="Opções da ata">⋮</summary><div class="meeting-menu-options">'+button("Editar","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir</button></div></details>':"")+'</article>').join(""):empty("Nenhuma ata registrada","Crie uma ata para registrar os encontros da equipe."))+
+ '</section>';
+}
 function renderMemory(routeId){
+ if(!routeId)return renderMeetings();
  if(!me)return authRequired();
  const editor=routeId==="nova"||routeId.startsWith("editar/");
- if(editor&&!canWrite())return header("Memórias","Acesso somente leitura","Seu perfil não pode criar ou editar memórias.",backButton());
- const m=routeId==="nova"?null:data.meetings.find(x=>x.id===(editor?routeId.slice(7):routeId));
- if(!m&&routeId!=="nova")return empty("Memória não encontrada");
- if(!editor)return header("Demandas",m.title,"",(canWrite()?button("Editar memória","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir memória</button>':"")+backButton())+'<section class="card card-pad"><p>'+textDate(m.date)+'</p><pre class="live-memory-text">'+esc(m.rawNotes||"")+'</pre></section>';
- return header("Memórias",m?"Editar memória":"Nova memória","",backButton())+'<section class="card card-pad register-page"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form"><label>Título *<input name="title" required value="'+esc(m?.title||"")+'"></label><label>Data *<input name="date" type="date" required value="'+esc(m?.date||dateKey(current))+'"></label><label>Memória da reunião<textarea name="rawNotes" rows="12">'+esc(m?.rawNotes||"")+'</textarea></label><button type="submit" class="button primary">Salvar memória</button></form></section>';
+ if(editor&&!canWrite())return authRequired();
+ const mid=editor&&routeId.startsWith("editar/")?routeId.slice(7):routeId;
+ const m=routeId==="nova"?null:data.meetings.find(x=>x.id===mid);
+ if(!m&&routeId!=="nova")return empty("Ata não encontrada");
+ return header("Atas de Reunião",m?"Editar ata":"Criar ata","",backButton())+
+ '<section class="card card-pad register-page meeting-editor"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form">'+
+ (m?'<div class="meeting-metadata"><strong>'+esc(m.title)+'</strong><span>'+textDate(m.date)+'</span></div><input type="hidden" name="title" value="'+esc(m.title)+'"><input type="hidden" name="date" value="'+esc(m.date)+'">':
+ '<label>Título da reunião *<input name="title" required maxlength="180"></label><label>Data *<input name="date" type="date" required value="'+dateKey(current)+'"></label>')+
+ '<label>Texto da ata<textarea name="rawNotes" rows="16" placeholder="Registre os assuntos e encaminhamentos da reunião.">'+esc(m?.rawNotes||"")+'</textarea></label>'+
+ '<div class="form-actions"><button type="submit" class="button primary">Salvar ata</button></div></form></section>';
 }
+
 function authRequired(){return header("Acesso","Entre na sua conta","Esta funcionalidade exige autenticação.")+'<section class="card card-pad">'+button("Entrar","login",true)+'</section>'}
 function renderLogin(){
  return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p><p class="admin-entry-link">'+button("Entrar na Administração","admin")+'</p></section>';
@@ -681,6 +699,7 @@ async function handleClick(e){
    return;
  }
  if(action==="mode"){state.mode=b.dataset.value;render();return}
+  if(action==="meetings-view"){state.meetingView=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
  if(action==="assignment-scope"){
   if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
@@ -719,7 +738,7 @@ async function handleClick(e){
    if(!await askConfirm('Excluir definitivamente a comissão "'+c?.name+'"? Os registros vinculados impedem a exclusão.',{danger:true}))return;
    await saveAndReload(()=>request("/commissions/"+id(tid),"DELETE"),"Comissão excluída.");return;
  }
- if(action==="delete-meeting"){if(!await askConfirm("Excluir esta memória? As demandas vinculadas não serão apagadas.",{danger:true}))return;await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Memória excluída.");location.hash=workspaceHash("demandas");return}
+ if(action==="delete-meeting"){if(!await askConfirm("Excluir esta ata? As demandas não serão apagadas.",{danger:true}))return;const ok=await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Ata excluída.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(action==="delete-task"){
    if(!isAdmin())return;
    const t=data.tasks.find(x=>x.id===tid);
@@ -812,7 +831,7 @@ async function handleSubmit(e){
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
- if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Memória salva.");if(ok)location.hash=workspaceHash("demandas");return}
+ if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(form.id==="mail-form"){await sendMail(form);return}
  }catch(err){state.authTransition=false;setToast(err.message)}
  finally{if(isLogin)setConnecting(false)}
