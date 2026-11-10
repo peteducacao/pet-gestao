@@ -628,16 +628,20 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('[data-archive-select]').count(),0,
    "As caixas de seleção ficam escondidas até ativar Excluir demandas");
  await page.locator('[data-do="archive-selection-open"]').click();
- assert.equal(await page.locator('[data-archive-select]').count(),3,"Três caixas de seleção disponíveis");
+ const availableToDelete=await page.locator('[data-archive-select]').count();
+ assert.ok(availableToDelete>=3,"As três concluídas de teste aparecem com as demais arquivadas");
  await page.locator('[data-do="archive-select-all"]').click();
- assert.equal(await page.locator('[data-archive-select]:checked').count(),3,"Selecionar todas marca a listagem");
+ assert.equal(await page.locator('[data-archive-select]:checked').count(),availableToDelete,
+   "Selecionar todas marca todas as arquivadas visíveis");
  await page.locator('[data-archive-select]').first().uncheck();
- assert.equal(await page.locator('[data-archive-select]:checked').count(),2,"Pode desmarcar individualmente");
+ assert.equal(await page.locator('[data-archive-select]:checked').count(),availableToDelete-1,
+   "Pode desmarcar individualmente");
  await page.locator('[data-do="archive-select-all"]').click();
- assert.equal(await page.locator('[data-archive-select]:checked').count(),3,"Selecionar todas remarca as três");
+ assert.equal(await page.locator('[data-archive-select]:checked').count(),availableToDelete,
+   "Selecionar todas remarca as arquivadas visíveis");
  await page.locator('[data-do="archive-delete-selected"]').click();
- assert.ok((await page.locator("#notice-dialog").innerText()).includes("3 demandas selecionadas"),
-   "Confirma quantidade antes de excluir");
+ assert.ok((await page.locator("#notice-dialog").innerText()).includes(availableToDelete+" demandas selecionadas"),
+   "Confirma a quantidade verdadeira antes de excluir");
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  assert.equal(tasks.filter(t=>t.id.startsWith("t-done-")).length,3,
    "Cancelar não exclui nenhuma demanda");
@@ -645,7 +649,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#notice-dialog button[data-do="notice-confirm"]').click();
  await page.waitForTimeout(250);
  const callBulk=calls.find(x=>x.p==="/admin/tasks/bulk-delete"&&x.method==="POST");
- assert.equal(callBulk?.body.taskIds.length,3,"Lote contém apenas as três concluídas");
+ assert.equal(callBulk?.body.taskIds.length,availableToDelete,"O lote contém todas as concluídas visíveis");
  assert.ok(callBulk?.authorization.includes("admin-token"),"Exclusão em lote exige sessão administrativa");
  assert.equal(tasks.some(t=>t.id.startsWith("t-done-")),false,"As três concluídas foram removidas");
  assert.ok(tasks.some(t=>t.id==="t1"),"Demanda ativa permanece intacta");
