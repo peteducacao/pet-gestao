@@ -192,6 +192,18 @@ try{
  await page.reload();
  await page.goto(origin+"/#/registrar/t-everyone");
  await page.locator("#collective-event-day").waitFor();
+ await page.setViewportSize({width:390,height:844});
+ const eventSettings=page.locator("#deadline-settings");
+ assert.equal(await eventSettings.locator('input[type="date"]').count(),1,
+   "No celular, Todos(as) tem exatamente um campo: a data");
+ assert.equal(await eventSettings.locator('input[type="time"]').count(),0,
+   "Evento coletivo não exige horário");
+ assert.equal(await eventSettings.locator('[data-stage="label"], [data-stage="assignee"]').count(),0,
+   "Evento coletivo não pede Prazo, Correção, Postagem nem responsável por etapa");
+ assert.ok((await eventSettings.innerText()).includes("Data do evento"));
+ assert.equal((await eventSettings.innerText()).includes("A etapa Prazo é obrigatória"),false,
+   "Mensagem antiga de prazo obrigatório não pode aparecer");
+ await page.setViewportSize({width:1420,height:900});
  assert.equal(await page.locator(".live-stage").count(),0,"Todos(as) não usa etapas");
  assert.equal(await page.locator('[data-do="add-stage"]').count(),0,"Todos(as) só solicita a data");
  await page.locator("#collective-event-day").fill("2026-12-01");
@@ -541,5 +553,16 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.waitForTimeout(250);
  assert.ok(calls.some(x=>x.p==="/tasks/t1"&&x.method==="DELETE"));
  assert.equal(tasks.some(x=>x.id==="t1"),false);
- console.log("BROWSER: navegação, nova guia, responsividade, Atas, editor, status e Admin — OK.");
+ // O controle de exclusão de conta também deve estar acessível pelo perfil.
+ await page.goto(origin+"/#/conta");
+ await page.locator('[data-do="account-delete-open"]').waitFor({state:"visible",timeout:10000});
+ await page.locator('[data-do="account-delete-open"]').click();
+ assert.equal(await page.locator("#account-delete-dialog").isVisible(),true);
+ assert.equal(await page.locator('#delete-account-form input[name="password"]').count(),1);
+ assert.equal(await page.locator('#delete-account-form input[name="confirmation"]').count(),1);
+ await page.locator('#account-delete-dialog [data-do="account-delete-close"]').last().click();
+ assert.equal(await page.locator("#account-delete-dialog").isHidden(),true,
+   "Cancelar exclusão da conta não executa nenhuma solicitação");
+ assert.equal(calls.some(call=>call.p==="/account"&&call.method==="DELETE"),false);
+ console.log("BROWSER: navegação, evento Todos(as) só com data, exclusão da conta, responsividade e Admin — OK.");
 }finally{await browser.close();server.kill();}
