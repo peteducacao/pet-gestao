@@ -762,6 +762,30 @@
         if(!result.meta.changes)fail("Esta comissão está com todas as vagas preenchidas.",409);
         return answer({ok:true});
       }
+      if(path==="/api/v1/tasks/bulk-delete"&&method==="POST"){
+        // Somente a Administração pode apagar demandas já concluídas.
+        // Valida toda a seleção antes de executar qualquer exclusão.
+        ensure(user,true);
+        const b=await body(req),ids=unique(b.ids);
+        if(!ids.length||ids.length>100)fail("Selecione entre 1 e 100 demandas concluídas para excluir.",400);
+        const selected=[];
+        for(const selectedId of ids){
+          const task=await readTask(db,selectedId);
+          if(!task.archivedAt)fail("A seleção contém uma demanda ainda ativa. Nenhuma demanda foi excluída.",409);
+          selected.push(task);
+        }
+        const operations=[];
+        for(const task of selected){
+          operations.push(
+            db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id=?)").bind(task.id),
+            db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(task.id),
+            db.prepare("DELETE FROM task_history WHERE task_id=?").bind(task.id),
+            db.prepare("DELETE FROM tasks WHERE id=? AND archived_at IS NOT NULL").bind(task.id)
+          );
+        }
+        await db.batch(operations);
+        return answer({ok:true,deleted:selected.length});
+      }
       if(path==="/api/v1/tasks"&&method==="POST"){
         ensure(user);const b=await body(req),t=validateTask(b),id=uid(),stamp=now(),start=stamp.slice(0,10);
         const allC=(await db.prepare("SELECT id FROM commissions").all()).results.map(c=>c.id),allU=(await db.prepare("SELECT id FROM users").all()).results.map(c=>c.id);
