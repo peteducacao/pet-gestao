@@ -340,6 +340,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#notification-template-form button[type=submit]").click();
  await page.waitForTimeout(180);
  assert.equal(settings.notificationTemplates.create?.subject,"Nova demanda personalizada");
+ await page.locator('#notice-dialog [data-do="notice-cancel"]').click();
  await page.locator("#notification-template-kind").selectOption("review");
  assert.notEqual(await page.locator("#notification-template-form input[name=subject]").inputValue(),"Nova demanda personalizada","Revisão possui texto próprio");
  await page.locator("#notification-template-form input[name=subject]").fill("Revisão personalizada");
@@ -347,6 +348,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.waitForTimeout(180);
  assert.equal(settings.notificationTemplates.create.subject,"Nova demanda personalizada","Salvar revisão não altera criação");
  assert.equal(settings.notificationTemplates.review.subject,"Revisão personalizada");
+ await page.locator('#notice-dialog [data-do="notice-cancel"]').click();
  user.notificationEnabled=true;
  tasks.push({...task,id:"t3",title:"Concluir sem e-mail da tutoria",assigneeIds:["u1"],commissionIds:[],createdBy:"u1",
    deadlines:[{id:"p3",label:"Prazo",dueAt:new Date(Date.now()-60000).toISOString(),assigneeIds:["u1"]}],
