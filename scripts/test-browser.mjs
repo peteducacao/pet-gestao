@@ -252,6 +252,15 @@ await page.locator('a[data-route="reunioes"]').click();
 
  await page.locator('a[data-route="demandas"]').click();
  await page.setViewportSize({width:390,height:844});
+ await page.goto(origin+"/#/atividade/t1");
+ await page.locator(".assignee-columns").waitFor();
+ const mobileColumns=await page.locator(".assignee-columns").evaluate(el=>{
+  const a=el.querySelector(".assignee-people-panel").getBoundingClientRect(),
+    b=el.querySelector(".assignee-commissions-panel").getBoundingClientRect();
+  return {stacked:b.top>=a.bottom-2,columns:getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length};
+ });
+ assert.equal(mobileColumns.stacked,true,"Pessoas e Comissões ficam empilhadas no celular");
+ assert.equal(mobileColumns.columns,1,"Sem colunas apertadas no celular");
  await page.goto(origin+"/#/inicio");
  await page.locator(".dashboard-grid .demand-activity-card").first().waitFor();
  await page.goto(origin+"/#/minhas-pendencias");
