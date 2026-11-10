@@ -61,6 +61,15 @@ try{
  await page.goto(origin+"/#/registrar/t1");
  await page.locator('[data-rich-input="captionText"]').waitFor();
  assert.ok((await page.locator('[data-rich-input="captionText"]').innerText()).includes("#PET"),"Legenda preservada");
+ const editor=page.locator('[data-rich-input="captionText"]');
+ await editor.fill("Revisão 📚 com cores");
+ await editor.selectText();
+ await page.locator('[data-rich="captionText"] [data-format="bold"]').click();
+ assert.match(await editor.innerHTML(),/<(b|strong)>/i,"Negrito funciona");
+ await editor.selectText();
+ await page.locator('[data-rich="captionText"] input[type="color"]').fill("#dd3344");
+ assert.match(await editor.innerHTML(),/(color|font)/i,"Aplicar cor funciona");
+
  await page.locator('a[data-route="demandas"]').click();
  await page.setViewportSize({width:390,height:844});
  await wait(200);
