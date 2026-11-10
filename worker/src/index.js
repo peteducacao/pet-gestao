@@ -579,6 +579,33 @@
         await db.batch(["autoMonth","autoWeek"].map(k=>db.prepare("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(k,JSON.stringify(Boolean(b[k])))));
         return answer({ok:true});
       }
+      if(path==="/api/v1/admin/commissions-batch"&&method==="PUT"){
+        ensure(user,true);
+        const b=await body(req),incoming=isArr(b.commissions);
+        const existing=(await db.prepare("SELECT id,max_members,sort_order FROM commissions").all()).results;
+        if(!existing.length||incoming.length!==existing.length||incoming.length>100)
+          fail("A lista de comissões foi alterada. Atualize o painel e tente novamente.",409);
+        const currentById=new Map(existing.map(c=>[c.id,c]));
+        const ids=new Set();
+        for(const row of incoming){
+          if(!row||typeof row.id!=="string"||!currentById.has(row.id)||ids.has(row.id)||
+             !Number.isInteger(row.maxMembers)||row.maxMembers<0||row.maxMembers>999)
+            fail("Revise as vagas e a lista de comissões. Nenhuma alteração foi salva.");
+          ids.add(row.id);
+        }
+        // Validar todas as comissões ANTES de atualizar uma única linha.
+        const counts=(await db.prepare("SELECT commission_id,COUNT(*) AS n FROM commission_members GROUP BY commission_id").all()).results;
+        const memberCounts=new Map(counts.map(c=>[c.commission_id,Number(c.n)]));
+        for(const item of incoming){
+          const min=memberCounts.get(item.id)||0;
+          if(item.maxMembers>0&&item.maxMembers<min)
+            fail("Vagas insuficientes na comissão. Revise os limites antes de salvar todas as alterações.");
+        }
+        await db.batch(incoming.map((c,index)=>
+          db.prepare("UPDATE commissions SET max_members=?,sort_order=? WHERE id=?")
+            .bind(c.maxMembers,index+1,c.id)));
+        return answer({ok:true,updated:incoming.length});
+      }
       if(path==="/api/v1/admin/commission-order"&&method==="PUT"){
         ensure(user,true);const b=await body(req),ids=unique(b.ids);
         const current=(await db.prepare("SELECT id FROM commissions").all()).results.map(x=>x.id);
