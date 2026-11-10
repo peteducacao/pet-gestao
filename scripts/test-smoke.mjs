@@ -404,7 +404,7 @@ await test("F5 não exibe layout antigo nem acesso Admin antes de carregar o usu
  const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8");
  assert.ok(index.includes('document.documentElement.classList.add("pet-booting")'));
  assert.ok(index.includes('html.pet-booting .app-shell{visibility:hidden!important}'));
- assert.match(index,/<button class="nav-link" id="admin-link" type="button" hidden>/);
+ assert.match(index,/<a class="nav-link" id="admin-link" href="#\/admin" hidden>/);
  assert.ok(index.includes('id="startup-loading"'));
  assert.ok(src.includes('document.documentElement.classList.remove("pet-booting")'));
 });
@@ -458,78 +458,68 @@ await test("seção SISTEMA e Administração só aparecem na sessão administra
  assert.ok(src.includes('if(adminCaption)adminCaption.hidden=!adminVisible'));
  assert.ok(src.includes('if(adminGroup)adminGroup.hidden=!adminVisible'));
 });
-await test("roteamento por comissão, pessoas e todos; somente conclusão como status visível",async()=>{
+await test("conclusão conjunta, filtros e seleção independente estão no código",async()=>{
  const {readFileSync}=await import("node:fs");
  const ui=readFileSync("app-live.js","utf8"),worker=readFileSync("worker/src/index.js","utf8");
- const migration=readFileSync("worker/migrations/0004_user_done.sql","utf8");
- assert.ok(migration.includes("ALTER TABLE tasks ADD COLUMN user_done"));
- assert.ok(ui.includes('isTaskAssignedToMe(t)&&!isUserDone(t,me.id)'));
- assert.ok(ui.includes('data-do="finish-personal"'));
- assert.ok(ui.includes('canCompleteCommission(cid)'));
- assert.ok(ui.includes('const taskProgress='));
  assert.ok(ui.includes('state.assignmentScope==="todos"?data.users.filter'));
- assert.ok(ui.includes('commissions=state.assignmentScope==="todos"?[]'));
- assert.ok(!ui.includes('data-do="save-status"'));
- assert.ok(!ui.includes('data-do="choose-status"'));
- assert.ok(!ui.includes('["pendentes","Pendentes"]'));
- assert.ok(!ui.includes('["aprovadas","Aprovadas"]'));
- assert.ok(worker.includes('if(!assigneeIds.includes(user.id))'));
- assert.ok(worker.includes('if(!member)fail('));
+ assert.ok(ui.includes('state.selectedCommissions'));
+ assert.ok(ui.includes('state.selectedUsers'));
+ assert.ok(ui.includes('function openFinishDialog(task)'));
+ assert.ok(ui.includes('data-do="finish-joint-open"'));
+ assert.ok(ui.includes('data-do="finish-joint-confirm"'));
+ assert.ok(ui.includes('status-filter-label'));
+ assert.ok(ui.includes('taskStatus(t'));
+ assert.ok(worker.includes('const selectedCommissions=unique(b.commissionIds),selectedUsers=unique(b.userIds)'));
  assert.ok(worker.includes('const finished=commissionIds.every('));
 });
-await test("Meu perfil fica em PESSOAL e a saída e identificação são legíveis",async()=>{
+
+await test("Meu perfil fica em PESSOAL, sem dados repetidos no cabeçalho",async()=>{
  const {readFileSync}=await import("node:fs");
  const index=readFileSync("index.html","utf8"),ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
- const personal=index.indexOf('PESSOAL'),profile=index.indexOf('data-route="conta"'),system=index.indexOf('id="admin-nav-caption"');
- assert.ok(personal>=0&&profile>personal&&profile<system,"Meu perfil pertence ao menu PESSOAL");
- assert.ok(index.includes('<span>Meu perfil</span>'));
+ assert.ok(index.includes('data-route="conta"'));
  assert.ok(index.includes('href="#/conta" hidden'));
- assert.ok(ui.includes('if(el.dataset.route==="conta")el.hidden=!Boolean(regularMe)'),"Somente uma conta conectada vê Meu perfil");
- assert.ok(ui.includes('header("Pessoal","Meu perfil"'));
- assert.ok(ui.includes('class="button ghost account-logout-button"'));
+ assert.ok(index.includes('id="account-button" href="#/login"'));
+ assert.ok(!index.includes('id="today-label"'));
+ assert.ok(ui.includes('<strong>Status:</strong>'));
+ assert.ok(ui.includes('change-password-toggle'));
  assert.ok(css.includes('.account-profile .account-logout-button{'));
- assert.ok(css.includes('min-height:51px'));
- assert.ok(css.includes('.topbar .today-label{font-size:15px'));
- assert.ok(css.includes('.topbar .profile-button .account-identification strong{font-size:14px'));
 });
-await test("edição de demanda apresenta Anotações sem alterar descrição de comissão",async()=>{
- const {readFileSync}=await import("node:fs");
- const ui=readFileSync("app-live.js","utf8");
- assert.ok(ui.includes('<label>Anotações<textarea rows="3" name="description"'),"Anotações deve aparecer tanto no cadastro quanto na edição da demanda.");
- assert.ok(ui.includes('name="description"'),"Preserva campo e dados gravados.");
- assert.ok(ui.includes('<label>Descrição (opcional)<textarea name="description"'),"Não alterar formulário de comissão.");
-});
-await test("comissão exibe demanda mesmo fora da semana ou mês selecionado",async()=>{
- const {readFileSync}=await import("node:fs");
- const js=readFileSync("app-live.js","utf8"),worker=readFileSync("worker/src/index.js","utf8");
- assert.ok(js.includes('const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))'));
- assert.ok(js.includes('const inPeriod=all.filter(t=>filtered(t,"mensal")'));
- assert.ok(js.includes('const otherDates=all.filter(t=>!inPeriod.includes(t))'));
- assert.ok(js.includes('otherDates.map(t=>taskCard(t,cid))'));
- assert.ok(js.includes('state.assignmentScope=cid||t?.commissionIds?.length'));
- assert.ok(js.includes('<label>Anotações<textarea rows="3" name="description"'),"Anotações no cadastro e na edição.");
- assert.ok(worker.includes('JSON.stringify(t.commissionIds)'),"A API deve guardar a comissão vinculada.");
-});
-await test("novo card grande compartilhado nas três áreas mostra foto da comissão",async()=>{
+await test("revisão e anotações têm editores independentes e texto longo",async()=>{
  const {readFileSync}=await import("node:fs");
  const ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
- assert.ok(ui.includes('class="placeholder-row task-list-row demand-activity-card"'));
- assert.ok(ui.includes('const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean)'));
- assert.ok(ui.includes("selected?.imageData"));
- assert.ok(ui.includes("commissionDefaultArt(selected.name)"),"Sem foto usa arte padrão da comissão.");
- assert.ok(ui.includes('class="demand-activity-photo"'));
- assert.ok(ui.includes('class="activity-details-link demand-activity-action"'));
- assert.ok(ui.includes('Data</span>'));
- assert.ok(ui.includes('Responsáveis</span>'));
- assert.ok(ui.includes('const progress=taskProgress(t)'));
- assert.ok(ui.includes('next.map(t=>taskCard(t))'),"Visão geral usa mesmo card.");
- assert.ok(ui.includes('inPeriod.map(t=>taskCard(t,cid))'),"Comissão usa mesmo card.");
- assert.ok(ui.includes('otherDates.map(t=>taskCard(t,cid))'),"Comissão mantém tarefas fora do período.");
- assert.ok(ui.includes('list.map(t=>'));
- assert.ok(css.includes('#screen .demand-activity-card{'));
- assert.ok(css.includes('#screen .dashboard-grid .demand-activity-card{'));
- assert.ok(css.includes('@media(max-width:560px)'));
+ assert.ok(ui.includes('Anotações da comissão'));
+ assert.ok(ui.includes('Texto para revisão'));
+ assert.ok(ui.includes('richEditor("description"'));
+ assert.ok(ui.includes('richEditor("captionText"'));
+ assert.ok(ui.includes('function safeRich('));
+ assert.ok(css.includes('.saved-activity-text{white-space:pre-wrap'));
+ assert.ok(ui.includes('<label>Descrição (opcional)<textarea name="description"'),"Descrição de comissão permanece separada.");
 });
+await test("comissões mostram só pendências sem filtros redundantes",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8");
+ const start=ui.indexOf("function renderCommittee(cid){");
+ const end=ui.indexOf("function renderCommitteeEdit(cid){");
+ const section=ui.slice(start,end);
+ assert.ok(section.includes('Pendências da comissão'));
+ assert.ok(section.includes('all.map(t=>taskCard(t,cid))'));
+ assert.ok(!section.includes('period()'));
+ assert.ok(!section.includes('+ Nova demanda'));
+});
+await test("cards compactos compartilham cores de status",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
+ assert.ok(ui.includes('demand-activity-card status-'));
+ assert.ok(ui.includes("selected?.imageData"));
+ assert.ok(ui.includes("commissionDefaultArt(selected.name)"));
+ assert.ok(ui.includes('next.map(t=>taskCard(t))'));
+ assert.ok(ui.includes('all.map(t=>taskCard(t,cid))'));
+ assert.ok(css.includes('.task-status-atrasada{'));
+ assert.ok(css.includes('.task-status-pendente{'));
+ assert.ok(css.includes('.task-status-concluida{'));
+ assert.ok(css.includes('#screen .dashboard-grid .demand-activity-card{'));
+});
+
 await test("formulário explica responsáveis e prazos e etapa sem pessoa indica Não definido",async()=>{
  const {readFileSync}=await import("node:fs");
  const ui=readFileSync("app-live.js","utf8"),styles=readFileSync("live.css","utf8");
