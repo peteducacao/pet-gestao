@@ -1698,3 +1698,64 @@ body.mail-preview-open{overflow:hidden}
  .mail-preview-message{padding:16px;min-height:125px}
  #screen .mail-compose-actions .button{flex:1 1 170px}
 }
+
+
+/* Painéis dos detalhes: recolher e expandir no PC e no celular. */
+#screen .activity-detail-page .collapsible-detail-card{
+ min-height:0!important;
+}
+#screen .collapsible-detail-card>.detail-panel-summary{
+ list-style:none;display:flex;align-items:center;justify-content:space-between;
+ gap:14px;cursor:pointer;min-height:44px;user-select:none;
+}
+#screen .collapsible-detail-card>.detail-panel-summary::-webkit-details-marker{display:none}
+#screen .collapsible-detail-card>.detail-panel-summary::marker{content:""}
+#screen .collapsible-detail-card>.detail-panel-summary:focus-visible{
+ outline:3px solid #a889f3;outline-offset:5px;border-radius:9px;
+}
+#screen .collapsible-detail-card .detail-panel-summary .detail-card-heading{
+ display:flex;align-items:center;gap:10px;
+ margin:0!important;min-width:0;flex:1;
+}
+#screen .collapsible-detail-card .detail-panel-toggle{
+ display:inline-flex;align-items:center;justify-content:center;
+ gap:7px;flex:0 0 auto;white-space:nowrap;
+ border:1px solid #e0d3f7;background:#f6f1ff;color:#6840a4;
+ border-radius:10px;padding:8px 10px;font-size:12px;font-weight:750;
+}
+#screen .collapsible-detail-card .detail-panel-toggle svg{
+ width:17px;height:17px;flex-shrink:0;
+ transition:transform .18s ease;
+}
+#screen .collapsible-detail-card[open] .detail-panel-toggle svg{transform:rotate(180deg)}
+#screen .collapsible-detail-card[open] .detail-toggle-collapsed,
+#screen .collapsible-detail-card:not([open]) .detail-toggle-expanded{display:none}
+#screen .collapsible-detail-card .detail-panel-content{padding-top:20px;min-width:0}
+#screen .collapsible-detail-card:not([open]) .detail-panel-content{display:none}
+#screen .collapsible-detail-card .commission-progress-row:first-child{padding-top:0}
+@media(max-width:540px){
+ #screen .collapsible-detail-card>.detail-panel-summary{gap:8px}
+ #screen .collapsible-detail-card .detail-panel-toggle{gap:4px;padding:8px;min-width:34px}
+ #screen .collapsible-detail-card .detail-panel-toggle .detail-toggle-expanded,
+ #screen .collapsible-detail-card .detail-panel-toggle .detail-toggle-collapsed{font-size:11px}
+ #screen .collapsible-detail-card .detail-panel-content{padding-top:17px}
+ /* Centraliza o CONJUNTO ícone + informação de Postagem, sem deslocar Prazo/Correção. */
+ #screen .stage-posting-top{display:flex;width:100%;justify-content:center;align-items:center}
+ #screen .stage-posting-top .stage-compact-item{
+  display:flex;width:100%;max-width:100%;min-width:0;margin:0 auto;
+  justify-content:center;align-items:center;gap:12px;padding:0;
+ }
+ #screen .stage-posting-top .stage-compact-info{flex:0 1 auto;min-width:0}
+}
+/* Destinatários opcionais apenas para alertas de prazo vencido. */
+#screen .deadline-notice-settings .deadline-notice-audience{
+ display:grid;gap:7px;min-width:0;font-size:13px;font-weight:720;
+}
+#screen .deadline-notice-settings .deadline-notice-audience select{
+ width:100%;max-width:560px;min-height:43px;
+ border:1px solid #ded4ed;background:#fff;border-radius:9px;padding:9px;
+ color:#342a4a;font-weight:650;
+}
+#screen .deadline-notice-settings .deadline-notice-audience small{
+ font-weight:450;line-height:1.55;color:#746886;
+}
