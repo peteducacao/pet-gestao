@@ -17,7 +17,7 @@ function saveSessionToken(key,value,remember){
 }
 function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
 let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",archiveBulkEditing:false,selectedArchivedIds:new Set(),templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",archiveBulkEditing:false,selectedArchivedIds:new Set(),templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -404,9 +404,7 @@ function visualizationSelect(filter,value,options=VISUALIZATIONS){
 function renderDemandas(){
  const done=state.statusFilter==="concluida"||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
- const adminArchive=done&&Boolean(adminToken);
- const actions=(adminArchive?'<button class="button danger-outline" type="button" data-do="archive-bulk-toggle">'+ico("close")+(state.archiveBulkEditing?' Cancelar seleção':' Excluir')+'</button>':"")+
- (canWrite()?button("+ Registrar demanda","registrar",true):"");
+ const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
  let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
@@ -416,16 +414,30 @@ function renderDemandas(){
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
  [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
+ const adminArchive=done&&Boolean(adminToken)&&Boolean(me);
+ if(!adminArchive||!done){state.archiveDeleteMode=false;state.archiveSelectedIds.clear();}
+ // Seleções só podem incluir as demandas concluídas visíveis no período atual.
+ const visibleIds=new Set(list.map(t=>t.id));
+ for(const selected of state.archiveSelectedIds)if(!visibleIds.has(selected))state.archiveSelectedIds.delete(selected);
+ const selectedCount=state.archiveSelectedIds.size;
+ const picking=adminArchive&&state.archiveDeleteMode;
+ const toolbar=adminArchive?
+  '<div class="archive-bulk-toolbar" aria-label="Gerenciar exclusão das demandas concluídas">'+
+   (picking?
+    '<div class="archive-bulk-intro"><strong>Selecionar demandas para excluir</strong><small>Somente as demandas marcadas serão apagadas definitivamente.</small></div>'+
+    '<div class="archive-bulk-buttons">'+
+     '<button type="button" class="button ghost" data-do="archive-select-all">'+ico("checklist")+(selectedCount===list.length&&list.length?" Desmarcar todas":" Selecionar todas")+'</button>'+
+     '<button type="button" class="button danger-outline" data-do="archive-delete-selected" '+(!selectedCount?'disabled':'')+'>'+ico("close")+' Excluir selecionadas ('+selectedCount+')</button>'+
+     '<button type="button" class="button ghost" data-do="archive-selection-cancel">Cancelar</button></div>':
+    '<button type="button" class="button danger-outline" data-do="archive-selection-open">'+ico("close")+' Excluir demandas</button>')+
+   '</div>':"";
  return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
  '<section class="card card-pad demand-management-panel">'+
  '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+periodSelect+'</div>'+
  '<div class="list-toolbar">'+period()+'</div><hr class="divider">'+
- (adminArchive&&state.archiveBulkEditing?'<div class="archive-bulk-toolbar" role="group" aria-label="Selecionar demandas concluídas para exclusão">'+
-  '<div class="archive-bulk-meta"><strong>'+state.selectedArchivedIds.size+' selecionada(s)</strong><span>Marque as demandas que deseja excluir.</span></div>'+
-  '<div class="archive-bulk-actions"><button type="button" class="button ghost" data-do="archive-select-all">'+ico("checklist")+' '+(list.length&&list.every(t=>state.selectedArchivedIds.has(t.id))?'Desmarcar todas':'Selecionar todas')+'</button>'+
-  '<button type="button" class="button danger-outline" data-do="archive-delete-selected" '+(state.selectedArchivedIds.size?"":"disabled")+'>Excluir selecionadas ('+state.selectedArchivedIds.size+')</button></div></div>':"")+
- (list.length?list.map(t=>'<div class="live-task-card'+(adminArchive&&state.archiveBulkEditing?' archive-selectable':'')+'">'+
- (adminArchive&&state.archiveBulkEditing?'<label class="archive-task-selection" aria-label="Selecionar demanda '+esc(t.title)+'"><input type="checkbox" data-archive-select="'+esc(t.id)+'" '+(state.selectedArchivedIds.has(t.id)?"checked":"")+'><span>Selecionar para excluir</span></label>':"")+
+ toolbar+
+ (list.length?list.map(t=>'<div class="live-task-card'+(picking?' archive-select-row':'')+'">'+
+ (picking?'<label class="archive-task-selector"><input type="checkbox" data-archive-select value="'+esc(t.id)+'" '+(state.archiveSelectedIds.has(t.id)?"checked":"")+'><span>Selecionar esta demanda</span></label>':"")+
  taskCard(t)+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
 function renderCronograma(){
@@ -1332,6 +1344,39 @@ async function handleClick(e){
    if(ok){state.selectedArchivedIds.clear();state.archiveBulkEditing=false;render();}
    return;
  }
+ if(action==="archive-selection-open"){
+   if(!adminToken||!me)return setToast("Entre na Administração para excluir demandas concluídas.");
+   state.archiveDeleteMode=true;state.archiveSelectedIds.clear();render();return;
+ }
+ if(action==="archive-selection-cancel"){
+   state.archiveDeleteMode=false;state.archiveSelectedIds.clear();render();return;
+ }
+ if(action==="archive-select-all"){
+   if(!adminToken||!state.archiveDeleteMode)return;
+   const visible=$$('[data-archive-select]');
+   const allChecked=visible.length>0&&visible.every(x=>x.checked);
+   state.archiveSelectedIds=allChecked?new Set():new Set(visible.map(x=>x.value));
+   render();return;
+ }
+ if(action==="archive-delete-selected"){
+   if(!adminToken||!state.archiveDeleteMode)return setToast("Acesso exclusivo da Administração.");
+   const visible=new Set($$('[data-archive-select]').map(x=>x.value));
+   const chosen=[...state.archiveSelectedIds].filter(x=>visible.has(x)&&data.tasks.some(t=>t.id===x&&t.archivedAt));
+   if(!chosen.length)return setToast("Selecione pelo menos uma demanda concluída.");
+   const confirmation=chosen.length===1?'Excluir definitivamente a demanda selecionada?':
+     'Excluir definitivamente as '+chosen.length+' demandas selecionadas?';
+   if(!await askConfirm(confirmation+' Os prazos, participações e históricos dessas demandas serão apagados sem possibilidade de recuperação.',{
+     title:"Confirmar exclusão definitiva",danger:true
+   }))return;
+   b.disabled=true;
+   try{
+     const response=await request("/admin/tasks/bulk-delete","POST",{taskIds:chosen},"admin");
+     state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
+     await reload();
+     setToast((response.deletedCount||chosen.length)+" demanda(s) excluída(s) definitivamente.");
+   }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
+   return;
+ }
  if(action==="delete-task"){
    const task=data.tasks.find(x=>x.id===tid);
    if(!canDeleteTask(task))return setToast("Você não tem permissão para excluir esta demanda.");
@@ -1504,6 +1549,12 @@ async function handleSubmit(e){
 }
 async function handleChange(e){
  const t=e.target;if(!t)return;
+ if(t.matches?.("[data-archive-select]")){
+   if(!adminToken||!state.archiveDeleteMode)return;
+   if(t.checked)state.archiveSelectedIds.add(t.value);
+   else state.archiveSelectedIds.delete(t.value);
+   render();return;
+ }
  if(t.id==="collective-event-day"&&t.value){updateCollectiveDateInputs(t.value);return;}
  if(["collective-date-day","collective-date-month","collective-date-year"].includes(t.id)){
    const native=$("#collective-event-day");
@@ -1535,6 +1586,7 @@ async function handleChange(e){
    return;
   }
  if(t.dataset.filter==="navigateDemands"){
+   state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
    state.statusFilter=t.value;
    if(t.value==="concluida")state.mode="arquivo";
    else if(state.mode==="arquivo")state.mode="mensal";
@@ -1545,6 +1597,7 @@ async function handleChange(e){
  if(t.dataset.filter==="meetings"){state.meetingView=t.value;render();return}
  if(t.dataset.filter==="periodMode"){state.mode=t.value;render();return}
  if(t.dataset.filter){
+   state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
    if(t.dataset.filter==="status"){
     state.statusFilter=t.value;
     if(t.value==="concluida")state.mode="arquivo";
