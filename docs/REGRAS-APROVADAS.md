@@ -65,3 +65,11 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - Ao concluir qualquer participação, **não perguntar se deseja notificar e não enviar e-mail automático**. Notificações opcionais da Tutoria permanecem somente na criação de demanda e na alteração do Texto para revisão.
 - Histórico: usar ícones vetoriais (SVG) consistentes e maiores, em vez de emojis semelhantes aos de aplicativos de mensagens.
 - Remover o indicador "Conectado" do menu lateral, inclusive quando a conexão não estiver disponível. Falhas ainda aparecem nos avisos do sistema.
+
+## Layout aprovado e seletores — 10/11/2026
+- Aplicar a mesma identidade visual leve (branco, roxo e espaçamento) aos cards das demandas e aos detalhes, sem adicionar elementos redundantes.
+- Detalhes: **Prazos e etapas** à esquerda, com **Postagem** em cima quando presente e **Prazo / Correção** na faixa de baixo; **Responsáveis** diretamente abaixo; **Histórico de alterações** na coluna direita, expansível/recolhível; **Texto para revisão** embaixo, ocupando a largura completa.
+- Não exibir legenda roxa redundante de “Comissões vinculadas” no quadro Responsáveis. O cartão da comissão mostra nome e integrantes. As pessoas escolhidas individualmente continuam visíveis, sem serem confundidas com participação pela comissão.
+- Se uma demanda estiver vinculada só à comissão, mostrar os nomes dos integrantes no campo de responsáveis do card (quando disponíveis à conta). Não gravar atribuições individuais implicitamente nem revelar dados pessoais na visão pública.
+- Um único seletor **Visualização** controla o que é pertinente em Demandas (Todas/Pendentes/Atrasadas/Concluídas), Comissões/Minhas pendências (Todas/Pendentes/Atrasadas) e Atas (Todas/Recentes). Seletor separado de período mantém Mês/Ano/Semana e Mensal/Semanal. Nos detalhes, Visualização funciona como atalho filtrado à página Demandas.
+- Nunca criar filtros repetidos ou seletor sem função; não adicionar filtros nas páginas Perfil/Admin apenas para uniformizar a aparência.
