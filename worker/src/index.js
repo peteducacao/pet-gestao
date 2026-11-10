@@ -226,6 +226,39 @@
     }).formatToParts(date).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));
     return bits.year+"-"+bits.month+"-"+bits.day;
   };
+
+  // Arquivamento de eventos coletivos ao fim do dia em Sergipe (UTC−3).
+  // Idempotente: uma mudança de versão concorrente impede atualização duplicada.
+  // Apenas eventos com etiqueta "Evento" são processados, preservando registros
+  // antigos de Todos(as) até serem explicitamente editados para o novo modelo.
+  async function autoCompleteCollectiveEvents(env){
+    const db=env.DB,stamp=now(),clock=Date.now();
+    const pending=(await db.prepare(
+      "SELECT id,assignee_ids,commission_ids,user_done,deadlines,version FROM tasks WHERE archived_at IS NULL AND assignment_scope='todos'"
+    ).all()).results;
+    for(const task of pending){
+      const stages=asJson(task.deadlines,[]);
+      if(stages.length!==1||stages[0]?.label!=="Evento")continue;
+      const raw=String(stages[0].dueAt||""),day=raw.slice(0,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;
+      const end=Date.parse(day+"T23:59:59-03:00");
+      if(!Number.isFinite(end)||clock<end)continue;
+      const people=unique(asJson(task.assignee_ids,[]));
+      const done={...asJson(task.user_done,{})};
+      for(const personId of people)if(!done[personId])
+        done[personId]={at:stamp,by:null,byName:"PET Gestão — automático"};
+      const completed=stages.map(stage=>({...stage,completedAt:stage.completedAt||stamp}));
+      const nextVersion=Number(task.version)+1;
+      // A auditoria é gravada na mesma transação que o arquivamento.
+      await db.batch([
+        db.prepare("UPDATE tasks SET user_done=?,deadlines=?,status='concluida',archived_at=?,updated_at=?,version=version+1 WHERE id=? AND archived_at IS NULL AND version=?")
+          .bind(JSON.stringify(done),JSON.stringify(completed),stamp,stamp,task.id,task.version),
+        db.prepare("INSERT INTO task_history(id,task_id,actor_id,actor_name,action,details,created_at) SELECT ?,id,NULL,?,?,? ,? FROM tasks WHERE id=? AND version=? AND archived_at=?")
+          .bind(uid(),"PET Gestão — automático","Concluiu o evento coletivo para Todos(as)","Arquivamento automático após a data do evento (horário de Sergipe).",stamp,task.id,nextVersion,stamp)
+      ]);
+    }
+  }
+
   async function queueDeadlineReminders(env){
     const db=env.DB;
     const stored=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
@@ -259,7 +292,8 @@
       }
       for(let stageIndex=0;stageIndex<stages.length;stageIndex++){
         const stage=stages[stageIndex];
-        if(!stage||stage.completedAt||!stage.dueAt)continue;
+        // Eventos de Todos(as) não são prazos de entrega e não recebem alertas de atraso.
+        if(!stage||stage.label==="Evento"||stage.completedAt||!stage.dueAt)continue;
         const rawDue=String(stage.dueAt);
         if(!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(rawDue))continue;
         const isoDue=rawDue.length===10?rawDue+"T23:59:00":rawDue.length===16?rawDue+":00":rawDue;
@@ -342,10 +376,27 @@
     if(payload.overviewVisible!==undefined&&typeof payload.overviewVisible!=="boolean")fail("Opção de exibição inválida.");
     const overviewVisible=payload.overviewVisible===undefined?old?.overviewVisible!==false:payload.overviewVisible;
     if(!overviewVisible&&!commissionIds.length)fail("Para exibir somente nas comissões, selecione uma comissão.");
-    const stages=isArr(payload.deadlines).slice(0,40).map(d=>({id:str(d.id||uid(),60),label:str(d.label,20),dueAt:standardTime(d.dueAt),assigneeIds:assignmentScope==="todos"?[]:unique(d.assigneeIds),commissionCompleted:d.commissionCompleted&&typeof d.commissionCompleted==="object"?d.commissionCompleted:{},completedAt:d.completedAt||null}));
-    // Sem etapas é permitido; se houver alguma, todas exigem tipo e data válidos.
-    if(stages.some(d=>!["Prazo","Correção","Postagem"].includes(d.label)||!d.dueAt))fail("Etapa inválida ou sem data.");
-    if(!old&&stages.some(d=>Number(d.dueAt.slice(0,4))<currentYear()))fail("Não é permitido cadastrar datas de anos anteriores.");
+    const providedStages=isArr(payload.deadlines);
+    // Em Todos(as) há um único evento coletivo com data, nunca uma sequência de etapas.
+    // A API também valida a estrutura, mesmo que outro cliente tente enviar etapas antigas.
+    let stages;
+    if(assignmentScope==="todos"){
+      if(providedStages.length!==1||providedStages[0]?.label!=="Evento")
+        fail("Em Todos(as), informe apenas a data do evento coletivo.");
+      const raw=str(providedStages[0].dueAt,30),day=raw.slice(0,10);
+      const dateIsValid=/^\d{4}-\d{2}-\d{2}$/.test(day)&&
+        Number.isFinite(Date.parse(day+"T12:00:00Z"))&&
+        new Date(day+"T12:00:00Z").toISOString().slice(0,10)===day;
+      if(!dateIsValid)fail("Informe uma data válida para o evento coletivo.");
+      if(!old&&Number(day.slice(0,4))<currentYear())fail("Não cadastre eventos de anos anteriores.");
+      stages=[{id:str(providedStages[0].id||"evento-data",60),label:"Evento",
+        dueAt:day+"T23:59:59",assigneeIds:[],commissionCompleted:{},completedAt:null}];
+    }else{
+      stages=providedStages.slice(0,40).map(d=>({id:str(d.id||uid(),60),label:str(d.label,20),dueAt:standardTime(d.dueAt),assigneeIds:unique(d.assigneeIds),commissionCompleted:d.commissionCompleted&&typeof d.commissionCompleted==="object"?d.commissionCompleted:{},completedAt:d.completedAt||null}));
+      // Sem etapas é permitido; se houver alguma, todas exigem tipo e data válidos.
+      if(stages.some(d=>!["Prazo","Correção","Postagem"].includes(d.label)||!d.dueAt))fail("Etapa inválida ou sem data.");
+      if(!old&&stages.some(d=>Number(d.dueAt.slice(0,4))<currentYear()))fail("Não é permitido cadastrar datas de anos anteriores.");
+    }
     const limits=["Prazo","Correção","Postagem"].map(s=>stages.filter(d=>d.label===s).map(x=>x.dueAt).sort());
     if(limits[0].length&&limits[1].length&&limits[1][0]<limits[0][limits[0].length-1])fail("A correção não pode acontecer antes do prazo.");
     if(limits[2].length&&((limits[1].length&&limits[2][0]<limits[1][limits[1].length-1])||(!limits[1].length&&limits[2][0]<limits[0][limits[0].length-1])))fail("A postagem não pode acontecer antes da etapa anterior.");
@@ -627,6 +678,8 @@
       if(match&&method==="PATCH"){
         ensure(user);const old=await readTask(db,match[1]),b=await body(req),stamp=now();
         if(old.archivedAt)fail("A demanda já está arquivada.",409);
+        if(match[2]==="finish"&&old.assignmentScope==="todos")
+          fail("Eventos coletivos são concluídos automaticamente após a data do evento.",409);
         if(match[2]==="notes"){
           const value=String(b.captionText||"").slice(0,30000);
           await db.prepare("UPDATE tasks SET caption_text=?,updated_by=?,updated_at=?,version=version+1 WHERE id=?").bind(value,user.id,stamp,old.id).run();
@@ -738,4 +791,4 @@
       return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
-export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await queueDeadlineReminders(env);await processQueue(env,15)})())};
+export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await processQueue(env,15)})())};
