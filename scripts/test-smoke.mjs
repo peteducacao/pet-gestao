@@ -210,6 +210,35 @@ await test("Todos(as) exige data única de evento e bloqueia conclusão manual",
   assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===tid).deadlines.length,1);
  }finally{good(await api("/tasks/"+tid,"DELETE"))}
 });
+await test("eventos coletivos passados concluem imediatamente e guardam o histórico",async()=>{
+ const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
+ const past="2020-02-29",future=dueAt;
+ const body=day=>({title:"Evento coletivo histórico",assignmentScope:"todos",
+    assigneeIds:eligible,commissionIds:[],
+    deadlines:[{id:"evento-data",label:"Evento",dueAt:day+"T23:59:59",assigneeIds:[]}]});
+ const id=good(await api("/tasks","POST",body(past)),201).id;
+ try{
+  const data=good(await api("/bootstrap"));
+  const t=data.tasks.find(t=>t.id===id);
+  assert.ok(t.archivedAt,"Evento com data passada precisa arquivar ao ser cadastrado");
+  assert.equal(t.status,"concluida");
+  assert.equal(Object.keys(t.userDone).length,eligible.length,"Todas as participações são concluídas");
+  assert.ok(t.deadlines[0].completedAt,"A etapa do evento recebe conclusão");
+  assert.ok(data.history.some(h=>h.taskId===id&&/automátic/i.test(h.actorName||h.actor_name||h.action||""))||
+    data.history.some(h=>h.task_id===id&&/automátic/i.test(h.actorName||h.actor_name||h.action||"")),
+    "Arquivamento automático aparece no histórico");
+  assert.equal((await api("/tasks/"+id,"PUT",body(future))).status,409,
+    "Evento já arquivado não volta para pendente pela edição");
+ }finally{good(await api("/tasks/"+id,"DELETE"))}
+ const edit=good(await api("/tasks","POST",body(future)),201).id;
+ try{
+  const first=good(await api("/bootstrap")).tasks.find(t=>t.id===edit);
+  assert.equal(first.archivedAt,null,"Evento futuro permanece ativo");
+  good(await api("/tasks/"+edit,"PUT",body("2018-01-01")));
+  const updated=good(await api("/bootstrap")).tasks.find(t=>t.id===edit);
+  assert.ok(updated.archivedAt,"Mudar a data para um ano passado arquiva imediatamente");
+ }finally{good(await api("/tasks/"+edit,"DELETE"))}
+});
 await test("etapas opcionais nas demandas comuns",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
  const id=good(await api("/tasks","POST",{title:"Demanda sem etapas",assigneeIds:[eligible[0]],commissionIds:[],assignmentScope:"usuarios",deadlines:[]}),201).id;
