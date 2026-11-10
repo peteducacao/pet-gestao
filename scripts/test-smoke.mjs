@@ -214,8 +214,33 @@ await test("ataques simulados: injeção SQL e sessão falsa não revelam dados 
  const cross=await fetch(base+"/admin/users",{headers:{Origin:"https://site-externo.example",Authorization:"Bearer "+original}});
  assert.equal(cross.status,403,"Origem não permitida");
 });
+await test("conclusão conjunta de pessoas e comissões ocorre numa operação",async()=>{
+  const admin=good(await api("/auth/me")).user;
+  const other=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+  const created=good(await api("/tasks","POST",{
+    title:"Atividade feita em equipe",commissionIds:[a,b],assigneeIds:[admin.id,other.id],
+    deadlines:[{id:"joint-prazo",label:"Prazo",dueAt}]
+  }),201).id;
+  const first=good(await api("/tasks/"+created+"/finish","PATCH",{userIds:[admin.id,other.id],commissionIds:[a]}));
+  assert.equal(first.archived,false);
+  assert.deepEqual(first.remainingCommissions,[b]);
+  const partial=good(await api("/bootstrap")).tasks.find(x=>x.id===created);
+  assert.ok(partial.userDone[admin.id]&&partial.userDone[other.id]&&partial.commissionDone[a]);
+  const second=good(await api("/tasks/"+created+"/finish","PATCH",{commissionIds:[b]}));
+  assert.equal(second.archived,true);
+  const final=good(await api("/bootstrap")).tasks.find(x=>x.id===created);
+  assert.ok(final.archivedAt);
+  good(await api("/tasks/"+created,"DELETE"));
+});
+await test("modelo editável das notificações fica no Admin",async()=>{
+  const subject="PET Gestão — {tipo}",message="<p>📚 {autor} atualizou {demanda}.</p>";
+  good(await api("/admin/notification-template","PUT",{subject,message}));
+  const state=good(await api("/bootstrap")).settings.notificationTemplate;
+  assert.equal(state.subject,subject);
+  assert.equal(state.body,message);
+});
 await test("exclusão definitiva somente pela sessão Admin",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
-await test("cada pessoa conclui apenas sua própria tarefa e a última conclusão arquiva",async()=>{
+await test("conclusão individual só arquiva após a última participação",async()=>{
  const adminToken=token,admin=good(await api("/auth/me")).user;
  const other=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
  good(await api("/admin/users/"+other.id,"PATCH",{role:"petiano",notificationEnabled:false}));
@@ -227,7 +252,7 @@ await test("cada pessoa conclui apenas sua própria tarefa e a última conclusã
    const petToken=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
    token=petToken;
    assert.equal((await api("/tasks/"+created+"/finish","PATCH",{commissionId:a})).status,403,"Não pode concluir como comissão não atribuída.");
-   const r=good(await api("/tasks/"+created+"/finish","PATCH",{userId:admin.id,early:true}));
+   const r=good(await api("/tasks/"+created+"/finish","PATCH",{early:true}));
    assert.equal(r.archived,false);
    const state=good(await api("/bootstrap")).tasks.find(x=>x.id===created);
    assert.ok(state.userDone[other.id]);
