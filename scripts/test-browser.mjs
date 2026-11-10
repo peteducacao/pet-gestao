@@ -167,6 +167,22 @@ try{
  await page.goto(origin+"/#/atividade/t-everyone");
  assert.equal(await page.locator(".assignee-everyone").innerText(),"Todos","Detalhes exibem Todos sem nomes individuais");
  assert.equal(await page.locator(".assignee-commissions-panel").count(),0,"Sem comissão não aparece coluna vazia");
+ // Uma demanda geral pode ser concluída por qualquer PETiano(a), mesmo se criada no Admin.
+ user.role="petiano";
+ await page.reload();
+ await page.goto(origin+"/#/atividade/t-everyone");
+ assert.equal(await page.locator('button[data-do="delete-task"]').count(),1,"PETiano pode excluir demanda ativa de outra pessoa");
+ await page.locator('[data-detail-status]').selectOption("concluir");
+ const allToggle=page.locator("#finish-select-all");
+ await allToggle.waitFor();
+ await allToggle.check();
+ assert.equal(await page.locator('#finish-dialog input[name="joint-target"]:not(:checked)').count(),0,"Marcar todos seleciona a equipe");
+ await page.locator('#finish-dialog input[name="joint-target"]').first().uncheck();
+ assert.equal(await allToggle.evaluate(x=>x.indeterminate),true,"Checkbox principal indica seleção parcial");
+ await allToggle.check();
+ await page.locator('#finish-dialog [data-do="finish-close"]').last().click();
+ user.role="tutor";
+ await page.reload();
  await page.goto(origin+"/#/registrar/t-everyone");
  await page.locator('.assignment-modes [data-value="todos"].active').waitFor();
  assert.equal(await page.locator("#assignment-container [data-assign]").count(),0,"Editar Todos(as) não mostra seleção individual");
@@ -190,6 +206,14 @@ try{
  assert.ok(savedAll?.deadlines.every(stage=>stage.assigneeIds.length===0),"Nenhuma etapa grava uma pessoa específica em Todos(as)");
  await page.goto(origin+"/#/atividade/t-everyone");
  assert.ok((await page.locator(".stage-responsible").first().innerText()).includes("Todos(as)"),"Detalhes das etapas informam Todos(as)");
+ await page.goto(origin+"/#/registrar/t-everyone");
+ for(const remove of await page.locator('#stage-rows [data-do="remove-stage"]').all())await remove.click();
+ assert.equal(await page.locator(".live-stage").count(),0,"Todas as etapas podem ser retiradas");
+ await page.locator(".task-form-header-save").click();
+ await page.waitForTimeout(200);
+ assert.deepEqual(tasks.find(x=>x.id==="t-everyone").deadlines,[],"Salvar sem prazos é aceito");
+ await page.goto(origin+"/#/registrar/t-everyone");
+ assert.equal(await page.locator(".live-stage").count(),0,"Reabertura da demanda não recria prazo");
  tasks=tasks.filter(x=>x.id!=="t-everyone");
  await page.goto(origin+"/#/demandas");
  await page.reload(); // Recarrega o bootstrap após retirar a demanda fictícia.
