@@ -41,6 +41,16 @@ await page.route("**/api/v1/**",async route=>{
    committees.splice(0,committees.length,...newOrder);
    result={ok:true};
  }
+ else if(p==="/admin/tasks/bulk-delete"&&method==="POST"){
+   const chosen=body.taskIds||[];
+   if(!adminMode){status=403;result={error:"Somente Administração."};}
+   else if(chosen.some(id=>!tasks.find(t=>t.id===id)?.archivedAt)){
+     status=409;result={error:"Somente demandas concluídas."};
+   }else{
+     tasks=tasks.filter(t=>!chosen.includes(t.id));
+     result={ok:true,deletedCount:chosen.length};
+   }
+ }
  else if(p==="/admin/reminder-settings"&&method==="PUT"){settings.reminderSettings=body;result={ok:true};}
  else if(p==="/admin/notification-template"&&method==="PUT"){
    settings.notificationTemplates[body.kind]={subject:body.subject,body:body.message};
@@ -565,6 +575,40 @@ await page.locator('a[data-route="reunioes"]').click();
  const deletedArchived=calls.find(x=>x.p==="/tasks/t-archived"&&x.method==="DELETE");
  assert.ok(deletedArchived?.authorization?.includes("admin-token"),"Worker recebe sessão Admin para excluir concluída");
  assert.equal(tasks.some(x=>x.id==="t-archived"),false,"Exclusão definitiva remove a arquivada");
+ // Exclusão em lote na listagem de Concluídas, restrita ao Admin.
+ const doneItems=[1,2,3].map(n=>({...task,id:"t-done-"+n,title:"Concluída "+n,
+   archivedAt:"2026-11-10T18:00:00.000Z",status:"concluida",
+   commissionDone:{videos:{at:"2026-11-10T18:00:00.000Z",by:"u1"}},
+   userDone:{u1:{at:"2026-11-10T18:00:00.000Z",by:"u1"}}}));
+ tasks.push(...doneItems);
+ await page.goto(origin+"/#/demandas");
+ await page.reload({waitUntil:"load"});
+ await page.locator('select[data-filter="status"]').selectOption("concluida");
+ await page.locator('[data-do="archive-selection-open"]').waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator('[data-archive-select]').count(),0,
+   "As caixas de seleção ficam escondidas até ativar Excluir demandas");
+ await page.locator('[data-do="archive-selection-open"]').click();
+ assert.equal(await page.locator('[data-archive-select]').count(),3,"Três caixas de seleção disponíveis");
+ await page.locator('[data-do="archive-select-all"]').click();
+ assert.equal(await page.locator('[data-archive-select]:checked').count(),3,"Selecionar todas marca a listagem");
+ await page.locator('[data-archive-select]').first().uncheck();
+ assert.equal(await page.locator('[data-archive-select]:checked').count(),2,"Pode desmarcar individualmente");
+ await page.locator('[data-do="archive-select-all"]').click();
+ assert.equal(await page.locator('[data-archive-select]:checked').count(),3,"Selecionar todas remarca as três");
+ await page.locator('[data-do="archive-delete-selected"]').click();
+ assert.ok((await page.locator("#notice-dialog").innerText()).includes("3 demandas selecionadas"),
+   "Confirma quantidade antes de excluir");
+ await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
+ assert.equal(tasks.filter(t=>t.id.startsWith("t-done-")).length,3,
+   "Cancelar não exclui nenhuma demanda");
+ await page.locator('[data-do="archive-delete-selected"]').click();
+ await page.locator('#notice-dialog button[data-do="notice-confirm"]').click();
+ await page.waitForTimeout(250);
+ const callBulk=calls.find(x=>x.p==="/admin/tasks/bulk-delete"&&x.method==="POST");
+ assert.equal(callBulk?.body.taskIds.length,3,"Lote contém apenas as três concluídas");
+ assert.ok(callBulk?.authorization.includes("admin-token"),"Exclusão em lote exige sessão administrativa");
+ assert.equal(tasks.some(t=>t.id.startsWith("t-done-")),false,"As três concluídas foram removidas");
+ assert.ok(tasks.some(t=>t.id==="t1"),"Demanda ativa permanece intacta");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator('button[data-do="delete-task"]').click();
  assert.ok((await page.locator("#notice-dialog").innerText()).includes("sem possibilidade de recuperação"));
