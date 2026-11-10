@@ -206,10 +206,10 @@ try{
  tasks.push({...task,id:"t-step-empty",title:"Demanda sem etapas",
    assignmentScope:"usuarios",assigneeIds:["u1"],commissionIds:[],
    userDone:{},commissionDone:{},archivedAt:null,deadlines:[]});
- // Demanda adicionada apenas ao mock: recarregar o bootstrap antes de abrir a edição.
- await page.reload();
+ // Carregar o bootstrap já na rota desejada, evitando corrida entre navegação e atualização do mock.
  await page.goto(origin+"/#/registrar/t-step-empty");
- await page.locator("#task-form").waitFor({state:"visible"});
+ await page.reload({waitUntil:"load"});
+ await page.locator("#task-form").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator(".live-stage").count(),0);
  await page.locator('[data-do="add-stage"]').click();
  await page.locator('.live-stage [data-stage="day"]').fill("2026-12-03");
