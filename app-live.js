@@ -1533,6 +1533,7 @@ function start(){
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
    if(!$("#mail-preview-dialog")?.hidden){e.preventDefault();closeMailPreview()}
    else if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
+   else if(!$("#account-delete-dialog")?.hidden){e.preventDefault();$("#account-delete-dialog").hidden=true}
    else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
     else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
