@@ -142,17 +142,15 @@ for(const row of [...document.querySelectorAll('.live-stage')])row.querySelector
 await wait();
 assert.equal(document.querySelectorAll(".live-stage").length,0,"Pode retirar todas as etapas");
 submit("#task-form");await wait();await wait();
-console.log("DEBUG_FIRST_SAVE",JSON.stringify({scope:tasks.find(t=>t.id==="t-all").assignmentScope,users:tasks.find(t=>t.id==="t-all").assigneeIds,stages:tasks.find(t=>t.id==="t-all").deadlines,hash:window.location.hash,notice:document.querySelector("#notice-dialog")?.textContent.slice(0,160)}));
 assert.deepEqual(tasks.find(t=>t.id==="t-all").deadlines,[],"Demanda comum salva sem prazos");
 await move("#/registrar/t-all");
 assert.equal(document.querySelectorAll(".live-stage").length,0,"Edição não recria etapas removidas");
 tap('button[data-do="add-stage"]');await wait();
 const newStage=document.querySelector('.live-stage');
 assert.ok(newStage,"Pode adicionar etapa após remover todas");
+assert.equal(document.querySelectorAll(".live-stage").length,1,"Um clique adiciona uma única etapa, sem duplicação de eventos");
 newStage.querySelector('[data-stage="day"]').value="2026-11-29";
-console.log("DEBUG_SECOND_BEFORE",JSON.stringify({scope:tasks.find(t=>t.id==="t-all").assignmentScope,stageCount:document.querySelectorAll('.live-stage').length,date:document.querySelector('.live-stage [data-stage="day"]')?.value,formID:document.querySelector('#task-form')?.dataset.id}));
 submit("#task-form");await wait();await wait();
-console.log("DEBUG_SECOND_AFTER",JSON.stringify({scope:tasks.find(t=>t.id==="t-all").assignmentScope,stages:tasks.find(t=>t.id==="t-all").deadlines,hash:window.location.hash,notice:document.querySelector("#notice-dialog")?.textContent.slice(0,160)}));
 assert.equal(tasks.find(t=>t.id==="t-all").deadlines.length,1,"Etapa adicionada na edição é salva");
 await move("#/registrar/t-all");
 tap('.assignment-modes [data-value="todos"]');await wait();
