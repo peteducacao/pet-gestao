@@ -532,7 +532,7 @@ function renderDeadlineSettings(stagesList=[]){
  return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>As etapas são <strong>opcionais</strong>. Você pode salvar a demanda sem prazo ou adicionar Prazo, Correção e Postagem, cada uma com sua data e responsável.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
  '<div id="stage-rows">'+(stagesList||[]).filter(x=>x.label!=="Evento").map(stageRow).join("")+'</div></div>';
 }
-function refreshDeadlineMode(){
+function refreshDeadlineMode(previousScope=null){
  const host=$("#deadline-settings");if(!host)return;
  const eventDay=$("#collective-event-day")?.value;
  const currentRows=$(".live-stage").map(row=>({
@@ -542,8 +542,16 @@ function refreshDeadlineMode(){
      (row.querySelector('[data-stage="day"]')?.value?"T"+(row.querySelector('[data-stage="hour"]')?.value||"23:59")+":00":""),
    assigneeIds:row.querySelector('select[data-stage="assignee"]')?.value?[row.querySelector('select[data-stage="assignee"]').value]:[]
  }));
+ if(previousScope==="todos"&&state.assignmentScope!=="todos"){
+   const restored=state.standardStageDraft||[];
+   host.innerHTML=renderDeadlineSettings(restored);
+   return;
+ }
+ if(previousScope!=="todos"&&state.assignmentScope==="todos"){
+   state.standardStageDraft=currentRows;
+ }
  const list=currentRows.length?currentRows:
-   eventDay?[{label:"Prazo",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:[];
+   eventDay?[{label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:[];
  host.innerHTML=renderDeadlineSettings(list);
 }
 function renderTaskForm(routeId){
@@ -556,6 +564,7 @@ function renderTaskForm(routeId){
    state.taskFormId=routeId;
    state.selectedUsers=new Set(t?.assigneeIds||[]);
    state.selectedCommissions=new Set(t?.commissionIds||(cid?[cid]:[]));
+   state.standardStageDraft=(t?.deadlines||[]).filter(x=>x.label!=="Evento");
    state.assignmentScope=cid?"comissoes":t?(t.assignmentScope||(
       isEveryoneAssigned(t)?"todos":t.commissionIds?.length&&!t.assigneeIds?.length?"comissoes":"usuarios"
     )):"usuarios";
@@ -1162,8 +1171,9 @@ async function handleClick(e){
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
  if(action==="assignment-scope"){
   if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
+  const previousScope=state.assignmentScope;
   state.assignmentScope=b.dataset.value;
-  $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();refreshDeadlineMode();syncStageAssigneePlaceholder();return;
+  $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();refreshDeadlineMode(previousScope);syncStageAssigneePlaceholder();return;
  }
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
