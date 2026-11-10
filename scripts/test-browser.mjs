@@ -96,7 +96,7 @@ try{
  assert.equal(await mult.locator(".demand-card-person").evaluate(x=>x.open),true);
  await page.locator(".page-title").click();
  assert.equal(await mult.locator(".demand-card-person").evaluate(x=>x.open),false,"Clicar fora fecha a lista");
- assert.ok((await mult.locator(".demand-card-person .demand-card-picker-popover").innerText()).includes("Admin"));
+ assert.ok((await mult.locator(".demand-card-person .demand-card-picker-popover").textContent()).includes("Admin"),"Lista preserva todos os nomes mesmo quando recolhida");
  assert.equal(await mult.locator(".demand-card-person .demand-card-picker-popover").getByText("Cards").count(),0,"Comissões não aparecem como pessoas");
  const columnsOnDesktop=await mult.evaluate(el=>getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
  assert.equal(columnsOnDesktop,4,"Quatro colunas compactas: nome, status, data e ação");
