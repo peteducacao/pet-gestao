@@ -165,6 +165,18 @@ await move("#/atividade/t-all");
 assert.ok(document.querySelector(".details-facts")?.textContent.includes("Data do evento"));
 assert.equal(document.querySelector('[data-detail-status]'),null,"Evento coletivo não exige conclusão manual");
 tasks=tasks.filter(t=>t.id!=="t-all");
+// Uma correção do(a) Tutor(a) desaparece APENAS da própria lista pessoal.
+tasks.push({...tasks[1],id:"t-reviewed",title:"Revisão concluída pela tutoria",
+  assigneeIds:[],commissionIds:["videos"],userDone:{},commissionDone:{},
+  tutorReviewedByMe:true,archivedAt:null,status:"pendente"});
+await move("#/demandas");
+assert.ok(document.querySelector("#screen")?.textContent.includes("Revisão concluída pela tutoria"),
+  "Após correção, a demanda continua visível no geral");
+await move("#/minhas-pendencias");
+assert.equal(document.querySelector("#screen")?.textContent.includes("Revisão concluída pela tutoria"),false,
+  "A revisão some apenas das pendências do Tutor");
+await move("#/demandas");
+tasks=tasks.filter(t=>t.id!=="t-reviewed");
 await move("#/atividade/t1");
 assert.ok(document.querySelector(".details-facts"),"Etapas em detalhes");
 assert.equal(document.querySelector('a[data-route="demandas"]').classList.contains("active"),true,"A seção Demandas é destacada nos detalhes");
@@ -192,6 +204,16 @@ statusSelect.value="concluir";
 statusSelect.dispatchEvent(new window.Event("change",{bubbles:true}));
 await wait();
 assert.ok(document.querySelector("#finish-dialog input[data-kind='commission']"),"Comissões selecionáveis");
+assert.ok(document.querySelector('#finish-dialog [data-do="finish-select-self"]'),
+  "Mais de um responsável oferece conclusão só da própria participação");
+assert.ok(document.querySelector('#finish-dialog [data-do="finish-select-everyone"]'),
+  "Há opção explícita para concluir todos(as)");
+tap('#finish-dialog [data-do="finish-select-self"]');await wait();
+assert.deepEqual([...document.querySelectorAll('#finish-dialog input[name="joint-target"]:checked')].map(x=>x.value),["u1"],
+  "Só minha participação não marca outros responsáveis nem comissões");
+tap('#finish-dialog [data-do="finish-select-everyone"]');await wait();
+assert.equal(document.querySelectorAll('#finish-dialog input[name="joint-target"]:not(:checked)').length,0,
+  "Concluir para todos(as) seleciona todas as participações");
 const selectAll=document.querySelector('#finish-select-all');
 assert.ok(selectAll,"Opção Marcar todos aparece na conclusão");
 selectAll.checked=true;selectAll.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
