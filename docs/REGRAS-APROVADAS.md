@@ -56,3 +56,12 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - A conclusão individual continua independente da conclusão da comissão. Quando houver só uma participação pendente do usuário, **Concluir** realiza aquela participação; quando houver mais de uma, abre o seletor para escolher. O botão **Concluir** deve ser pequeno e alinhado, nunca esticado ocupando a largura inteira.
 - O card inteiro deve abrir os detalhes da demanda, permitindo também abrir em outra guia. Conclusão da comissão faz a pendência desaparecer para os integrantes daquela comissão; conclusão pessoal remove apenas a pendência individual, e o arquivamento depende de todas as participações.
 - Migração segura: `overview_visible` adicionado com padrão verdadeiro (`1`) para não ocultar atividades já cadastradas.
+
+## Ajustes finais dos detalhes — 10/11/2026
+- Colocar o quadro de **Responsáveis imediatamente abaixo de Prazos e etapas**, com informações de pessoas e equipes. Texto para revisão e histórico ficam na coluna oposta.
+- A barra de ações dos detalhes fica com **Editar demanda**, **Status** e **Excluir**. Remover o botão Voltar duplicado; a seta de voltar no cabeçalho permanece.
+- No seletor de status, a opção de ação é **Concluído** (substituindo "Registrar conclusão"). A seleção abre o fluxo seguro de escolha de pessoas/comissões: nenhuma alteração isolada de cor pode arquivar uma demanda incompleta.
+- Excluir demanda ativa requer confirmação destrutiva; Tutoria pode excluir ativas e PETiano(a) apenas a que criou. Arquivadas continuam exclusivas da conta Admin. Excluir elimina etapas, participações e histórico no banco, mantendo comissões cadastradas.
+- Ao concluir qualquer participação, **não perguntar se deseja notificar e não enviar e-mail automático**. Notificações opcionais da Tutoria permanecem somente na criação de demanda e na alteração do Texto para revisão.
+- Histórico: usar ícones vetoriais (SVG) consistentes e maiores, em vez de emojis semelhantes aos de aplicativos de mensagens.
+- Remover o indicador "Conectado" do menu lateral, inclusive quando a conexão não estiver disponível. Falhas ainda aparecem nos avisos do sistema.
