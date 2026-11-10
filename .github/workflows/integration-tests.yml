@@ -52,7 +52,7 @@ jobs:
           wrangler d1 migrations apply pet-gestao-db --local --config test-wrangler.json
       - name: Subir API isolada
         run: |
-          wrangler dev --local --ip 127.0.0.1 --port 8787 --config test-wrangler.json --var ADMIN_EMAIL:teste-admin@pet.local --var ADMIN_INITIAL_PASSWORD:SenhaLocalSegura123! > /tmp/pet-worker-test.log 2>&1 &
+          wrangler dev --local --test-scheduled --ip 127.0.0.1 --port 8787 --config test-wrangler.json --var ADMIN_EMAIL:teste-admin@pet.local --var ADMIN_INITIAL_PASSWORD:SenhaLocalSegura123! > /tmp/pet-worker-test.log 2>&1 &
           echo $! > /tmp/pet-worker-test.pid
           for i in $(seq 1 35); do
             if curl --silent --fail http://127.0.0.1:8787/api/v1/health >/dev/null; then exit 0; fi
