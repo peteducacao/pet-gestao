@@ -516,6 +516,8 @@ await page.locator('a[data-route="reunioes"]').click();
    archivedAt:"2026-11-10T18:00:00.000Z",status:"concluida",
    commissionDone:{videos:{at:"2026-11-10T18:00:00.000Z",by:"u1"}},
    userDone:{u1:{at:"2026-11-10T18:00:00.000Z",by:"u1"}}});
+ // Atualizar o bootstrap: a concluída foi adicionada ao mock após o último carregamento.
+ await page.reload();
  await page.goto(origin+"/#/atividade/t-archived");
  await page.locator(".activity-detail-page").waitFor({timeout:10000});
  const deleteArchived=page.locator('button[data-do="delete-task"]');
