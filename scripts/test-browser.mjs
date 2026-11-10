@@ -248,9 +248,42 @@ try{
  assert.equal(await page.locator("#collective-date-month").inputValue(),"","Evento novo não escolhe mês sozinho");
  await page.goto(origin+"/#/atividade/t-everyone");
  assert.ok((await page.locator(".details-facts").innerText()).includes("Data do evento"));
+ // Uma pessoa: data simples e conclusão pela própria pessoa, sem arquivamento por data.
+ tasks.push({...task,id:"t-one-person",title:"Atividade individual simples",
+   assignmentScope:"usuarios",assigneeIds:["u1"],commissionIds:[],
+   userDone:{},commissionDone:{},archivedAt:null,deadlines:[]});
+ await page.goto(origin+"/#/registrar/t-one-person");
+ await page.reload({waitUntil:"load"});
+ await page.locator("#collective-date-year").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator("#collective-date-year").inputValue(),"2026","Ano atual pré-preenchido para uma pessoa");
+ assert.equal(await page.locator("#collective-date-day").inputValue(),"","Dia da atividade individual em branco");
+ assert.equal(await page.locator("#collective-date-month").inputValue(),"","Mês da atividade individual em branco");
+ assert.ok((await page.locator("#deadline-settings").innerText()).includes("Data da atividade"));
+ assert.equal(await page.locator(".live-stage").count(),0,"Uma pessoa não recebe etapas de prazo, correção ou postagem");
+ assert.equal(await page.locator('[data-do="add-stage"]').count(),0,"Uma pessoa não precisa adicionar etapas");
+ await page.locator("#collective-date-day").fill("15");
+ await page.locator("#collective-date-month").fill("04");
+ await page.locator("#collective-date-year").fill("2015");
+ await page.locator(".task-form-header-save").click();
+ await page.waitForTimeout(200);
+ const singleSaved=tasks.find(t=>t.id==="t-one-person");
+ assert.deepEqual(singleSaved.deadlines.map(x=>x.label),["Atividade"],"Data da pessoa é salva sem etapas adicionais");
+ assert.equal(singleSaved.archivedAt,null,"A data passada não conclui automaticamente uma tarefa individual");
+ await page.goto(origin+"/#/atividade/t-one-person");
+ assert.ok((await page.locator(".details-facts").innerText()).includes("Data da atividade"));
+ assert.equal(await page.locator("[data-detail-status]").count(),1,
+   "A pessoa continua podendo concluir sua própria demanda");
+ await page.goto(origin+"/#/registrar/t-one-person");
+ await page.locator("#collective-date-year").waitFor({state:"visible"});
+ await page.locator('input[data-assign="usuarios"][value="admin"]').check();
+ assert.equal(await page.locator("#stage-rows").count(),1,"Duas pessoas usam etapas opcionais");
+ await page.locator('input[data-assign="usuarios"][value="admin"]').uncheck();
+ assert.equal(await page.locator("#collective-date-day").count(),1,"Retornar a uma pessoa restaura a data simples");
+ tasks=tasks.filter(x=>x.id!=="t-one-person");
+ await page.reload({waitUntil:"load"});
  // Demanda individual: remover todos os prazos, salvar e voltar para adicionar.
  tasks.push({...task,id:"t-step-empty",title:"Demanda sem etapas",
-   assignmentScope:"usuarios",assigneeIds:["u1"],commissionIds:[],
+   assignmentScope:"usuarios",assigneeIds:["u1","admin"],commissionIds:[],
    userDone:{},commissionDone:{},archivedAt:null,deadlines:[]});
  // Carregar o bootstrap já na rota desejada, evitando corrida entre navegação e atualização do mock.
  await page.goto(origin+"/#/registrar/t-step-empty");
