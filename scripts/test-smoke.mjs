@@ -737,7 +737,7 @@ await test("Admin mantém ferramentas no painel novo e mostra popup de conexão"
  assert.match(js,/location.hash=workspaceHash\("comissoes"\)/);
  assert.match(js,/location.hash="#\/admin"\+href.slice\(1\)/);
  assert.ok(!js.includes(' Voltar ao sistema</a>'));
- assert.ok(js.includes(' Sair do modo Admin</button>'));
+ assert.ok(js.includes(' Voltar ao PET Gestão</button>'),"Voltar ao site não encerra a sessão Admin");
  assert.ok(index.includes('id="connecting-popup"'));
  assert.ok(js.includes('if(isLogin)setConnecting(true'));
  assert.ok(css.includes('.admin-embedded-view{'));
