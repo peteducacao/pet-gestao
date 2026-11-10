@@ -1276,7 +1276,7 @@ async function handleSubmit(e){
 async function handleChange(e){
  const t=e.target;if(!t)return;
  if(t.id==="finish-select-all"){
-   $('#finish-dialog input[name="joint-target"]').forEach(input=>{input.checked=t.checked});
+   document.querySelectorAll('#finish-dialog input[name="joint-target"]').forEach(input=>{input.checked=t.checked});
    syncFinishSelectAll();return;
  }
  if(t.name==="joint-target"){syncFinishSelectAll();return;}
