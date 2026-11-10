@@ -1,56 +1,50 @@
-# PET Gestão — regras aprovadas de produto (09/11/2026)
+# PET Gestão — decisões funcionais consolidadas (10/11/2026)
 
-**Esta é a referência funcional das decisões confirmadas.** Não confundir com o registro do que foi efetivamente testado ou publicado: consultar IMPLEMENTACAO-2026-11-09.md.
+Este documento consolida o planejamento aprovado. A implementação e os testes devem ser verificados no histórico do GitHub Actions; não presumir publicação apenas pela presença do código.
 
-## Navegação e visualização
-- Caminho de navegação clicável e botão Voltar em páginas internas; preservar mês/ano/semana.
-- A Visão geral mostra até seis próximos prazos, status explícitos pendente, aprovada, atrasada; concluídas não devem aparecer nas áreas ativas.
-- Filtros por mês, ano e semana nos cronogramas e em Arquivadas. Admin controla atualização automática do período padrão; mesmo ativada, a consulta manual permanece.
-- Sem conta: somente navegação e visualização da área Organização, sem “Ver detalhes” nem operações.
-- Nomes, datas e registros fictícios do protótipo não são migrados para a versão real.
+## Princípio geral
+Sistema simples, didático e sem duplicidade, voltado à organização do PET Educação. Demandas é o cadastro central: outras páginas apenas consultam os mesmos registros, sem cópias. Links de navegação interna devem permitir abrir em novas guias (inclusive Comissões, Demandas, Atas e Meu perfil).
 
-## Conta e acesso
-- Cadastro: Nome, E-mail, Senha, sem sexo/gênero, seguindo o Inventário PET.
-- Cargos: PETiano(a), Tutor(a), Administração. Cargo exibido em Minha conta; nenhuma assinatura usa prefixo.
-- Conta própria assina com o nome cadastrado, mesmo quando utiliza a Administração. A conta administrativa se chama Admin.
-- O painel Admin é EXCLUSIVO da conta Administração, autenticada diretamente pela entrada administrativa (#/admin). Tutor(a) entra na Visão geral pela entrada comum e não pode acessar nenhum endpoint administrativo.
-- Cada sessão possui escopo atribuído no servidor: uma sessão comum (mesmo que alguém altere seu JavaScript ou suas requisições) nunca vira sessão Admin. Somente o login administrativo emite escopo administrativo. O Worker valida cargo e escopo em cada operação privilegiada.
-- As funções acordadas da Tutoria (criar e revisar demandas, observações, correções, prazos, memórias e notificações automáticas) permanecem nas páginas comuns. Gestão de cargos, senhas, configuração, vagas, e-mails manuais/agendados e exclusões definitivas é exclusiva da Administração.
-- Admin gera senha temporária e o próximo login exige mudança; “Esqueceu sua senha?” envia link de uso único, expirando em 30 minutos.
-- PETiano(a) autenticado(a) pode visualizar e interagir em todas as comissões, mesmo sem ser integrante.
+## Navegação
+- Visão geral: indicadores, seis próximas demandas em aberto e atalho para Demandas; cards compactos.
+- Demandas: visões mensal, semanal e Concluídas (arquivadas), com mês/ano/semana e seletor simples de status. Sem barra de busca textual.
+- Cronograma: não ter página repetida no menu; a visão de Demandas cobre seus períodos.
+- Comissões: cards de equipes, com menu ⋮ para manutenção; dentro de cada comissão, **somente a lista de pendências** vinculadas, sem criar demanda, sem editar comissão e sem seletores de período na página interna. Ver detalhes abre o cadastro central.
+- Atas de Reunião: página própria imediatamente abaixo de Demandas no menu, sem duplicação em Demandas. Filtros **Todas** e **Recentes** (sem Arquivadas); cards clicáveis abrem editor da ata, com título/data e texto, botão Salvar e menu ⋮ de Editar/Excluir.
+- Minhas pendências: apenas participações individuais ainda não concluídas do usuário, removidas imediatamente depois da conclusão, mesmo que a demanda continue com outros responsáveis.
+- Perfil: nome, e-mail, campo **Status** para papel da conta, preferência de avisos para Tutoria/Admin; senha por botão que revela o formulário. Cabeçalho sem nome, cargo e data repetidos.
+- Cadastro: campo **Usuário** em vez de Nome, mantendo e-mail e senha.
 
-## Comissões
-- Preservar nomes das comissões; remover somente registros fictícios.
-- No formulário de comissão: Descrição altera o texto exibido no card; Fundo do card tem Restaurar cor padrão.
-- Menu ⋮: Editar para contas autenticadas; Excluir somente para Admin; para PETiano(a), “Fazer parte” (ou “Sair” se integrante).
-- Ingressar requer confirmação. Admin estabelece vagas máximas por comissão (0 significa sem limite); ao atingir a lotação, não permite novas entradas.
-- Administração organiza a ordem global dos cards; edição da comissão e memórias ficam nas páginas usuais, sem duplicar seção Admin.
+## Demandas e responsáveis
+- Título, pelo menos uma pessoa ou comissão e etapa **Prazo** com data são obrigatórios. Etapas **Correção** e **Postagem** opcionais, com data/horário e responsável, sem indicadores individuais de status: o registro permite identificar responsáveis.
+- Seleção rápida por três categorias: Todos(as), Comissões e Pessoas. Seleções de Pessoas e Comissões são independentes e combináveis. Selecionar duas pessoas de Vídeos **não vincula** a demanda à comissão Vídeos.
+- Status geral automático: **Pendente roxo** (#7954D4), **Atrasada vermelho** (#DC4444) por prazo vencido e **Concluída verde** (#279765). Atrasada não é ação manual.
+- Conclusão individual ou conjunta selecionando quaisquer pessoas e/ou comissões vinculadas. Quem registra fica identificado no histórico. Não exigir aprovações extras.
+- Uma demanda só vai para Concluídas/Arquivadas quando todas as pessoas e comissões vinculadas tiverem concluído suas participações. Conclusão antecipada com prazo futuro exige confirmação.
+- Em atividade com várias comissões, a seção **Andamento das comissões** mostra o status de cada uma e fica oculta em demandas sem essa necessidade. Não mostrar mensagens redundantes de “Nenhuma comissão” junto aos responsáveis.
+- Arquivadas: exclusão definitiva exclusiva do Admin, com confirmação; remoção de registro, etapas e histórico, sem excluir cadastros de comissão.
 
-## Demandas
-- Uma demanda pode aparecer em Visão geral, Demandas, Comissões, Cronogramas e Minhas pendências — sempre o mesmo registro, sem cópias.
-- Cadastro exige título, pelo menos um responsável ou comissão, e no mínimo uma etapa Prazo com data. Correção e Postagem são opcionais.
-- Etapas: Prazo, Correção e Postagem; retirar campo separado Data de postagem. Correção recebe sugestão da pessoa cadastrada como Tutor(a), sem nome fixo.
-- Prazos não podem ser cadastrados em anos anteriores; Correção não pode anteceder Prazo; Postagem não pode anteceder a etapa anterior.
-- Seleção de responsáveis: Todos(as), Comissões, PETianos(as), sem outra área redundante de vinculação.
-- Visualização de atividade: situação Pendente / Aprovada / Concluída com botão Salvar, Observações com lápis e botão Salvar; cada alteração registra autoria e hora.
-- Histórico de alterações recolhível mostra pessoa, ação e data. “Últimas atualizações” realça acompanhamento e revisões.
-- Conclusão antecipada, quando há prazos futuros, exige confirmação e marca etapas pendentes daquela comissão como concluídas com a data real.
-- Para duas ou mais comissões, **cada comissão confirma separadamente**, mas qualquer PETiano(a) logado(a) pode confirmar a outra. A demanda desaparece da comissão que concluiu e permanece nas outras e nas demandas gerais até todas finalizarem. Um aviso deve informar quais ainda faltam.
-- Só após todas confirmarem, a demanda vai para Arquivadas e desaparece das áreas ativas.
-- Arquivadas: filtros de período e exclusão definitiva com confirmação, **exclusiva da conta Administração autenticada no painel**; apaga o registro em todo o sistema e preserva os cadastros das comissões.
-- Sem anexos nas demandas, devido à decisão de não contratar armazenamento externo.
+## Textos
+- **Anotações da comissão:** bloco de notas livre. Ajuda curta: “Registre ideias, lembretes, combinados e informações importantes para a demanda.”
+- **Texto para revisão:** texto que PETiano(a) escreve ou cola para revisão direta pela tutoria. Ajuda: “Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.”
+- Editores WYSIWYG nos campos da demanda e nos e-mails do Admin: negrito, itálico, sublinhado, cores, listas; emojis, hashtags, caracteres especiais e parágrafos preservados.
+- Links colados aparecem como texto simples no site, **não** como links clicáveis.
+- Atas têm editor simples de texto com Salvar. Nos registros de cada item, indicar “Responsável: (Nome)” ou “Responsável: (???)”.
+- Textos longos devem preservar quebras de linha/linhas em branco e nunca cortar palavras ou sobrepor cards.
 
-## E-mails e notificações
-- Apenas ações feitas por Tutor(a) ou Admin podem propor notificações automáticas aos(às) responsáveis; ações de PETiano(a) não perguntam nem enviam notificações automáticas.
-- Minha conta da Tutoria e Administração tem preferência para ativar/desativar a pergunta “Deseja notificar os(as) responsáveis por e-mail?”. O Admin pode alterar essa preferência no perfil de outro usuário; deve sincronizar.
-- Perguntar ao salvar observações, prazos, situação, conclusão e outras intervenções relevantes. Desativado significa não perguntar nem notificar automaticamente.
-- Admin: e-mail manual ou agendado para Todos(as), Comissões e Usuários, com data e horário configuráveis; status pendente, enviado e falhou visíveis.
-- Histórico de e-mails: limpar só registros finalizados, preservar pendentes/agendados.
-- E-mail manual imediato pode incluir vários arquivos com até 10 MB por arquivo (respeitando limite total). E-mail agendado NÃO recebe anexos, e demandas NÃO recebem anexos.
-- Integração escolhida: Cloudflare Worker + D1 + Google Apps Script MailApp, não Gmail API com OAuth manual nem R2.
+## Notificações e Administração
+- Ao criar uma demanda, Tutor(a)/Admin pode escolher se deseja notificar todos os responsáveis vinculados. Pessoas recebem individualmente; nas comissões, usar e-mails dos integrantes; Todos(as) abrange usuários elegíveis. Deduplicar endereços.
+- Ao editar **Texto para revisão**, a Tutoria/Admin pode escolher se deseja notificar os responsáveis. Evitar pergunta para pequenas alterações não relacionadas a essa revisão.
+- Preferência “Perguntar se desejo notificar” desligada implica salvar sem pergunta e sem envio.
+- Administração possui **modelo editável** da notificação automática (assunto + texto rico), com variáveis automáticas de autor, ação, demanda e tipo.
+- Administração também envia e-mails manuais/agendados com editor WYSIWYG, seleção de destinatários, monitor de fila e histórico. Envio imediato aceita anexos transitórios; envio agendado não aceita anexos. Nenhuma demanda aceita anexos de arquivos.
+- Apenas ações da tutoria/Admin oferecem notificações automáticas; PETiano(a) não dispara por editar sua própria demanda.
 
-## Administração
-Áreas necessárias: Usuários (cargo, preferências e senha temporária), vagas das comissões, ordenação de cards, navegação automática dos cronogramas, e-mails e histórico de envios. Reuniões, arquivamento, edição de comissões e integrantes são geridos fora do Admin em seus próprios lugares.
+## Comissões e permissões
+- Nomes das dez comissões reais são preservados; nenhum registro fictício entra na produção. A Administração define vagas e ordenação dos cards; participação segue regras existentes.
+- Tutor(a) e PETiano(a) utilizam a área comum; Admin usa sessão própria protegida. Servidor valida autenticação e escopo, não apenas o front-end.
+- Histórico de alterações recolhido nos detalhes, com evento, responsável, data e horário, inclusive conclusão conjunta.
 
-## Memórias de reunião
-Em cada item textual da memória, usar “Responsável: (Nome)” ou “Responsável: (???)”. Memórias são registradas na seção Demandas → Memórias, sem duplicar demandas.
+## Testes e proteção
+- Não apagar nem modificar dados de produção para teste. Usar banco local isolado para criar, editar e excluir registros fictícios; depois rodar smoke tests de interface.
+- Revisar links e abertura em nova guia, responsividade PC/celular, fluxo de conclusão, arquivamento, histórico, tratamento de erros, preferência de avisos e integração de e-mail.
