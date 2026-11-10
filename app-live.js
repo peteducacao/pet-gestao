@@ -308,7 +308,10 @@ function nav(){
 }
 function weeks(y,m){const days=new Date(y,m+1,0).getDate(),firstDay=new Date(y,m,1).getDay(),firstMonday=1+((8-firstDay)%7),arr=[];let start=1,end=Math.min(days,firstMonday+6);while(start<=days){arr.push({n:arr.length+1,start,end});start=end+1;end=Math.min(days,start+6)}return arr}
 function weekFor(d){const x=dt(d);return x?weeks(x.getFullYear(),x.getMonth()).find(w=>x.getDate()>=w.start&&x.getDate()<=w.end)?.n||0:0}
-function taskDate(t){return stages(t).filter(x=>!x.completedAt&&x.dueAt).map(x=>x.dueAt).sort()[0]||t.registeredAt}
+function taskDate(t){
+ if(t.assignmentScope==="todos")return stages(t).filter(x=>x.dueAt).map(x=>x.dueAt).sort().at(-1)||t.registeredAt;
+ return stages(t).filter(x=>!x.completedAt&&x.dueAt).map(x=>x.dueAt).sort()[0]||t.registeredAt;
+}
 function filtered(t,mode=state.mode){
  if(mode==="arquivo")return Boolean(t.archivedAt);
  if(!active(t))return false;
@@ -584,10 +587,10 @@ function stageResponsibleNames(stage,t){
 function deadlineFacts(t){
  const ordered=stages(t);
  if(isEveryoneAssigned(t)){
-   const day=ordered[0]?.dueAt;
+   const day=ordered.filter(x=>x.dueAt).map(x=>x.dueAt).sort().at(-1);
    return '<section class="card card-pad details-facts detail-accent-card">'+
     '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("calendar")+'</span>Data do evento</h2>'+
-    (day?'<div class="collective-event-detail"><span class="collective-event-day">'+ico("calendar")+' <strong>'+textDate(day)+'</strong></span><p>'+ico("users")+' Todos(as) participam do evento coletivo.</p><p>'+ico("check")+' '+(t.archivedAt?"Evento concluído e arquivado automaticamente.":"A conclusão é automática após o término da data do evento.")+'</p></div>':'<p>Data do evento ainda não definida.</p>')+
+    (day?'<div class="collective-event-detail"><span class="collective-event-day">'+ico("calendar")+' <strong>'+textDate(day)+'</strong></span><p>'+ico("users")+' Todos(as) participam do evento coletivo.</p><p>'+ico("check")+' '+(t.archivedAt?"Evento concluído e arquivado automaticamente.":"A conclusão é automática após o término da data do evento.")+'</p></div>':'<p>Data do evento ainda não definida. Edite a demanda para informar a data e ativar a conclusão automática.</p>')+
     '</section>';
  }
 
