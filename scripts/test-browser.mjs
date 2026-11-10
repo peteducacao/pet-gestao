@@ -110,6 +110,13 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator(".activity-detail-page").getByText("Anotações da comissão").count(),0,"Anotações apenas na edição");
  assert.equal(await page.locator(".activity-detail-page .page-actions [data-do=back]").count(),0);
  assert.equal(await page.locator(".activity-detail-page .page-actions .danger-outline").count(),1);
+ const buttonLayout=await page.locator(".activity-detail-page .page-actions").evaluate(el=>{
+   const edit=el.querySelector('a.button'),status=el.querySelector('.detail-status-control'),remove=el.querySelector('.danger-outline');
+   return {editHeight:edit.getBoundingClientRect().height,removeHeight:remove.getBoundingClientRect().height,statusWidth:status.getBoundingClientRect().width};
+ });
+ assert.ok(buttonLayout.editHeight>=45&&buttonLayout.removeHeight>=45,"Botões devem ser legíveis");
+ assert.ok(buttonLayout.statusWidth<290,"Seletor de status não pode ter espaçamento exagerado");
+ 
  assert.equal(await page.locator(".activity-detail-grid>.stack").first().locator(".assignee-card").count(),1);
  assert.ok(await page.locator(".revision-symbol svg").count()>0);
  assert.equal(await page.locator("#connection-label").count(),0);
