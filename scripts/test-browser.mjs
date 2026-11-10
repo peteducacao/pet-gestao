@@ -32,7 +32,18 @@ await page.route("**/api/v1/**",async route=>{
  else if(p==="/tasks"&&method==="POST"){tasks.push({id:"t"+(tasks.length+1),...body,commissionDone:{},userDone:{},registeredAt:"2026-11-10",archivedAt:null});status=201;result={ok:true,id:"t"+tasks.length};}
  else if(/^\/tasks\/[^/]+$/.test(p)&&method==="PUT"){const current=tasks.find(t=>t.id===p.split("/")[2]);if(current)Object.assign(current,body);result={ok:true};}
  else if(p==="/meetings"&&method==="POST"){meetings.push({id:"m"+(meetings.length+1),...body});result={ok:true};}
- else if(p.startsWith("/tasks/")&&method==="PATCH"){task.userDone.u1={at:new Date().toISOString(),by:"u1"};task.commissionDone.videos={at:new Date().toISOString(),by:"u1"};task.archivedAt=new Date().toISOString();result={ok:true,archived:true};}
+ else if(/^\/tasks\/[^/]+\/finish$/.test(p)&&method==="PATCH"){
+   const current=tasks.find(t=>t.id===p.split("/")[2]);
+   if(current){
+     const stamp=new Date().toISOString();
+     for(const cid of [...(body.commissionIds||[]),...(body.commissionId?[body.commissionId]:[])])current.commissionDone[cid]={at:stamp,by:"u1"};
+     for(const uid of body.userIds||[])current.userDone[uid]={at:stamp,by:"u1"};
+     if(!body.commissionId&&!(body.userIds?.length||body.commissionIds?.length))current.userDone.u1={at:stamp,by:"u1"};
+     const done=current.assigneeIds.every(uid=>current.userDone[uid])&&current.commissionIds.every(cid=>current.commissionDone[cid]);
+     if(done){current.archivedAt=stamp;current.status="concluida"}
+     result={ok:true,archived:!!current.archivedAt};
+   }
+ }
  await route.fulfill({status,contentType:"application/json; charset=utf-8",headers:{"access-control-allow-origin":"*","access-control-allow-headers":"*"},body:JSON.stringify(result)});
 });
 await context.addInitScript(()=>{
@@ -106,6 +117,22 @@ await page.locator('a[data-route="reunioes"]').click();
  await wait(200);
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+4);
  assert.equal(overflow,false,"Sem rolagem horizontal excessiva no celular");
+ await page.goto(origin+"/#/inicio");
+ await page.locator(".dashboard-grid .demand-card-cover-link").first().click();
+ await page.waitForURL(/#\/atividade\/t1/,{timeout:6000});
+ assert.ok(page.url().includes("#/atividade/t1"),"Card inteiro deve abrir os detalhes");
+ await page.goto(origin+"/#/minhas-pendencias");
+ const mixed=page.locator(".mine-task-item").filter({hasText:"Poesia no PET"});
+ await mixed.locator('button[data-do="finish-mine"]').click();
+ assert.equal(await page.locator('#finish-dialog input[name="joint-target"]').count(),2,"Participações individual e comissão não são confundidas");
+ await page.locator('[data-do="finish-close"]').last().click();
+ const only=page.locator(".mine-task-item").filter({hasText:"Atividade exclusiva da comissão"});
+ await only.locator('button[data-do="finish-mine"]').click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await page.waitForTimeout(250);
+ assert.ok(calls.some(x=>x.p==="/tasks/t2/finish"&&x.body.commissionId==="videos"),"Concluir a pendência da comissão usa sua participação vinculada");
+ await page.goto(origin+"/#/minhas-pendencias");
+ assert.equal(await page.locator(".mine-task-item").count(),1,"Concluída pela comissão desaparece das pendências do integrante");
  await page.goto(origin+"/#/admin/emails");
  await page.locator("#notification-template-form").waitFor({timeout:10000});
  assert.equal(await page.locator('#mail-form [data-rich-input="message"]').count(),1);
