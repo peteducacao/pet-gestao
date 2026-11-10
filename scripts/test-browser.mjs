@@ -175,6 +175,7 @@ try{
  user.role="petiano";
  await page.reload();
  await page.goto(origin+"/#/atividade/t-everyone");
+ await page.locator('button[data-do="delete-task"]').waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator('button[data-do="delete-task"]').count(),1,"PETiano pode excluir demanda ativa de outra pessoa");
  await page.locator('[data-detail-status]').selectOption("concluir");
  const allToggle=page.locator("#finish-select-all");
@@ -487,7 +488,9 @@ await page.locator('a[data-route="reunioes"]').click();
    commissionDone:{videos:{at:"2026-11-10T18:00:00.000Z",by:"u1"}},
    userDone:{u1:{at:"2026-11-10T18:00:00.000Z",by:"u1"}}});
  await page.goto(origin+"/#/atividade/t-archived");
+ await page.locator(".activity-detail-page").waitFor({timeout:10000});
  const deleteArchived=page.locator('button[data-do="delete-task"]');
+ await deleteArchived.waitFor({state:"visible",timeout:10000});
  assert.equal(await deleteArchived.count(),1,"Detalhe da concluída exibe exclusão definitiva para sessão Admin");
  assert.ok((await deleteArchived.innerText()).includes("Excluir definitivamente"));
  await deleteArchived.click();
