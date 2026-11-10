@@ -618,7 +618,7 @@ async function saveAndReload(action,success="Alterações salvas."){
 }
 function userFields(form){return Object.fromEntries(new FormData(form).entries())}
 async function saveTask(form){
- const f=collectRich(form,userFields(form)),stages=$(".live-stage").map(row=>{
+ const f=collectRich(form,userFields(form)),stages=$$(".live-stage").map(row=>{
  const label=row.querySelector('[data-stage="label"]').value,day=row.querySelector('[data-stage="day"]').value,time=row.querySelector('[data-stage="hour"]').value,person=row.querySelector('[data-stage="assignee"]').value;
  return{id:row.dataset.stageId,label,dueAt:day?day+"T"+(time||"23:59")+":00":"",assigneeIds:person?[person]:[]}
  });
