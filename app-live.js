@@ -281,12 +281,8 @@ function nav(){
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
  // Os detalhes destacam a seção pela qual a pessoa entrou.
- let selectedSection=page;
- if(["atividade","registrar"].includes(page)){
-   const from=String(state.previousRoute||"");
-   selectedSection=from.includes("/minhas-pendencias")?"minhas-pendencias":
-     from.includes("/comissoes")?"comissoes":"demandas";
- }
+ if(["inicio","demandas","comissoes","minhas-pendencias"].includes(page))state.lastListSection=page;
+ const selectedSection=["atividade","registrar"].includes(page)?(state.lastListSection||"demandas"):page;
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
    el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
