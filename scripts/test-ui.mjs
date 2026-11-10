@@ -306,9 +306,9 @@ assert.equal(user.role,"tutor","Cancelar preserva sessão e perfil");
 tasks.push({...tasks[0],id:"t-archive-bulk-1",title:"Concluída A",archivedAt:"2026-11-10T12:00:00Z",status:"concluida"},
  {...tasks[0],id:"t-archive-bulk-2",title:"Concluída B",archivedAt:"2026-11-10T12:00:00Z",status:"concluida"});
 await move("#/demandas");
-const statusSelect=document.querySelector('[data-filter="status"]');
-assert.ok(statusSelect,"Filtro de situação disponível");
-statusSelect.value="concluida";statusSelect.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+const archivedStatusSelect=document.querySelector('[data-filter="status"]');
+assert.ok(archivedStatusSelect,"Filtro de situação disponível");
+archivedStatusSelect.value="concluida";archivedStatusSelect.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 const bulkEntry=document.querySelector('[data-do="archive-bulk-toggle"]');
 assert.ok(bulkEntry,"Admin encontra Excluir na lista de concluídas");
 tap('[data-do="archive-bulk-toggle"]');await wait();
