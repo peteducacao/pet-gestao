@@ -51,6 +51,7 @@ window.fetch=async (url,options={})=>{
  }
  if(/^\/tasks\/[^/]+$/.test(path)&&method==="PUT"){const t=tasks.find(x=>x.id===path.split("/")[2]);Object.assign(t,body);return reply({ok:true});}
  if(path==="/tasks"&&method==="POST"){tasks.push({id:"t"+(++idNum),...body,commissionDone:{},userDone:{},registeredAt:"2026-11-10",archivedAt:null});return reply({ok:true});}
+ if(path==="/admin/reminder-settings"&&method==="PUT"){settings.reminderSettings=body;return reply({ok:true});}
  if(path==="/admin/notification-template"&&method==="PUT"){
  mailTemplateSaved=true;
  settings.notificationTemplates={...settings.notificationTemplates,[body.kind]:{subject:body.subject,body:body.message}};
@@ -170,7 +171,13 @@ await move("#/admin/emails");
 assert.ok(document.querySelector("#notification-template-form"),"Modelos da tutoria disponíveis no Admin");
 assert.ok(document.querySelector("#mail-form [data-rich-input='message']"),"Editor WYSIWYG no e-mail");
 const select=document.querySelector("#notification-template-kind");
-assert.equal(select.options.length,2,"Tipos de mensagem: criar ou revisar demanda");
+assert.equal(select.options.length,4,"Quatro tipos de mensagem incluindo os prazos");
+assert.ok(document.querySelector("#reminder-days"),"Antecedência configurável no Admin");
+tap('[data-do="mail-preview-template"]');
+assert.equal(document.querySelector("#mail-preview-dialog").hidden,false,"Prévia do modelo abre sem enviar e-mail");
+assert.ok(document.querySelector("#mail-preview-dialog").textContent.includes("PET Gestão"));
+tap('#mail-preview-dialog [data-do="mail-preview-close"]');
+assert.equal(document.querySelector("#mail-preview-dialog").hidden,true,"Prévia fecha e volta ao editor");
 document.querySelector("#notification-template-form input[name='subject']").value="Criação personalizada";
 submit("#notification-template-form");await wait();await wait();
 assert.ok(mailTemplateSaved&&settings.notificationTemplates.create,"Modelo de Criação salvo");
@@ -182,8 +189,22 @@ document.querySelector("#notification-template-form input[name='subject']").valu
 submit("#notification-template-form");await wait();await wait();
 assert.equal(settings.notificationTemplates.create.subject,"Criação personalizada");
 assert.equal(settings.notificationTemplates.review.subject,"Revisão personalizada");
+const kindDue=document.querySelector("#notification-template-kind");
+kindDue.value="due_soon";kindDue.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+tap('[data-do="mail-preview-template"]');
+assert.ok(document.querySelector("#mail-preview-dialog").textContent.includes("dias"),"Prévia de prazo inclui variável de dias");
+tap('#mail-preview-dialog [data-do="mail-preview-close"]');
+document.querySelector("#reminder-days").value="5";
+document.querySelector("#reminder-soon").checked=true;
+document.querySelector("#reminder-overdue").checked=true;
+tap('[data-do="save-reminder-settings"]');await wait();await wait();
+assert.deepEqual(settings.reminderSettings,{dueSoonEnabled:true,overdueEnabled:true,daysBefore:5},"Configuração enviada ao Admin");
 document.querySelector("#mail-form [data-rich-input='message']").textContent="Olá ✨\n\n#PET";
 document.querySelector("#mail-form input[name='subject']").value="Aviso PET";
+tap('[data-do="mail-preview-manual"]');
+assert.equal(document.querySelector("#mail-preview-dialog").hidden,false,"Prévia manual antes de enviar");
+assert.ok(document.querySelector("#mail-preview-dialog").textContent.includes("Olá ✨"));
+tap('#mail-preview-dialog [data-do="mail-preview-close"]');
 submit("#mail-form");await wait();await wait();
 if(!lastMail)console.log("Mail diagnostic:",document.querySelector("#notice-dialog")?.textContent,document.querySelector("#mail-form")?.outerHTML.slice(0,450));
 assert.ok(lastMail?.message?.includes("✨"),"Emojis no envio manual");
