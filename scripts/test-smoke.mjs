@@ -171,7 +171,7 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
 await test("Todos(as) persiste sem seletores individuais e é validado na API",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
  assert.ok(eligible.length>=1,"A conta Admin é elegível para atribuição geral");
- const stage={id:"prazo-todos",label:"Prazo",dueAt,assigneeIds:[eligible[0]]};
+ const stage={id:"evento-todos",label:"Evento",dueAt,assigneeIds:[eligible[0]]};
  const payload={title:"Atividade para todos",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[stage]};
  const tid=good(await api("/tasks","POST",payload),201).id;
  try{
@@ -185,28 +185,49 @@ await test("Todos(as) persiste sem seletores individuais e é validado na API",a
   assert.deepEqual(updatedAll.deadlines[0].assigneeIds,[],"Editar Todos(as) continua sem pessoa específica por etapa");
   assert.equal((await api("/tasks/"+tid,"PUT",{...payload,commissionIds:["videos"]})).status,400);
   assert.equal((await api("/tasks/"+tid,"PUT",{...payload,assigneeIds:eligible.slice(1)})).status,400);
-  good(await api("/tasks/"+tid,"PUT",{...payload,assignmentScope:"usuarios",assigneeIds:[eligible[0]]}));
+  good(await api("/tasks/"+tid,"PUT",{...payload,assignmentScope:"usuarios",assigneeIds:[eligible[0]],
+    deadlines:[{id:"pessoa-prazo",label:"Prazo",dueAt,assigneeIds:[eligible[0]]}]}));
   const updatedPerson=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
   assert.equal(updatedPerson.assignmentScope,"usuarios","É possível mudar de Todos para Pessoa");
   assert.deepEqual(updatedPerson.deadlines[0].assigneeIds,[eligible[0]],"Em Pessoas, seleção individual por etapa continua funcionando");
  }finally{good(await api("/tasks/"+tid,"DELETE"))}
 });
-await test("etapas opcionais e conclusão de Todos(as) por PETiano(a)",async()=>{
+await test("eventos coletivos têm data única, impedem conclusão manual e demandas comuns aceitam zero etapas",async()=>{
  const adminToken=token;
  const pet=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
- let taskId="",correctionId="";
+ let taskId="",correctionId="",noStepsId="";
  try{
    good(await api("/admin/users/"+pet.id,"PATCH",{role:"petiano",notificationEnabled:false}));
    const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
-   assert.ok(eligible.includes(pet.id),"PETiano promovido integra Todos(as)");
+   assert.ok(eligible.includes(pet.id),"PETiano promovido participa dos eventos coletivos");
+   const event={id:"evento-data",label:"Evento",dueAt,assigneeIds:[]};
    taskId=good(await api("/tasks","POST",{
-     title:"Todos sem prazo",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[]
+     title:"Evento para Todos(as)",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[event]
    }),201).id;
-   assert.deepEqual(good(await api("/bootstrap")).tasks.find(x=>x.id===taskId).deadlines,[],"Criar sem etapas é válido");
+   const eventTask=good(await api("/bootstrap")).tasks.find(x=>x.id===taskId);
+   assert.deepEqual(eventTask.deadlines.map(s=>s.label),["Evento"]);
+   assert.ok(eventTask.deadlines[0].dueAt.startsWith(dueAt));
+   assert.equal((await api("/tasks","POST",{
+     title:"Todos com prazo",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",
+     deadlines:[{id:"x",label:"Prazo",dueAt}]
+   })).status,400,"Todos(as) não admite Prazo/Correção/Postagem");
+   assert.equal((await api("/tasks","POST",{
+     title:"Todos com duas datas",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",
+     deadlines:[event,event]
+   })).status,400,"O evento coletivo exige uma única data");
    good(await api("/tasks/"+taskId,"PUT",{
-     title:"Todos sem prazo editado",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[]
+     title:"Evento editado",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[event]
    }));
-   assert.deepEqual(good(await api("/bootstrap")).tasks.find(x=>x.id===taskId).deadlines,[],"Editar e manter sem etapas funciona");
+   assert.equal((await api("/tasks/"+taskId+"/finish","PATCH",{userIds:eligible})).status,409,"Evento coletivo não admite conclusão manual");
+   noStepsId=good(await api("/tasks","POST",{
+     title:"Demanda normal sem prazos",assigneeIds:[pet.id],commissionIds:[],assignmentScope:"usuarios",deadlines:[]
+   }),201).id;
+   assert.deepEqual(good(await api("/bootstrap")).tasks.find(x=>x.id===noStepsId).deadlines,[]);
+   good(await api("/tasks/"+noStepsId,"PUT",{
+     title:"Etapa adicionada depois",assigneeIds:[pet.id],commissionIds:[],assignmentScope:"usuarios",
+     deadlines:[{id:"prazo-depois",label:"Prazo",dueAt}]
+   }));
+   assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===noStepsId).deadlines.length,1,"Etapa pode ser adicionada após salvar sem prazo");
    correctionId=good(await api("/tasks","POST",{
      title:"Só correção",assigneeIds:[pet.id],commissionIds:[],assignmentScope:"usuarios",
      deadlines:[{id:"correcao",label:"Correção",dueAt}]
@@ -216,19 +237,12 @@ await test("etapas opcionais e conclusão de Todos(as) por PETiano(a)",async()=>
      title:"Etapa sem data",assigneeIds:[pet.id],commissionIds:[],
      deadlines:[{id:"sem-data",label:"Prazo",dueAt:""}]
    });
-   assert.equal(invalid.status,400,"Uma etapa adicionada sem data continua inválida");
+   assert.equal(invalid.status,400);
    token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
-   const finished=good(await api("/tasks/"+taskId+"/finish","PATCH",{userIds:eligible,commissionIds:[],notify:false}));
-   assert.equal(finished.archived,true,"PETiano pode concluir para todos(as) mesmo quando a demanda é do Admin");
-   const completed=good(await api("/bootstrap")).tasks.find(x=>x.id===taskId);
-   assert.equal(Object.keys(completed.userDone).length,eligible.length);
-   assert.equal(completed.archivedAt!==null,true);
-   token=adminToken;
-   good(await api("/tasks/"+taskId,"DELETE"));
-   taskId="";
+   assert.equal((await api("/tasks/"+taskId+"/finish","PATCH",{userIds:eligible,commissionIds:[]})).status,409,"PETiano não conclui evento coletivo manualmente");
  }finally{
    token=adminToken;
-   for(const task of [taskId,correctionId])if(task&&good(await api("/bootstrap")).tasks.some(x=>x.id===task))
+   for(const task of [taskId,correctionId,noStepsId])if(task&&good(await api("/bootstrap")).tasks.some(x=>x.id===task))
      good(await api("/tasks/"+task,"DELETE"));
    good(await api("/admin/users/"+pet.id,"PATCH",{role:"usuario",notificationEnabled:false}));
  }
