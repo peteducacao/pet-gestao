@@ -1882,3 +1882,14 @@ body.mail-preview-open{overflow:hidden}
  .account-delete-actions{flex-direction:column}
  .account-delete-actions .button{flex:0 0 auto;width:100%}
 }
+
+
+/* Data de evento: mantém o asterisco na mesma linha do rótulo. */
+#screen .collective-date-label-text{
+ display:inline-flex;align-items:baseline;gap:5px;
+ flex-wrap:nowrap;white-space:nowrap;max-width:100%;
+ line-height:1.4;
+}
+#screen .collective-date-label-text .task-form-required{
+ display:inline-block;flex:none;line-height:inherit;vertical-align:baseline;
+}
