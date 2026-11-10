@@ -169,6 +169,39 @@ await move("#/atividade/t-all");
 assert.ok(document.querySelector(".details-facts")?.textContent.includes("Data do evento"));
 assert.equal(document.querySelector('[data-detail-status]'),null,"Evento coletivo não exige conclusão manual");
 tasks=tasks.filter(t=>t.id!=="t-all");
+// Uma pessoa recebe somente uma data, sem etapas, e conclui individualmente.
+tasks.push({...tasks[0],id:"t-single",title:"Entrega individual",assignmentScope:"usuarios",
+ assigneeIds:["u1"],commissionIds:[],deadlines:[],userDone:{},commissionDone:{},
+ archivedAt:null,status:"pendente",overviewVisible:true});
+await move("#/registrar/t-single");
+assert.ok(document.querySelector("#collective-date-day"),"Uma pessoa usa os campos simples de data");
+assert.ok(document.querySelector("#screen").textContent.includes("Data da atividade"));
+assert.equal(document.querySelector("#collective-date-year").value,String(new Date().getFullYear()),
+ "Ano atual vem preenchido na atividade individual");
+assert.equal(document.querySelector("#collective-date-day").value,"","Dia começa vazio");
+assert.equal(document.querySelector("#collective-date-month").value,"","Mês começa vazio");
+assert.equal(document.querySelectorAll(".live-stage").length,0,"Sem Prazo, Correção ou Postagem para uma pessoa");
+assert.equal(document.querySelectorAll('[data-do="add-stage"]').length,0,"Sem botão para adicionar etapas");
+document.querySelector("#collective-date-day").value="24";
+document.querySelector("#collective-date-month").value="11";
+submit("#task-form");await wait();await wait();
+const individual=tasks.find(x=>x.id==="t-single");
+assert.deepEqual(individual.deadlines.map(d=>d.label),["Atividade"],"Salva tipo de data individual");
+assert.equal(individual.archivedAt,null,"Data não conclui automaticamente atividade individual");
+await move("#/atividade/t-single");
+assert.ok(document.querySelector(".details-facts")?.textContent.includes("Data da atividade"),"Detalhes informam data simples");
+assert.ok(document.querySelector('[data-detail-status]'),"Atividade individual mantém conclusão manual");
+await move("#/registrar/t-single");
+const secondPerson=document.querySelector('input[data-assign="usuarios"][value="u2"]');
+assert.ok(secondPerson,"Pode adicionar segundo responsável");
+secondPerson.checked=true;
+secondPerson.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.ok(document.querySelector("#stage-rows"),"Duas pessoas voltam ao modo de etapas opcionais");
+assert.equal(document.querySelector("#collective-date-day"),null,"Múltiplas pessoas não ficam presas ao seletor simples");
+secondPerson.checked=false;
+secondPerson.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.ok(document.querySelector("#collective-date-day"),"Ao voltar para uma pessoa, restaura data simples");
+tasks=tasks.filter(t=>t.id!=="t-single");
 // Marcar somente a correção pessoal de uma demanda já presente no bootstrap.
 const pendingReviewTask=tasks.find(t=>t.id==="t2");
 assert.ok(pendingReviewTask,"Demanda de comissão atribuída à Tutoria permanece cadastrada");
