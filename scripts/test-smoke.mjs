@@ -453,7 +453,7 @@ await test("seção SISTEMA e Administração só aparecem na sessão administra
  const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8");
  assert.match(index,/<p class="nav-caption separated" id="admin-nav-caption" hidden>SISTEMA<\/p>/);
  assert.match(index,/<nav class="nav-group" id="admin-nav-group" aria-label="Administração" hidden>/);
- assert.match(index,/<button class="nav-link" id="admin-link" type="button" hidden>/);
+ assert.match(index,/<a class="nav-link" id="admin-link" href="#\/admin" hidden>/);
  assert.ok(src.includes('const adminVisible=routeParts().page==="admin"&&isAdmin();'));
  assert.ok(src.includes('if(adminCaption)adminCaption.hidden=!adminVisible'));
  assert.ok(src.includes('if(adminGroup)adminGroup.hidden=!adminVisible'));
