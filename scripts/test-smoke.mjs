@@ -151,19 +151,24 @@ await test("modelos de e-mail separados para criar e revisar, com edição indep
 await test("Todos(as) persiste sem seletores individuais e é validado na API",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
  assert.ok(eligible.length>=1,"A conta Admin é elegível para atribuição geral");
- const stage={id:"prazo-todos",label:"Prazo",dueAt};
+ const stage={id:"prazo-todos",label:"Prazo",dueAt,assigneeIds:[eligible[0]]};
  const payload={title:"Atividade para todos",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[stage]};
  const tid=good(await api("/tasks","POST",payload),201).id;
  try{
   const item=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
   assert.equal(item.assignmentScope,"todos","Modo Todos precisa ser persistido");
   assert.deepEqual(item.assigneeIds.slice().sort(),eligible.slice().sort(),"Todos(as) recebe pessoas elegíveis");
+  assert.deepEqual(item.deadlines[0].assigneeIds,[],"Mesmo que cliente envie pessoa específica, etapa de Todos(as) não armazena vínculo individual");
   good(await api("/tasks/"+tid,"PUT",{...payload,title:"Editada para todos"}));
-  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===tid).assignmentScope,"todos","Editar não perde a seleção");
+  const updatedAll=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
+  assert.equal(updatedAll.assignmentScope,"todos","Editar não perde a seleção");
+  assert.deepEqual(updatedAll.deadlines[0].assigneeIds,[],"Editar Todos(as) continua sem pessoa específica por etapa");
   assert.equal((await api("/tasks/"+tid,"PUT",{...payload,commissionIds:["videos"]})).status,400);
   assert.equal((await api("/tasks/"+tid,"PUT",{...payload,assigneeIds:eligible.slice(1)})).status,400);
   good(await api("/tasks/"+tid,"PUT",{...payload,assignmentScope:"usuarios",assigneeIds:[eligible[0]]}));
-  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===tid).assignmentScope,"usuarios","É possível mudar de Todos para Pessoa");
+  const updatedPerson=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
+  assert.equal(updatedPerson.assignmentScope,"usuarios","É possível mudar de Todos para Pessoa");
+  assert.deepEqual(updatedPerson.deadlines[0].assigneeIds,[eligible[0]],"Em Pessoas, seleção individual por etapa continua funcionando");
  }finally{good(await api("/tasks/"+tid,"DELETE"))}
 });
 await test("criar demanda",async()=>{task=good(await api("/tasks","POST",{title:"Teste Demanda",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}),201).id});
