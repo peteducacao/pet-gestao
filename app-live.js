@@ -57,7 +57,7 @@ function workspaceHash(route){return routeParts().page==="admin"?"#/admin/"+rout
 function adminEmbeddedView(parts){
  const [page,...args]=parts,route=args.join("/");
  if(page==="demandas")return renderDemandas();
- if(page==="cronograma")return renderCronograma();
+ if(page==="cronograma")return renderDemandas();
  if(page==="comissoes")return !route?renderComissoes():args[0]==="nova"?renderCommitteeEdit(""):args[0]==="editar"?renderCommitteeEdit(args.slice(1).join("/")):renderCommittee(route);
  if(page==="registrar")return renderTaskForm(route);
  if(page==="atividade")return renderDetail(args[0]||"",args[1]||"");
@@ -177,7 +177,7 @@ function invalidFieldMessage(field){
 
 function header(eye,title,sub="",actions=""){return '<div class="page-header"><div><div class="eyebrow">'+esc(eye)+'</div><h1 class="page-title">'+esc(title)+'</h1>'+(sub?'<p class="page-subtitle">'+esc(sub)+'</p>':"")+'</div><div class="page-actions">'+actions+'</div></div>'}
 function empty(title,sub=""){return'<div class="empty"><span class="empty-icon">'+ico("folder")+'</span><h3>'+esc(title)+'</h3><p>'+esc(sub)+'</p></div>'}
-function button(label,route,primary=false){return'<a href="#/'+route+'" class="button '+(primary?"primary":"ghost")+'">'+esc(label)+'</a>'}
+function button(label,route,primary=false){return'<a href="'+workspaceHash(route)+'" class="button '+(primary?"primary":"ghost")+'">'+esc(label)+'</a>'}
 function backButton(){return'<button type="button" class="button ghost" data-do="back">'+ico("chevron-left")+' Voltar</button>'}
 function routeParts(){const raw=decodeURIComponent((location.hash||"#/inicio").slice(2));const parts=raw.split("/");return{page:parts[0]||"inicio",parts:parts.slice(1)}}
 async function request(path,method="GET",payload,scope){
@@ -221,7 +221,7 @@ function nav(){
  if(account){
    const person=regularMe, logged=Boolean(person);
    account.innerHTML=ico("user")+'<span class="account-identification"><strong>'+esc(logged?person.name:"Entrar")+'</strong>'+(logged?'<small>'+esc(roleLabel(person.role))+'</small>':"")+'</span>';
-   account.classList.toggle("logged-in",logged);
+   account.classList.toggle("logged-in",logged);account.href=logged?"#/conta":"#/login";
    account.setAttribute("aria-label",logged?"Minha conta: "+person.name+" ("+roleLabel(person.role)+")":"Entrar");
    account.title=logged?"Conectado como "+person.name+" — "+roleLabel(person.role):"Entrar";
  }
@@ -231,7 +231,7 @@ function nav(){
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
  $$(".nav-link[data-route]").forEach(el=>{el.classList.toggle("active",el.dataset.route===page);if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite();if(el.dataset.route==="conta")el.hidden=!Boolean(regularMe)});
- $("#today-label").textContent=textDate(new Date());
+ if($("#today-label"))$("#today-label").textContent=textDate(new Date());
  document.title=page==="inicio"?"PET Gestão | PET Educação UFS":(routeNames[page]||"PET Gestão")+" | PET Gestão";
 }
 function weeks(y,m){const days=new Date(y,m+1,0).getDate(),firstDay=new Date(y,m,1).getDay(),firstMonday=1+((8-firstDay)%7),arr=[];let start=1,end=Math.min(days,firstMonday+6);while(start<=days){arr.push({n:arr.length+1,start,end});start=end+1;end=Math.min(days,start+6)}return arr}
@@ -497,7 +497,7 @@ function render(){
  let html="";
  if(page==="inicio")html=renderHome();
  else if(page==="demandas")html=renderDemandas();
- else if(page==="cronograma")html=renderCronograma();
+ else if(page==="cronograma")html=renderDemandas();
  else if(page==="comissoes")html=!parts.length?renderComissoes():parts[0]==="nova"?renderCommitteeEdit(""):parts[0]==="editar"?renderCommitteeEdit(parts.slice(1).join("/")):renderCommittee(parts.join("/"));
  else if(page==="registrar")html=renderTaskForm(parts.join("/"));
  else if(page==="atividade")html=renderDetail(parts[0],parts[1]||"");
@@ -852,8 +852,8 @@ function onNavigation(){
 function start(){
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
- $("#account-button")?.addEventListener("click",()=>{location.hash=regularMe?"#/conta":"#/login"});
- $("#admin-link")?.addEventListener("click",()=>{setConnecting(true,"Conectando ao painel administrativo...");location.hash="#/admin"});
+ 
+ 
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
@@ -866,7 +866,7 @@ function start(){
 
  document.addEventListener("click",e=>{
    const innerLink=e.target.closest(".admin-layout a[href^='#/']");
-   if(innerLink&&isAdmin()){
+   if(innerLink&&isAdmin()&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
      const href=innerLink.getAttribute("href")||"";
      if(!href.startsWith("#/admin")){
        e.preventDefault();
