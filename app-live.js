@@ -487,8 +487,8 @@ function assignmentView(){
  return '<div class="register-assignment"><div class="task-form-help">'+
  '<span class="task-form-help-icon">'+ico("users")+'</span><div><h3>Responsáveis pela demanda <span class="task-form-required">*</span></h3>'+
  '<p>Escolha quem ficará responsável por realizar esta atividade. Ao selecionar uma <strong>comissão</strong>, a demanda aparece na página dessa equipe. Ao escolher <strong>pessoas</strong>, ela aparece em Minhas pendências de cada responsável. Em <strong>Todos(as)</strong>, todos os integrantes com permissão de concluir recebem a demanda. A exibição na Visão geral pode ser escolhida abaixo.</p></div></div><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
- (state.assignmentScope==="todos"?'<p class="assignment-all">Todas as pessoas com permissão de concluir recebem a demanda em Minhas pendências.</p>':choices.map(x=>'<label class="assignment-option"><input type="checkbox" data-assign="'+state.assignmentScope+'" value="'+esc(x.key)+'" '+(currentSelection.has(x.key)?"checked":"")+'><span>'+esc(x.name)+'</span></label>').join(""))+
- '<p class="notice-line">Responsáveis individuais: '+(state.assignmentScope==="todos"?users.length:state.selectedUsers.size)+' · Comissões: '+state.selectedCommissions.size+'</p></div>';
+ (state.assignmentScope==="todos"?'<p class="assignment-all">Evento coletivo para PETianos(as), tutores(as) e Administração. Será concluído automaticamente após a data escolhida, sem precisar marcar a conclusão.</p>':choices.map(x=>'<label class="assignment-option"><input type="checkbox" data-assign="'+state.assignmentScope+'" value="'+esc(x.key)+'" '+(currentSelection.has(x.key)?"checked":"")+'><span>'+esc(x.name)+'</span></label>').join(""))+
+ '<p class="notice-line">'+(state.assignmentScope==="todos"?'Participantes do evento: '+users.length:'Responsáveis individuais: '+state.selectedUsers.size+' · Comissões: '+state.selectedCommissions.size)+'</p></div>';
 }
 // Sem pessoa cadastrada, a comissão NÃO é automaticamente tratada como responsável individual.
 function syncVisibilityOptions(){
@@ -527,9 +527,11 @@ function stageRow(stage={},i=0){
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function collectiveEventDate(stage=null){
- const day=(stage?.dueAt||"").slice(0,10);
- return '<div class="collective-event-date"><label for="collective-event-day">Data do evento <span class="task-form-required">*</span>'+
-  '<input id="collective-event-day" type="date" min="'+current.getFullYear()+'-01-01" value="'+esc(day)+'" required></label>'+
+ // O navegador usa a data local para preencher automaticamente o ano atual.
+ // Não restringir min/max: eventos antigos ou futuros podem ser cadastrados.
+ const day=(stage?.dueAt||"").slice(0,10)||dateKey(new Date());
+ return '<div class="collective-event-date"><label for="collective-event-day"><span class="collective-date-label-text">Data do evento <span class="task-form-required" aria-hidden="true">*</span></span>'+
+  '<input id="collective-event-day" type="date" value="'+esc(day)+'" required></label>'+
   '<p>'+ico("calendar")+' Evento coletivo para Todos(as). Será concluído e arquivado automaticamente ao terminar a data do evento (horário de Sergipe), sem confirmação manual.</p></div>';
 }
 function renderDeadlineSettings(stagesList=[]){
@@ -1025,7 +1027,7 @@ async function saveTask(form){
   });
  if(!f.title.trim())return setToast("Informe o título.");
  if(stages.some(x=>!x.dueAt))return setToast("Informe a data de todas as etapas inseridas.");
- if(stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores.");
+ if(!isCollective&&stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores nas etapas.");
  const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
  if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
  const taskId=form.dataset.id;
