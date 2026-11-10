@@ -27,11 +27,12 @@ window.scrollTo=()=>{};document.execCommand=()=>true;
 if(!window.crypto.randomUUID)window.crypto.randomUUID=()=>String(++idNum);
 window.PET_GESTAO_CONFIG={apiBaseUrl:"https://api.example.test"};
 window.localStorage.setItem("pet-gestao:session-token","user-token");
-window.localStorage.setItem("pet-gestao:admin-session-token","admin-token");
+// Uma sessão por vez: Admin entrará pelo formulário comum.
 const reply=(object,status=200)=>({ok:status<400,status,json:async()=>object});
 window.fetch=async (url,options={})=>{
  const path=new URL(url).pathname.replace("/api/v1",""), method=options.method||"GET",body=options.body?JSON.parse(options.body):{};
  const isAdmin=String(options.headers?.Authorization||"").includes("admin-token");
+ if(path==="/auth/login"&&method==="POST")return reply({token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user});
  if(path==="/auth/me")return reply({user});
  if(path==="/bootstrap")return reply({session:{user:isAdmin?admin:user},tasks,meetings,committees,users,history:[],events:[],settings});
  if(path==="/meetings"&&method==="POST"){meetings.unshift({id:"m"+(++idNum),title:body.title,date:body.date,rawNotes:body.rawNotes});return reply({ok:true},201);}
@@ -267,6 +268,16 @@ tap('button[data-do="notice-confirm"]');await wait();await wait();
 assert.deepEqual(lastFinish.userIds.sort(),["u1","u2"].sort(),"Conclusão conjunta de pessoas");
 assert.deepEqual(lastFinish.commissionIds,["videos"],"Conclusão conjunta de comissão");
 assert.ok(tasks[0].archivedAt,"Arquivamento automático");
+// Trocar para Admin pelo formulário comum, não por uma segunda entrada.
+await move("#/login");
+const adminLoginForm=document.querySelector("#login-form");
+assert.ok(adminLoginForm,"Admin utiliza o login comum");
+assert.ok(!/Admin|Painel Admin/i.test(adminLoginForm.textContent),"Tela de entrada discreta");
+adminLoginForm.elements.email.value=admin.email;
+adminLoginForm.elements.password.value="SenhaDeTeste";
+adminLoginForm.elements.rememberMe.checked=true;
+submit("#login-form");await wait();await wait();await wait();
+assert.equal(window.localStorage.getItem("pet-gestao:session-token"),"admin-token","Login único mantém token do Admin");
 await move("#/admin/comissoes");
 assert.equal(document.querySelectorAll('[data-do="save-vagas"]').length,0,"Salvar individual removido");
 assert.equal(document.querySelectorAll('[data-do="save-all-commissions"]').length,1,"Salvar todas aparece no topo");
