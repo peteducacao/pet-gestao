@@ -555,6 +555,12 @@ await test("comissões mostram só pendências sem filtros redundantes",async()=
  assert.ok(!section.includes('period()'));
  assert.ok(!section.includes('+ Nova demanda'));
 });
+await test("Postagem fica centralizada acima das duas etapas",async()=>{
+ const {readFileSync}=await import("node:fs");
+ const css=readFileSync("live.css","utf8");
+ assert.match(css,/#screen \.stage-posting-top\s*\{\s*display:flex;align-items:center;justify-content:center;/,"O bloco Postagem fica centralizado na faixa superior");
+ assert.ok(css.includes('#screen .stage-posting-top+.stage-compact-main{padding-top:4px}'),"Prazo e Correção preservados embaixo");
+});
 await test("cards compactos compartilham cores de status",async()=>{
  const {readFileSync}=await import("node:fs");
  const ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");

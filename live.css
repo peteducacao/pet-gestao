@@ -1278,10 +1278,11 @@ body.notice-open{overflow:hidden}
  border-left:1px solid #dcccf2;padding-left:18px;
 }
 #screen .stage-posting-top{
+ display:flex;align-items:center;justify-content:center;
  border-bottom:1px solid #e5d8fb;padding-bottom:12px;margin-bottom:3px;
 }
 #screen .stage-posting-top+.stage-compact-main{padding-top:4px}
-#screen .stage-posting-top .stage-compact-item{padding:0}
+#screen .stage-posting-top .stage-compact-item{padding:0;width:max-content;max-width:100%;justify-content:flex-start;}
 #screen .stage-compact-item{
  display:flex;align-items:center;gap:13px;
  padding:5px 6px;min-width:0;
