@@ -192,7 +192,7 @@ assert.equal(settings.notificationTemplates.review.subject,"Revisão personaliza
 const kindDue=document.querySelector("#notification-template-kind");
 kindDue.value="due_soon";kindDue.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 tap('[data-do="mail-preview-template"]');
-assert.ok(document.querySelector("#mail-preview-dialog").textContent.includes("dias"),"Prévia de prazo inclui variável de dias");
+assert.ok(document.querySelector("#mail-preview-dialog").textContent.includes("dia(s)"),"Prévia de prazo inclui variável de dias");
 tap('#mail-preview-dialog [data-do="mail-preview-close"]');
 document.querySelector("#reminder-days").value="5";
 document.querySelector("#reminder-soon").checked=true;
