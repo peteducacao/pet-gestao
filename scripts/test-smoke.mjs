@@ -239,42 +239,6 @@ await test("eventos coletivos passados concluem imediatamente e guardam o histó
   assert.ok(updated.archivedAt,"Mudar a data para um ano passado arquiva imediatamente");
  }finally{good(await api("/tasks/"+edit,"DELETE"))}
 });
-await test("exclusão em lote de demandas concluídas é restrita ao Admin e exige confirmação da seleção",async()=>{
- const adminToken=token;
- const admin=good(await api("/auth/me")).user;
- const ids=[];
- const task=title=>({title,assignmentScope:"usuarios",assigneeIds:[admin.id],commissionIds:[],deadlines:[]});
- try{
-  for(let n=1;n<=2;n++){
-   const id=good(await api("/tasks","POST",task("Lote arquivado "+n)),201).id;
-   good(await api("/tasks/"+id+"/finish","PATCH",{userIds:[admin.id],notify:false}));
-   ids.push(id);
-  }
-  const activeId=good(await api("/tasks","POST",task("Ativa não excluir")),201).id;
-  ids.push(activeId);
-  assert.equal((await api("/tasks/bulk-delete","POST",{ids})).status,409,"Seleção mista não pode apagar nenhuma demanda");
-  const beforeDeletion=good(await api("/bootstrap")).tasks;
-  assert.ok(ids.every(id=>beforeDeletion.some(t=>t.id===id)),"Validação ocorre antes da exclusão");
-  const person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
-  good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:false}));
-  token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
-  assert.equal((await api("/tasks/bulk-delete","POST",{ids:ids.slice(0,2)})).status,403,"Tutoria não pode excluir concluídas");
-  token=adminToken;
-  assert.equal((await api("/tasks/bulk-delete","POST",{ids:[]})).status,400,"Exclusão vazia é proibida");
-  assert.equal((await api("/tasks/bulk-delete","POST",{ids:[ids[0],ids[0]]})).status,200,"IDs repetidos são deduplicados");
-  assert.ok(!good(await api("/bootstrap")).tasks.some(t=>t.id===ids[0]),"Primeira concluída foi excluída");
-  const result=good(await api("/tasks/bulk-delete","POST",{ids:[ids[1]]}));
-  assert.equal(result.deleted,1);
-  assert.ok(!good(await api("/bootstrap")).tasks.some(t=>t.id===ids[1]),"Concluída selecionada foi excluída");
-  assert.ok(good(await api("/bootstrap")).tasks.some(t=>t.id===activeId),"Demanda ativa permanece");
- }finally{
-  token=adminToken;
-  const leftovers=good(await api("/bootstrap")).tasks;
-  for(const id of ids)if(leftovers.some(t=>t.id===id))good(await api("/tasks/"+id,"DELETE"));
-  const person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
-  good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
- }
-});
 await test("exclusão em lote de concluídas exige Administração, confirmação e preserva pendentes",async()=>{
  const adminToken=token,person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
