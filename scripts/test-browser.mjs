@@ -475,6 +475,8 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.waitForTimeout(180);
  assert.equal(settings.notificationTemplates.create?.subject,"Nova demanda personalizada");
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
+ // Modelos de prazo ficam em Configurações, não mais na aba E-mails.
+ await page.goto(origin+"/#/admin/configuracoes");
  await page.locator("#deadline-template-kind").selectOption("due_soon");
  await page.locator('[data-do="mail-preview-deadline"]').click();
  assert.ok((await page.locator("#mail-preview-dialog").innerText()).includes("5 dia(s)"),"Prévia traduz a variável dias");
