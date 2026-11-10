@@ -33,6 +33,7 @@ await page.route("**/api/v1/**",async route=>{
  else if(p==="/mail/status")result={connected:true,message:"Teste isolado"};
  else if(p==="/tasks"&&method==="POST"){tasks.push({id:"t"+(tasks.length+1),...body,commissionDone:{},userDone:{},registeredAt:"2026-11-10",archivedAt:null});status=201;result={ok:true,id:"t"+tasks.length};}
  else if(/^\/tasks\/[^/]+$/.test(p)&&method==="PUT"){const current=tasks.find(t=>t.id===p.split("/")[2]);if(current)Object.assign(current,body);result={ok:true};}
+ else if(/^\/tasks\/[^/]+$/.test(p)&&method==="DELETE"){tasks=tasks.filter(x=>x.id!==p.split("/")[2]);result={ok:true};}
  else if(p==="/meetings"&&method==="POST"){meetings.push({id:"m"+(meetings.length+1),...body});result={ok:true};}
  else if(/^\/tasks\/[^/]+\/finish$/.test(p)&&method==="PATCH"){
    const current=tasks.find(t=>t.id===p.split("/")[2]);
