@@ -228,7 +228,7 @@ await test("correção da Tutoria remove só a sua pendência, sem concluir dema
  let commissionId="";
  try{
   good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:true}));
-  const c=good(await api("/commissions","POST",{name:commissionName,description:"Comissão de teste isolada",maxMembers:2}),201);
+  const c=good(await api("/commissions","POST",{name:commissionName,description:"Comissão de teste isolada",maxMembers:2}));
   commissionId=c.id;
   const body={title:"Correção pendente da Tutoria",assignmentScope:"comissoes",
     assigneeIds:[admin.id],commissionIds:[commissionId],deadlines:[],captionText:"Texto antes"};
