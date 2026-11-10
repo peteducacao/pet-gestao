@@ -336,7 +336,7 @@ await test("painel usa apenas áreas existentes e respeita identidade",async()=>
  const css=readFileSync("live.css","utf8");
  const html=readFileSync("index.html","utf8");
  assert.ok(js.includes('const roleLabel=role=>'));
- assert.ok(js.includes('const person=regularMe, logged=Boolean(person)'));
+ assert.ok(js.includes('regularMe?"Meu perfil":"Entrar"'));
  assert.ok(js.includes('const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true)'));
  assert.ok(js.includes('admin-menu-link'));
  assert.ok(js.includes('href="#/admin/emails"'));
@@ -344,7 +344,7 @@ await test("painel usa apenas áreas existentes e respeita identidade",async()=>
  assert.ok(js.includes('admin-signout'));
  assert.ok(css.includes('.admin-layout{'));
  assert.ok(css.includes('#admin-link[hidden]{display:none!important}'));
- assert.ok(html.includes('id="account-button"'));
+ assert.ok(!html.includes('id="account-button"'));
 });
 await test("ponte Google Apps Script rejeita token inválido e testa sem enviar",async()=>{
  const {readFileSync}=await import("node:fs");
@@ -496,7 +496,8 @@ await test("Meu perfil fica em PESSOAL, sem dados repetidos no cabeçalho",async
  const index=readFileSync("index.html","utf8"),ui=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
  assert.ok(index.includes('data-route="conta"'));
  assert.ok(index.includes('href="#/conta" hidden'));
- assert.ok(index.includes('id="account-button" href="#/login"'));
+ assert.ok(!index.includes('id="account-button"'));
+  assert.ok(ui.includes('el.href=regularMe?"#/conta":"#/login"'));
  assert.ok(!index.includes('id="today-label"'));
  assert.ok(ui.includes('<strong>Status:</strong>'));
  assert.ok(ui.includes('change-password-toggle'));
