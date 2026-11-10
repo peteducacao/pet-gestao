@@ -141,6 +141,18 @@
   const plainMail=s=>String(s||"").replace(/<br\s*\/?\s*>/gi,"\n").replace(/<\/p\s*>/gi,"\n\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">");
   const mailHasFormatting=s=>/<\/?(?:p|div|br|strong|em|b|i|u|span|ul|ol|li)\b/i.test(String(s||""));
   const mailEscape=s=>String(s||"").replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]));
+  const safeMailHtml=s=>String(s||"").replace(/<([^>]*)>/g,(match,raw)=>{
+    const parsed=/^\s*(\/?)\s*(b|strong|i|em|u|p|div|br|ul|ol|li|span)\b([^>]*)$/i.exec(raw);
+    if(!parsed)return "";
+    const name=parsed[2].toLowerCase();
+    if(parsed[1])return name==="br"?"":"</"+name+">";
+    if(name==="br")return "<br>";
+    if(name==="span"){
+      const c=/color\s*:\s*(#[0-9a-f]{3,8}|rgb\([\d\s,.%]+\))/i.exec(parsed[3]);
+      return "<span"+(c?' style="color:'+c[1]+'"':"")+">";
+    }
+    return "<"+name+">";
+  });
   async function authorizedMail(env,recipients,subject,message,attachments=[]){
     if(!env.MAIL_BRIDGE_URL||!env.MAIL_BRIDGE_TOKEN)throw new Error("Integração do e-mail não configurada.");
     if(!bridgeUrlOk(env.MAIL_BRIDGE_URL))throw new Error("URL do Apps Script inválida.");
@@ -158,7 +170,7 @@
     }
     if(total>14*1024*1024)throw new Error("O tamanho total de anexos excede o limite deste envio.");
     for(let i=0;i<emailList.length;i+=45){
-      const response=await bridgePost(env,{acao:"enviar",para:emailList.slice(i,i+45),assunto:subject,mensagem:mailHasFormatting(message)?plainMail(message):message,html:mailHasFormatting(message)?message:"",tipo:"imediato",anexos:attachments});
+      const response=await bridgePost(env,{acao:"enviar",para:emailList.slice(i,i+45),assunto:subject,mensagem:mailHasFormatting(message)?plainMail(message):message,html:mailHasFormatting(message)?safeMailHtml(message):"",tipo:"imediato",anexos:attachments});
       if(response.servico!=="pet-gestao")throw new Error("Ponte de e-mail incompatível com o PET Gestão. Atualize o Apps Script antes de reenviar.");
     }
   }
@@ -202,7 +214,6 @@
       const members=(await db.prepare("SELECT user_id FROM commission_members WHERE commission_id=?").bind(cId).all()).results;
       members.forEach(m=>ids.add(m.user_id));
     }
-    ids.delete(user.id);
     const recipients=await recipientEmails(db,{userIds:[...ids]});
     if(!recipients.length)return;
     const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplate'").first();
@@ -445,7 +456,7 @@
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
         await audit(db,old.id,user,"Atualizou dados, prazos ou responsáveis");
-        await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Alteração de demanda","alterou dados e prazos");
+        if(t.captionText!==old.captionText)await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
         return answer({ok:true});
       }
       if(match&&method==="DELETE"){
@@ -462,7 +473,7 @@
           const value=String(b.captionText||"").slice(0,30000);
           await db.prepare("UPDATE tasks SET caption_text=?,updated_by=?,updated_at=?,version=version+1 WHERE id=?").bind(value,user.id,stamp,old.id).run();
           await audit(db,old.id,user,"Atualizou observações");
-          await askNotify(db,env,ctx,user,b,old,"Observações","atualizou as observações");
+          await askNotify(db,env,ctx,user,b,old,"Texto para revisão","atualizou o texto para revisão");
           return answer({ok:true});
         }
         if(match[2]==="status")fail("Utilize apenas a opção Concluir, sem estados de pendência ou aprovação.",410);
@@ -494,7 +505,6 @@
         for(const id of changedCommissions){const row=await db.prepare("SELECT name FROM commissions WHERE id=?").bind(id).first();names.push("Comissão "+(row?.name||id));}
         const action="Registrou conclusão de: "+names.join(", ");
         await audit(db,old.id,user,action,b.early?"Conclusão antecipada confirmada":"");
-        await askNotify(db,env,ctx,user,b,old,"Conclusão",action.toLowerCase());
         return answer({ok:true,archived:finished,remainingCommissions:commissionIds.filter(id=>!done[id]),remainingUsers:assigneeIds.filter(id=>!userDone[id])});
       }
       if(path==="/api/v1/meetings"&&method==="POST"){
