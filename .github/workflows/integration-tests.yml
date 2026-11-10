@@ -6,6 +6,7 @@ on:
       - 'worker/**'
       - 'app-live.js'
       - 'scripts/test-smoke.mjs'
+      - 'scripts/test-ui.mjs'
       - '.github/workflows/integration-tests.yml'
   pull_request:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - 'worker/**'
       - 'app-live.js'
       - 'scripts/test-smoke.mjs'
+      - 'scripts/test-ui.mjs'
       - '.github/workflows/integration-tests.yml'
   workflow_dispatch:
 permissions:
@@ -30,6 +32,10 @@ jobs:
           node --check app-live.js
           node --check --input-type=module < worker/src/index.js
           node --check scripts/test-smoke.mjs
+      - name: Testar interface de e-mails e configurações com JSDOM
+        run: |
+          npm install --no-save --no-package-lock jsdom@26
+          node scripts/test-ui.mjs
       - name: Instalar Wrangler
         run: npm install -g wrangler@4
       - name: Configurar banco de teste local
