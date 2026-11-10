@@ -1624,3 +1624,13 @@ body.notice-open{overflow:hidden}
  #screen .assignee-card .assignee-column-heading{font-size:12px;margin-bottom:10px}
  #screen .assignee-card .assignee-person{padding:8px 10px;font-size:12px}
 }
+
+
+/* Responsáveis por etapa: no modo Todos(as), um campo fixo (sem seletor) e legível. */
+#screen .live-stage .stage-assignee-all,
+#screen .live-stage .stage-assignee-all:disabled{
+ opacity:1;-webkit-text-fill-color:#5d339f;
+ background:#f4efff;border-color:#d9c7fb;
+ color:#5d339f;font-weight:800;
+ cursor:default;box-shadow:none;
+}

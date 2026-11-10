@@ -119,8 +119,26 @@ tasks.push({...tasks[0],id:"t-all",title:"Todos(as) na edição",assigneeIds:["u
 await move("#/registrar/t-all");
 assert.ok(document.querySelector('.assignment-modes [data-value="todos"].active'),"Editar mantém Todos(as) selecionado");
 assert.equal(document.querySelectorAll('#assignment-container [data-assign]').length,0,"Todos(as) não mostra seletor de pessoas/comissões");
+assert.equal(document.querySelectorAll('.live-stage select[data-stage="assignee"]').length,0,"Todos(as) não permite selecionar pessoa por etapa");
+let allField=document.querySelector('.live-stage input[data-stage="assignee"]');
+assert.equal(allField?.value,"Todos(as)","Campo responsável da etapa já é Todos(as)");
+assert.equal(allField?.disabled,true,"Campo fixo desabilitado na edição");
+tap('.assignment-modes [data-value="usuarios"]');await wait();
+assert.equal(document.querySelector('.live-stage select[data-stage="assignee"]')?.value,"u1","Ao voltar a Pessoas, recupera seleção individual anterior");
+tap('.assignment-modes [data-value="todos"]');await wait();
+tap('button[data-do="add-stage"]');await wait();
+const allStages=[...document.querySelectorAll(".live-stage")];
+assert.ok(allStages.length>=2,"Uma ou mais etapas novas podem ser adicionadas");
+assert.equal(document.querySelectorAll('.live-stage input[data-stage="assignee"][disabled]').length,allStages.length,"Todas as etapas mostram Todos(as) fixo");
+allStages.slice(1).forEach(row=>{
+ row.querySelector('[data-stage="day"]').value="2026-11-29";
+ row.querySelector('[data-stage="label"]').value="Postagem";
+});
 submit("#task-form");await wait();await wait();
 assert.equal(tasks.find(t=>t.id==="t-all").assignmentScope,"todos","Salvar preserva modo Todos(as)");
+assert.ok(tasks.find(t=>t.id==="t-all").deadlines.every(d=>d.assigneeIds.length===0),"Salvar Todos(as) não grava pessoa individual na etapa");
+await move("#/atividade/t-all");
+assert.ok(document.querySelector(".stage-responsible")?.textContent.includes("Todos(as)"),"Detalhes da etapa mostram Todos(as)");
 tasks=tasks.filter(t=>t.id!=="t-all");
 await move("#/atividade/t1");
 assert.ok(document.querySelector(".details-facts"),"Etapas em detalhes");

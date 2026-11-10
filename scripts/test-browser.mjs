@@ -124,9 +124,26 @@ try{
  await page.goto(origin+"/#/registrar/t-everyone");
  await page.locator('.assignment-modes [data-value="todos"].active').waitFor();
  assert.equal(await page.locator("#assignment-container [data-assign]").count(),0,"Editar Todos(as) não mostra seleção individual");
+ assert.equal(await page.locator('.live-stage select[data-stage="assignee"]').count(),0,"Em Todos(as), nenhuma etapa mostra seletor de pessoas");
+ const allStage=page.locator('.live-stage input[data-stage="assignee"]');
+ assert.equal(await allStage.inputValue(),"Todos(as)","Responsável da etapa é automaticamente Todos(as)");
+ assert.equal(await allStage.isDisabled(),true,"Campo fixo, sem escolha individual");
+ await page.locator('.assignment-modes [data-value="usuarios"]').click();
+ assert.equal(await page.locator('.live-stage select[data-stage="assignee"]').inputValue(),"u1","Ao trocar para Pessoas, responsável anterior pode ser recuperado");
+ await page.locator('.assignment-modes [data-value="todos"]').click();
+ assert.equal(await page.locator('.live-stage input[data-stage="assignee"][disabled]').count(),1);
+ await page.locator('button[data-do="add-stage"]').click();
+ assert.equal(await page.locator('.live-stage input[data-stage="assignee"][disabled]').count(),2,"Nova etapa também usa Todos(as) fixo");
+ const second=page.locator('.live-stage').nth(1);
+ await second.locator('[data-stage="label"]').selectOption("Postagem");
+ await second.locator('[data-stage="day"]').fill("2026-12-01");
  await page.locator('.task-form-header-save').click();
  await page.waitForTimeout(180);
- assert.equal(calls.filter(x=>x.p==="/tasks/t-everyone"&&x.method==="PUT").at(-1)?.body.assignmentScope,"todos","Salvar mantém a seleção Todos(as)");
+ const savedAll=calls.filter(x=>x.p==="/tasks/t-everyone"&&x.method==="PUT").at(-1)?.body;
+ assert.equal(savedAll?.assignmentScope,"todos","Salvar mantém a seleção Todos(as)");
+ assert.ok(savedAll?.deadlines.every(stage=>stage.assigneeIds.length===0),"Nenhuma etapa grava uma pessoa específica em Todos(as)");
+ await page.goto(origin+"/#/atividade/t-everyone");
+ assert.ok((await page.locator(".stage-responsible").first().innerText()).includes("Todos(as)"),"Detalhes das etapas informam Todos(as)");
  tasks=tasks.filter(x=>x.id!=="t-everyone");
  await page.goto(origin+"/#/demandas");
  await page.reload(); // Recarrega o bootstrap após retirar a demanda fictícia.

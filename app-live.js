@@ -483,15 +483,30 @@ function syncVisibilityOptions(){
  if(!allowed&&only.checked)general.checked=true;
 }
 function inheritedAssigneeLabel(){return "Não definido"}
+function stageAssigneeField(selectedOwner=""){
+ if(state.assignmentScope==="todos")
+  return '<input type="text" class="select stage-assignee-all" data-stage="assignee" value="Todos(as)" aria-label="Responsável pela etapa: Todos(as)" readonly disabled>';
+ return '<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+
+  data.users.map(u=>opt(u.id,u.name,selectedOwner)).join("")+'</select>';
+}
 function syncStageAssigneePlaceholder(){
- $$('.live-stage select[data-stage="assignee"] option[value=""]').forEach(o=>{o.textContent=inheritedAssigneeLabel()});
+ $$('.live-stage [data-stage="assignee"]').forEach(field=>{
+  const label=field.closest("label");
+  if(!label)return;
+  // O nome escolhido permanece no formulário caso a pessoa volte de Todos(as) para Pessoas.
+  if(field.tagName==="SELECT")label.dataset.previousOwner=field.value;
+  // Trocar o rótulo sem alterar os demais controles da etapa.
+  label.firstChild.textContent=state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)";
+  const selectedOwner=label.dataset.previousOwner||"";
+  field.outerHTML=stageAssigneeField(selectedOwner);
+ });
 }
 function stageRow(stage={},i=0){
  const owners=stage.assigneeIds||[],selectedOwner=owners[0]||"";
  return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
  '<label>Data<input type="date" data-stage="day" value="'+esc((stage.dueAt||"").slice(0,10))+'" min="'+current.getFullYear()+'-01-01"></label>'+
  '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
- '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+data.users.map(u=>opt(u.id,u.name,selectedOwner)).join("")+'</select></label>'+
+ '<label data-previous-owner="'+esc(selectedOwner)+'">'+(state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)")+stageAssigneeField(selectedOwner)+'</label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function renderTaskForm(routeId){
@@ -525,6 +540,7 @@ function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskI
 
 
 function stageResponsibleNames(stage,t){
+ if(isEveryoneAssigned(t))return "Todos(as)";
  const assigned=(stage.assigneeIds||[]).map(nameFor).filter(Boolean);
  if(assigned.length)return assigned.join(", ");
  if((stage.assigneeIds||[]).length)return "Responsável vinculado";
@@ -830,7 +846,8 @@ async function saveAndReload(action,success="Alterações salvas."){
 function userFields(form){return Object.fromEntries(new FormData(form).entries())}
 async function saveTask(form){
  const f=collectRich(form,userFields(form)),stages=$$(".live-stage").map(row=>{
- const label=row.querySelector('[data-stage="label"]').value,day=row.querySelector('[data-stage="day"]').value,time=row.querySelector('[data-stage="hour"]').value,person=row.querySelector('[data-stage="assignee"]').value;
+ const label=row.querySelector('[data-stage="label"]').value,day=row.querySelector('[data-stage="day"]').value,time=row.querySelector('[data-stage="hour"]').value,
+  person=state.assignmentScope==="todos"?"":row.querySelector('[data-stage="assignee"]').value;
  return{id:row.dataset.stageId,label,dueAt:day?day+"T"+(time||"23:59")+":00":"",assigneeIds:person?[person]:[]}
  });
  if(!f.title.trim())return setToast("Informe o título.");
