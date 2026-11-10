@@ -396,7 +396,7 @@ function stageRow(stage={},i=0){
  return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
  '<label>Data<input type="date" data-stage="day" value="'+esc((stage.dueAt||"").slice(0,10))+'" min="'+current.getFullYear()+'-01-01"></label>'+
  '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
- '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+data.users.map(u=>opt(u.id,u.role==="tutor"?"Tutor(a) — "+u.name:u.name,selectedOwner)).join("")+'</select></label>'+
+ '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+data.users.map(u=>opt(u.id,u.name,selectedOwner)).join("")+'</select></label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function renderTaskForm(routeId){
@@ -413,10 +413,10 @@ function renderTaskForm(routeId){
  }
  return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",backButton())+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
- '<label>Anotações<textarea rows="3" name="description">'+esc(t?.description||"")+'</textarea></label>'+
+ '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
  '<div id="assignment-container">'+assignmentView()+'</div>'+
  '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Defina até quando os(as) PETianos(as) deverão concluir cada etapa da demanda. A etapa <strong>Prazo</strong> é obrigatória e indica a data de entrega. Se precisar, acrescente etapas para organizar a <strong>Correção</strong> pela tutoria ou a <strong>Postagem</strong>. Você pode escolher um responsável para cada etapa.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?.deadlines?.length?t.deadlines:[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
- '<label>Observações (opcional)<textarea name="captionText" rows="4">'+esc(t?.captionText||"")+'</textarea></label>'+
+ '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+richEditor("captionText",t?.captionText||"")+
  '<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div></form></section>';
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
@@ -573,7 +573,7 @@ async function saveAndReload(action,success="Alterações salvas."){
 }
 function userFields(form){return Object.fromEntries(new FormData(form).entries())}
 async function saveTask(form){
- const f=userFields(form),stages=$$(".live-stage").map(row=>{
+ const f=collectRich(form,userFields(form)),stages=$(".live-stage").map(row=>{
  const label=row.querySelector('[data-stage="label"]').value,day=row.querySelector('[data-stage="day"]').value,time=row.querySelector('[data-stage="hour"]').value,person=row.querySelector('[data-stage="assignee"]').value;
  return{id:row.dataset.stageId,label,dueAt:day?day+"T"+(time||"23:59")+":00":"",assigneeIds:person?[person]:[]}
  });
@@ -816,6 +816,16 @@ async function handleClick(e){
    catch(err){setToast(err.message)}
    return;
  }
+ if(action==="rich-format"){
+   const editor=b.closest(".rich-editor")?.querySelector("[contenteditable]");
+   if(editor){editor.focus();document.execCommand(b.dataset.format,false,null);}
+   return;
+ }
+ if(action==="change-password-toggle"){
+   const form=$("#change-password-form");
+   if(form){form.hidden=!form.hidden;b.setAttribute("aria-expanded",String(!form.hidden));}
+   return;
+ }
  if(action==="remove-mail-file"){state.mailFiles.splice(Number(b.dataset.index),1);renderMailScheduling();return}
 }
 async function handleSubmit(e){
@@ -884,6 +894,11 @@ async function handleChange(e){
    if(t.dataset.filter==="week")state.week=val;
    localStorage.setItem("pet-gestao:period",JSON.stringify({year:state.year,month:state.month,week:state.week}));render();return;
  }
+ if(t.matches?.("[data-rich-color]")){
+   const editor=t.closest(".rich-editor")?.querySelector("[contenteditable]");
+   if(editor){editor.focus();document.execCommand("foreColor",false,t.value);}
+   return;
+ }
  if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
  if(t.id==="mail-scheduled"){state.mailScheduled=t.checked;state.mailFiles=[];renderMailScheduling();return}
@@ -915,6 +930,9 @@ function start(){
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
  }});
 
+ document.addEventListener("pointerdown",e=>{
+   if(e.target.closest('[data-do="rich-format"]'))e.preventDefault();
+ });
  document.addEventListener("click",e=>{
    const innerLink=e.target.closest(".admin-layout a[href^='#/']");
    if(innerLink&&isAdmin()&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
