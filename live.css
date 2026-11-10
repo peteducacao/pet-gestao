@@ -1819,3 +1819,19 @@ body.mail-preview-open{overflow:hidden}
  #screen .collective-event-date>label{max-width:none}
  #screen .collective-event-day{font-size:18px}
 }
+
+
+/* Conclusão: escolha explícita entre a própria participação e todas. */
+.finish-popup .finish-quick-actions{
+ display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+ gap:9px;margin:13px 0 18px;
+}
+.finish-popup .finish-quick-actions .button{
+ min-height:42px;display:flex;align-items:center;justify-content:center;
+ gap:8px;white-space:normal;text-align:center;
+ border-color:#d8c7f2;background:#f7f2ff;color:#59368e;font-weight:750;
+}
+.finish-popup .finish-quick-actions .button svg{flex:0 0 17px;width:17px;height:17px}
+@media(max-width:500px){
+ .finish-popup .finish-quick-actions{grid-template-columns:1fr}
+}
