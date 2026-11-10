@@ -106,6 +106,41 @@ try{
  assert.equal(await mult.locator(".demand-card-person .demand-card-picker-popover").getByText("Cards").count(),0,"Comissões não aparecem como pessoas");
  const columnsOnDesktop=await mult.evaluate(el=>getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
  assert.equal(columnsOnDesktop,4,"Quatro colunas compactas: nome, status, data e ação");
+ // Painéis recolhíveis e centralização real da Postagem em diferentes larguras.
+ const multiTask=tasks.find(x=>x.id==="t-selectors");
+ multiTask.deadlines=[
+   {id:"p1",label:"Prazo",dueAt:"2026-11-15T15:00:00",assigneeIds:["u1"]},
+   {id:"p2",label:"Correção",dueAt:"2026-11-16T15:00:00",assigneeIds:["admin"]},
+   {id:"p3",label:"Postagem",dueAt:"2026-11-17T15:00:00",assigneeIds:["u1"]}
+ ];
+ for(const width of [1420,390]){
+   await page.setViewportSize({width,height:850});
+   await page.goto(origin+"/#/atividade/t-selectors");
+   const assignees=page.locator("details.assignee-card");
+   const progress=page.locator("details.commission-progress-card");
+   assert.equal(await assignees.count(),1,"Responsáveis recolhível no viewport "+width);
+   assert.equal(await progress.count(),1,"Andamento das comissões recolhível no viewport "+width);
+   for(const section of [assignees,progress]){
+     assert.equal(await section.evaluate(e=>e.open),true,"Começa expandido");
+     await section.locator("summary").click();
+     assert.equal(await section.evaluate(e=>e.open),false,"Minimiza o painel");
+     await section.locator("summary").click();
+     assert.equal(await section.evaluate(e=>e.open),true,"Expande o painel");
+   }
+   if(width===390){
+     const metrics=await page.locator(".stage-posting-top").evaluate(el=>{
+       const parent=el.getBoundingClientRect();
+       const icon=el.querySelector(".stage-compact-icon").getBoundingClientRect();
+       const info=el.querySelector(".stage-compact-info").getBoundingClientRect();
+       const groupCenter=(icon.left+info.right)/2;
+       return {offset:Math.abs(groupCenter-(parent.left+parent.right)/2),overflow:info.right>parent.right+2};
+     });
+     assert.ok(metrics.offset<=16,"Ícone e textos da Postagem ficam centralizados no celular: "+JSON.stringify(metrics));
+     assert.equal(metrics.overflow,false,"Texto de Postagem não ultrapassa a faixa");
+   }
+ }
+ await page.setViewportSize({width:1420,height:900});
+ await page.goto(origin+"/#/demandas");
  const oneCommittee=page.locator(".demand-activity-card").filter({hasText:"Atividade exclusiva da comissão"});
  assert.equal(await oneCommittee.locator(".demand-card-single.demand-card-committee").count(),1,"Comissão única visível");
  assert.equal(await oneCommittee.locator(".demand-card-person").count(),0,"Integrante não vira responsável individual automaticamente");
@@ -363,10 +398,12 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#reminder-days").fill("5");
  await page.locator("#reminder-soon").check();
  await page.locator("#reminder-overdue").check();
+ await page.locator("#reminder-overdue-audience").selectOption("all");
  await page.locator('[data-do="save-reminder-settings"]').click();
  await page.waitForTimeout(180);
  assert.equal(settings.reminderSettings?.daysBefore,5,"Prazo personalizável");
  assert.equal(settings.reminderSettings?.dueSoonEnabled,true);
+ assert.equal(settings.reminderSettings?.overdueAudience,"all","Aviso vencido seleciona todos os vinculados");
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  await page.locator("#notification-template-form input[name=subject]").fill("Nova demanda personalizada");
  await page.locator("#notification-template-form button[type=submit]").click();
