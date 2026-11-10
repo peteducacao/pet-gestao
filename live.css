@@ -794,3 +794,76 @@ body.notice-open{overflow:hidden}
 
 .brand-mark{background:transparent!important;box-shadow:none!important;overflow:visible!important}
 .brand-mark img{display:block;width:44px;height:44px;border-radius:12px}
+
+
+/* Visibilidade da demanda: escolha simples sem novas páginas ou cards duplicados. */
+#screen .task-visibility{border:1px solid #e6dff0;border-radius:14px;padding:15px;background:#faf8ff;display:grid;gap:9px;min-width:0}
+#screen .task-visibility legend{font-weight:800;font-size:14px;color:#34264d;padding:0 6px}
+#screen .task-visibility .field-hint{margin:0 0 4px}
+#screen .visibility-choice{display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid #e3dcec;border-radius:11px;background:#fff;cursor:pointer;min-width:0}
+#screen .visibility-choice:has(input:checked){border-color:#9a79db;background:#f7f2ff}
+#screen .visibility-choice:has(input:disabled){opacity:.55;cursor:not-allowed}
+#screen .visibility-choice input{width:18px;height:18px;flex:0 0 18px;accent-color:#7954d4;margin:2px 0 0}
+#screen .visibility-choice span{display:flex;flex-direction:column;gap:5px;min-width:0}
+#screen .visibility-choice strong{font-size:13px;line-height:1.35;color:#35274e}
+#screen .visibility-choice small{font-size:12px;line-height:1.4;color:#756c85;white-space:normal}
+
+/* Como no Trello: o cartão completo pode ser aberto, inclusive em outra guia. */
+#screen .demand-activity-card{cursor:pointer;position:relative}
+#screen .demand-card-cover-link{position:absolute;inset:0;z-index:1;border-radius:inherit}
+#screen .demand-card-cover-link:focus-visible{outline:3px solid #7954d4;outline-offset:-3px}
+#screen .demand-activity-card .demand-activity-action,
+#screen .demand-activity-card .demand-finish-action{position:relative;z-index:2}
+#screen .demand-activity-card .demand-card-cover-link:hover{background:rgba(110,64,190,.018)}
+
+/* A Visão geral usa o mesmo cartão horizontal e espaçamento de Demandas. */
+#screen .dashboard-grid{grid-template-columns:minmax(0,1fr)!important;gap:18px}
+#screen .dashboard-grid>.card{min-width:0}
+#screen .dashboard-grid .demand-activity-card{
+  grid-template-columns:minmax(205px,1.5fr) auto minmax(105px,.68fr) minmax(145px,.88fr) auto!important;
+  min-height:110px;padding:19px 21px;gap:12px 19px;align-items:center
+}
+#screen .dashboard-grid .demand-activity-identity,
+#screen .dashboard-grid .demand-activity-date,
+#screen .dashboard-grid .demand-activity-owners,
+#screen .dashboard-grid .demand-activity-action,
+#screen .dashboard-grid .demand-activity-card>.task-status{
+  grid-column:auto!important;grid-row:auto!important
+}
+#screen .dashboard-grid .demand-activity-identity{gap:13px}
+#screen .dashboard-grid .demand-activity-art{width:57px;height:57px;flex-basis:57px}
+#screen .dashboard-grid .demand-activity-title{font-size:17px}
+#screen .dashboard-grid .demand-activity-date,
+#screen .dashboard-grid .demand-activity-owners{border-left:1px solid #e5e0ee;padding-left:12px}
+#screen .dashboard-grid .demand-activity-action{width:auto!important;justify-self:end}
+#screen .dashboard-grid .demand-activity-fact strong{font-size:14px}
+
+/* Concluir é uma ação compacta e não mais um botão de largura integral. */
+#screen .mine-task-item .demand-finish-action{
+  grid-column:1/-1!important;
+  width:max-content!important;max-width:100%;
+  min-width:0!important;min-height:36px;
+  justify-self:end!important;align-self:center;
+  padding:8px 14px;white-space:nowrap;
+  border-radius:10px;font-size:12px;
+}
+@media(max-width:1200px){
+ #screen .dashboard-grid .demand-activity-card{
+   grid-template-columns:minmax(0,1fr) auto!important;gap:12px
+ }
+ #screen .dashboard-grid .demand-activity-identity{grid-column:1!important;grid-row:1!important}
+ #screen .dashboard-grid .demand-activity-card>.task-status{grid-column:2!important;grid-row:1!important;justify-self:end}
+ #screen .dashboard-grid .demand-activity-date{grid-column:1!important;grid-row:2!important;border:0;padding-left:0}
+ #screen .dashboard-grid .demand-activity-owners{grid-column:2!important;grid-row:2!important;border:0;padding-left:0}
+ #screen .dashboard-grid .demand-activity-action{grid-column:2!important;grid-row:3!important}
+}
+@media(max-width:640px){
+ #screen .dashboard-grid .demand-activity-card{padding:14px;gap:11px 9px}
+ #screen .dashboard-grid .demand-activity-identity{grid-column:1/-1!important;grid-row:1!important}
+ #screen .dashboard-grid .demand-activity-card>.task-status{grid-column:1/-1!important;grid-row:2!important;justify-self:start}
+ #screen .dashboard-grid .demand-activity-date{grid-column:1/-1!important;grid-row:3!important}
+ #screen .dashboard-grid .demand-activity-owners{grid-column:1/-1!important;grid-row:4!important}
+ #screen .dashboard-grid .demand-activity-action{grid-column:2!important;grid-row:5!important}
+ #screen .dashboard-grid .demand-activity-art{width:43px;height:43px;flex-basis:43px}
+ #screen .mine-task-item .demand-finish-action{min-height:34px;font-size:12px;padding:7px 12px}
+}
