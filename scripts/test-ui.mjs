@@ -168,7 +168,7 @@ assert.ok(event.deadlines[0].dueAt.startsWith("2026-11-29"));
 await move("#/atividade/t-all");
 assert.ok(document.querySelector(".details-facts")?.textContent.includes("Data do evento"));
 assert.equal(document.querySelector('[data-detail-status]'),null,"Evento coletivo não exige conclusão manual");
-tasks=tasks.filter(t=>t.id!=="t-all");
+tasks.splice(tasks.findIndex(t=>t.id==="t-all"),1);
 // Uma pessoa recebe somente uma data, sem etapas, e conclui individualmente.
 tasks.push({...tasks[0],id:"t-single",title:"Entrega individual",assignmentScope:"usuarios",
  assigneeIds:["u1"],commissionIds:[],deadlines:[],userDone:{},commissionDone:{},
@@ -201,7 +201,7 @@ assert.equal(document.querySelector("#collective-date-day"),null,"Múltiplas pes
 secondPerson.checked=false;
 secondPerson.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 assert.ok(document.querySelector("#collective-date-day"),"Ao voltar para uma pessoa, restaura data simples");
-tasks=tasks.filter(t=>t.id!=="t-single");
+tasks.splice(tasks.findIndex(t=>t.id==="t-single"),1);
 // Marcar somente a correção pessoal de uma demanda já presente no bootstrap.
 const pendingReviewTask=tasks.find(t=>t.id==="t2");
 assert.ok(pendingReviewTask,"Demanda de comissão atribuída à Tutoria permanece cadastrada");
