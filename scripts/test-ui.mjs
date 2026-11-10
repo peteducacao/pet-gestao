@@ -81,6 +81,15 @@ assert.equal(document.querySelector('a[data-route="conta"]').getAttribute("href"
 assert.equal(document.querySelector('a[data-route="cronograma"]'),null,"Cronograma duplicado removido");
 await move("#/demandas");
 assert.ok(document.querySelector('.task-status-atrasada'),"Situação atrasada visível");
+ const singleCommitteeCard=[...document.querySelectorAll(".demand-activity-card")].find(el=>el.querySelector(".demand-activity-title")?.textContent==="V InterPET");
+assert.ok(singleCommitteeCard,"Demanda vinculada só a uma comissão aparece");
+assert.equal(singleCommitteeCard.querySelectorAll(".demand-card-single.demand-card-committee").length,1,"Uma comissão é só um nome, sem seletor");
+assert.equal(singleCommitteeCard.querySelectorAll(".demand-card-person").length,0,"Não inventar pessoa responsável para comissão");
+const multiPersonCard=[...document.querySelectorAll(".demand-activity-card")].find(el=>el.querySelector(".demand-activity-title")?.textContent==="Poesia no PET");
+assert.equal(multiPersonCard.querySelectorAll(".demand-card-single.demand-card-committee").length,1);
+assert.equal(multiPersonCard.querySelectorAll(".demand-card-picker.demand-card-person").length,1,"Duas pessoas usam o seletor");
+assert.equal(multiPersonCard.querySelectorAll(".demand-card-person li").length,2);
+
 assert.ok(document.querySelector('select[data-filter="status"]'),"Seletor de status");
 assert.equal(document.querySelectorAll('button[data-do="mode"]').length,0,"Período mensal/semanal usa seletor");
 assert.ok(document.querySelector('select[data-filter="periodMode"]'),"Seletor de período disponível");

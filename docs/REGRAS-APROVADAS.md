@@ -73,3 +73,11 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - Se uma demanda estiver vinculada só à comissão, mostrar os nomes dos integrantes no campo de responsáveis do card (quando disponíveis à conta). Não gravar atribuições individuais implicitamente nem revelar dados pessoais na visão pública.
 - Um único seletor **Visualização** controla o que é pertinente em Demandas (Todas/Pendentes/Atrasadas/Concluídas), Comissões/Minhas pendências (Todas/Pendentes/Atrasadas) e Atas (Todas/Recentes). Seletor separado de período mantém Mês/Ano/Semana e Mensal/Semanal. Nos detalhes, Visualização funciona como atalho filtrado à página Demandas.
 - Nunca criar filtros repetidos ou seletor sem função; não adicionar filtros nas páginas Perfil/Admin apenas para uniformizar a aparência.
+
+## Cards de demandas — seletor de nomes (10/11/2026)
+- Preservar integralmente o layout da página (sidebar, título, filtros, cores, status e botão Ver detalhes), alterando apenas a organização interna dos cards compartilhados por Visão geral, Demandas, Comissões e Minhas pendências.
+- Abaixo do título, manter **comissões vinculadas** e **responsáveis individuais** como duas categorias separadas. Nomes de integrantes da comissão **NUNCA** se tornam responsáveis individuais apenas pelo vínculo. Continuam, entretanto, podendo concluir sua participação na própria comissão e vendo a demanda em Minhas pendências.
+- Quando só há uma comissão, apresentar **só o nome da comissão** como chip sem seta. Quando há uma única pessoa responsável, apresentar o nome sem seta. Se não houver pessoas individuais, **não mostrar campo vazio nem “Não definido”**.
+- Quando houver mais de um item na categoria, exibir o primeiro nome seguido de **+N** em um seletor expansível que mostra toda a lista; fechar ao clicar fora ou em outro seletor. Os ícones diferenciam pessoas e comissões. A expansão não deve abrir a demanda e deve funcionar no celular e com teclado.
+- Remover do card a coluna redundante “Responsáveis”, mantendo **status, data e Ver detalhes** com distribuição proporcional sem vácuo. O card permanece inteiramente clicável e pode abrir em nova guia.
+- **Salvar demanda em Editar demanda permanece no topo ao lado de Voltar**; não repetir no rodapé. O formulário de criação mantém Salvar no rodapé. Nenhuma alteração de banco, vínculo ou regra de conclusão.

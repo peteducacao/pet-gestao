@@ -479,22 +479,21 @@ await test("login opcional persiste somente token e recuperação abre popup leg
  assert.ok(css.includes('.auth-message-shade{'));
  assert.ok(css.includes('backdrop-filter:blur('));
 });
-await test("responsáveis humanos não se confundem com nome da comissão",async()=>{
+await test("cards exibem comissões e pessoas separadamente, sem misturar integrantes",async()=>{
  const {readFileSync}=await import("node:fs");
  const js=readFileSync("app-live.js","utf8");
- assert.ok(js.includes('function who(t){'),"Responsáveis devem incluir comissões e participantes");
- assert.ok(js.includes('teams.flatMap(c=>(c.memberIds||[]).map(nameFor)'),"Integrantes da comissão aparecem quando disponíveis");
- assert.ok(js.includes('if(teams.length)return teams.map(c=>c.name).join(", ")'),"Sem pessoas visíveis, mostrar comissão, não Não definido");
- assert.ok(!js.includes('||selectedCommitteeNames(t)||"A definir"'));
- assert.ok(js.includes('const tag=ids.length?'),"Comissões devem aparecer apenas quando vinculadas.");
- assert.ok(js.includes('function renderAssignees(t)'),"Detalhes devem mostrar responsáveis reais");
- assert.ok(js.includes("const teams=(t.commissionIds||[])"),"Comissão vinculada também é responsável");
- assert.ok(js.includes("Integrantes: "),"Equipe é detalhada sem mostrar Não definido quando há comissão");
- assert.ok(js.includes('inheritedAssigneeLabel()'));
- assert.ok(js.includes('syncStageAssigneePlaceholder()'));
- assert.ok(js.includes('function inheritedAssigneeLabel(){return "Não definido"}'));
- assert.ok(!js.includes('defaultTutor=owners[0]'));
- assert.ok(!js.includes('person.value=data.users.find(x=>x.role==="tutor")'));
+ const css=readFileSync("live.css","utf8");
+ assert.ok(js.includes("function cardPeoplePicker(values,kind)"),"Comissões e pessoas devem ter controles próprios");
+ assert.ok(js.includes("if(names.length===1)"),"Com um nome não há seletor");
+ assert.ok(js.includes('names.length-1'),"Com vários nomes, mostrar primeiro e +N");
+ assert.ok(js.includes('const commissionNames=ids.map('),"Apenas comissões vinculadas compõem a lista de comissões");
+ assert.ok(js.includes('const individualNames=me?(t.assigneeIds||[])'),"Pessoas vêm somente de assigneeIds, jamais de integrantes da comissão");
+ assert.ok(!js.includes('teams.flatMap(c=>(c.memberIds||[]).map(nameFor)'),"Não misturar integrantes e responsáveis individuais");
+ assert.ok(js.includes('function renderAssignees(t)'),"Detalhes preservam seções de pessoas e comissões");
+ assert.ok(js.includes('Integrantes: '),"Detalhes preservam integrantes de comissões");
+ assert.ok(!js.includes('demand-activity-owners'),'Sem coluna redundante de responsáveis no card');
+ assert.ok(css.includes('.demand-card-picker-popover'),"Lista expansível organizada");
+ assert.ok(css.includes('grid-template-columns:minmax(260px,1fr) auto minmax(118px,.25fr) auto!important'),'Cards com quatro colunas sem vácuo extra');
 });
 await test("seção SISTEMA e Administração só aparecem na sessão administrativa",async()=>{
  const {readFileSync}=await import("node:fs");
