@@ -138,6 +138,9 @@
       return {connected:true,code:"READY",message:"Ponte Gmail autenticada e pronta para receber envios.",quota:typeof result.quota==="number"?result.quota:null};
     }catch(error){return {connected:false,code:"ERROR",message:error.message};}
   }
+  const plainMail=s=>String(s||"").replace(/<br\s*\/?\s*>/gi,"\n").replace(/<\/p\s*>/gi,"\n\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">");
+  const mailHasFormatting=s=>/<\/?(?:p|div|br|strong|em|b|i|u|span|ul|ol|li)\b/i.test(String(s||""));
+  const mailEscape=s=>String(s||"").replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]));
   async function authorizedMail(env,recipients,subject,message,attachments=[]){
     if(!env.MAIL_BRIDGE_URL||!env.MAIL_BRIDGE_TOKEN)throw new Error("Integração do e-mail não configurada.");
     if(!bridgeUrlOk(env.MAIL_BRIDGE_URL))throw new Error("URL do Apps Script inválida.");
@@ -155,7 +158,7 @@
     }
     if(total>14*1024*1024)throw new Error("O tamanho total de anexos excede o limite deste envio.");
     for(let i=0;i<emailList.length;i+=45){
-      const response=await bridgePost(env,{acao:"enviar",para:emailList.slice(i,i+45),assunto:subject,mensagem:message,tipo:"imediato",anexos:attachments});
+      const response=await bridgePost(env,{acao:"enviar",para:emailList.slice(i,i+45),assunto:subject,mensagem:mailHasFormatting(message)?plainMail(message):message,html:mailHasFormatting(message)?message:"",tipo:"imediato",anexos:attachments});
       if(response.servico!=="pet-gestao")throw new Error("Ponte de e-mail incompatível com o PET Gestão. Atualize o Apps Script antes de reenviar.");
     }
   }
@@ -202,7 +205,13 @@
     ids.delete(user.id);
     const recipients=await recipientEmails(db,{userIds:[...ids]});
     if(!recipients.length)return;
-    await enqueue(db,user.id,"automatica",recipients,"PET Gestão — "+title,"Olá!\n\n"+user.name+" "+action+" na demanda \""+task.title+"\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação",now());
+    const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplate'").first();
+    const config=asJson(saved?.value,{});
+    const subjectTemplate=str(config.subject||"PET Gestão — {tipo}",200);
+    const bodyTemplate=String(config.body||"Olá!\n\n{autor} {acao} na demanda \"{demanda}\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação").slice(0,10000);
+    const values={autor:user.name,acao:action,demanda:task.title,tipo:title};
+    const merge=(tpl,html=false)=>tpl.replace(/\{(autor|acao|demanda|tipo)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
+    await enqueue(db,user.id,"automatica",recipients,merge(subjectTemplate),merge(bodyTemplate,mailHasFormatting(bodyTemplate)),now());
     ctx.waitUntil(processQueue(env,2));
   }
   function validateTask(payload,old=null){
@@ -349,6 +358,13 @@
         await db.prepare("UPDATE users SET pass_hash=?,pass_salt=?,must_change_password=1,updated_at=? WHERE id=?").bind(await pwHash(pw,salt),salt,now(),target.id).run();
         await db.prepare("DELETE FROM sessions WHERE user_id=?").bind(target.id).run();
         return answer({temporaryPassword:pw});
+      }
+      if(path==="/api/v1/admin/notification-template"&&method==="PUT"){
+        ensure(user,true);const b=await body(req);
+        const subject=str(b.subject,200),message=String(b.message??"").trim().slice(0,10000);
+        if(!subject||!message)fail("Informe assunto e mensagem do modelo.");
+        await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
+        return answer({ok:true});
       }
       if(path==="/api/v1/admin/settings"&&method==="PUT"){
         ensure(user,true);const b=await body(req);
