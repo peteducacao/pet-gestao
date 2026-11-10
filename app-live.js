@@ -81,6 +81,10 @@ const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
 const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
+const canDeleteTask=t=>Boolean(me&&t&&(
+  isAdmin()||(me.role==="tutor"&&!t.archivedAt)||
+  (me.role==="petiano"&&!t.archivedAt&&t.createdBy===me.id)
+));
 const stageDueAt=value=>{
  const raw=String(value||"");
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
@@ -263,11 +267,10 @@ async function reload(){
    me=b.session?.user||null;
    if(inAdmin&&adminToken&&!adminRole(me)){adminToken="";forgetSessionToken(adminTokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
-   $("#connection-dot")?.classList.add("online");
-   $("#connection-label").textContent="Conectado";
+
  }catch(e){
    data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}};
-   me=null;$("#connection-label").textContent="Sem conexão";$("#connection-dot")?.classList.remove("online");setToast(e.message);
+   me=null;setToast(e.message);
  }
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
 }
@@ -473,12 +476,12 @@ function deadlineFacts(t){
 
 function historySymbol(action){
  const a=String(action||"").toLowerCase();
- if(/conclu|finaliz|aprovad/.test(a))return ["✅","complete"];
- if(/cri(o|ou|ad)|cadastr|registrou|nova demanda/.test(a))return ["📝","create"];
- if(/revis|correç|texto/.test(a))return ["✏️","review"];
- if(/email|e-mail|notific/.test(a))return ["✉️","message"];
- if(/remov|exclu|apag/.test(a))return ["🗑️","remove"];
- return ["🔄","change"];
+ if(/conclu|finaliz|aprovad/.test(a))return ["check","complete"];
+ if(/cri(o|ou|ad)|cadastr|registrou|nova demanda/.test(a))return ["plus","create"];
+ if(/revis|correç|texto/.test(a))return ["list","review"];
+ if(/email|e-mail|notific/.test(a))return ["mail","message"];
+ if(/remov|exclu|apag/.test(a))return ["close","remove"];
+ return ["clock","change"];
 }
 function renderAssignees(t){
  const people=(t.assigneeIds||[]).map(id=>nameFor(id)).filter(Boolean);
@@ -502,9 +505,9 @@ function renderHistory(t){
  '<span class="history-toggle"><span class="history-toggle-caption">Ver registros</span><svg class="history-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary>'+
  '<div class="revision-list">'+
  (history.length?history.map(h=>{
-  const [emoji,kind]=historySymbol(h.action);
+  const [iconName,kind]=historySymbol(h.action);
   const stamp=dt(h.created_at),time=stamp?stamp.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
-  return '<div class="revision-entry"><span class="revision-symbol revision-symbol-'+kind+'" aria-hidden="true">'+emoji+'</span>'+
+  return '<div class="revision-entry"><span class="revision-symbol revision-symbol-'+kind+'" aria-hidden="true">'+ico(iconName)+'</span>'+
   '<div class="revision-copy"><strong>'+esc(h.action||"Alteração")+'</strong>'+
   '<span>'+esc(h.actor_name||"Responsável não identificado")+'</span><small>'+textDate(h.created_at)+(time?' · '+time:"")+'</small></div></div>';
  }).join(""):'<p class="history-empty">Nenhuma alteração registrada.</p>')+
@@ -515,14 +518,13 @@ function detailStatusSelector(t,status){
  return '<label class="detail-status-control detail-status-'+status+'"><span class="detail-status-caption">Status</span>'+
  '<select class="detail-status-select" data-detail-status data-id="'+esc(t.id)+'" aria-label="Status da demanda: '+statusLabel[status]+'">'+
  '<option value="'+status+'" selected>'+statusLabel[status]+'</option>'+
- '<option value="concluir">Registrar conclusão…</option></select>'+
+ '<option value="concluir">Concluído</option></select>'+
  '<svg class="detail-status-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="18" height="18" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></label>';
 }
 function activitySections(t,readOnly=false){
  const ids=t.commissionIds||[];
- return '<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+
- '<section class="card card-pad"><h2>Texto para revisão</h2><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section></div>'+
- '<div class="stack">'+renderAssignees(t)+
+ return '<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+renderAssignees(t)+'</div>'+
+ '<div class="stack"><section class="card card-pad"><h2>Texto para revisão</h2><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section>'+
  (ids.length>=2?'<section class="card card-pad"><h2>Andamento das comissões</h2>'+
  ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
  '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"")+
@@ -537,7 +539,8 @@ function renderDetail(taskId,contextCid){
  if(!canWrite())return renderDetailReadOnly(t);
  const status=taskStatus(t,contextCid);
  const actions=(t.archivedAt?"":button("Editar demanda","registrar/"+id(t.id)))+
- detailStatusSelector(t,status)+backButton();
+ detailStatusSelector(t,status)+
+ (canDeleteTask(t)?'<button type="button" class="button danger-outline" data-do="delete-task" data-id="'+esc(t.id)+'">'+ico("close")+' Excluir</button>':"");
  return '<div class="activity-detail-page">'+header("Atividade",t.title,"",actions)+activitySections(t,false)+'</div>';
 }
 
@@ -734,8 +737,7 @@ async function finishTask(t,cid){
  const message=(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?\n\n":"Deseja marcar sua participação como concluída?\n\n")+
  (remaining?"A demanda será arquivada quando as demais participações forem concluídas.":"Essa é a última participação; a demanda será arquivada.");
  if(!await askConfirm(message,{title:future?"Conclusão antecipada":"Concluir participação"}))return;
- const notify=await askNotification();
- const success=await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify}),remaining?"Sua participação foi concluída. Outras pessoas ou comissões ainda precisam concluir.":"Demanda concluída e arquivada.");
+ const success=await saveAndReload(()=>request("/tasks/"+id(t.id)+"/finish","PATCH",{commissionId:cid,early:future,notify:false}),remaining?"Sua participação foi concluída. Outras pessoas ou comissões ainda precisam concluir.":"Demanda concluída e arquivada.");
  if(success)location.hash=cid?workspaceHash("comissoes/"+id(cid)):workspaceHash("minhas-pendencias");
 }
 async function saveCommission(form){
@@ -923,10 +925,12 @@ async function handleClick(e){
  }
  if(action==="delete-meeting"){if(!await askConfirm("Excluir esta ata? As demandas não serão apagadas.",{danger:true}))return;const ok=await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Ata excluída.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(action==="delete-task"){
-   if(!isAdmin())return;
-   const t=data.tasks.find(x=>x.id===tid);
-   if(!t?.archivedAt||!await askConfirm('Excluir definitivamente a demanda "'+t.title+'", incluindo etapas, observações e histórico? Essa ação não pode ser desfeita.',{danger:true}))return;
-   await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE"),"Demanda removida definitivamente.");return;
+   const task=data.tasks.find(x=>x.id===tid);
+   if(!canDeleteTask(task))return setToast("Você não tem permissão para excluir esta demanda.");
+   if(!await askConfirm('Excluir definitivamente a demanda "'+task.title+'"? Esta ação apagará a demanda, os prazos, as participações e o histórico, sem possibilidade de recuperação.',{danger:true,title:"Excluir demanda?"}))return;
+   const ok=await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE"),"Demanda excluída definitivamente.");
+   if(ok)location.hash=workspaceHash("demandas");
+   return;
  }
  if(action==="admin-signout"){
    try{await request("/auth/logout","POST",{},"admin")}catch{}
