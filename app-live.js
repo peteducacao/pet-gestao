@@ -3,7 +3,10 @@
 "use strict";
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
  let lastRichRange=null;
-const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").replace(/\/$/,"");
+// Endpoint PUBLICO de contingencia: evita tela bloqueada quando config.js nao e carregado pelo navegador.
+// O arquivo config.js (gerado no deploy) continua tendo prioridade sobre este valor.
+const API_FALLBACK="https://pet-gestao.pet-educacao.workers.dev";
+const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").trim().replace(/\/+$/,"")||API_FALLBACK;
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
 // "Manter-me conectado" guarda somente o token de sessão; nunca a senha.
