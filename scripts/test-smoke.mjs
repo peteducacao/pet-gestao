@@ -677,7 +677,8 @@ await test("formulário explica responsáveis e prazos e etapa sem pessoa indica
  const ui=readFileSync("app-live.js","utf8"),styles=readFileSync("live.css","utf8");
  assert.ok(ui.includes("Responsáveis pela demanda"));
  assert.ok(ui.includes("Escolha quem ficará responsável por realizar esta atividade"));
- assert.ok(ui.includes("Defina até quando os(as) PETianos(as) deverão concluir cada etapa"));
+ assert.ok(ui.includes("As etapas são <strong>opcionais</strong>."),"Demandas comuns explicam que prazos são opcionais");
+ assert.ok(ui.includes("Data do evento"),"Evento coletivo apresenta data própria");
  assert.ok(ui.includes("function inheritedAssigneeLabel(){return \"Não definido\"}"));
  assert.ok(ui.includes('function stageResponsibleNames('),"Etapa distingue pessoa vinculada de não definida");
  assert.ok(ui.includes('return "Não definido"'),"Etapa sem responsável não recebe integrante automaticamente");
