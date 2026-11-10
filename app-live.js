@@ -13,8 +13,8 @@ function saveSessionToken(key,value,remember){
 }
 function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
 let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",meetingView:"todas",previousRoute:"#/inicio"};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const id=v=>encodeURIComponent(String(v));
@@ -38,7 +38,9 @@ const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
-const stateBadge=t=>t.archivedAt?'<span class="pill mint">Concluída</span>':"";
+const taskStatus=(t,cid="")=>t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente";
+const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída"};
+const stateBadge=t=>'<span class="task-status task-status-'+taskStatus(t)+'">'+statusLabel[taskStatus(t)]+'</span>';
 const completedCount=t=>Object.keys(t.commissionDone||{}).length;
 const isUserDone=(task,uid)=>Boolean(task.userDone?.[uid]);
 const isTaskAssignedToMe=task=>Boolean(me&&(task.assigneeIds||[]).includes(me.id));
@@ -278,8 +280,8 @@ function taskCard(t,commissionId,withFinishAction=false){
 function renderHome(){
  const all=data.tasks.filter(active),next=[...all].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=all.filter(isLate).length;
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[all.filter(t=>isTaskAssignedToMe(t)&&!isUserDone(t,me.id)).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
- '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver cronograma","cronograma")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
+ '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[all.filter(t=>me&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id)).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 function renderDemandas(){
@@ -838,7 +840,8 @@ async function handleChange(e){
    if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncStageAssigneePlaceholder();return;
  }
  if(t.dataset.filter){
-   const val=Number(t.value);
+   if(t.dataset.filter==="status"){state.statusFilter=t.value;render();return;}
+    const val=Number(t.value);
    if(t.dataset.filter==="month"){state.month=val;state.week=0}
    if(t.dataset.filter==="year"){state.year=val;state.week=0}
    if(t.dataset.filter==="week")state.week=val;
