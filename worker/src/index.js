@@ -399,9 +399,22 @@
       // Eventos coletivos aceitam datas de qualquer ano, inclusive já passado.
       stages=[{id:str(providedStages[0].id||"evento-data",60),label:"Evento",
         dueAt:day+"T23:59:59",assigneeIds:[],commissionCompleted:{},completedAt:null}];
+    }else if(assignmentScope==="usuarios"&&assigneeIds.length===1&&!commissionIds.length&&
+      providedStages.some(d=>d?.label==="Atividade")){
+      // Uma tarefa para uma pessoa tem só a data, mas NÃO se conclui sozinha.
+      // Mantém /finish como confirmação individual do responsável.
+      if(providedStages.length!==1||providedStages[0].label!=="Atividade")
+        fail("A atividade individual deve conter apenas sua data.",400);
+      const day=str(providedStages[0].dueAt,30).slice(0,10);
+      const valid=/^\d{4}-\d{2}-\d{2}$/.test(day)&&
+        Number.isFinite(Date.parse(day+"T12:00:00Z"))&&
+        new Date(day+"T12:00:00Z").toISOString().slice(0,10)===day;
+      if(!valid)fail("Informe uma data válida para a atividade individual.",400);
+      stages=[{id:str(providedStages[0].id||"atividade-data",60),label:"Atividade",
+        dueAt:day+"T23:59:59",assigneeIds:[],commissionCompleted:{},completedAt:null}];
     }else{
       stages=providedStages.slice(0,40).map(d=>({id:str(d.id||uid(),60),label:str(d.label,20),dueAt:standardTime(d.dueAt),assigneeIds:unique(d.assigneeIds),commissionCompleted:d.commissionCompleted&&typeof d.commissionCompleted==="object"?d.commissionCompleted:{},completedAt:d.completedAt||null}));
-      // Sem etapas é permitido; se houver alguma, todas exigem tipo e data válidos.
+      // Sem etapas é permitido para tarefas antigas e demandas com mais responsáveis.
       if(stages.some(d=>!["Prazo","Correção","Postagem"].includes(d.label)||!d.dueAt))fail("Etapa inválida ou sem data.");
       if(!old&&stages.some(d=>Number(d.dueAt.slice(0,4))<currentYear()))fail("Não é permitido cadastrar datas de anos anteriores.");
     }
