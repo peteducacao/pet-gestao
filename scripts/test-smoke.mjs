@@ -191,6 +191,48 @@ await test("Todos(as) persiste sem seletores individuais e é validado na API",a
   assert.deepEqual(updatedPerson.deadlines[0].assigneeIds,[eligible[0]],"Em Pessoas, seleção individual por etapa continua funcionando");
  }finally{good(await api("/tasks/"+tid,"DELETE"))}
 });
+await test("etapas opcionais e conclusão de Todos(as) por PETiano(a)",async()=>{
+ const adminToken=token;
+ const pet=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+ let taskId="",correctionId="";
+ try{
+   good(await api("/admin/users/"+pet.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+   const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
+   assert.ok(eligible.includes(pet.id),"PETiano promovido integra Todos(as)");
+   taskId=good(await api("/tasks","POST",{
+     title:"Todos sem prazo",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[]
+   }),201).id;
+   assert.deepEqual(good(await api("/bootstrap")).tasks.find(x=>x.id===taskId).deadlines,[],"Criar sem etapas é válido");
+   good(await api("/tasks/"+taskId,"PUT",{
+     title:"Todos sem prazo editado",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[]
+   }));
+   assert.deepEqual(good(await api("/bootstrap")).tasks.find(x=>x.id===taskId).deadlines,[],"Editar e manter sem etapas funciona");
+   correctionId=good(await api("/tasks","POST",{
+     title:"Só correção",assigneeIds:[pet.id],commissionIds:[],assignmentScope:"usuarios",
+     deadlines:[{id:"correcao",label:"Correção",dueAt}]
+   }),201).id;
+   assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===correctionId).deadlines.length,1);
+   const invalid=await api("/tasks","POST",{
+     title:"Etapa sem data",assigneeIds:[pet.id],commissionIds:[],
+     deadlines:[{id:"sem-data",label:"Prazo",dueAt:""}]
+   });
+   assert.equal(invalid.status,400,"Uma etapa adicionada sem data continua inválida");
+   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+   const finished=good(await api("/tasks/"+taskId+"/finish","PATCH",{userIds:eligible,commissionIds:[],notify:false}));
+   assert.equal(finished.archived,true,"PETiano pode concluir para todos(as) mesmo quando a demanda é do Admin");
+   const completed=good(await api("/bootstrap")).tasks.find(x=>x.id===taskId);
+   assert.equal(Object.keys(completed.userDone).length,eligible.length);
+   assert.equal(completed.archivedAt!==null,true);
+   token=adminToken;
+   good(await api("/tasks/"+taskId,"DELETE"));
+   taskId="";
+ }finally{
+   token=adminToken;
+   for(const task of [taskId,correctionId])if(task&&good(await api("/bootstrap")).tasks.some(x=>x.id===task))
+     good(await api("/tasks/"+task,"DELETE"));
+   good(await api("/admin/users/"+pet.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+ }
+});
 await test("criar demanda",async()=>{task=good(await api("/tasks","POST",{title:"Teste Demanda",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}),201).id});
 await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir",async()=>{
  const original=token;
@@ -232,30 +274,29 @@ await test("exibição na Visão geral preserva registros e exige comissão para
  const invalidType=await api("/tasks/"+task,"PUT",{...payload,overviewVisible:"nao"});
  assert.equal(invalidType.status,400,"O servidor deve validar o formato booleano.");
 });
-await test("excluir demandas ativas com autorização de tutoria e autoria",async()=>{
+await test("excluir demandas ativas cadastradas por outras pessoas, inclusive Administração e Tutoria",async()=>{
  const adminToken=token;
- const admin=good(await api("/auth/me")).user;
  const pet=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
- const payload=title=>({title,commissionIds:[a],assigneeIds:[],deadlines:[{id:"prazo-apagar",label:"Prazo",dueAt}]});
- const foreign=good(await api("/tasks","POST",payload("Exclusão negada a outra pessoa")),201).id;
+ const payload=title=>({title,commissionIds:[a],assigneeIds:[],deadlines:[]});
+ const foreign=good(await api("/tasks","POST",payload("Exclusão de uma demanda do Admin")),201).id;
+ let tutorCreated="";
  try{
    good(await api("/admin/users/"+pet.id,"PATCH",{role:"petiano",notificationEnabled:false}));
    token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
-   assert.equal((await api("/tasks/"+foreign,"DELETE")).status,403,"PETiano não apaga demanda criada por outra pessoa");
-   const own=good(await api("/tasks","POST",payload("Demanda criada pelo PETiano")),201).id;
-   const created=good(await api("/bootstrap")).tasks.find(x=>x.id===own);
-   assert.equal(created.createdBy,pet.id,"Autoria precisa ser recuperável");
-   good(await api("/tasks/"+own,"DELETE"));
-   assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===own),"PETiano pode excluir demanda ativa criada por si");
+   good(await api("/tasks/"+foreign,"DELETE"));
+   assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===foreign),"PETiano pode excluir demanda ativa do Admin");
    token=adminToken;
    good(await api("/admin/users/"+pet.id,"PATCH",{role:"tutor",notificationEnabled:false}));
    token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
-   good(await api("/tasks/"+foreign,"DELETE"));
-   assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===foreign),"Tutoria pode excluir demanda ativa");
+   tutorCreated=good(await api("/tasks","POST",payload("Demanda feita pela Tutoria")),201).id;
+   token=adminToken;
+   good(await api("/tasks/"+tutorCreated,"DELETE"));
+   assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===tutorCreated),"Admin exclui demanda da Tutoria");
  }finally{
    token=adminToken;
    good(await api("/admin/users/"+pet.id,"PATCH",{role:"usuario",notificationEnabled:false}));
-   if(good(await api("/bootstrap")).tasks.some(x=>x.id===foreign))good(await api("/tasks/"+foreign,"DELETE"));
+   for(const taskId of [foreign,tutorCreated])if(taskId&&good(await api("/bootstrap")).tasks.some(x=>x.id===taskId))
+     good(await api("/tasks/"+taskId,"DELETE"));
  }
 });
 await test("observações e sem status antigos",async()=>{
