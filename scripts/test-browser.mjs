@@ -106,6 +106,19 @@ try{
  tasks=tasks.filter(x=>x.id!=="t-selectors");
  committees.splice(1);
  await page.reload();
+ // No modo Todos, a interface apresenta o rótulo sem despejar cada nome.
+ tasks.push({...task,id:"t-everyone",title:"Demanda para Todos",assigneeIds:["u1","admin"],
+  commissionIds:[],userDone:{},commissionDone:{},archivedAt:null});
+ await page.reload();
+ const allCard=page.locator(".demand-activity-card").filter({hasText:"Demanda para Todos"});
+ await allCard.waitFor();
+ assert.equal(await allCard.locator(".demand-card-person").innerText(),"Todos","Card mostra Todos como grupo");
+ await page.goto(origin+"/#/atividade/t-everyone");
+ assert.equal(await page.locator(".assignee-everyone").innerText(),"Todos","Detalhes exibem Todos sem nomes individuais");
+ assert.equal(await page.locator(".assignee-commissions-panel").count(),0,"Sem comissão não aparece coluna vazia");
+ tasks=tasks.filter(x=>x.id!=="t-everyone");
+ await page.goto(origin+"/#/demandas");
+
  const [extra]=await Promise.all([context.waitForEvent("page"),page.locator('a[data-route="comissoes"]').click({modifiers:["Control"]})]);
  await extra.waitForURL(/#\/comissoes/,{timeout:10000});assert.ok(extra.url().includes("#/comissoes"),"Comissão abre em outra guia");await extra.close();
  await page.goto(origin+"/#/inicio");
@@ -169,6 +182,18 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(buttonLayout.statusWidth<290,"Seletor de status não pode ter espaçamento exagerado");
  
  assert.equal(await page.locator(".activity-detail-top .detail-left-column .assignee-card").count(),1);
+ assert.equal(await page.locator(".assignee-columns>.assignee-people-panel").count(),1,"Pessoas em uma coluna");
+ assert.equal(await page.locator(".assignee-columns>.assignee-commissions-panel").count(),1,"Comissões na outra coluna");
+ const sideBySide=await page.locator(".assignee-columns").evaluate(el=>{
+  const a=el.querySelector(".assignee-people-panel").getBoundingClientRect();
+  const b=el.querySelector(".assignee-commissions-panel").getBoundingClientRect();
+  return {sameRow:Math.abs(a.top-b.top)<4,gap:b.left-a.right};
+ });
+ assert.ok(sideBySide.sameRow&&sideBySide.gap>=10,"Colunas separadas lado a lado no PC");
+ assert.equal(await page.locator(".stage-responsible strong").count(),1,"Nome do responsável destacado na etapa");
+ const responsibilityFont=await page.locator(".stage-responsible").first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ assert.ok(responsibilityFont>=13,"Informação de responsável deve ser legível");
+
  assert.equal(await page.locator(".activity-detail-top .detail-history-column .activity-history").count(),1);
  assert.equal(await page.locator(".detail-review-full").count(),1,"Texto para revisão fica abaixo das colunas");
  assert.equal(await page.locator(".assignee-group-heading").filter({hasText:"Comissões"}).count(),0,"Sem legenda roxa duplicada");
@@ -197,6 +222,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".assignee-card").waitFor();
  assert.ok((await page.locator(".assignee-card").innerText()).includes("Vídeos"),"Demanda apenas de comissão exibe a equipe");
  assert.equal(await page.locator(".assignee-card").getByText("Não definido").count(),0,"Não mostrar responsável indefinido quando há comissão");
+ assert.equal(await page.locator(".assignee-people-panel").count(),0,"Não inventar pessoa quando há apenas comissão");
+ assert.equal(await page.locator(".assignee-columns-single").count(),1,"Comissão única ocupa o quadro sem coluna vazia");
+
  assert.equal(await page.locator(".detail-left-column .assignee-group-heading").filter({hasText:"Comissões"}).count(),0,"Comissão aparece diretamente, sem subtítulo roxo");
  assert.ok((await page.locator(".assignee-team").innerText()).includes("Usuário de teste"),"Integrante da comissão identificado");
  
