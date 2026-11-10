@@ -1559,3 +1559,68 @@ body.notice-open{overflow:hidden}
   max-width:calc(100vw - 58px);
  }
 }
+
+
+/* Responsáveis da etapa — leitura clara sem criar uma nova caixa ou mudar o layout. */
+#screen .stage-responsible{
+ display:flex;align-items:center;flex-wrap:wrap;gap:6px;
+ margin-top:4px;font-size:13.5px;line-height:1.5;
+ font-weight:600;color:#5e5271;overflow-wrap:anywhere;
+}
+#screen .stage-responsible svg{
+ width:16px;height:16px;flex:0 0 16px;
+ color:#7450b8;
+}
+#screen .stage-responsible span{min-width:0}
+#screen .stage-responsible strong{
+ font-weight:800;color:#49375f;
+}
+
+/* Pessoas e Comissões ficam em colunas separadas e nunca são confundidas. */
+#screen .assignee-card .assignee-columns{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:22px;align-items:start;min-width:0;
+}
+#screen .assignee-card .assignee-columns-single{grid-template-columns:minmax(0,1fr)}
+#screen .assignee-card .assignee-columns>.assignee-group{margin-top:0;min-width:0}
+#screen .assignee-card .assignee-commissions-panel{min-width:0}
+#screen .assignee-card .assignee-columns:not(.assignee-columns-single) .assignee-commissions-panel{
+ border-left:1px solid #e8e0f2;padding-left:22px;
+}
+#screen .assignee-card .assignee-column-heading{
+ display:flex;align-items:center;gap:7px;
+ margin-bottom:14px;font-size:12.5px;line-height:1.5;
+ font-weight:850;color:#60546e;
+}
+#screen .assignee-card .assignee-column-heading svg{
+ width:17px;height:17px;flex:0 0 17px;color:#756095;
+}
+#screen .assignee-card .assignee-people-panel .assignee-chips{
+ display:flex;flex-wrap:wrap;align-items:flex-start;gap:9px;
+}
+#screen .assignee-card .assignee-person{
+ min-height:37px;padding:9px 12px;font-size:12.5px;
+}
+#screen .assignee-card .assignee-everyone{
+ display:inline-flex;align-items:center;gap:9px;
+ min-height:39px;padding:10px 15px;
+ background:#f0e9fc;border:1px solid #dfd0f9;
+ border-radius:11px;color:#5e379e;font-size:13px;
+}
+#screen .assignee-card .assignee-everyone svg{width:18px;height:18px}
+#screen .assignee-card .assignee-everyone strong{font-weight:850}
+#screen .assignee-card .assignee-team{
+ margin-bottom:9px;padding:11px 13px;
+}
+@media(max-width:1200px){
+ #screen .assignee-card .assignee-columns{grid-template-columns:minmax(0,1fr);gap:16px}
+ #screen .assignee-card .assignee-columns:not(.assignee-columns-single) .assignee-commissions-panel{
+  border-left:0;border-top:1px solid #e9e2f3;
+  padding-left:0;padding-top:14px;
+ }
+}
+@media(max-width:640px){
+ #screen .stage-responsible{font-size:13px;gap:5px}
+ #screen .assignee-card .assignee-column-heading{font-size:12px;margin-bottom:10px}
+ #screen .assignee-card .assignee-person{padding:8px 10px;font-size:12px}
+}
