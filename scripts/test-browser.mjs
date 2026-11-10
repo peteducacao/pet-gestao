@@ -63,6 +63,15 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 try{
  await page.goto(origin+"/#/demandas",{waitUntil:"domcontentloaded"});
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
+ // Regression: GitHub Pages/browser may fail to load config.js. The PUBLIC fallback
+ // must still let the user access PET Gestão without "URL da API ainda não publicada".
+ await page.route("**/config.js*",route=>route.abort());
+ await page.reload({waitUntil:"domcontentloaded"});
+ await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
+ assert.equal(await page.locator("#notice-dialog").isHidden(),true,"Sem config.js, o site segue conectado a API publica");
+ await page.unroute("**/config.js*");
+ await page.reload({waitUntil:"domcontentloaded"});
+ await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
  assert.equal(await page.locator('a[data-route="cronograma"]').count(),0,"Cronograma duplicado não deve aparecer no menu");
  assert.equal(await page.locator('a[data-route="reunioes"]').count(),1,"Atas no menu");
  assert.equal(await page.locator('select[data-filter="status"]').count(),1);
