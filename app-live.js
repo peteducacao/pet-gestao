@@ -803,6 +803,59 @@ function renderAdmin(){
  '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
  dashboard+adminPanels)+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
 }
+
+let mailPreviewReturnFocus=null;
+function closeMailPreview(){
+ const layer=$("#mail-preview-dialog");if(!layer)return;
+ layer.hidden=true;layer.innerHTML="";
+ document.body.classList.remove("mail-preview-open");
+ if(mailPreviewReturnFocus?.isConnected)mailPreviewReturnFocus.focus();
+ mailPreviewReturnFocus=null;
+}
+function showMailPreview(mode){
+ const form=$(mode==="template"?"#notification-template-form":"#mail-form");
+ if(!form)return;
+ const f=collectRich(form,userFields(form));
+ const title=String(f.subject||"").trim(),message=String(f.message||"");
+ if(!title||!message.replace(/<[^>]*>/g,"").trim())return setToast("Preencha o assunto e a mensagem para visualizar.");
+ const days=Number($("#reminder-days")?.value||data.settings.reminderSettings?.daysBefore||3);
+ const exampleDate=new Intl.DateTimeFormat("pt-BR",{
+   timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"
+ }).format(new Date(Date.now()+(Number.isFinite(days)?days:3)*86400000));
+ const sample={
+   autor:"Equipe PET Educação",acao:"registrou uma atualização",demanda:"Exemplo de demanda",
+   tipo:"Notificação",etapa:"Prazo",prazo:exampleDate+" às 17:00",
+   dias:String(days),link:"https://peteducacao.github.io/pet-gestao/#/atividade/exemplo"
+ };
+ if(mode==="template"){
+   if(f.kind==="due_soon"){sample.tipo="Prazo vencendo";sample.acao="avisa que o prazo está vencendo"}
+   if(f.kind==="overdue"){sample.tipo="Prazo vencido";sample.acao="avisa que o prazo venceu"}
+   if(f.kind==="create")sample.tipo="Nova demanda";
+   if(f.kind==="review")sample.tipo="Texto para revisão";
+ }
+ const hydrate=(value,escapeValue=false)=>String(value).replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link)\}/g,(_,key)=>escapeValue?esc(sample[key]):sample[key]);
+ const subject=mode==="template"?hydrate(title):title;
+ const html=mode==="template"?hydrate(safeRich(message),true):safeRich(message);
+ let audience="Responsáveis vinculados à demanda";
+ if(mode==="manual"){
+   const ids=$('input[name="mail-target"]:checked');
+   if(state.mailAudience==="todos")audience="Todos(as) os usuários cadastrados";
+   else if(state.mailAudience==="comissoes")audience=ids.length?ids.map(x=>committee(x.value)?.name||"Comissão").join(", "):"Nenhuma comissão selecionada";
+   else audience=ids.length?ids.map(x=>nameFor(x.value)||"Pessoa selecionada").join(", "):"Nenhuma pessoa selecionada";
+ }
+ const layer=$("#mail-preview-dialog");if(!layer)return;
+ mailPreviewReturnFocus=document.activeElement;
+ layer.innerHTML='<div class="mail-preview-shade" data-do="mail-preview-close"></div>'+
+  '<section class="mail-preview-card" role="dialog" aria-modal="true" aria-labelledby="mail-preview-title">'+
+  '<div class="mail-preview-heading"><div><h2 id="mail-preview-title">Pré-visualização do e-mail</h2><p>Confira como a mensagem será apresentada antes de salvar ou enviar.</p></div><button type="button" class="button ghost" data-do="mail-preview-close" aria-label="Fechar prévia">Fechar</button></div>'+
+  (mode==="template"?'<p class="mail-preview-sample-note">Prévia ilustrativa: os campos automáticos aparecem com dados de exemplo, sem disparar nenhum e-mail.</p>':"")+
+  '<div class="mail-preview-envelope"><div class="mail-preview-meta"><span>De: <strong>PET Educação</strong></span><span>Para: '+esc(audience)+'</span><span>Assunto: <strong>'+esc(subject)+'</strong></span></div>'+
+  '<div class="mail-preview-message">'+html+'</div></div>'+
+  '<div class="mail-preview-actions"><button type="button" class="button primary" data-do="mail-preview-close">Voltar à edição</button></div></section>';
+ layer.hidden=false;document.body.classList.add("mail-preview-open");
+ layer.querySelector(".mail-preview-heading [data-do]")?.focus();
+}
+
 function renderMailRecipients(){
  const el=$("#mail-recipients");if(!el)return;
  const list=state.mailAudience==="comissoes"?data.committees:state.mailAudience==="usuarios"?data.users:[];
@@ -978,6 +1031,18 @@ async function handleClick(e){
    const field=$("#notice-secret-value");if(!field)return;
    try{await navigator.clipboard.writeText(field.value);b.textContent="Copiado!";}
    catch{field.focus();field.select();b.textContent="Selecione e copie";}
+   return;
+ }
+ if(action==="mail-preview-close"){closeMailPreview();return}
+ if(action==="mail-preview-template"){showMailPreview("template");return}
+ if(action==="mail-preview-manual"){showMailPreview("manual");return}
+ if(action==="save-reminder-settings"){
+   const days=Number($("#reminder-days")?.value);
+   if(!Number.isInteger(days)||days<1||days>30)return setToast("Informe uma antecedência entre 1 e 30 dias.");
+   await saveAndReload(()=>request("/admin/reminder-settings","PUT",{
+     dueSoonEnabled:$("#reminder-soon").checked,
+     overdueEnabled:$("#reminder-overdue").checked,daysBefore:days
+   },"admin"),"Configurações dos avisos de prazo salvas.");
    return;
  }
  if(action==="admin-tab"){
@@ -1271,9 +1336,10 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog()});
+ window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog();closeMailPreview()});
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
-   if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
+   if(!$("#mail-preview-dialog")?.hidden){e.preventDefault();closeMailPreview()}
+   else if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
    else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
     else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
