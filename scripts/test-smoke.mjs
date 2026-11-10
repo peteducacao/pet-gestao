@@ -282,6 +282,30 @@ await test("exclusão em lote de concluídas exige Administração, confirmaçã
      if(good(await api("/bootstrap")).tasks.some(t=>t.id===id))good(await api("/tasks/"+id,"DELETE"));
  }
 });
+await test("atividade atribuída a uma pessoa usa só data e exige conclusão manual",async()=>{
+ const person=good(await api("/auth/me")).user;
+ const date="2020-06-20";
+ const body={title:"Atividade individual simples",assignmentScope:"usuarios",
+   assigneeIds:[person.id],commissionIds:[],
+   deadlines:[{id:"atividade-data",label:"Atividade",dueAt:date+"T23:59:59"}]};
+ const id=good(await api("/tasks","POST",body),201).id;
+ try{
+  const item=good(await api("/bootstrap")).tasks.find(t=>t.id===id);
+  assert.deepEqual(item.deadlines.map(d=>d.label),["Atividade"]);
+  assert.equal(item.archivedAt,null,"Mesmo com data passada a atividade individual permanece ativa");
+  assert.deepEqual(item.userDone,{},"O servidor não conclui automaticamente atividades individuais");
+  assert.equal(item.deadlines[0].dueAt,date+"T23:59:59");
+  assert.equal((await api("/tasks","POST",{...body,
+    assigneeIds:[person.id,"outra-pessoa"],deadlines:body.deadlines})).status,400,
+    "Atividade de data única não permite mais de uma pessoa");
+  assert.equal((await api("/tasks","POST",{...body,
+    deadlines:[...body.deadlines,{id:"extra",label:"Prazo",dueAt:date+"T23:59:59"}]})).status,400,
+    "Data simples não pode ser combinada com etapas adicionais");
+  const done=good(await api("/tasks/"+id+"/finish","PATCH",{userIds:[person.id],notify:false}));
+  assert.equal(done.archived,true,"Pessoa responsável continua podendo concluir manualmente");
+  assert.ok(good(await api("/bootstrap")).tasks.find(t=>t.id===id).archivedAt);
+ }finally{good(await api("/tasks/"+id,"DELETE"))}
+});
 await test("etapas opcionais nas demandas comuns",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
  const id=good(await api("/tasks","POST",{title:"Demanda sem etapas",assigneeIds:[eligible[0]],commissionIds:[],assignmentScope:"usuarios",deadlines:[]}),201).id;
