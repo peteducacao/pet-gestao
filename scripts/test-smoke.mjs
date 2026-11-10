@@ -485,7 +485,7 @@ await test("conclusão conjunta, filtros e seleção independente estão no cód
  assert.ok(ui.includes('state.selectedCommissions'));
  assert.ok(ui.includes('state.selectedUsers'));
  assert.ok(ui.includes('function openFinishDialog(task)'));
- assert.ok(ui.includes('data-do="finish-joint-open"'));
+ assert.ok(ui.includes('data-detail-status'),"Conclusão conjunta deve abrir pelo seletor de status");
  assert.ok(ui.includes('data-do="finish-joint-confirm"'));
  assert.ok(ui.includes('status-filter-label'));
  assert.ok(ui.includes('taskStatus(t'));
