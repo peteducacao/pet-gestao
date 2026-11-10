@@ -80,6 +80,7 @@ function doPost(e) {
       return Utilities.newBlob(bytes,String(a.mimeType||"application/octet-stream").slice(0,100),String(a.nome||"anexo").slice(0,150));
     });
     var options={to:recipients.join(","),subject:subject,body:message,name:"PET Educação · Gestão"};
+    if(b.html)options.htmlBody=String(b.html).slice(0,30000);
     if(attachments.length)options.attachments=attachments;
     MailApp.sendEmail(options);
     return respostaPETGestao_({ok:true,acao:"enviar",servico:"pet-gestao",aceito:true});

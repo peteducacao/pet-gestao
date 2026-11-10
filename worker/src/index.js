@@ -138,6 +138,21 @@
       return {connected:true,code:"READY",message:"Ponte Gmail autenticada e pronta para receber envios.",quota:typeof result.quota==="number"?result.quota:null};
     }catch(error){return {connected:false,code:"ERROR",message:error.message};}
   }
+  const plainMail=s=>String(s||"").replace(/<br\s*\/?\s*>/gi,"\n").replace(/<\/p\s*>/gi,"\n\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">");
+  const mailHasFormatting=s=>/<\/?(?:p|div|br|strong|em|b|i|u|span|ul|ol|li)\b/i.test(String(s||""));
+  const mailEscape=s=>String(s||"").replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[x]));
+  const safeMailHtml=s=>String(s||"").replace(/<([^>]*)>/g,(match,raw)=>{
+    const parsed=/^\s*(\/?)\s*(b|strong|i|em|u|p|div|br|ul|ol|li|span)\b([^>]*)$/i.exec(raw);
+    if(!parsed)return "";
+    const name=parsed[2].toLowerCase();
+    if(parsed[1])return name==="br"?"":"</"+name+">";
+    if(name==="br")return "<br>";
+    if(name==="span"){
+      const c=/color\s*:\s*(#[0-9a-f]{3,8}|rgb\([\d\s,.%]+\))/i.exec(parsed[3]);
+      return "<span"+(c?' style="color:'+c[1]+'"':"")+">";
+    }
+    return "<"+name+">";
+  });
   async function authorizedMail(env,recipients,subject,message,attachments=[]){
     if(!env.MAIL_BRIDGE_URL||!env.MAIL_BRIDGE_TOKEN)throw new Error("Integração do e-mail não configurada.");
     if(!bridgeUrlOk(env.MAIL_BRIDGE_URL))throw new Error("URL do Apps Script inválida.");
@@ -155,7 +170,7 @@
     }
     if(total>14*1024*1024)throw new Error("O tamanho total de anexos excede o limite deste envio.");
     for(let i=0;i<emailList.length;i+=45){
-      const response=await bridgePost(env,{acao:"enviar",para:emailList.slice(i,i+45),assunto:subject,mensagem:message,tipo:"imediato",anexos:attachments});
+      const response=await bridgePost(env,{acao:"enviar",para:emailList.slice(i,i+45),assunto:subject,mensagem:mailHasFormatting(message)?plainMail(message):message,html:mailHasFormatting(message)?safeMailHtml(message):"",tipo:"imediato",anexos:attachments});
       if(response.servico!=="pet-gestao")throw new Error("Ponte de e-mail incompatível com o PET Gestão. Atualize o Apps Script antes de reenviar.");
     }
   }
@@ -199,10 +214,15 @@
       const members=(await db.prepare("SELECT user_id FROM commission_members WHERE commission_id=?").bind(cId).all()).results;
       members.forEach(m=>ids.add(m.user_id));
     }
-    ids.delete(user.id);
     const recipients=await recipientEmails(db,{userIds:[...ids]});
     if(!recipients.length)return;
-    await enqueue(db,user.id,"automatica",recipients,"PET Gestão — "+title,"Olá!\n\n"+user.name+" "+action+" na demanda \""+task.title+"\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação",now());
+    const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplate'").first();
+    const config=asJson(saved?.value,{});
+    const subjectTemplate=str(config.subject||"PET Gestão — {tipo}",200);
+    const bodyTemplate=String(config.body||"Olá!\n\n{autor} {acao} na demanda \"{demanda}\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação").slice(0,10000);
+    const values={autor:user.name,acao:action,demanda:task.title,tipo:title};
+    const merge=(tpl,html=false)=>tpl.replace(/\{(autor|acao|demanda|tipo)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
+    await enqueue(db,user.id,"automatica",recipients,merge(subjectTemplate),merge(bodyTemplate,mailHasFormatting(bodyTemplate)),now());
     ctx.waitUntil(processQueue(env,2));
   }
   function validateTask(payload,old=null){
@@ -350,6 +370,13 @@
         await db.prepare("DELETE FROM sessions WHERE user_id=?").bind(target.id).run();
         return answer({temporaryPassword:pw});
       }
+      if(path==="/api/v1/admin/notification-template"&&method==="PUT"){
+        ensure(user,true);const b=await body(req);
+        const subject=str(b.subject,200),message=String(b.message??"").trim().slice(0,10000);
+        if(!subject||!message)fail("Informe assunto e mensagem do modelo.");
+        await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
+        return answer({ok:true});
+      }
       if(path==="/api/v1/admin/settings"&&method==="PUT"){
         ensure(user,true);const b=await body(req);
         await db.batch(["autoMonth","autoWeek"].map(k=>db.prepare("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(k,JSON.stringify(Boolean(b[k])))));
@@ -429,7 +456,7 @@
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
         await audit(db,old.id,user,"Atualizou dados, prazos ou responsáveis");
-        await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Alteração de demanda","alterou dados e prazos");
+        if(t.captionText!==old.captionText)await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
         return answer({ok:true});
       }
       if(match&&method==="DELETE"){
@@ -446,37 +473,38 @@
           const value=String(b.captionText||"").slice(0,30000);
           await db.prepare("UPDATE tasks SET caption_text=?,updated_by=?,updated_at=?,version=version+1 WHERE id=?").bind(value,user.id,stamp,old.id).run();
           await audit(db,old.id,user,"Atualizou observações");
-          await askNotify(db,env,ctx,user,b,old,"Observações","atualizou as observações");
+          await askNotify(db,env,ctx,user,b,old,"Texto para revisão","atualizou o texto para revisão");
           return answer({ok:true});
         }
         if(match[2]==="status")fail("Utilize apenas a opção Concluir, sem estados de pendência ou aprovação.",410);
-        // Conclusão pessoal é estritamente da conta autenticada.
-        // Conclusão da comissão pode ser registrada somente por integrante.
+        // Conclusão individual ou conjunta: pessoas e comissões vinculadas, uma única gravação.
         const commissionIds=old.commissionIds||[],assigneeIds=old.assigneeIds||[];
-        const commissionId=str(b.commissionId,100),done={...old.commissionDone},userDone={...(old.userDone||{})};
-        if(commissionId){
-          if(!commissionIds.includes(commissionId))fail("Comissão não vinculada à demanda.",403);
-          const member=await db.prepare("SELECT 1 AS allowed FROM commission_members WHERE commission_id=? AND user_id=?").bind(commissionId,user.id).first();
-          if(!member)fail("Somente integrantes desta comissão podem concluir sua participação.",403);
-          if(done[commissionId])return answer({ok:true,alreadyDone:true,archived:false});
-          done[commissionId]={at:stamp,by:user.id,byName:user.name};
-        }else{
-          if(!assigneeIds.includes(user.id))fail("A demanda não está atribuída à sua conta.",403);
-          if(userDone[user.id])return answer({ok:true,alreadyDone:true,archived:false});
-          userDone[user.id]={at:stamp,by:user.id,byName:user.name};
+        const selectedCommissions=unique(b.commissionIds),selectedUsers=unique(b.userIds);
+        if(!selectedCommissions.length&&!selectedUsers.length){
+          if(b.commissionId)selectedCommissions.push(str(b.commissionId,100));
+          else selectedUsers.push(user.id);
         }
+        if(selectedCommissions.some(id=>!commissionIds.includes(id))||selectedUsers.some(id=>!assigneeIds.includes(id)))
+          fail("Selecione apenas responsáveis vinculados à demanda.",403);
+        const done={...old.commissionDone},userDone={...(old.userDone||{})};
+        const changedCommissions=[],changedUsers=[];
+        for(const id of selectedCommissions)if(!done[id]){done[id]={at:stamp,by:user.id,byName:user.name};changedCommissions.push(id);}
+        for(const id of selectedUsers)if(!userDone[id]){userDone[id]={at:stamp,by:user.id,byName:user.name};changedUsers.push(id);}
+        if(!changedCommissions.length&&!changedUsers.length)return answer({ok:true,alreadyDone:true,archived:false});
         const finished=commissionIds.every(id=>Boolean(done[id]))&&assigneeIds.every(id=>Boolean(userDone[id]));
         const stages=old.deadlines.map(d=>{
           const copy={...d,commissionCompleted:{...(d.commissionCompleted||{})}};
-          if(commissionId)copy.commissionCompleted[commissionId]={at:stamp,by:user.id};
+          for(const id of changedCommissions)copy.commissionCompleted[id]={at:stamp,by:user.id};
           if(finished)copy.completedAt=stamp;
           return copy;
         });
         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
-        const action=commissionId?"Concluiu participação da comissão "+(await db.prepare("SELECT name FROM commissions WHERE id=?").bind(commissionId).first())?.name:"Concluiu sua participação individual";
+        const names=[];
+        for(const id of changedUsers){const row=await db.prepare("SELECT name FROM users WHERE id=?").bind(id).first();names.push(row?.name||"Usuário");}
+        for(const id of changedCommissions){const row=await db.prepare("SELECT name FROM commissions WHERE id=?").bind(id).first();names.push("Comissão "+(row?.name||id));}
+        const action="Registrou conclusão de: "+names.join(", ");
         await audit(db,old.id,user,action,b.early?"Conclusão antecipada confirmada":"");
-        await askNotify(db,env,ctx,user,b,old,"Conclusão","concluiu sua participação");
         return answer({ok:true,archived:finished,remainingCommissions:commissionIds.filter(id=>!done[id]),remainingUsers:assigneeIds.filter(id=>!userDone[id])});
       }
       if(path==="/api/v1/meetings"&&method==="POST"){

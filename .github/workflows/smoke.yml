@@ -1,0 +1,36 @@
+name: Testes do PET Gestão
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  interface:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar sintaxe
+        run: |
+          node --check app-live.js
+          node --check --input-type=module < worker/src/index.js
+          node --check scripts/test-ui.mjs
+      - name: Instalar dependência de teste
+        run: npm install --no-save --no-package-lock jsdom@26
+      - name: Testar interface e fluxos simulados
+        run: node scripts/test-ui.mjs
+
+  navegador:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar Chromium de teste
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Clicar e verificar telas no navegador
+        run: node scripts/test-browser.mjs

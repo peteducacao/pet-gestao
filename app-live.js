@@ -2,6 +2,7 @@
 (function frontModule(){
 "use strict";
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+ let lastRichRange=null;
 const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").replace(/\/$/,"");
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
@@ -13,10 +14,42 @@ function saveSessionToken(key,value,remember){
 }
 function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
 let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],previousRoute:"#/inicio"};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Memórias"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",meetingView:"todas",previousRoute:"#/inicio"};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const richTags=new Set(["B","STRONG","I","EM","U","P","DIV","BR","UL","OL","LI","SPAN","FONT"]);
+function safeRich(value){
+ const raw=String(value??"");
+ if(!/<\/?[a-z][a-z0-9]*\b/i.test(raw))return esc(raw).replace(/\r?\n/g,"<br>");
+ const fragment=document.createElement("template");fragment.innerHTML=raw;
+ const walk=node=>{
+  if(node.nodeType===3)return esc(node.textContent);
+  if(node.nodeType!==1)return "";
+  const tag=node.tagName;
+  if(["SCRIPT","STYLE","IFRAME","OBJECT","SVG","MATH"].includes(tag))return "";
+  const inside=[...node.childNodes].map(walk).join("");
+  if(!richTags.has(tag))return inside;
+  if(tag==="BR")return "<br>";
+  if(tag==="SPAN"||tag==="FONT"){
+    const c=node.style?.color||node.getAttribute("color")||"";
+    const color=/^(#[a-f0-9]{3,8}|rgb\([\d\s,.%]+\))$/i.test(c)?' style="color:'+esc(c)+'"':"";
+    return "<span"+color+">"+inside+"</span>";
+  }
+  const name=tag.toLowerCase();
+  return "<"+name+">"+inside+"</"+name+">";
+ };
+ return [...fragment.content.childNodes].map(walk).join("");
+}
+function richEditor(name,value,placeholder="Escreva aqui..."){
+ return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" aria-label="Formatação do texto">'+
+ [["bold","Negrito"],["italic","Itálico"],["underline","Sublinhar"],["insertUnorderedList","• Lista"],["insertOrderedList","1. Lista"]].map(([cmd,label])=>'<button type="button" data-do="rich-format" data-format="'+cmd+'" title="'+esc(label)+'">'+(cmd==="bold"?"B":cmd==="italic"?"I":cmd==="underline"?"U":label)+'</button>').join("")+
+ '<label class="rich-color-label" title="Cor do texto">Cor <input type="color" data-rich-color value="#5b3bb5" aria-label="Cor do texto"></label></div>'+
+ '<div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
+}
+const collectRich=(form,fields)=>{for(const e of form.querySelectorAll("[data-rich-input]"))fields[e.dataset.richInput]=safeRich(e.innerHTML);return fields};
+
 const id=v=>encodeURIComponent(String(v));
 const ico=(name)=>'<svg aria-hidden="true"><use href="#i-'+name+'"></use></svg>';
 const opt=(value,label,selected)=>'<option value="'+esc(value)+'" '+(value===selected?"selected":"")+'>'+esc(label)+'</option>';
@@ -38,7 +71,9 @@ const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
-const stateBadge=t=>t.archivedAt?'<span class="pill mint">Concluída</span>':"";
+const taskStatus=(t,cid="")=>t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente";
+const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída"};
+const stateBadge=t=>'<span class="task-status task-status-'+taskStatus(t)+'">'+statusLabel[taskStatus(t)]+'</span>';
 const completedCount=t=>Object.keys(t.commissionDone||{}).length;
 const isUserDone=(task,uid)=>Boolean(task.userDone?.[uid]);
 const isTaskAssignedToMe=task=>Boolean(me&&(task.assigneeIds||[]).includes(me.id));
@@ -55,7 +90,7 @@ function workspaceHash(route){return routeParts().page==="admin"?"#/admin/"+rout
 function adminEmbeddedView(parts){
  const [page,...args]=parts,route=args.join("/");
  if(page==="demandas")return renderDemandas();
- if(page==="cronograma")return renderCronograma();
+ if(page==="cronograma")return renderDemandas();
  if(page==="comissoes")return !route?renderComissoes():args[0]==="nova"?renderCommitteeEdit(""):args[0]==="editar"?renderCommitteeEdit(args.slice(1).join("/")):renderCommittee(route);
  if(page==="registrar")return renderTaskForm(route);
  if(page==="atividade")return renderDetail(args[0]||"",args[1]||"");
@@ -175,7 +210,7 @@ function invalidFieldMessage(field){
 
 function header(eye,title,sub="",actions=""){return '<div class="page-header"><div><div class="eyebrow">'+esc(eye)+'</div><h1 class="page-title">'+esc(title)+'</h1>'+(sub?'<p class="page-subtitle">'+esc(sub)+'</p>':"")+'</div><div class="page-actions">'+actions+'</div></div>'}
 function empty(title,sub=""){return'<div class="empty"><span class="empty-icon">'+ico("folder")+'</span><h3>'+esc(title)+'</h3><p>'+esc(sub)+'</p></div>'}
-function button(label,route,primary=false){return'<a href="#/'+route+'" class="button '+(primary?"primary":"ghost")+'">'+esc(label)+'</a>'}
+function button(label,route,primary=false){return'<a href="'+workspaceHash(route)+'" class="button '+(primary?"primary":"ghost")+'">'+esc(label)+'</a>'}
 function backButton(){return'<button type="button" class="button ghost" data-do="back">'+ico("chevron-left")+' Voltar</button>'}
 function routeParts(){const raw=decodeURIComponent((location.hash||"#/inicio").slice(2));const parts=raw.split("/");return{page:parts[0]||"inicio",parts:parts.slice(1)}}
 async function request(path,method="GET",payload,scope){
@@ -218,8 +253,8 @@ function nav(){
  const account=$("#account-button");
  if(account){
    const person=regularMe, logged=Boolean(person);
-   account.innerHTML=ico("user")+'<span class="account-identification"><strong>'+esc(logged?person.name:"Entrar")+'</strong>'+(logged?'<small>'+esc(roleLabel(person.role))+'</small>':"")+'</span>';
-   account.classList.toggle("logged-in",logged);
+   account.innerHTML=ico("user")+'<span class="account-identification"><strong>'+(logged?"Meu perfil":"Entrar")+'</strong></span>';
+   account.classList.toggle("logged-in",logged);account.href=logged?"#/conta":"#/login";
    account.setAttribute("aria-label",logged?"Minha conta: "+person.name+" ("+roleLabel(person.role)+")":"Entrar");
    account.title=logged?"Conectado como "+person.name+" — "+roleLabel(person.role):"Entrar";
  }
@@ -229,7 +264,7 @@ function nav(){
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
  $$(".nav-link[data-route]").forEach(el=>{el.classList.toggle("active",el.dataset.route===page);if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite();if(el.dataset.route==="conta")el.hidden=!Boolean(regularMe)});
- $("#today-label").textContent=textDate(new Date());
+ if($("#today-label"))$("#today-label").textContent=textDate(new Date());
  document.title=page==="inicio"?"PET Gestão | PET Educação UFS":(routeNames[page]||"PET Gestão")+" | PET Gestão";
 }
 function weeks(y,m){const days=new Date(y,m+1,0).getDate(),firstDay=new Date(y,m,1).getDay(),firstMonday=1+((8-firstDay)%7),arr=[];let start=1,end=Math.min(days,firstMonday+6);while(start<=days){arr.push({n:arr.length+1,start,end});start=end+1;end=Math.min(days,start+6)}return arr}
@@ -248,54 +283,48 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
 }
 // Card único para Visão geral, Demandas, Comissões, Cronograma e Minhas pendências.
 // Prioriza a imagem específica da comissão onde a tarefa está sendo consultada.
+
 function taskCard(t,commissionId,withFinishAction=false){
  const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean);
- const progress=taskProgress(t);
- const photo=selected?.imageData
-  ?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="Imagem da comissão '+esc(selected.name)+'" loading="lazy">'
-  :selected?commissionDefaultArt(selected.name):ico("checklist");
- const groupLabel=ids.length?selectedCommitteeNames(t):"Demanda geral";
- const date=textDate(taskDate(t));
- return '<article class="placeholder-row task-list-row demand-activity-card">'+
-  '<div class="demand-activity-identity">'+
-   '<span class="demand-activity-art" aria-hidden="true">'+photo+'</span>'+
-   '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+
-    '<span class="demand-activity-commission">'+ico("users")+'<span>'+(ids.length?(ids.length===1?"Comissão: ":"Comissões: "):"")+esc(groupLabel)+'</span></span>'+
-   '</div></div>'+
-  '<div class="demand-activity-fact demand-activity-date">'+
-    '<span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
-    '<div><span class="demand-activity-label">Data</span><strong>'+esc(date)+'</strong></div></div>'+
-  (me?'<div class="demand-activity-fact demand-activity-owners">'+
-    '<span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
-    '<div><span class="demand-activity-label">Responsáveis</span><strong class="'+((t.assigneeIds||[]).length?"":"demand-activity-undesignated")+'">'+esc(who(t))+'</strong>'+
-    (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+
-    (t.archivedAt?'<small class="demand-activity-progress demand-activity-complete">Concluída</small>':"")+
-    '</div></div>':"")+
-  (me?'<a class="activity-details-link demand-activity-action" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'" aria-label="Ver detalhes de '+esc(t.title)+'">'+ico("search")+'<span>Ver detalhes</span>'+ico("arrow")+'</a>':"")+
- (withFinishAction?'<button type="button" class="button demand-finish-action" data-do="finish-personal" data-id="'+esc(t.id)+'">'+ico("check")+'<span>Marcar como concluída</span></button>':"")+
+ const status=taskStatus(t,commissionId),progress=taskProgress(t);
+ const photo=selected?.imageData?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="" loading="lazy">':selected?commissionDefaultArt(selected.name):ico("checklist");
+ const tag=ids.length?'<span class="demand-activity-commission">'+ico("users")+' '+esc(selectedCommitteeNames(t))+'</span>':"";
+ return '<article class="placeholder-row task-list-row demand-activity-card status-'+status+'">'+
+ '<div class="demand-activity-identity"><span class="demand-activity-art" aria-hidden="true">'+photo+'</span>'+
+ '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+tag+'</div></div>'+
+ '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
+ '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
+ '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
+ (me?'<div class="demand-activity-fact demand-activity-owners"><span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
+ '<div><span class="demand-activity-label">Responsáveis</span><strong>'+esc(who(t))+'</strong>'+
+ (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+'</div></div>':"")+
+ (me?'<a class="activity-details-link demand-activity-action" href="'+workspaceHash("atividade/"+id(t.id)+(commissionId?"/"+id(commissionId):""))+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>':"")+
+ (withFinishAction?'<button type="button" class="button demand-finish-action" data-do="finish-personal" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+
  '</article>';
 }
+
 function renderHome(){
  const all=data.tasks.filter(active),next=[...all].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=all.filter(isLate).length;
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[all.filter(t=>isTaskAssignedToMe(t)&&!isUserDone(t,me.id)).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
- '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver cronograma","cronograma")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
+ '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[all.filter(t=>me&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id)).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
+
 function renderDemandas(){
  const options=[["mensal","Mensal"],["semanal","Semanal"],["arquivo","Concluídas"]];
  const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
  let list=data.tasks.filter(t=>filtered(t));
- if(state.mode==="arquivo"){
-   list=list.filter(t=>{const d=dt(t.archivedAt);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&(!state.week||weekFor(d)===state.week)});
- }
+ if(state.mode==="arquivo")list=list.filter(t=>{const d=dt(t.archivedAt);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&(!state.week||weekFor(d)===state.week)});
+ else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
- return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
- '<section class="card card-pad"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div><div class="list-toolbar">'+((["mensal","semanal","arquivo"].includes(state.mode))?period():"")+'</div><hr class="divider">'+
- (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>'+
- '<section class="card card-pad demand-memories"><div class="section-head"><div><h2>Memórias dos encontros</h2><p>Registros das reuniões da equipe</p></div>'+(canWrite()?button("+ Nova memória","reunioes/nova"):"")+'</div>'+
- (data.meetings?.length?data.meetings.map(m=>'<div class="placeholder-row"><div><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small></div>'+(canWrite()?button("Ver memória","reunioes/"+id(m.id)):"")+'</div>').join(""):empty("Nenhuma memória registrada"))+'</section>';
+ const filter=state.mode==="arquivo"?"":'<label class="status-filter-label">Status<select class="select" data-filter="status">'+[["todas","Todas"],["pendente","Pendentes"],["atrasada","Atrasadas"]].map(([v,l])=>opt(v,l,state.statusFilter)).join("")+'</select></label>';
+ return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.")+
+ '<section class="card card-pad"><div class="section-head"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div>'+actions+'</div>'+
+ '<div class="list-toolbar">'+period()+filter+'</div><hr class="divider">'+
+ (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
+
 function renderCronograma(){
  const all=data.tasks.filter(t=>active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
  const groups=new Map();for(const t of all){const w=weekFor(taskDate(t));if(!groups.has(w))groups.set(w,[]);groups.get(w).push(t)}
@@ -316,29 +345,21 @@ function renderComissoes(){
  return header("Trabalho em equipe","Comissões","Organização das equipes.",canWrite()?button("+ Nova comissão","comissoes/nova",true):"")+
  '<section class="card card-pad"><div class="section-head"><h2>Comissões cadastradas</h2><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="commission-cards-grid">'+data.committees.map(c=>{
  const members=c.memberCount??(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
- const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="#/comissoes/'+id(c.id)+'"':"";
+ const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="'+workspaceHash("comissoes/"+id(c.id))+'"':"";
  return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="'+esc(c.name)+'">':commissionDefaultArt(c.name))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes'+(!cmax?' · Vagas a definir':"")+'</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
  (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
  (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>'
  }).join("")+'</div></section>';
 }
+
 function renderCommittee(cid){
  const c=committee(cid);if(!c)return empty("Comissão não encontrada");
- // A vinculação à comissão não depende da data: o filtro do período só organiza
- // as atividades em duas áreas, sem ocultar uma demanda atribuída à equipe.
- const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))
-   .sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
- const inPeriod=all.filter(t=>filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
- const otherDates=all.filter(t=>!inPeriod.includes(t));
- const actions=canWrite()?button("Editar comissão","comissoes/editar/"+id(cid))+button("+ Nova demanda","registrar/novo/"+id(cid),true):"";
- return header("Comissões",c.name,c.description||"",actions)+
- '<section class="card card-pad"><div class="section-head"><div><h2>Atividades da comissão</h2><p>As demandas desta equipe continuam visíveis mesmo fora do período selecionado.</p></div><span class="pill soft">'+all.length+' em aberto</span></div>'+
- (all.length?period()+
- (inPeriod.length?'<div class="commission-period-group"><h3>Neste período</h3>'+inPeriod.map(t=>taskCard(t,cid)).join("")+'</div>':"")+
- (otherDates.length?'<div class="commission-period-group commission-other-dates"><h3>Em outras datas</h3><p>Estas atividades também pertencem à comissão, mas têm prazo fora do mês ou semana selecionado.</p>'+otherDates.map(t=>taskCard(t,cid)).join("")+'</div>':""):
- empty("Nenhuma demanda ativa nesta comissão","Ao escolher esta comissão como responsável, a demanda aparecerá aqui."))+
- '</section>';
+ const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid)).sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
+ return header("Comissões",c.name,c.description||"","")+
+ '<section class="card card-pad"><div class="section-head"><div><h2>Pendências da comissão</h2><p>Atividades vinculadas a esta equipe em Demandas.</p></div><span class="pill soft">'+all.length+' pendente(s)</span></div>'+
+ (all.length?all.map(t=>taskCard(t,cid)).join(""):empty("Nenhuma pendência nesta comissão","As atividades atribuídas à comissão aparecerão aqui."))+'</section>';
 }
+
 function renderCommitteeEdit(cid){
  if(!canWrite())return authRequired();
  const c=cid?committee(cid):null;if(cid&&!c)return empty("Comissão não encontrada");
@@ -376,7 +397,7 @@ function stageRow(stage={},i=0){
  return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
  '<label>Data<input type="date" data-stage="day" value="'+esc((stage.dueAt||"").slice(0,10))+'" min="'+current.getFullYear()+'-01-01"></label>'+
  '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
- '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+data.users.map(u=>opt(u.id,u.role==="tutor"?"Tutor(a) — "+u.name:u.name,selectedOwner)).join("")+'</select></label>'+
+ '<label>Responsável (opcional)<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+data.users.map(u=>opt(u.id,u.name,selectedOwner)).join("")+'</select></label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function renderTaskForm(routeId){
@@ -393,67 +414,123 @@ function renderTaskForm(routeId){
  }
  return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",backButton())+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
- '<label>Anotações<textarea rows="3" name="description">'+esc(t?.description||"")+'</textarea></label>'+
+ '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
  '<div id="assignment-container">'+assignmentView()+'</div>'+
  '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Defina até quando os(as) PETianos(as) deverão concluir cada etapa da demanda. A etapa <strong>Prazo</strong> é obrigatória e indica a data de entrega. Se precisar, acrescente etapas para organizar a <strong>Correção</strong> pela tutoria ou a <strong>Postagem</strong>. Você pode escolher um responsável para cada etapa.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?.deadlines?.length?t.deadlines:[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
- '<label>Observações (opcional)<textarea name="captionText" rows="4">'+esc(t?.captionText||"")+'</textarea></label>'+
+ '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+richEditor("captionText",t?.captionText||"")+
  '<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div></form></section>';
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
 
-function renderDetailReadOnly(t){
- const history=historyFor(t.id);
 
- return header("Atividade",t.title,"Visualização somente leitura",backButton())+
- '<section class="card card-pad"><h2>Vínculos</h2>'+(t.archivedAt?'<span class="pill mint">Concluída</span>':"")+'<p><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Demanda geral")+'</p><p><strong>Responsáveis:</strong> '+esc(who(t))+'</p></section>'+
- '<section class="card card-pad"><h2>Prazos e etapas</h2>'+
- (stages(t).length?stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+(s.completedAt?'<span class="pill mint">Concluída</span>':"")+'</div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>'+
- '<section class="card card-pad"><h2>Observações</h2><p class="saved-activity-text">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p></section>'+
- '<details class="card card-pad"><summary><strong>Histórico</strong> ('+history.length+')</summary><div class="revision-list">'+(history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+'</small></div>').join(""):'<p>Sem alterações registradas.</p>')+'</div></details>';
+function deadlineFacts(t){
+ return '<section class="card card-pad details-facts"><h2>Prazos e etapas</h2>'+
+ (stages(t).length?stages(t).map(stage=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(stage.label)+'</strong></div>'+
+ '<div class="deadline-field"><small>Responsável</small><strong>'+esc((stage.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div>'+
+ '<div class="deadline-field"><small>Data</small><strong>'+textDate(stage.dueAt)+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>';
+}
+function activitySections(t,readOnly=false){
+ const ids=t.commissionIds||[],history=historyFor(t.id),names=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
+ const body='<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+
+ '<section class="card card-pad"><h2>Anotações da comissão</h2><div class="saved-activity-text">'+safeRich(t.description||"Nenhuma anotação registrada.")+'</div></section>'+
+ '<section class="card card-pad"><div class="section-head"><h2>Texto para revisão</h2>'+
+ (!readOnly&&!t.archivedAt?button("Editar demanda","registrar/"+id(t.id)):"")+'</div><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section></div>'+
+ '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(names.join(", ")||"Não definido")+'</p></section>'+
+ (ids.length>=2?'<section class="card card-pad"><h2>Andamento das comissões</h2>'+
+ ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
+ '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"")+
+ '<details class="card card-pad activity-history"><summary><strong>Histórico de alterações</strong> ('+history.length+')</summary><div class="revision-list">'+
+ (history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong><span>'+esc(h.actor_name)+'</span><small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+
+ '</div></details></div></div>';
+ return body;
+}
+function renderDetailReadOnly(t){
+ return header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true);
 }
 function renderDetail(taskId,contextCid){
  if(!me)return authRequired();
  const t=data.tasks.find(t=>t.id===taskId);if(!t)return empty("Demanda não encontrada");
  if(!canWrite())return renderDetailReadOnly(t);
+ const status=taskStatus(t,contextCid);
+ const actions=(t.archivedAt?"":button("Editar demanda","registrar/"+id(t.id)))+
+ (t.archivedAt?'<span class="task-status task-status-concluida">Concluída</span>':
+ '<button class="button primary small-action" type="button" data-do="finish-joint-open" data-id="'+esc(t.id)+'">Status: '+(status==="atrasada"?"Atrasada":status==="concluida"?"Concluída":"Pendente")+' · Concluir</button>')+backButton();
+ return header("Atividade",t.title,"",actions)+activitySections(t,false);
+}
 
- const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
- const details=historyFor(taskId);
- return header("Atividade",t.title,"",button("Editar demanda","registrar/"+id(t.id))+backButton())+
- '<section class="card card-pad activity-status-panel">'+(t.archivedAt?'<span class="pill mint">Concluída</span>':isTaskAssignedToMe(t)?(isUserDone(t,me.id)?'<span class="pill mint">Sua participação foi concluída</span>':'<button class="button primary" type="button" data-do="finish-personal" data-id="'+esc(t.id)+'">Marcar minha participação como concluída</button>'):'<p class="assignment-help">Somente pessoas atribuídas e integrantes das comissões vinculadas podem concluir suas participações.</p>')+'</section>'+
- '<div class="activity-detail-grid"><div class="stack"><section class="card card-pad"><h2>Prazos e etapas</h2>'+
- stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Responsável</small><strong>'+esc((s.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+ (s.completedAt||contextCid&&s.commissionCompleted?.[contextCid]?'<span class="pill mint">Concluído</span>':Object.keys(s.commissionCompleted||{}).length?'<span class="pill soft">'+Object.keys(s.commissionCompleted||{}).length+' comissão(ões) concluída(s)</span>':"")+'</div>').join("")+
- '</section><section class="card card-pad"><div class="section-head"><h2>Observações</h2><button class="button ghost" data-do="edit-notes" type="button" title="Editar observações">✏️ Editar</button></div><p class="saved-activity-text" id="notes-preview">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p><div id="notes-editor" hidden><textarea id="notes-content" rows="6">'+esc(t.captionText||"")+'</textarea><button class="button primary" type="button" data-do="save-notes" data-id="'+esc(t.id)+'">Salvar observações</button></div></section></div>'+
- '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(assigned.join(", ")||"Não definido")+'</p><p class="assignment-help"><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Nenhuma")+'</p></section>'+
- '<section class="card card-pad"><h2>Conclusão por comissão</h2>'+
- ((t.commissionIds||[]).length?(t.commissionIds||[]).map(cid=>{
- const done=t.commissionDone?.[cid];return'<div class="live-commission-finish"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+(done?'<span class="pill mint">Concluída por '+esc(done.byName||"integrante")+'</span>':!t.archivedAt&&canCompleteCommission(cid)?'<button type="button" class="button ghost" data-do="finish-commission" data-id="'+esc(t.id)+'" data-commission="'+esc(cid)+'">Marcar concluída</button>':"")+'</div>';
- }).join(""):'<p class="assignment-help">Nenhuma comissão vinculada.</p>')+'</section>'+
- '<details class="card card-pad"><summary><strong>Histórico de alterações</strong> ('+details.length+')</summary><div class="revision-list">'+(details.length?details.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+'</div></details></div></div>';
+
+function closeFinishDialog(){
+ const layer=$("#finish-dialog");if(layer){layer.hidden=true;layer.innerHTML="";}
+}
+function openFinishDialog(task){
+ const layer=$("#finish-dialog");if(!layer||!task)return;
+ const users=(task.assigneeIds||[]).filter(id=>!task.userDone?.[id]);
+ const groups=(task.commissionIds||[]).filter(id=>!task.commissionDone?.[id]);
+ if(!users.length&&!groups.length){setToast("Todas as participações já foram concluídas.");return;}
+ const make=(items,type)=>items.map(key=>'<label class="joint-pick"><input type="checkbox" name="joint-target" value="'+esc(key)+'" data-kind="'+type+'" '+(key===me.id||users.length+groups.length===1?"checked":"")+'><span>'+esc(type==="user"?nameFor(key):committee(key)?.name||"Comissão")+'</span></label>').join("");
+ layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Registrar conclusão conjunta">'+
+ '<h2>Registrar conclusão</h2><p>Selecione as pessoas e comissões que concluíram esta atividade.</p>'+
+ (users.length?'<h3>Pessoas</h3>'+make(users,"user"):"")+
+ (groups.length?'<h3>Comissões</h3>'+make(groups,"commission"):"")+
+ '<div class="finish-actions"><button type="button" class="button ghost" data-do="finish-close">Cancelar</button>'+
+ '<button type="button" class="button primary" data-do="finish-joint-confirm" data-id="'+esc(task.id)+'">Registrar conclusão</button></div></section>';
+ layer.hidden=false;
+ layer.querySelector("input:checked, input")?.focus();
+}
+async function completeJoint(task,layer){
+ const picked=[...layer.querySelectorAll('input[name="joint-target"]:checked')];
+ if(!picked.length){setToast("Selecione ao menos uma participação.");return;}
+ const userIds=picked.filter(el=>el.dataset.kind==="user").map(el=>el.value);
+ const commissionIds=picked.filter(el=>el.dataset.kind==="commission").map(el=>el.value);
+ const future=stages(task).some(stage=>dt(stage.dueAt)>new Date());
+ if(!await askConfirm(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?":"Registrar a conclusão das participações selecionadas?",{title:future?"Conclusão antecipada":"Confirmar conclusão"}))return;
+ const ok=await saveAndReload(()=>request("/tasks/"+id(task.id)+"/finish","PATCH",{userIds,commissionIds,early:future,notify:false}),"Conclusão registrada.");
+ if(ok)closeFinishDialog();
+}
+
+function renderMeetings(){
+ if(!me)return authRequired();
+ const items=[...(data.meetings||[])].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+ const showing=state.meetingView==="recentes"?items.slice(0,5):items;
+ return header("Registros","Atas de Reunião","Registros organizados das reuniões da equipe.",canWrite()?button("+ Criar ata","reunioes/nova",true):"")+
+ '<section class="card card-pad meeting-list"><div class="segmented"><button type="button" data-do="meetings-view" data-value="todas" class="'+(state.meetingView==="todas"?"active":"")+'">Todas</button><button type="button" data-do="meetings-view" data-value="recentes" class="'+(state.meetingView==="recentes"?"active":"")+'">Recentes</button></div>'+
+ (showing.length?showing.map(m=>'<article class="meeting-card"><a class="meeting-card-link" href="'+workspaceHash("reunioes/editar/"+id(m.id))+'"><span class="meeting-card-icon">'+ico("calendar")+'</span><span class="meeting-card-main"><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small><span class="meeting-card-preview">'+esc((m.rawNotes||"").replace(/<[^>]+>/g," ").slice(0,130))+'</span></span>'+ico("arrow")+'</a>'+
+ (canWrite()?'<details class="meeting-menu"><summary title="Opções da ata" aria-label="Opções da ata">⋮</summary><div class="meeting-menu-options">'+button("Editar","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir</button></div></details>':"")+'</article>').join(""):empty("Nenhuma ata registrada","Crie uma ata para registrar os encontros da equipe."))+
+ '</section>';
 }
 function renderMemory(routeId){
+ if(!routeId)return renderMeetings();
  if(!me)return authRequired();
  const editor=routeId==="nova"||routeId.startsWith("editar/");
- if(editor&&!canWrite())return header("Memórias","Acesso somente leitura","Seu perfil não pode criar ou editar memórias.",backButton());
- const m=routeId==="nova"?null:data.meetings.find(x=>x.id===(editor?routeId.slice(7):routeId));
- if(!m&&routeId!=="nova")return empty("Memória não encontrada");
- if(!editor)return header("Demandas",m.title,"",(canWrite()?button("Editar memória","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir memória</button>':"")+backButton())+'<section class="card card-pad"><p>'+textDate(m.date)+'</p><pre class="live-memory-text">'+esc(m.rawNotes||"")+'</pre></section>';
- return header("Memórias",m?"Editar memória":"Nova memória","",backButton())+'<section class="card card-pad register-page"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form"><label>Título *<input name="title" required value="'+esc(m?.title||"")+'"></label><label>Data *<input name="date" type="date" required value="'+esc(m?.date||dateKey(current))+'"></label><label>Memória da reunião<textarea name="rawNotes" rows="12">'+esc(m?.rawNotes||"")+'</textarea></label><button type="submit" class="button primary">Salvar memória</button></form></section>';
+ if(editor&&!canWrite())return authRequired();
+ const mid=editor&&routeId.startsWith("editar/")?routeId.slice(7):routeId;
+ const m=routeId==="nova"?null:data.meetings.find(x=>x.id===mid);
+ if(!m&&routeId!=="nova")return empty("Ata não encontrada");
+ return header("Atas de Reunião",m?"Editar ata":"Criar ata","",backButton())+
+ '<section class="card card-pad register-page meeting-editor"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form">'+
+ (m?'<div class="meeting-metadata"><strong>'+esc(m.title)+'</strong><span>'+textDate(m.date)+'</span></div><input type="hidden" name="title" value="'+esc(m.title)+'"><input type="hidden" name="date" value="'+esc(m.date)+'">':
+ '<label>Título da reunião *<input name="title" required maxlength="180"></label><label>Data *<input name="date" type="date" required value="'+dateKey(current)+'"></label>')+
+ '<label>Texto da ata<textarea name="rawNotes" rows="16" placeholder="Registre os assuntos e encaminhamentos da reunião.">'+esc(m?.rawNotes||"")+'</textarea></label>'+
+ '<div class="form-actions"><button type="submit" class="button primary">Salvar ata</button></div></form></section>';
 }
+
 function authRequired(){return header("Acesso","Entre na sua conta","Esta funcionalidade exige autenticação.")+'<section class="card card-pad">'+button("Entrar","login",true)+'</section>'}
 function renderLogin(){
  return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p><p class="admin-entry-link">'+button("Entrar na Administração","admin")+'</p></section>';
 }
-function renderRegisterAccount(){return header("Conta","Criar conta","Nome, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Nome<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<span class="password-control"><input name="password" type="password" required minlength="10" autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
+function renderRegisterAccount(){return header("Conta","Criar conta","Usuário, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Usuário<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<span class="password-control"><input name="password" type="password" required minlength="10" autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
 function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos um link para o e-mail cadastrado.")+'<section class="card card-pad live-auth"><form id="forgot-form" class="register-form"><label>E-mail<input type="email" name="email" required></label><button type="submit" class="button primary">Enviar link</button></form></section>'}
 function renderReset(tokenPart){return header("Conta","Redefinir senha","O link é válido por 30 minutos e pode ser usado uma única vez.")+'<section class="card card-pad live-auth"><form id="reset-form" data-token="'+esc(tokenPart)+'" class="register-form"><label>Nova senha<span class="password-control"><input type="password" name="password" minlength="10" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Alterar senha</button></form></section>'}
 function renderAccount(){
  if(!me)return authRequired();
- return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Cargo:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
+ return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Status:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
- '<h3>Alterar senha</h3><form id="change-password-form" class="register-form"><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div></section>';
+ '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div></section>';
 }
 function renderAdmin(){
+ const adminPart=routeParts().parts;
+ if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
  if(!isAdmin())return header("Sistema","Administração","Acesso administrativo independente.")+
  '<section class="card card-pad live-auth admin-signin"><h2>Entrar como Admin</h2><p>Use as credenciais exclusivas da conta Administração. O acesso da Tutoria é separado.</p>'+
  '<form id="admin-login-form" class="register-form"><label>Admin ou e-mail<input name="identifier" type="text" value="Admin" required autocomplete="username" autocapitalize="none"></label><label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button type="submit" class="button primary">Entrar na Administração</button></form>'+
@@ -464,11 +541,15 @@ function renderAdmin(){
  const adminPanels='<section class="card card-pad admin-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><h2>Usuários</h2><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição.</p></div><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="admin-commission-list">'+
  data.committees.map((c,i)=>'<div class="admin-commission-item"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div><button class="button primary admin-save-button" data-do="save-vagas" data-id="'+esc(c.id)+'">Salvar</button></div></div>').join("")+'</div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática dos cronogramas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label>Mensagem<textarea name="message" rows="6" required></textarea></label><label><input type="checkbox" id="mail-scheduled"> Agendar envio</label><div id="mail-scheduling"></div><div id="mail-attachments"></div><button class="button primary" type="submit">Registrar envio</button></form></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática das demandas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<label><input type="checkbox" id="mail-scheduled"> Agendar envio</label><div id="mail-scheduling"></div><div id="mail-attachments"></div><button class="button primary" type="submit">Registrar envio</button></form></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelo da notificação da tutoria</h2><p class="field-hint">Edite o aviso enviado aos responsáveis. Campos automáticos: {autor}, {acao}, {demanda}, {tipo}.</p>'+
+ '<form id="notification-template-form" class="register-form"><label>Assunto<input type="text" name="subject" maxlength="200" required value="'+esc(data.settings.notificationTemplate?.subject||"PET Gestão — {tipo}")+'"></label>'+
+ '<label class="rich-label">Mensagem</label>'+richEditor("message",data.settings.notificationTemplate?.body||"Olá!\n\n{autor} {acao} na demanda \"{demanda}\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação")+
+ '<button class="button primary" type="submit">Salvar modelo</button></form></section>'+
  '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
- const nav=tab=>'<button class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'" data-do="admin-tab" data-value="'+tab[0]+'" type="button">'+ico(tab[2])+'<span>'+tab[1]+'</span></button>';
+ const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
  const stats=[["Demandas",data.tasks.length,"list"],["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
  const metric=([name,value,iconName])=>'<div class="admin-metric"><span class="admin-metric-icon">'+ico(iconName)+'</span><strong '+(name==="E-mails"?'id="admin-mail-count"':"")+'>'+value+'</strong><span>'+name+'</span></div>';
@@ -476,19 +557,22 @@ function renderAdmin(){
  const dashboard=state.adminTab==="painel"?'<div class="admin-metrics">'+stats.map(metric).join("")+'</div>'+
  '<section class="admin-box"><h2>Ações rápidas</h2><div class="admin-shortcuts">'+
  '<a href="#/admin/registrar">'+ico("plus")+'<span>Nova demanda</span></a>'+
- '<button type="button" data-do="admin-tab" data-value="comissoes">'+ico("users")+'<span>Gerenciar comissões</span></button>'+
- '<button type="button" data-do="admin-tab" data-value="usuarios">'+ico("user")+'<span>Gerenciar usuários</span></button>'+
- '<button type="button" data-do="admin-tab" data-value="emails">'+ico("mail")+'<span>Enviar e-mail</span></button></div></section>'+
+ '<a href="#/admin/comissoes">'+ico("users")+'<span>Gerenciar comissões</span></a>'+
+ '<a href="#/admin/usuarios">'+ico("user")+'<span>Gerenciar usuários</span></a>'+
+ '<a href="#/admin/emails">'+ico("mail")+'<span>Enviar e-mail</span></a></div></section>'+
  '<section class="admin-box"><h2>Últimas alterações</h2>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
- const subroute=routeParts().parts,embedded=subroute.length?adminEmbeddedView(subroute):"";
+ const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","emails","configuracoes"];
+ const tabRoute=adminParts.length===1&&tabNames.includes(adminParts[0])?adminParts[0]:null;
+ if(tabRoute)state.adminTab=tabRoute;
+ const subroute=tabRoute?[]:adminParts,embedded=subroute.length?adminEmbeddedView(subroute):"";
  const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",configuracoes:"Configurações"};
  return '<div class="admin-layout">'+
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
- '<nav class="admin-navigation">'+nav(tabs[0])+'<button type="button" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade","reunioes"].includes(subroute[0])?"active":"")+'" data-do="admin-route" data-value="demandas">'+ico("list")+'<span>Demandas</span></button>'+tabs.slice(1).map(nav).join("")+'</nav>'+
+ '<nav class="admin-navigation">'+nav(tabs[0])+'<a href="#/admin/demandas" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade"].includes(subroute[0])?"active":"")+'">'+ico("list")+'<span>Demandas</span></a><a href="#/admin/reunioes" class="admin-menu-link '+(subroute[0]==="reunioes"?"active":"")+'">'+ico("calendar")+'<span>Atas de Reunião</span></a>'+tabs.slice(1).map(nav).join("")+'</nav>'+
  '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("close")+' Sair do modo Admin</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
- '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>'+esc(me.name)+'</strong><small>'+esc(roleLabel(me.role))+'</small></span></div></div>'+
+ '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>Administração</strong></span></div></div>'+
  '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
  dashboard+adminPanels)+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
 }
@@ -509,7 +593,7 @@ function render(){
  let html="";
  if(page==="inicio")html=renderHome();
  else if(page==="demandas")html=renderDemandas();
- else if(page==="cronograma")html=renderCronograma();
+ else if(page==="cronograma")html=renderDemandas();
  else if(page==="comissoes")html=!parts.length?renderComissoes():parts[0]==="nova"?renderCommitteeEdit(""):parts[0]==="editar"?renderCommitteeEdit(parts.slice(1).join("/")):renderCommittee(parts.join("/"));
  else if(page==="registrar")html=renderTaskForm(parts.join("/"));
  else if(page==="atividade")html=renderDetail(parts[0],parts[1]||"");
@@ -523,7 +607,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
- if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&!parts.length){
+ if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();loadMailHistory();}
    if(state.adminTab==="painel")loadMailHistory();
@@ -535,7 +619,7 @@ async function saveAndReload(action,success="Alterações salvas."){
 }
 function userFields(form){return Object.fromEntries(new FormData(form).entries())}
 async function saveTask(form){
- const f=userFields(form),stages=$$(".live-stage").map(row=>{
+ const f=collectRich(form,userFields(form)),stages=$$(".live-stage").map(row=>{
  const label=row.querySelector('[data-stage="label"]').value,day=row.querySelector('[data-stage="day"]').value,time=row.querySelector('[data-stage="hour"]').value,person=row.querySelector('[data-stage="assignee"]').value;
  return{id:row.dataset.stageId,label,dueAt:day?day+"T"+(time||"23:59")+":00":"",assigneeIds:person?[person]:[]}
  });
@@ -545,8 +629,10 @@ async function saveTask(form){
  if(stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores.");
  const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
  if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
- const notify=await askNotification();
- const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,notify},taskId=form.dataset.id;
+ const taskId=form.dataset.id;
+ const previous=taskId?data.tasks.find(t=>t.id===taskId):null;
+ const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?await askNotification():false;
+ const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,notify};
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
    state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
@@ -627,7 +713,8 @@ async function loadMailHistory(){
 }
 const fileData=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file)});
 async function sendMail(form){
- const f=userFields(form),ids=$$('input[name="mail-target"]:checked').map(el=>el.value),userIds=state.mailAudience==="usuarios"?ids:[],committeeIds=state.mailAudience==="comissoes"?ids:[];
+ const f=collectRich(form,userFields(form)),ids=$$('input[name="mail-target"]:checked').map(el=>el.value),userIds=state.mailAudience==="usuarios"?ids:[],committeeIds=state.mailAudience==="comissoes"?ids:[];
+ if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva a mensagem.");
  if(state.mailScheduled&&!f.sendAt)return setToast("Informe a data de envio.");
  const when=state.mailScheduled?new Date(f.sendAt):null;
  if(when&&Number.isNaN(when.getTime()))return setToast("Informe uma data e horário válidos.");
@@ -693,6 +780,7 @@ async function handleClick(e){
    return;
  }
  if(action==="mode"){state.mode=b.dataset.value;render();return}
+  if(action==="meetings-view"){state.meetingView=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
  if(action==="assignment-scope"){
   if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
@@ -702,6 +790,12 @@ async function handleClick(e){
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
  if(action==="reset-color"){$('input[name="backgroundColor"]').value="#f7f3ff";return}
+ if(action==="finish-joint-open"){openFinishDialog(data.tasks.find(t=>t.id===tid));return;}
+ if(action==="finish-close"){closeFinishDialog();return;}
+ if(action==="finish-joint-confirm"){
+   const t=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(t&&layer)await completeJoint(t,layer);
+   return;
+ }
  if(action==="finish-personal"){const t=data.tasks.find(x=>x.id===tid);if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id))await finishTask(t,"");return}
  if(action==="finish-commission"){const t=data.tasks.find(x=>x.id===tid);if(t)await finishTask(t,b.dataset.commission||"");return}
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
@@ -731,7 +825,7 @@ async function handleClick(e){
    if(!await askConfirm('Excluir definitivamente a comissão "'+c?.name+'"? Os registros vinculados impedem a exclusão.',{danger:true}))return;
    await saveAndReload(()=>request("/commissions/"+id(tid),"DELETE"),"Comissão excluída.");return;
  }
- if(action==="delete-meeting"){if(!await askConfirm("Excluir esta memória? As demandas vinculadas não serão apagadas.",{danger:true}))return;await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Memória excluída.");location.hash=workspaceHash("demandas");return}
+ if(action==="delete-meeting"){if(!await askConfirm("Excluir esta ata? As demandas não serão apagadas.",{danger:true}))return;const ok=await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Ata excluída.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(action==="delete-task"){
    if(!isAdmin())return;
    const t=data.tasks.find(x=>x.id===tid);
@@ -775,6 +869,16 @@ async function handleClick(e){
    if(!await askConfirm("Tentar novamente este e-mail? Confirme que ele não foi enviado anteriormente.",{title:"Repetir tentativa de envio?"}))return;
    try{await request("/mail/retry","POST",{id:tid},"admin");await loadMailHistory();setToast("Nova tentativa registrada na fila.");}
    catch(err){setToast(err.message)}
+   return;
+ }
+ if(action==="rich-format"){
+   const editor=b.closest(".rich-editor")?.querySelector("[contenteditable]");
+   if(editor){editor.focus();document.execCommand(b.dataset.format,false,null);}
+   return;
+ }
+ if(action==="change-password-toggle"){
+   const form=$("#change-password-form");
+   if(form){form.hidden=!form.hidden;b.setAttribute("aria-expanded",String(!form.hidden));}
    return;
  }
  if(action==="remove-mail-file"){state.mailFiles.splice(Number(b.dataset.index),1);renderMailScheduling();return}
@@ -824,7 +928,13 @@ async function handleSubmit(e){
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
- if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Memória salva.");if(ok)location.hash=workspaceHash("demandas");return}
+ if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
+ if(form.id==="notification-template-form"){
+   const f=collectRich(form,userFields(form));
+   if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
+   await saveAndReload(()=>request("/admin/notification-template","PUT",{subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
+   return;
+ }
  if(form.id==="mail-form"){await sendMail(form);return}
  }catch(err){state.authTransition=false;setToast(err.message)}
  finally{if(isLogin)setConnecting(false)}
@@ -838,11 +948,24 @@ async function handleChange(e){
    if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncStageAssigneePlaceholder();return;
  }
  if(t.dataset.filter){
-   const val=Number(t.value);
+   if(t.dataset.filter==="status"){state.statusFilter=t.value;render();return;}
+    const val=Number(t.value);
    if(t.dataset.filter==="month"){state.month=val;state.week=0}
    if(t.dataset.filter==="year"){state.year=val;state.week=0}
    if(t.dataset.filter==="week")state.week=val;
    localStorage.setItem("pet-gestao:period",JSON.stringify({year:state.year,month:state.month,week:state.week}));render();return;
+ }
+ if(t.matches?.("[data-rich-color]")){
+   const editor=t.closest(".rich-editor")?.querySelector("[contenteditable]");
+   if(editor){
+     editor.focus();
+     const selection=window.getSelection();
+     if(lastRichRange&&editor.contains(lastRichRange.commonAncestorContainer)){
+       selection.removeAllRanges();selection.addRange(lastRichRange);
+     }
+     document.execCommand("foreColor",false,t.value);
+   }
+   return;
  }
  if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
@@ -863,21 +986,31 @@ function onNavigation(){
 function start(){
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
- $("#account-button")?.addEventListener("click",()=>{location.hash=regularMe?"#/conta":"#/login"});
- $("#admin-link")?.addEventListener("click",()=>{setConnecting(true,"Conectando ao painel administrativo...");location.hash="#/admin"});
+ 
+ 
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false)});
+ window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog()});
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
    if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
    else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
+    else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
  }});
 
+ document.addEventListener("selectionchange",()=>{
+   const selected=window.getSelection();
+   if(!selected?.rangeCount)return;
+   const anchor=selected.anchorNode?.nodeType===1?selected.anchorNode:selected.anchorNode?.parentElement;
+   if(anchor?.closest?.("[data-rich-input]"))lastRichRange=selected.getRangeAt(0).cloneRange();
+ });
+ document.addEventListener("pointerdown",e=>{
+   if(e.target.closest('[data-do="rich-format"]'))e.preventDefault();
+ });
  document.addEventListener("click",e=>{
    const innerLink=e.target.closest(".admin-layout a[href^='#/']");
-   if(innerLink&&isAdmin()){
+   if(innerLink&&isAdmin()&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
      const href=innerLink.getAttribute("href")||"";
      if(!href.startsWith("#/admin")){
        e.preventDefault();
