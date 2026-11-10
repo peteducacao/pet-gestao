@@ -440,8 +440,8 @@ await test("responsáveis humanos não se confundem com nome da comissão",async
  const js=readFileSync("app-live.js","utf8");
  assert.ok(js.includes('const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido"'));
  assert.ok(!js.includes('||selectedCommitteeNames(t)||"A definir"'));
- assert.ok(js.includes('"Comissão: ":"Comissões: "'));
- assert.ok(js.includes('assigned.join(", ")||"Não definido"'));
+ assert.ok(js.includes('const tag=ids.length?'),"Comissões devem aparecer apenas quando vinculadas.");
+ assert.ok(js.includes('names.join(", ")||"Não definido"'));
  assert.ok(js.includes('inheritedAssigneeLabel()'));
  assert.ok(js.includes('syncStageAssigneePlaceholder()'));
  assert.ok(js.includes('function inheritedAssigneeLabel(){return "Não definido"}'));
