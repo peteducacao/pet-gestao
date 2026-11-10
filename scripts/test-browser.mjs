@@ -207,7 +207,7 @@ try{
  await page.goto(origin+"/#/atividade/t-everyone");
  assert.ok((await page.locator(".stage-responsible").first().innerText()).includes("Todos(as)"),"Detalhes das etapas informam Todos(as)");
  await page.goto(origin+"/#/registrar/t-everyone");
- for(const remove of await page.locator('#stage-rows [data-do="remove-stage"]').all())await remove.click();
+ while(await page.locator('#stage-rows [data-do="remove-stage"]').count())await page.locator('#stage-rows [data-do="remove-stage"]').first().click();
  assert.equal(await page.locator(".live-stage").count(),0,"Todas as etapas podem ser retiradas");
  await page.locator(".task-form-header-save").click();
  await page.waitForTimeout(200);
