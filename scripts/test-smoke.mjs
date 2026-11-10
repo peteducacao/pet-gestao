@@ -261,7 +261,8 @@ await test("exclusão em lote de concluídas exige Administração, confirmaçã
    assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[...archivedIds,archivedIds[0]]})).status,400);
    assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[...archivedIds,activeId]})).status,409,
      "Seleção misturada com demanda ativa é recusada antes de qualquer exclusão");
-   assert.ok(archivedIds.every(id=>good(await api("/bootstrap")).tasks.some(t=>t.id===id)),
+   const preserved=good(await api("/bootstrap")).tasks;
+   assert.ok(archivedIds.every(id=>preserved.some(t=>t.id===id)),
      "Recusa protege todas as arquivadas do lote");
    token="";
    assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,401,
