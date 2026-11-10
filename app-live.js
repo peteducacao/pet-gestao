@@ -553,12 +553,12 @@ function openFinishDialog(task){
  const groups=(task.commissionIds||[]).filter(id=>!task.commissionDone?.[id]);
  if(!users.length&&!groups.length){setToast("Todas as participações já foram concluídas.");return;}
  const make=(items,type)=>items.map(key=>'<label class="joint-pick"><input type="checkbox" name="joint-target" value="'+esc(key)+'" data-kind="'+type+'" '+(key===me.id||users.length+groups.length===1?"checked":"")+'><span>'+esc(type==="user"?nameFor(key):committee(key)?.name||"Comissão")+'</span></label>').join("");
- layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Registrar conclusão conjunta">'+
- '<h2>Registrar conclusão</h2><p>Selecione as pessoas e comissões que concluíram esta atividade.</p>'+
+ layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Concluir participações">'+
+ '<h2>Concluir participações</h2><p>Selecione as pessoas e comissões que concluíram esta atividade.</p>'+
  (users.length?'<h3>Pessoas</h3>'+make(users,"user"):"")+
  (groups.length?'<h3>Comissões</h3>'+make(groups,"commission"):"")+
  '<div class="finish-actions"><button type="button" class="button ghost" data-do="finish-close">Cancelar</button>'+
- '<button type="button" class="button primary" data-do="finish-joint-confirm" data-id="'+esc(task.id)+'">Registrar conclusão</button></div></section>';
+ '<button type="button" class="button primary" data-do="finish-joint-confirm" data-id="'+esc(task.id)+'">Concluir selecionados</button></div></section>';
  layer.hidden=false;
  layer.querySelector("input:checked, input")?.focus();
 }
@@ -568,7 +568,7 @@ async function completeJoint(task,layer){
  const userIds=picked.filter(el=>el.dataset.kind==="user").map(el=>el.value);
  const commissionIds=picked.filter(el=>el.dataset.kind==="commission").map(el=>el.value);
  const future=stages(task).some(stage=>dt(stage.dueAt)>new Date());
- if(!await askConfirm(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?":"Registrar a conclusão das participações selecionadas?",{title:future?"Conclusão antecipada":"Confirmar conclusão"}))return;
+ if(!await askConfirm(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?":"Confirmar a conclusão das participações selecionadas?",{title:future?"Conclusão antecipada":"Confirmar conclusão"}))return;
  const ok=await saveAndReload(()=>request("/tasks/"+id(task.id)+"/finish","PATCH",{userIds,commissionIds,early:future,notify:false}),"Conclusão registrada.");
  if(ok)closeFinishDialog();
 }
