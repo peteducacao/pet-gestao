@@ -118,7 +118,7 @@ assert.equal(document.querySelector(".activity-detail-page")?.textContent.includ
 assert.ok(document.querySelector(".saved-activity-text")?.textContent.includes("Olá!"),"Texto para revisão visível");
 assert.ok(document.querySelector(".assignee-team")?.textContent.includes("Vídeos"),"Comissão reconhecida como responsável");
 assert.ok(document.querySelector(".stage-compact"),"Etapas organizadas no mesmo painel");
-assert.equal(document.querySelector(".assignee-group-heading")?.textContent?.includes("Comissões"),false,"Sem legenda roxa redundante");
+assert.equal(document.querySelectorAll(".assignee-group-heading").length,0,"Sem legenda roxa redundante");
 assert.ok(document.querySelector(".detail-visualization select[data-filter='navigateDemands']"),"Filtro no detalhe");
 assert.ok(document.querySelector(".detail-review-full"),"Texto para revisão na última seção, em toda largura");
 
