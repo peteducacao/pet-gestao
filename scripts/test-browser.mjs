@@ -32,6 +32,7 @@ await page.route("**/api/v1/**",async route=>{
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/mail")result={items:[]};
  else if(p==="/mail/status")result={connected:true,message:"Teste isolado"};
+ else if(p==="/admin/reminder-settings"&&method==="PUT"){settings.reminderSettings=body;result={ok:true};}
  else if(p==="/admin/notification-template"&&method==="PUT"){
    settings.notificationTemplates[body.kind]={subject:body.subject,body:body.message};
    result={ok:true};
@@ -352,12 +353,30 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#notification-template-form").waitFor({timeout:10000});
  assert.equal(await page.locator('#mail-form [data-rich-input="message"]').count(),1);
  const kindSelector=page.locator("#notification-template-kind");
- assert.equal(await kindSelector.locator("option").count(),2,"Dois tipos de notificação");
+ assert.equal(await kindSelector.locator("option").count(),4,"Quatro tipos de notificação");
+ assert.equal(await page.locator('#reminder-days').inputValue(),"3","Antecedência padrão de três dias");
+ await page.locator('[data-do="mail-preview-template"]').click();
+ assert.equal(await page.locator("#mail-preview-dialog").isVisible(),true,"Prévia do modelo abre");
+ assert.ok((await page.locator(".mail-preview-envelope").innerText()).includes("PET Gestão"));
+ await page.locator('#mail-preview-dialog [data-do="mail-preview-close"]').first().click();
+ assert.equal(await page.locator("#mail-preview-dialog").isHidden(),true);
+ await page.locator("#reminder-days").fill("5");
+ await page.locator("#reminder-soon").check();
+ await page.locator("#reminder-overdue").check();
+ await page.locator('[data-do="save-reminder-settings"]').click();
+ await page.waitForTimeout(180);
+ assert.equal(settings.reminderSettings?.daysBefore,5,"Prazo personalizável");
+ assert.equal(settings.reminderSettings?.dueSoonEnabled,true);
+ await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  await page.locator("#notification-template-form input[name=subject]").fill("Nova demanda personalizada");
  await page.locator("#notification-template-form button[type=submit]").click();
  await page.waitForTimeout(180);
  assert.equal(settings.notificationTemplates.create?.subject,"Nova demanda personalizada");
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
+ await page.locator("#notification-template-kind").selectOption("due_soon");
+ await page.locator('[data-do="mail-preview-template"]').click();
+ assert.ok((await page.locator("#mail-preview-dialog").innerText()).includes("5 dia(s)"),"Prévia traduz a variável dias");
+ await page.locator('#mail-preview-dialog [data-do="mail-preview-close"]').first().click();
  await page.locator("#notification-template-kind").selectOption("review");
  assert.notEqual(await page.locator("#notification-template-form input[name=subject]").inputValue(),"Nova demanda personalizada","Revisão possui texto próprio");
  await page.locator("#notification-template-form input[name=subject]").fill("Revisão personalizada");
@@ -366,6 +385,13 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(settings.notificationTemplates.create.subject,"Nova demanda personalizada","Salvar revisão não altera criação");
  assert.equal(settings.notificationTemplates.review.subject,"Revisão personalizada");
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
+ await page.locator('#mail-form input[name="subject"]').fill("E-mail manual de teste");
+ await page.locator('#mail-form [data-rich-input="message"]').fill("Prévia antes do envio");
+ await page.locator('[data-do="mail-preview-manual"]').click();
+ assert.equal(await page.locator("#mail-preview-dialog").isVisible(),true,"E-mail manual abre prévia");
+ assert.ok((await page.locator(".mail-preview-message").innerText()).includes("Prévia antes do envio"));
+ await page.locator('#mail-preview-dialog [data-do="mail-preview-close"]').first().click();
+ assert.equal(calls.some(x=>x.p==="/mail"&&x.method==="POST"),false,"Prévia não dispara envio");
  user.notificationEnabled=true;
  tasks.push({...task,id:"t3",title:"Concluir sem e-mail da tutoria",assigneeIds:["u1"],commissionIds:[],createdBy:"u1",
    deadlines:[{id:"p3",label:"Prazo",dueAt:new Date(Date.now()-60000).toISOString(),assigneeIds:["u1"]}],
