@@ -17,7 +17,7 @@ function saveSessionToken(key,value,remember){
 }
 function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
 let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",archiveBulkEditing:false,selectedArchivedIds:new Set(),templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -404,7 +404,9 @@ function visualizationSelect(filter,value,options=VISUALIZATIONS){
 function renderDemandas(){
  const done=state.statusFilter==="concluida"||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
- const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
+ const adminArchive=done&&Boolean(adminToken);
+ const actions=(adminArchive?'<button class="button danger-outline" type="button" data-do="archive-bulk-toggle">'+ico("close")+(state.archiveBulkEditing?' Cancelar seleção':' Excluir')+'</button>':"")+
+ (canWrite()?button("+ Registrar demanda","registrar",true):"");
  let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
@@ -418,9 +420,13 @@ function renderDemandas(){
  '<section class="card card-pad demand-management-panel">'+
  '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+periodSelect+'</div>'+
  '<div class="list-toolbar">'+period()+'</div><hr class="divider">'+
- (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+
- (done&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+
- '</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
+ (adminArchive&&state.archiveBulkEditing?'<div class="archive-bulk-toolbar" role="group" aria-label="Selecionar demandas concluídas para exclusão">'+
+  '<div class="archive-bulk-meta"><strong>'+state.selectedArchivedIds.size+' selecionada(s)</strong><span>Marque as demandas que deseja excluir.</span></div>'+
+  '<div class="archive-bulk-actions"><button type="button" class="button ghost" data-do="archive-select-all">'+ico("checklist")+' '+(list.length&&list.every(t=>state.selectedArchivedIds.has(t.id))?'Desmarcar todas':'Selecionar todas')+'</button>'+
+  '<button type="button" class="button danger-outline" data-do="archive-delete-selected" '+(state.selectedArchivedIds.size?"":"disabled")+'>Excluir selecionadas ('+state.selectedArchivedIds.size+')</button></div></div>':"")+
+ (list.length?list.map(t=>'<div class="live-task-card'+(adminArchive&&state.archiveBulkEditing?' archive-selectable':'')+'">'+
+ (adminArchive&&state.archiveBulkEditing?'<label class="archive-task-selection" aria-label="Selecionar demanda '+esc(t.title)+'"><input type="checkbox" data-archive-select="'+esc(t.id)+'" '+(state.selectedArchivedIds.has(t.id)?"checked":"")+'><span>Selecionar para excluir</span></label>':"")+
+ taskCard(t)+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
 function renderCronograma(){
  const all=data.tasks.filter(t=>active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
@@ -1296,6 +1302,36 @@ async function handleClick(e){
    await saveAndReload(()=>request("/commissions/"+id(tid),"DELETE"),"Comissão excluída.");return;
  }
  if(action==="delete-meeting"){if(!await askConfirm("Excluir esta ata? As demandas não serão apagadas.",{danger:true}))return;const ok=await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Ata excluída.");if(ok)location.hash=workspaceHash("reunioes");return}
+ if(action==="archive-bulk-toggle"){
+   if(!adminToken)return setToast("Apenas a Administração pode excluir demandas concluídas.");
+   state.archiveBulkEditing=!state.archiveBulkEditing;
+   state.selectedArchivedIds.clear();
+   render();return;
+ }
+ if(action==="archive-select-all"){
+   if(!adminToken||!state.archiveBulkEditing)return;
+   const archived=data.tasks.filter(t=>t.archivedAt).filter(t=>{
+     const d=dt(t.archivedAt),mode=state.mode==="arquivo"?"mensal":state.mode;
+     return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&
+       (!state.week||mode!=="semanal"||weekFor(d)===state.week);
+   });
+   if(archived.length&&archived.every(t=>state.selectedArchivedIds.has(t.id)))archived.forEach(t=>state.selectedArchivedIds.delete(t.id));
+   else archived.forEach(t=>state.selectedArchivedIds.add(t.id));
+   render();return;
+ }
+ if(action==="archive-delete-selected"){
+   if(!adminToken||!state.archiveBulkEditing)return;
+   const ids=[...state.selectedArchivedIds];
+   if(!ids.length)return setToast("Selecione ao menos uma demanda concluída.");
+   const valid=ids.every(x=>data.tasks.some(t=>t.id===x&&t.archivedAt));
+   if(!valid)return setToast("Há uma demanda que já não está concluída. Atualize a página.");
+   const count=ids.length;
+   const confirmed=await askConfirm("Excluir definitivamente "+count+" demanda(s) concluída(s)? Esta ação apaga as demandas selecionadas, seus prazos, participações e históricos. Não será possível recuperar os dados.",{danger:true,title:"Confirmar exclusão definitiva?"});
+   if(!confirmed)return;
+   const ok=await saveAndReload(()=>request("/tasks/bulk-delete","POST",{ids},"admin"),count+" demanda(s) excluída(s) definitivamente.");
+   if(ok){state.selectedArchivedIds.clear();state.archiveBulkEditing=false;render();}
+   return;
+ }
  if(action==="delete-task"){
    const task=data.tasks.find(x=>x.id===tid);
    if(!canDeleteTask(task))return setToast("Você não tem permissão para excluir esta demanda.");
@@ -1473,6 +1509,12 @@ async function handleChange(e){
    const native=$("#collective-event-day");
    if(native)native.value=collectiveSelectedDay();
    return;
+ }
+ if(t.hasAttribute("data-archive-select")){
+   if(!adminToken||!state.archiveBulkEditing)return;
+   const taskId=t.getAttribute("data-archive-select");
+   if(t.checked)state.selectedArchivedIds.add(taskId);else state.selectedArchivedIds.delete(taskId);
+   render();return;
  }
  if(t.id==="finish-select-all"){
    document.querySelectorAll('#finish-dialog input[name="joint-target"]').forEach(input=>{input.checked=t.checked});
