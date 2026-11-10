@@ -274,6 +274,48 @@ await test("exclusão em lote de demandas concluídas é restrita ao Admin e exi
   good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
  }
 });
+await test("exclusão em lote de concluídas exige Administração, confirmação e preserva pendentes",async()=>{
+ const adminToken=token,person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
+ const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
+ const archivedIds=[],activeId=good(await api("/tasks","POST",{
+   title:"Não excluir demanda ativa por lote",assignmentScope:"usuarios",
+   assigneeIds:[eligible[0]],commissionIds:[],deadlines:[]
+ }),201).id;
+ try{
+   for(const [i,day] of ["2015-04-15","2016-03-20"].entries()){
+     const archived=good(await api("/tasks","POST",{
+       title:"Concluída para exclusão em lote "+i,assignmentScope:"todos",
+       assigneeIds:eligible,commissionIds:[],
+       deadlines:[{id:"evento-data",label:"Evento",dueAt:day+"T23:59:59"}]
+     }),201).id;
+     archivedIds.push(archived);
+   }
+   const before=good(await api("/bootstrap")).tasks;
+   assert.ok(archivedIds.every(id=>before.find(t=>t.id===id)?.archivedAt));
+   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[]})).status,400);
+   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[...archivedIds,archivedIds[0]]})).status,400);
+   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[...archivedIds,activeId]})).status,409,
+     "Seleção misturada com demanda ativa é recusada antes de qualquer exclusão");
+   assert.ok(archivedIds.every(id=>good(await api("/bootstrap")).tasks.some(t=>t.id===id)),
+     "Recusa protege todas as arquivadas do lote");
+   token="";
+   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,401,
+     "Sessão anônima não exclui demandas concluídas");
+   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,403,
+     "A Tutoria e os usuários comuns não podem executar exclusão em lote");
+   token=adminToken;
+   const result=good(await api("/admin/tasks/bulk-delete","POST",{taskIds:archivedIds}));
+   assert.equal(result.deletedCount,2);
+   const after=good(await api("/bootstrap")).tasks;
+   assert.ok(archivedIds.every(id=>!after.some(t=>t.id===id)),"Ambas as concluídas foram removidas");
+   assert.ok(after.some(t=>t.id===activeId),"Uma demanda ativa não é removida");
+ }finally{
+   token=adminToken;
+   for(const id of [...archivedIds,activeId])
+     if(good(await api("/bootstrap")).tasks.some(t=>t.id===id))good(await api("/tasks/"+id,"DELETE"));
+ }
+});
 await test("etapas opcionais nas demandas comuns",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
  const id=good(await api("/tasks","POST",{title:"Demanda sem etapas",assigneeIds:[eligible[0]],commissionIds:[],assignmentScope:"usuarios",deadlines:[]}),201).id;
