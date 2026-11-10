@@ -292,6 +292,7 @@ await page.locator('a[data-route="reunioes"]').click();
  tasks.push({...task,id:"t-mobile-selectors",title:"Seletor no celular",assigneeIds:["u1","admin"],
   commissionIds:["videos","cards","imaginacao"],archivedAt:null,userDone:{},commissionDone:{}});
  await page.goto(origin+"/#/demandas");
+ await page.reload(); // Atualizar bootstrap com cenário fictício.
  const mobileCard=page.locator(".demand-activity-card").filter({hasText:"Seletor no celular"});
  await mobileCard.waitFor();
  assert.equal(await mobileCard.locator(".demand-card-picker").count(),2);
@@ -304,6 +305,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await mobileCard.locator(".demand-card-committee").evaluate(el=>el.open),false,"Esc fecha a lista");
  tasks=tasks.filter(x=>x.id!=="t-mobile-selectors");committees.splice(1);
  await page.goto(origin+"/#/inicio");
+ await page.reload();
  await page.locator(".dashboard-grid .demand-card-cover-link").first().click();
  await page.waitForURL(/#\/atividade\/t1/,{timeout:6000});
  assert.ok(await page.locator('a[data-route="inicio"]').evaluate(el=>el.classList.contains("active")),"Visão geral continua destacada após entrar no card");
