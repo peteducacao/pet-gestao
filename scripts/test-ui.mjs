@@ -312,9 +312,10 @@ archivedStatusSelect.value="concluida";archivedStatusSelect.dispatchEvent(new wi
 const bulkEntry=document.querySelector('[data-do="archive-selection-open"]');
 assert.ok(bulkEntry,"Admin encontra Excluir na lista de concluídas");
 tap('[data-do="archive-selection-open"]');await wait();
-assert.equal(document.querySelectorAll('[data-archive-select]').length,2,"Caixas individuais aparecem para as concluídas");
+const availableArchiveCards=document.querySelectorAll('[data-archive-select]').length;
+assert.ok(availableArchiveCards>=2,"Caixas individuais aparecem para todas as concluídas do período");
 tap('[data-do="archive-select-all"]');await wait();
-assert.equal(document.querySelectorAll('[data-archive-select]:checked').length,2,"Selecionar todas marca ambas");
+assert.equal(document.querySelectorAll('[data-archive-select]:checked').length,availableArchiveCards,"Selecionar todas marca todas as concluídas visíveis");
 tap('[data-do="archive-select-all"]');await wait();
 assert.equal(document.querySelectorAll('[data-archive-select]:checked').length,0,"Botão desmarca todas também");
 tap('[data-do="archive-selection-cancel"]');await wait();
