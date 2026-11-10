@@ -1683,6 +1683,12 @@ function start(){
    if($("#notice-dialog")?.hidden)showNotice(invalidFieldMessage(field),{title:"Revise este campo",kind:"warning",focusAfter:field});
  },true);
  document.addEventListener("submit",e=>handleSubmit(e));
+ document.addEventListener("input",e=>{
+   if(["collective-date-day","collective-date-month","collective-date-year"].includes(e.target?.id)){
+     const native=$("#collective-event-day");
+     if(native)native.value=collectiveSelectedDay();
+   }
+ });
  document.addEventListener("change",e=>handleChange(e).catch(err=>setToast(err.message)));
  reload();
  // Identifica a virada do prazo em uma aba aberta sem exigir recarregar a tela.
