@@ -588,6 +588,13 @@ function isEveryoneAssigned(t){
   new Set(assigned).size===everyone.length&&
   everyone.every(uid=>assigned.includes(uid));
 }
+// Dois cartões dos detalhes podem ser recolhidos sem perder informação ou alterar o banco.
+function collapsibleDetailHeading(title,iconName){
+ return '<summary class="detail-panel-summary" aria-label="Minimizar ou expandir '+esc(title)+'">'+
+  '<span class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico(iconName)+'</span>'+esc(title)+'</span>'+
+  '<span class="detail-panel-toggle" aria-hidden="true"><span class="detail-toggle-expanded">Minimizar</span><span class="detail-toggle-collapsed">Expandir</span>'+
+  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></summary>';
+}
 function renderAssignees(t){
  const people=(t.assigneeIds||[]).map(id=>nameFor(id)||"Responsável vinculado");
  const teams=(t.commissionIds||[]).map(cid=>committee(cid)).filter(Boolean);
@@ -605,13 +612,13 @@ function renderAssignees(t){
     (members.length?'<small>Integrantes: '+esc(members.slice(0,4).join(", "))+
      (members.length>4?' e mais '+(members.length-4):"")+'</small>':"")+'</div>';
   }).join("")+'</div>':"";
- return '<section class="card card-pad assignee-card detail-accent-card"><h2 class="detail-card-heading">'+
-  '<span class="detail-heading-icon" aria-hidden="true">'+ico("users")+'</span>Responsáveis</h2>'+
-  ((people.length||teams.length)?
+ return '<details class="card card-pad assignee-card detail-accent-card collapsible-detail-card" open>'+
+  collapsibleDetailHeading("Responsáveis","users")+
+  '<div class="detail-panel-content">'+((people.length||teams.length)?
     '<div class="assignee-columns'+(!(people.length&&teams.length)?' assignee-columns-single':"")+'">'+
     peoplePanel+teamsPanel+'</div>':
     '<p class="assignee-empty">Nenhum responsável vinculado.</p>')+
-  '</section>';
+  '</div></details>';
 }
 function renderHistory(t){
  const history=historyFor(t.id);
@@ -638,9 +645,10 @@ function detailStatusSelector(t,status){
 }
 function activitySections(t,readOnly=false){
  const ids=t.commissionIds||[];
- const commissionProgress=ids.length>=2?'<section class="card card-pad detail-accent-card"><h2 class="detail-card-heading"><span class="detail-heading-icon">'+ico("users")+'</span>Andamento das comissões</h2>'+
- ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
- '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"";
+ const commissionProgress=ids.length>=2?'<details class="card card-pad detail-accent-card collapsible-detail-card commission-progress-card" open>'+
+ collapsibleDetailHeading("Andamento das comissões","users")+
+ '<div class="detail-panel-content">'+ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
+ '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</div></details>':"";
  return '<div class="activity-detail-layout">'+
   '<div class="activity-detail-top"><div class="stack detail-left-column">'+deadlineFacts(t)+renderAssignees(t)+commissionProgress+'</div>'+
   '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+
@@ -762,14 +770,14 @@ function renderAdmin(){
  if(me?.mustChangePassword)return header("Administração","Alterar senha temporária","Essa alteração é obrigatória antes de usar o painel.")+
  '<section class="card card-pad live-auth"><form id="admin-change-password-form" class="register-form"><label>Senha temporária<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input name="newPassword" type="password" minlength="10" required autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha administrativa</button></form></section>';
 
- const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3};
+ const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3,overdueAudience:"pending"};
  const adminPanels='<section class="card card-pad admin-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><h2>Usuários</h2><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição.</p></div><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="admin-commission-list">'+
  data.committees.map((c,i)=>'<div class="admin-commission-item"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div><button class="button primary admin-save-button" data-do="save-vagas" data-id="'+esc(c.id)+'">Salvar</button></div></div>').join("")+'</div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática das demandas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<label><input type="checkbox" id="mail-scheduled"> Agendar envio</label><div id="mail-scheduling"></div><div id="mail-attachments"></div><div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-manual">Pré-visualizar e-mail</button><button class="button primary" type="submit">Registrar envio</button></div></form></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Avisos automáticos de prazo</h2><p class="field-hint">Defina quando os responsáveis receberão avisos sobre etapas pendentes. Cada etapa recebe um aviso de cada tipo; demandas arquivadas não recebem alertas. Os avisos iniciam desativados para evitar envios inesperados.</p>'+
- '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-soon" '+(reminderConfig.dueSoonEnabled?"checked":"")+'> E-mail de prazo vencendo</label><label class="deadline-days">Enviar faltando <input type="number" id="reminder-days" min="1" max="30" step="1" value="'+esc(reminderConfig.daysBefore??3)+'"> dia(s) para o prazo</label><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> E-mail de prazo vencido</label><button class="button primary" type="button" data-do="save-reminder-settings">Salvar avisos de prazo</button></div></section>'+
+ '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-soon" '+(reminderConfig.dueSoonEnabled?"checked":"")+'> E-mail de prazo vencendo</label><label class="deadline-days">Enviar faltando <input type="number" id="reminder-days" min="1" max="30" step="1" value="'+esc(reminderConfig.daysBefore??3)+'"> dia(s) para o prazo</label><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> E-mail de prazo vencido</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas. Cada endereço recebe um único e-mail por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-settings">Salvar avisos de prazo</button></div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelos de notificação</h2><p class="field-hint">Selecione o tipo de mensagem e edite o assunto e o texto. Variáveis automáticas: {autor}, {acao}, {demanda}, {tipo}, {etapa}, {prazo}, {dias}, {link}.</p>'+
  '<form id="notification-template-form" class="register-form"><label>Tipo de mensagem<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
@@ -1041,7 +1049,8 @@ async function handleClick(e){
    if(!Number.isInteger(days)||days<1||days>30)return setToast("Informe uma antecedência entre 1 e 30 dias.");
    await saveAndReload(()=>request("/admin/reminder-settings","PUT",{
      dueSoonEnabled:$("#reminder-soon").checked,
-     overdueEnabled:$("#reminder-overdue").checked,daysBefore:days
+     overdueEnabled:$("#reminder-overdue").checked,daysBefore:days,
+     overdueAudience:$("#reminder-overdue-audience").value
    },"admin"),"Configurações dos avisos de prazo salvas.");
    return;
  }
