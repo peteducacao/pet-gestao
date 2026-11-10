@@ -607,12 +607,14 @@
         ensure(user);const old=await readTask(db,match[1]);
         if(old.archivedAt)ensure(user,true);
         else {
-          const allowed=user.role==="tutor"||(user.role==="petiano"&&old.createdBy===user.id)||
+          // As permissões de exclusão de demandas ativas independem de quem as criou.
+          // A sessão deve ter cargo de edição; contas comuns continuam bloqueadas.
+          const allowed=user.role==="petiano"||user.role==="tutor"||
             (user.role==="admin"&&user.session_admin_scope===1);
-          if(!allowed)fail("Somente quem criou a demanda, a tutoria ou a Administração pode excluir demandas ativas.",403);
+          if(!allowed)fail("Somente PETianos(as), Tutoria ou Administração podem excluir demandas ativas.",403);
         }
         // Apagar de forma atômica, inclusive os avisos de prazo pendentes e o histórico.
-        // A permissão é validada acima pelo Worker para Admin/Tutoria/autor da demanda.
+        // A autorização é validada no Worker, não por campos enviados pelo navegador.
         await db.batch([
           db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id=?)").bind(old.id),
           db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id),
