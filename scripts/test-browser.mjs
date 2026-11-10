@@ -182,5 +182,12 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/admin/emails");
  await page.locator("#notification-template-form").waitFor({timeout:10000});
  assert.equal(await page.locator('#mail-form [data-rich-input="message"]').count(),1);
+ await page.goto(origin+"/#/atividade/t1");
+ await page.locator('button[data-do="delete-task"]').click();
+ assert.ok((await page.locator("#notice-dialog").innerText()).includes("sem possibilidade de recuperação"));
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await page.waitForTimeout(250);
+ assert.ok(calls.some(x=>x.p==="/tasks/t1"&&x.method==="DELETE"));
+ assert.equal(tasks.some(x=>x.id==="t1"),false);
  console.log("BROWSER: navegação, nova guia, responsividade, Atas, editor, status e Admin — OK.");
 }finally{await browser.close();server.kill();}
