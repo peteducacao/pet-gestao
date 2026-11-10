@@ -11,6 +11,7 @@ on:
       - 'assets/**'
       - 'worker/**'
       - 'scripts/prepare-deploy.mjs'
+      - 'scripts/test-auth-sessions.mjs'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
@@ -46,6 +47,8 @@ jobs:
           node --check app-live.js
           node --check scripts/prepare-deploy.mjs
           node --check --input-type=module < worker/src/index.js
+      - name: Testar permanência de sessão e login discreto
+        run: node scripts/test-auth-sessions.mjs
       - name: Validar todas as migrações SQL e os cenários de teste
         run: |
           python3 - <<'PY'
