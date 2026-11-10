@@ -544,14 +544,21 @@ function stageRow(stage={},i=0){
  '<label data-previous-owner="'+esc(selectedOwner)+'">'+(state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)")+stageAssigneeField(selectedOwner)+'</label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
+function singlePersonDateMode(){return state.assignmentScope==="usuarios"&&state.selectedUsers.size===1&&state.selectedCommissions.size===0;}
+function simpleDateMode(){return state.assignmentScope==="todos"||singlePersonDateMode();}
 function collectiveEventDate(stage=null){
  // Os campos separados permitem deixar APENAS o ano atual preenchido.
  // <input type=date> não permite um ano sem dia/mês; permanece para o calendário nativo.
+ const collective=state.assignmentScope==="todos";
+ const label=collective?"Data do evento":"Data da atividade";
+ const description=collective?
+  "Evento coletivo para Todos(as). Será concluído e arquivado automaticamente ao terminar a data do evento (horário de Sergipe), sem confirmação manual.":
+  "Atividade individual para a pessoa selecionada. A conclusão será marcada pela própria pessoa; a chegada da data não conclui a demanda automaticamente.";
  const saved=(stage?.dueAt||"").slice(0,10);
  const parts=/^\d{4}-\d{2}-\d{2}$/.test(saved)?saved.split("-"):[];
  const yy=parts[0]||String(current.getFullYear()),mm=parts[1]||"",dd=parts[2]||"";
- return '<div class="collective-event-date"><div class="collective-date-fields" role="group" aria-label="Data do evento">'+
-  '<span class="collective-date-label-text">Data do evento <span class="task-form-required" aria-hidden="true">*</span></span>'+
+ return '<div class="collective-event-date"><div class="collective-date-fields" role="group" aria-label="'+label+'">'+
+  '<span class="collective-date-label-text">'+label+' <span class="task-form-required" aria-hidden="true">*</span></span>'+
   '<div class="collective-date-parts">'+
    '<label for="collective-date-day">Dia<input id="collective-date-day" type="text" inputmode="numeric" maxlength="2" placeholder="DD" autocomplete="off" value="'+esc(dd)+'" required></label>'+
    '<label for="collective-date-month">Mês<input id="collective-date-month" type="text" inputmode="numeric" maxlength="2" placeholder="MM" autocomplete="off" value="'+esc(mm)+'" required></label>'+
@@ -559,7 +566,7 @@ function collectiveEventDate(stage=null){
    '<button type="button" class="button ghost collective-calendar-button" data-do="collective-pick-date" title="Abrir calendário" aria-label="Abrir calendário">'+ico("calendar")+'</button>'+
   '</div>'+
   '<input id="collective-event-day" class="collective-native-date" type="date" tabindex="-1" aria-label="Selecionar data pelo calendário" value="'+esc(saved)+'"></div>'+
-  '<p>'+ico("calendar")+' Evento coletivo para Todos(as). Será concluído e arquivado automaticamente ao terminar a data do evento (horário de Sergipe), sem confirmação manual.</p></div>';
+  '<p>'+ico("calendar")+' '+description+'</p></div>';
 }
 function collectiveSelectedDay(){
  const dd=$("#collective-date-day")?.value.trim()||"",
@@ -579,14 +586,24 @@ function updateCollectiveDateInputs(date){
 }
 
 function renderDeadlineSettings(stagesList=[]){
- if(state.assignmentScope==="todos")return '<div class="register-deadlines collective-date-panel"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Data do evento</h3><p>Informe o dia em que o evento coletivo acontecerá. Não é necessário definir Prazo, Correção, Postagem ou responsáveis por etapa.</p></div></div>'+
-  collectiveEventDate((stagesList||[])[0])+'</div>';
+ if(simpleDateMode()){
+  const collective=state.assignmentScope==="todos";
+  const title=collective?"Data do evento":"Data da atividade";
+  const help=collective?
+   "Informe o dia do evento coletivo. Não é necessário definir Prazo, Correção, Postagem ou responsáveis por etapa.":
+   "Para uma única pessoa responsável, basta informar a data da atividade. Não é preciso criar etapas de Prazo, Correção ou Postagem.";
+  const saved=(stagesList||[]).find(x=>x.dueAt)||(stagesList||[])[0];
+  return '<div class="register-deadlines collective-date-panel"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>'+title+'</h3><p>'+help+'</p></div></div>'+
+   collectiveEventDate(saved)+'</div>';
+ }
  return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>As etapas são <strong>opcionais</strong>. Você pode salvar a demanda sem prazo ou adicionar Prazo, Correção e Postagem, cada uma com sua data e responsável.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
  '<div id="stage-rows">'+(stagesList||[]).filter(x=>x.label!=="Evento").map(stageRow).join("")+'</div></div>';
 }
-function refreshDeadlineMode(previousScope=null){
+function refreshDeadlineMode(previousScope=null,previousSingle=null){
  const host=$("#deadline-settings");if(!host)return;
- const eventDay=collectiveSelectedDay();
+ const hadDateMode=previousScope==="todos"||Boolean(previousSingle);
+ const nowDateMode=simpleDateMode();
+ const selectedDate=hadDateMode?collectiveSelectedDay():"";
  const currentRows=$$(".live-stage").map(row=>({
    id:row.dataset.stageId,
    label:row.querySelector('[data-stage="label"]')?.value||"Prazo",
@@ -594,22 +611,30 @@ function refreshDeadlineMode(previousScope=null){
      (row.querySelector('[data-stage="day"]')?.value?"T"+(row.querySelector('[data-stage="hour"]')?.value||"23:59")+":00":""),
    assigneeIds:row.querySelector('select[data-stage="assignee"]')?.value?[row.querySelector('select[data-stage="assignee"]').value]:[]
  }));
- if(previousScope==="todos"&&state.assignmentScope!=="todos"){
-   const restored=state.standardStageDraft||[];
-   host.innerHTML=renderDeadlineSettings(restored);
-   return;
- }
- if(previousScope!=="todos"&&state.assignmentScope==="todos"){
-   // Uma etapa de prazo comum não vira a data de um evento ao marcar Todos(as).
+ if(!hadDateMode&&nowDateMode){
+   // Preserva as etapas do modo de comissões ou múltiplas pessoas.
    state.standardStageDraft=currentRows;
    const oldTask=data.tasks.find(t=>t.id===state.taskFormId);
-   const savedEvent=oldTask?.assignmentScope==="todos"?
-     (oldTask.deadlines||[]).find(x=>x.label==="Evento"):null;
-   host.innerHTML=renderDeadlineSettings(savedEvent?[savedEvent]:[]);
+   const oldIsCollective=oldTask?.assignmentScope==="todos";
+   const oldIsSingle=oldTask?.assignmentScope==="usuarios"&&oldTask?.assigneeIds?.length===1&&!(oldTask?.commissionIds||[]).length;
+   const savedStage=state.assignmentScope==="todos"&&oldIsCollective?
+     (oldTask.deadlines||[]).find(x=>x.label==="Evento"):
+     singlePersonDateMode()&&oldIsSingle?(oldTask.deadlines||[]).find(x=>x.dueAt):null;
+   // Ao escolher uma pessoa após configurar prazos, utiliza a primeira data já preenchida.
+   const draft=savedStage||(singlePersonDateMode()?currentRows.find(x=>x.dueAt):null);
+   host.innerHTML=renderDeadlineSettings(draft?[draft]:[]);
    return;
  }
- const list=eventDay?[{label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:[];
- host.innerHTML=renderDeadlineSettings(list);
+ if(hadDateMode&&!nowDateMode){
+   host.innerHTML=renderDeadlineSettings(state.standardStageDraft||[]);
+   return;
+ }
+ if(hadDateMode&&nowDateMode){
+   // Manter a data ao alternar entre individual e coletivo, sem autoarquivar o individual.
+   host.innerHTML=renderDeadlineSettings(selectedDate?[{dueAt:selectedDate+"T23:59:59"}]:[]);
+   return;
+ }
+ host.innerHTML=renderDeadlineSettings(currentRows);
 }
 function renderTaskForm(routeId){
  if(!canWrite())return authRequired();
@@ -621,12 +646,12 @@ function renderTaskForm(routeId){
    state.taskFormId=routeId;
    state.selectedUsers=new Set(t?.assigneeIds||[]);
    state.selectedCommissions=new Set(t?.commissionIds||(cid?[cid]:[]));
-   state.standardStageDraft=(t?.deadlines||[]).filter(x=>x.label!=="Evento");
+   state.standardStageDraft=(t?.deadlines||[]).filter(x=>!["Evento","Atividade"].includes(x.label));
    state.assignmentScope=cid?"comissoes":t?(t.assignmentScope||(
       isEveryoneAssigned(t)?"todos":t.commissionIds?.length&&!t.assigneeIds?.length?"comissoes":"usuarios"
     )):"usuarios";
  }
- return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina os responsáveis e a data do evento ou etapas, quando necessárias.",
+ return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina os responsáveis e informe a data da atividade, ou etapas quando necessário.",
  backButton()+
  (t?'<button type="submit" form="task-form" class="button primary task-form-header-save">'+ico("check")+' Salvar demanda</button>':""))+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
@@ -1062,11 +1087,11 @@ async function saveAndReload(action,success="Alterações salvas."){
 function userFields(form){return Object.fromEntries(new FormData(form).entries())}
 async function saveTask(form){
  const f=collectRich(form,userFields(form));
- const isCollective=state.assignmentScope==="todos";
- const eventDay=isCollective?collectiveSelectedDay():"";
- if(isCollective&&!eventDay)return setToast("Informe dia, mês e ano válidos para o evento coletivo.");
- const stages=isCollective?
-  [{id:"evento-data",label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:
+ const isCollective=state.assignmentScope==="todos",isSingle=singlePersonDateMode();
+ const eventDay=(isCollective||isSingle)?collectiveSelectedDay():"";
+ if((isCollective||isSingle)&&!eventDay)return setToast("Informe dia, mês e ano válidos para a data da atividade.");
+ const stages=isCollective||isSingle?
+  [{id:isCollective?"evento-data":"atividade-data",label:isCollective?"Evento":"Atividade",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:
   $$(".live-stage").map(row=>{
     const label=row.querySelector('[data-stage="label"]')?.value||"Prazo",
       day=row.querySelector('[data-stage="day"]')?.value||"",
@@ -1076,7 +1101,7 @@ async function saveTask(form){
   });
  if(!f.title.trim())return setToast("Informe o título.");
  if(stages.some(x=>!x.dueAt))return setToast("Informe a data de todas as etapas inseridas.");
- if(!isCollective&&stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores nas etapas.");
+ if(!isCollective&&!isSingle&&stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores nas etapas.");
  const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
  if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
  const taskId=form.dataset.id;
@@ -1255,10 +1280,11 @@ async function handleClick(e){
   if(action==="meetings-view"){state.meetingView=b.dataset.value;render();return}
  if(action==="today"){state.year=current.getFullYear();state.month=current.getMonth();state.week=0;render();return}
  if(action==="assignment-scope"){
-  if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
   const previousScope=state.assignmentScope;
+  const previousSingle=singlePersonDateMode();
+  if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
   state.assignmentScope=b.dataset.value;
-  $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();refreshDeadlineMode(previousScope);syncStageAssigneePlaceholder();return;
+  $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();refreshDeadlineMode(previousScope,previousSingle);syncStageAssigneePlaceholder();return;
  }
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
@@ -1544,8 +1570,11 @@ async function handleChange(e){
  // A etapa de Correção não deve atribuir tutor automaticamente sem confirmação explícita.
  if(t.dataset.stage==="label")return;
  if(t.dataset.assign){
+   const previousScope=state.assignmentScope,previousSingle=singlePersonDateMode();
    const set=t.dataset.assign==="comissoes"?state.selectedCommissions:state.selectedUsers;
-   if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncVisibilityOptions();syncStageAssigneePlaceholder();return;
+   if(t.checked)set.add(t.value);else set.delete(t.value);
+   const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();
+   syncVisibilityOptions();refreshDeadlineMode(previousScope,previousSingle);syncStageAssigneePlaceholder();return;
  }
  if(t.matches?.("[data-detail-status]")){
    const task=data.tasks.find(x=>x.id===t.dataset.id);
