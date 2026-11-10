@@ -749,8 +749,8 @@ function openFinishDialog(task){
  const moreThanOne=users.length+groups.length>1;
  const choices=moreThanOne?
   '<div class="finish-quick-actions">'+
-    (canFinishSelf?'<button class="button ghost" type="button" data-do="finish-select-self">'+ico("user")+(users.includes(me.id)?" Só minha participação":" Só minha(s) comissão(ões)")+'</button>':"")+
-    '<button class="button ghost" type="button" data-do="finish-select-everyone">'+ico("users")+' Concluir para todos(as)</button>'+
+    (canFinishSelf?'<button class="button ghost" type="button" data-do="finish-select-self" data-id="'+esc(task.id)+'">'+ico("user")+(users.includes(me.id)?" Só minha participação":" Só minha(s) comissão(ões)")+'</button>':"")+
+    '<button class="button ghost" type="button" data-do="finish-select-everyone" data-id="'+esc(task.id)+'">'+ico("users")+' Concluir para todos(as)</button>'+
    '</div>':"";
  layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Concluir participações">'+
  '<h2>Concluir participações</h2><p>Se houver mais de um responsável, escolha concluir somente a sua participação ou todas as participações. Também é possível selecionar manualmente.</p>'+
