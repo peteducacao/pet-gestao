@@ -234,11 +234,12 @@
   // Idempotente: uma mudança de versão concorrente impede atualização duplicada.
   // Registros antigos de Todos(as) também encerram no fim da data mais recente.
   // Sem data, nenhum evento será arquivado automaticamente.
-  async function autoCompleteCollectiveEvents(env){
+  async function autoCompleteCollectiveEvents(env,taskId=null){
     const db=env.DB,stamp=now(),clock=Date.now();
-    const pending=(await db.prepare(
-      "SELECT id,assignee_ids,commission_ids,user_done,deadlines,version FROM tasks WHERE archived_at IS NULL AND assignment_scope='todos'"
-    ).all()).results;
+    const sql="SELECT id,assignee_ids,commission_ids,user_done,deadlines,version FROM tasks WHERE archived_at IS NULL AND assignment_scope='todos'";
+    const pending=(await (taskId?
+      db.prepare(sql+" AND id=?").bind(taskId):
+      db.prepare(sql)).all()).results;
     for(const task of pending){
       const stages=asJson(task.deadlines,[]);
       const days=stages.map(stage=>String(stage?.dueAt||"").slice(0,10))
@@ -395,7 +396,7 @@
         Number.isFinite(Date.parse(day+"T12:00:00Z"))&&
         new Date(day+"T12:00:00Z").toISOString().slice(0,10)===day;
       if(!dateIsValid)fail("Informe uma data válida para o evento coletivo.");
-      if(!old&&Number(day.slice(0,4))<currentYear())fail("Não cadastre eventos de anos anteriores.");
+      // Eventos coletivos aceitam datas de qualquer ano, inclusive já passado.
       stages=[{id:str(providedStages[0].id||"evento-data",60),label:"Evento",
         dueAt:day+"T23:59:59",assigneeIds:[],commissionCompleted:{},completedAt:null}];
     }else{
@@ -443,6 +444,9 @@
       diagnosticStage="session";
       const user=await currentUser(req,db);
       if(path==="/api/v1/bootstrap"&&method==="GET"){
+        // Corrige também eventos antigos já salvos com a data vencida,
+        // mesmo se o agendador ainda não tiver executado.
+        await autoCompleteCollectiveEvents(env);
         diagnosticStage="bootstrap-query";
         return answer(await bootstrap(db,user));
       }
@@ -765,6 +769,7 @@
         await verifyEveryoneScope(db,t);
         await db.prepare("INSERT INTO tasks(id,title,description,caption_text,registered_at,assignee_ids,commission_ids,commission_done,deadlines,status,created_by,updated_by,created_at,updated_at,overview_visible,assignment_scope) VALUES(?,?,?,?,?,?,?,'{}',?,'pendente',?,?,?,?,?,?)").bind(id,t.title,t.description,t.captionText,start,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),user.id,user.id,stamp,stamp,t.overviewVisible?1:0,t.assignmentScope).run();
         await audit(db,id,user,"Cadastrou a demanda");
+        if(t.assignmentScope==="todos")await autoCompleteCollectiveEvents(env,id);
         await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Nova demanda","cadastrou");
         return answer({ok:true,id},201);
       }
@@ -785,6 +790,7 @@
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,assignment_scope=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,t.assignmentScope,user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
         await audit(db,old.id,user,"Atualizou dados, prazos ou responsáveis");
+        if(t.assignmentScope==="todos")await autoCompleteCollectiveEvents(env,old.id);
         if(t.captionText!==old.captionText){
           await markTutorReviewAfterCorrection(db,old,user,stamp);
           await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
