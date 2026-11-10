@@ -42,7 +42,7 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 
 ## Comissões e permissões
 - Nomes das dez comissões reais são preservados; nenhum registro fictício entra na produção. A Administração define vagas e ordenação dos cards; participação segue regras existentes.
-- Tutor(a) e PETiano(a) utilizam a área comum; Admin usa sessão própria protegida. Servidor valida autenticação e escopo, não apenas o front-end.
+- PETiano(a), Tutor(a) e Administração entram pelo mesmo formulário e usam a mesma sessão. Após login, a Administração tem acesso a Visão geral, Demandas, Minhas pendências, Comissões e Meu perfil como os demais, com o botão exclusivo **Painel Admin** no menu. O botão **Voltar ao PET Gestão** sai do painel sem encerrar a sessão; **Sair da conta** encerra a sessão integralmente. O Worker concede `admin_scope=1` exclusivamente ao login válido de uma conta com cargo Admin e exige esse escopo em cada endpoint administrativo.
 - Histórico de alterações recolhido nos detalhes, com evento, responsável, data e horário, inclusive conclusão conjunta.
 
 ## Testes e proteção
@@ -124,3 +124,9 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - **Duas ou mais pessoas**, ou comissões, continuam com prazos por etapa opcionais. Alternar os modos preserva as etapas quando possível e permite voltar ao modo de data única.
 - **Administração → Demandas → Concluídas:** botão **Excluir demandas** ativa caixas de seleção nas demandas do período, com **Selecionar todas**, seleção individual, **Excluir selecionadas (N)** e **Cancelar**. A confirmação explícita é obrigatória; a API verifica sessão administrativa e que todas as demandas do lote estão concluídas antes de executar exclusão transacional. Demandas pendentes nunca são removidas por essa funcionalidade.
 - O asterisco de data deve permanecer alinhado ao rótulo no celular e no computador. Os modelos e avisos automáticos de prazo ficam em **Configurações** no Admin, e as comissões utilizam **Salvar todas as alterações**.
+
+## Login único da Administração — 10/11/2026
+- O campo de login aceita e-mail de qualquer usuário ou o identificador `Admin` para a conta administrativa principal, usando a senha já existente.
+- Nenhuma segunda tela ou segunda senha é solicitada para abrir o Painel Admin. O botão permanece oculto para perfis não administrativos, inclusive Tutor(a).
+- Quem estiver conectado como Admin pode acessar e editar demandas pelas páginas comuns. Alterações administrativas continuam verificadas no servidor, e sessões de perfis comuns não ganham privilégios por tentar acessar a URL `#/admin` ou chamar APIs diretamente.
+- Sessões antigas da entrada administrativa são migradas localmente quando não há outra sessão comum ativa. O token separado antigo é descartado e as credenciais não são expostas no front-end.
