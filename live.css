@@ -907,3 +907,197 @@ body.notice-open{overflow:hidden}
   min-height:38px!important;padding:8px 12px!important;
  }
 }
+
+
+/* Revisão 10/11: orientação na navegação e status visível das demandas. */
+.sidebar .nav-link.active{
+ background:#f0eaff!important;color:#6533b9!important;
+ box-shadow:inset 3px 0 0 #7442d3;
+ font-weight:800;
+}
+.sidebar .nav-link.active:before{
+ width:4px!important;background:#7442d3!important;
+ box-shadow:0 0 0 2px rgba(116,66,211,.06);
+}
+.sidebar .nav-link.active svg{color:#6533b9}
+#screen .demand-activity-card.status-atrasada{
+ border-left-color:#d63842!important;
+ background:linear-gradient(90deg,#fff5f5 0%,#fff 25%)!important;
+}
+#screen .demand-activity-card.status-atrasada .task-status-atrasada,
+#screen .task-status-atrasada{
+ color:#b52e38!important;background:#ffebec!important;border-color:#f6cbd0!important;
+}
+#screen .demand-activity-card.status-pendente{border-left-color:#7954d4!important}
+#screen .demand-activity-card.status-concluida{border-left-color:#279765!important}
+
+/* Tela de detalhes: ações grandes, consistentes e sem repetição. */
+#screen .activity-detail-page .page-header{align-items:center;gap:18px}
+#screen .activity-detail-page .page-actions{gap:12px;align-items:center}
+#screen .activity-detail-page .page-actions>.button{
+ min-height:45px;padding:12px 19px;font-size:13.5px;
+ border-radius:12px;box-shadow:0 3px 10px rgba(50,33,95,.04);
+}
+#screen .activity-detail-page .page-actions>.button:hover{border-color:#c7b4e9}
+#screen .detail-status-control{
+ position:relative;display:inline-flex;align-items:center;gap:9px;
+ min-height:45px;padding:0 15px;border-radius:12px;
+ border:1px solid #e0d2f7;background:#efe9fc;color:#6d3cba;
+ cursor:pointer;box-shadow:0 3px 10px rgba(50,33,95,.04);
+ font-size:13px;font-weight:800;
+}
+#screen .detail-status-control.detail-status-atrasada{
+ background:#fff0f0;border-color:#f4c9cf;color:#b52e38;
+}
+#screen .detail-status-caption{font-weight:700;opacity:.78;white-space:nowrap}
+#screen .detail-status-caption:after{content:":"}
+#screen .detail-status-select{
+ flex:1;min-width:90px;max-width:150px;appearance:none;-webkit-appearance:none;
+ background:transparent;border:0;outline:0;color:inherit;font:inherit;
+ font-size:13px;font-weight:800;cursor:pointer;
+ padding:12px 22px 12px 0;white-space:nowrap;
+}
+#screen .detail-status-control:focus-within{
+ outline:2px solid #c4a8fa;outline-offset:2px;
+}
+#screen .detail-status-chevron{pointer-events:none;position:absolute;right:13px;color:inherit}
+#screen .detail-status-final{min-height:45px;padding:12px 18px;font-size:13px}
+#screen .activity-detail-page .activity-detail-grid{align-items:start;gap:22px}
+#screen .activity-detail-page .card.card-pad{border:1px solid #e8e5f1;box-shadow:0 6px 24px rgba(54,37,100,.035);border-radius:18px}
+#screen .activity-detail-page .card h2{font-size:16px;margin-top:0}
+
+/* Responsáveis: mostrar também comissões, sem branco vazio. */
+#screen .assignee-card{background:linear-gradient(145deg,#fff 70%,#fbf9ff)}
+#screen .assignee-card h2{margin-bottom:15px}
+#screen .assignee-group{margin-top:13px}
+#screen .assignee-group-heading{
+ display:inline-flex;align-items:center;gap:7px;margin-bottom:10px;
+ font-size:11px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#806d98;
+}
+#screen .assignee-group-heading svg{width:15px;height:15px;color:#7040b5}
+#screen .assignee-chips{display:flex;gap:8px;flex-wrap:wrap}
+#screen .assignee-person{
+ display:inline-flex;align-items:center;min-height:33px;padding:8px 12px;
+ border-radius:10px;background:#f2ecfe;color:#6745a7;
+ border:1px solid #e4d8fa;font-size:12px;font-weight:750;overflow-wrap:anywhere;
+}
+#screen .assignee-person:before{content:"";width:7px;height:7px;border-radius:50%;background:#8c66d4;margin-right:7px;flex:none}
+#screen .assignee-team{
+ display:flex;flex-direction:column;gap:5px;min-width:0;
+ border:1px solid #e9e1f5;border-left:3px solid #8e65d8;border-radius:11px;
+ background:#faf8ff;padding:11px 13px;margin-bottom:9px;
+}
+#screen .assignee-team:last-child{margin-bottom:0}
+#screen .assignee-team strong{display:flex;align-items:center;gap:8px;color:#503480;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+#screen .assignee-team strong svg{width:16px;height:16px;flex:none}
+#screen .assignee-team small{font-size:11.5px;color:#837390;line-height:1.45;overflow-wrap:anywhere}
+#screen .assignee-empty{color:#7f738d;font-size:13px}
+
+/* Histórico recolhível com chevron explícito e linha do tempo simples. */
+#screen .activity-history{padding:0!important;overflow:hidden}
+#screen .activity-history>summary{
+ display:flex;align-items:center;justify-content:space-between;gap:13px;
+ min-height:72px;padding:19px 20px;list-style:none;cursor:pointer;
+}
+#screen .activity-history>summary::-webkit-details-marker{display:none}
+#screen .activity-history>summary:hover{background:#faf8ff}
+#screen .activity-history>summary:focus-visible{outline:3px solid #c5b0f0;outline-offset:-3px}
+#screen .activity-history-heading{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+#screen .activity-history-heading strong{font-size:14px;line-height:1.4;min-width:0}
+#screen .history-title-icon{
+ display:inline-flex;align-items:center;justify-content:center;
+ width:32px;height:32px;min-width:32px;background:#f3edff;border-radius:9px;color:#6a45b7;
+}
+#screen .history-title-icon svg{width:17px;height:17px}
+#screen .history-counter{
+ display:inline-flex;align-items:center;justify-content:center;
+ min-width:25px;height:25px;padding:0 7px;border-radius:999px;
+ background:#efe8fb;color:#7044bc;font-size:12px;font-weight:800;
+}
+#screen .history-toggle{display:flex;align-items:center;gap:6px;color:#796a93;font-size:11px;font-weight:800;white-space:nowrap}
+#screen .history-chevron{transition:transform .18s ease}
+#screen .activity-history[open] .history-chevron{transform:rotate(180deg)}
+#screen .activity-history[open] .history-toggle-caption{font-size:0}
+#screen .activity-history[open] .history-toggle-caption:after{content:"Recolher";font-size:11px}
+#screen .activity-history .revision-list{padding:0 18px 15px 30px;border-top:1px solid #eee8f6}
+#screen .activity-history .revision-entry{
+ display:flex;align-items:flex-start;gap:12px;padding:14px 0!important;
+ border-bottom:1px solid #f0edf6;min-width:0;
+}
+#screen .activity-history .revision-entry:last-child{border-bottom:0}
+#screen .revision-symbol{
+ flex:0 0 36px;display:grid;place-items:center;width:36px;height:36px;
+ border-radius:11px;background:#f1eaff;font-size:17px;
+}
+#screen .revision-symbol-complete{background:#e5f6ec}
+#screen .revision-symbol-remove{background:#fff0f0}
+#screen .revision-symbol-review{background:#fff2df}
+#screen .revision-symbol-message{background:#eaf1fc}
+#screen .revision-symbol-create{background:#f0eafb}
+#screen .revision-copy{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+#screen .revision-copy strong{font-size:12.5px;line-height:1.4;color:#332746;overflow-wrap:anywhere}
+#screen .revision-copy span{font-size:12px;color:#716481}
+#screen .revision-copy small{margin:0;font-size:11px;color:#968ba5}
+#screen .history-empty{margin:15px;color:#84778f;font-size:12px}
+
+/* Editor compacto inspirado na organização por grupos das barras CKEditor. */
+#screen .rich-editor,.rich-editor{border-radius:12px;border-color:#dfd9ec;box-shadow:0 2px 8px rgba(40,25,85,.035)}
+#screen .rich-toolbar,.rich-toolbar{
+ display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+ min-height:52px;padding:8px 11px;border-bottom:1px solid #e7e2ee;
+ background:#fdfcff;
+}
+.rich-toolbar-group{display:flex;gap:2px;align-items:center;padding:3px 4px;background:#f7f5fc;border-radius:9px}
+.rich-toolbar .rich-format-button{
+ display:grid;place-items:center;min-width:35px;height:34px;padding:6px;
+ border:1px solid transparent!important;border-radius:8px!important;
+ background:transparent!important;color:#554568!important;
+ font-size:15px;font-weight:800;cursor:pointer;transition:background .14s;
+}
+.rich-toolbar .rich-format-button:hover,.rich-toolbar .rich-format-button:focus-visible{
+ background:#e9e1fa!important;color:#6335b7!important;outline:0;
+}
+.rich-toolbar .rich-format-button[aria-pressed="true"]{background:#e9e0fc!important;color:#5d35af!important}
+.rich-toolbar .rich-format-button svg{display:block;width:18px;height:18px}
+.rich-toolbar-divider{width:1px;height:25px;flex:0 0 1px;background:#e1dbe9}
+.rich-toolbar .rich-color-label{
+ display:flex;align-items:center;justify-content:center;
+ width:38px;height:38px;margin:0;
+ padding:0;border:1px solid transparent;border-radius:9px;
+ background:#f7f5fc;position:relative;cursor:pointer;
+}
+.rich-toolbar .rich-color-label:hover,.rich-toolbar .rich-color-label:focus-within{
+ background:#e9e1fa;border-color:#d8c8f4;
+}
+.rich-color-symbol{
+ font-size:17px;font-weight:850;color:#463855;line-height:1;
+ border-bottom:3px solid var(--selected-text-color,#5b3bb5);
+ padding:3px 3px 5px;pointer-events:none;
+}
+.rich-toolbar .rich-color-label input[type="color"]{
+ position:absolute;inset:0;width:100%;height:100%;
+ opacity:.015;cursor:pointer;margin:0;border:0;
+}
+.rich-toolbar .rich-color-label input[type="color"]:focus-visible{outline:2px solid #7043cc;outline-offset:2px}
+.rich-editor .rich-content{background:#fff;min-height:136px;padding:15px;line-height:1.7;font-size:14px}
+.rich-editor .rich-content ul{list-style:disc outside;padding-left:25px;margin:9px 0}
+.rich-editor .rich-content ol{list-style:decimal outside;padding-left:27px;margin:9px 0}
+.rich-editor .rich-content li{display:list-item;margin-bottom:4px}
+.rich-editor .rich-content:focus{box-shadow:inset 0 0 0 1px #a98cea}
+@media(max-width:900px){
+ #screen .activity-detail-page .page-header{align-items:flex-start}
+ #screen .activity-detail-page .page-actions{justify-content:flex-start;width:100%}
+ #screen .activity-detail-page .page-actions>.button{min-height:43px}
+}
+@media(max-width:580px){
+ #screen .activity-detail-page .page-actions{gap:9px;flex-wrap:wrap}
+ #screen .activity-detail-page .page-actions>.button{flex:1 1 auto;min-height:42px;padding:10px 13px;font-size:12.5px}
+ #screen .detail-status-control{flex:1 1 auto;justify-content:center}
+ #screen .activity-history>summary{padding:14px}
+ #screen .history-toggle-caption{font-size:0}
+ #screen .history-toggle-caption:after{content:"Abrir";font-size:11px}
+ #screen .activity-history[open] .history-toggle-caption:after{content:"Fechar"}
+ .rich-toolbar{gap:5px;padding:6px 8px}
+ .rich-toolbar-group{padding:2px;gap:1px}
+ .rich-toolbar .rich-format-button{min-width:32px;height:32px}
+}

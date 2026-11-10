@@ -16,7 +16,7 @@ function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.rem
 let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",meetingView:"todas",previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
-let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
+let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 const richTags=new Set(["B","STRONG","I","EM","U","P","DIV","BR","UL","OL","LI","SPAN","FONT"]);
@@ -42,12 +42,23 @@ function safeRich(value){
  };
  return [...fragment.content.childNodes].map(walk).join("");
 }
+
+const formatIcon={
+ bold:"<strong>B</strong>",italic:"<em>I</em>",underline:"<u>U</u>",
+ insertUnorderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h11M9 12h11M9 18h11"/></svg>',
+ insertOrderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 4h2v6M3 10h4M3 15c0-2 4-2 4 0s-4 2-4 5h4M11 6h10M11 12h10M11 18h10"/></svg>'
+};
 function richEditor(name,value,placeholder="Escreva aqui..."){
- return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" aria-label="Formatação do texto">'+
- [["bold","Negrito"],["italic","Itálico"],["underline","Sublinhar"],["insertUnorderedList","• Lista"],["insertOrderedList","1. Lista"]].map(([cmd,label])=>'<button type="button" data-do="rich-format" data-format="'+cmd+'" title="'+esc(label)+'">'+(cmd==="bold"?"B":cmd==="italic"?"I":cmd==="underline"?"U":label)+'</button>').join("")+
- '<label class="rich-color-label" title="Cor do texto">Cor <input type="color" data-rich-color value="#5b3bb5" aria-label="Cor do texto"></label></div>'+
- '<div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
+ const action=(cmd,label)=>'<button type="button" class="rich-format-button" data-do="rich-format" data-format="'+cmd+'" aria-label="'+esc(label)+'" title="'+esc(label)+'" aria-pressed="false">'+formatIcon[cmd]+'</button>';
+ return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" role="toolbar" aria-label="Formatação do texto">'+
+ '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+action("italic","Itálico")+action("underline","Sublinhado")+'</div>'+
+ '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
+ '<div class="rich-toolbar-group" aria-label="Listas">'+action("insertUnorderedList","Lista com marcadores")+action("insertOrderedList","Lista numerada")+'</div>'+
+ '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
+ '<label class="rich-color-label" title="Cor do texto" aria-label="Cor do texto"><span class="rich-color-symbol" aria-hidden="true">A</span><input type="color" data-rich-color value="#5b3bb5" aria-label="Escolher cor do texto"></label>'+
+ '</div><div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
 }
+
 const collectRich=(form,fields)=>{for(const e of form.querySelectorAll("[data-rich-input]"))fields[e.dataset.richInput]=safeRich(e.innerHTML);return fields};
 
 const id=v=>encodeURIComponent(String(v));
@@ -70,7 +81,16 @@ const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
 const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
-const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
+const stageDueAt=value=>{
+ const raw=String(value||"");
+ const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
+ return parsed&&Number.isFinite(parsed.getTime())?parsed:null;
+};
+const isLate=t=>active(t)&&stages(t).some(s=>{
+ if(s.completedAt)return false;
+ const due=stageDueAt(s.dueAt);
+ return !!due&&due.getTime()<Date.now();
+});
 const taskStatus=(t,cid="")=>t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente";
 const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída"};
 const stateBadge=t=>'<span class="task-status task-status-'+taskStatus(t)+'">'+statusLabel[taskStatus(t)]+'</span>';
@@ -260,9 +280,12 @@ function nav(){
  if(adminCaption)adminCaption.hidden=!adminVisible;
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
+ // Os detalhes destacam a seção pela qual a pessoa entrou.
+ if(["inicio","demandas","comissoes","minhas-pendencias"].includes(page))state.lastListSection=page;
+ const selectedSection=["atividade","registrar"].includes(page)?(state.lastListSection||"demandas"):page;
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
-   el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===page);
+   el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
    if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite();
    if(profile){
      el.hidden=false;el.href=regularMe?"#/conta":"#/login";
@@ -447,23 +470,66 @@ function deadlineFacts(t){
  '<div class="deadline-field"><small>Responsável</small><strong>'+esc((stage.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div>'+
  '<div class="deadline-field"><small>Data</small><strong>'+textDate(stage.dueAt)+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>';
 }
+
+function historySymbol(action){
+ const a=String(action||"").toLowerCase();
+ if(/conclu|finaliz|aprovad/.test(a))return ["✅","complete"];
+ if(/cri(o|ou|ad)|cadastr|registrou|nova demanda/.test(a))return ["📝","create"];
+ if(/revis|correç|texto/.test(a))return ["✏️","review"];
+ if(/email|e-mail|notific/.test(a))return ["✉️","message"];
+ if(/remov|exclu|apag/.test(a))return ["🗑️","remove"];
+ return ["🔄","change"];
+}
+function renderAssignees(t){
+ const people=(t.assigneeIds||[]).map(id=>nameFor(id)).filter(Boolean);
+ const teams=(t.commissionIds||[]).map(cid=>committee(cid)).filter(Boolean);
+ return '<section class="card card-pad assignee-card"><h2>Responsáveis</h2>'+
+ (people.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("user")+' Pessoas</span>'+
+ '<div class="assignee-chips">'+people.map(name=>'<span class="assignee-person">'+esc(name)+'</span>').join("")+'</div></div>':"")+
+ (teams.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("users")+' Comissões</span>'+
+ teams.map(c=>{
+  const members=(c.memberIds||[]).map(nameFor).filter(Boolean);
+  return '<div class="assignee-team"><strong>'+ico("users")+' '+esc(c.name)+'</strong>'+
+  (members.length?'<small>Integrantes: '+esc(members.slice(0,4).join(", "))+(members.length>4?' e mais '+(members.length-4):"")+'</small>':"")+'</div>';
+ }).join("")+'</div>':"")+
+ (!people.length&&!teams.length?'<p class="assignee-empty">Nenhum responsável vinculado.</p>':"")+
+ '</section>';
+}
+function renderHistory(t){
+ const history=historyFor(t.id);
+ return '<details class="card card-pad activity-history"><summary aria-label="Expandir ou recolher histórico de alterações">'+
+ '<span class="activity-history-heading"><span class="history-title-icon" aria-hidden="true">'+ico("clock")+'</span><strong>Histórico de alterações</strong><span class="history-counter">'+history.length+'</span></span>'+
+ '<span class="history-toggle"><span class="history-toggle-caption">Ver registros</span><svg class="history-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary>'+
+ '<div class="revision-list">'+
+ (history.length?history.map(h=>{
+  const [emoji,kind]=historySymbol(h.action);
+  const stamp=dt(h.created_at),time=stamp?stamp.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
+  return '<div class="revision-entry"><span class="revision-symbol revision-symbol-'+kind+'" aria-hidden="true">'+emoji+'</span>'+
+  '<div class="revision-copy"><strong>'+esc(h.action||"Alteração")+'</strong>'+
+  '<span>'+esc(h.actor_name||"Responsável não identificado")+'</span><small>'+textDate(h.created_at)+(time?' · '+time:"")+'</small></div></div>';
+ }).join(""):'<p class="history-empty">Nenhuma alteração registrada.</p>')+
+ '</div></details>';
+}
+function detailStatusSelector(t,status){
+ if(t.archivedAt)return '<span class="task-status task-status-concluida detail-status-final">Concluída</span>';
+ return '<label class="detail-status-control detail-status-'+status+'"><span class="detail-status-caption">Status</span>'+
+ '<select class="detail-status-select" data-detail-status data-id="'+esc(t.id)+'" aria-label="Status da demanda: '+statusLabel[status]+'">'+
+ '<option value="'+status+'" selected>'+statusLabel[status]+'</option>'+
+ '<option value="concluir">Registrar conclusão…</option></select>'+
+ '<svg class="detail-status-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="18" height="18" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></label>';
+}
 function activitySections(t,readOnly=false){
- const ids=t.commissionIds||[],history=historyFor(t.id),names=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
- const body='<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+
- '<section class="card card-pad"><h2>Anotações da comissão</h2><div class="saved-activity-text">'+safeRich(t.description||"Nenhuma anotação registrada.")+'</div></section>'+
- '<section class="card card-pad"><div class="section-head"><h2>Texto para revisão</h2>'+
- (!readOnly&&!t.archivedAt?button("Editar demanda","registrar/"+id(t.id)):"")+'</div><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section></div>'+
- '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(names.join(", ")||"Não definido")+'</p></section>'+
+ const ids=t.commissionIds||[];
+ return '<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+
+ '<section class="card card-pad"><h2>Texto para revisão</h2><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section></div>'+
+ '<div class="stack">'+renderAssignees(t)+
  (ids.length>=2?'<section class="card card-pad"><h2>Andamento das comissões</h2>'+
  ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
  '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"")+
- '<details class="card card-pad activity-history"><summary><strong>Histórico de alterações</strong> ('+history.length+')</summary><div class="revision-list">'+
- (history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong><span>'+esc(h.actor_name)+'</span><small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+
- '</div></details></div></div>';
- return body;
+ renderHistory(t)+'</div></div>';
 }
 function renderDetailReadOnly(t){
- return header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true);
+ return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true)+'</div>';
 }
 function renderDetail(taskId,contextCid){
  if(!me)return authRequired();
@@ -471,11 +537,9 @@ function renderDetail(taskId,contextCid){
  if(!canWrite())return renderDetailReadOnly(t);
  const status=taskStatus(t,contextCid);
  const actions=(t.archivedAt?"":button("Editar demanda","registrar/"+id(t.id)))+
- (t.archivedAt?'<span class="task-status task-status-concluida">Concluída</span>':
- '<button class="button primary small-action" type="button" data-do="finish-joint-open" data-id="'+esc(t.id)+'">Status: '+(status==="atrasada"?"Atrasada":status==="concluida"?"Concluída":"Pendente")+' · Concluir</button>')+backButton();
- return header("Atividade",t.title,"",actions)+activitySections(t,false);
+ detailStatusSelector(t,status)+backButton();
+ return '<div class="activity-detail-page">'+header("Atividade",t.title,"",actions)+activitySections(t,false)+'</div>';
 }
-
 
 function closeFinishDialog(){
  const layer=$("#finish-dialog");if(layer){layer.hidden=true;layer.innerHTML="";}
@@ -603,6 +667,9 @@ function renderMailScheduling(){
  const el=$("#mail-scheduling");if(el)el.innerHTML=state.mailScheduled?'<label>Data e horário do envio<input type="datetime-local" name="sendAt" required></label>':
  '<label>Anexos (somente envio imediato, máximo 10 MB por arquivo)<input type="file" id="mail-file-input" multiple></label><div id="mail-file-list">'+state.mailFiles.map((f,i)=>'<p>'+esc(f.name)+' ('+(f.size/1024/1024).toFixed(2)+' MB) <button type="button" data-do="remove-mail-file" data-index="'+i+'">Remover</button></p>').join("")+'</div>';
 }
+function statusSnapshot(){
+ return (data.tasks||[]).map(t=>t.id+":"+taskStatus(t)).join("|");
+}
 function render(){
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
  document.body.classList.toggle("admin-ui-active",page==="admin"&&isAdmin()&&!me?.mustChangePassword);
@@ -625,6 +692,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
+ lastStatusSnapshot=statusSnapshot();
  if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();loadMailHistory();}
@@ -975,6 +1043,13 @@ async function handleChange(e){
    const set=t.dataset.assign==="comissoes"?state.selectedCommissions:state.selectedUsers;
    if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncVisibilityOptions();syncStageAssigneePlaceholder();return;
  }
+ if(t.matches?.("[data-detail-status]")){
+   const task=data.tasks.find(x=>x.id===t.dataset.id);
+   const choice=t.value;
+   if(task)t.value=taskStatus(task);
+   if(choice==="concluir"&&task&&!task.archivedAt)openFinishDialog(task);
+   return;
+  }
  if(t.dataset.filter){
    if(t.dataset.filter==="status"){state.statusFilter=t.value;render();return;}
     const val=Number(t.value);
@@ -992,6 +1067,8 @@ async function handleChange(e){
        selection.removeAllRanges();selection.addRange(lastRichRange);
      }
      document.execCommand("foreColor",false,t.value);
+     const symbol=t.closest(".rich-color-label")?.querySelector(".rich-color-symbol");
+     if(symbol)symbol.style.setProperty("--selected-text-color",t.value);
    }
    return;
  }
@@ -1069,6 +1146,12 @@ function start(){
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("change",e=>handleChange(e).catch(err=>setToast(err.message)));
  reload();
+ // Identifica a virada do prazo em uma aba aberta sem exigir recarregar a tela.
+ setInterval(()=>{
+   if(document.hidden||!me)return;
+   if(!["inicio","demandas","comissoes","atividade","minhas-pendencias"].includes(routeParts().page))return;
+   if(statusSnapshot()!==lastStatusSnapshot)render();
+ },30000);
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start);else start();
 })();

@@ -459,7 +459,9 @@ await test("responsáveis humanos não se confundem com nome da comissão",async
  assert.ok(js.includes('const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido"'));
  assert.ok(!js.includes('||selectedCommitteeNames(t)||"A definir"'));
  assert.ok(js.includes('const tag=ids.length?'),"Comissões devem aparecer apenas quando vinculadas.");
- assert.ok(js.includes('names.join(", ")||"Não definido"'));
+ assert.ok(js.includes('function renderAssignees(t)'),"Detalhes devem mostrar responsáveis reais");
+ assert.ok(js.includes("const teams=(t.commissionIds||[])"),"Comissão vinculada também é responsável");
+ assert.ok(js.includes("Integrantes: "),"Equipe é detalhada sem mostrar Não definido quando há comissão");
  assert.ok(js.includes('inheritedAssigneeLabel()'));
  assert.ok(js.includes('syncStageAssigneePlaceholder()'));
  assert.ok(js.includes('function inheritedAssigneeLabel(){return "Não definido"}'));
@@ -483,7 +485,7 @@ await test("conclusão conjunta, filtros e seleção independente estão no cód
  assert.ok(ui.includes('state.selectedCommissions'));
  assert.ok(ui.includes('state.selectedUsers'));
  assert.ok(ui.includes('function openFinishDialog(task)'));
- assert.ok(ui.includes('data-do="finish-joint-open"'));
+ assert.ok(ui.includes('data-detail-status'),"Conclusão conjunta deve abrir pelo seletor de status");
  assert.ok(ui.includes('data-do="finish-joint-confirm"'));
  assert.ok(ui.includes('status-filter-label'));
  assert.ok(ui.includes('taskStatus(t'));

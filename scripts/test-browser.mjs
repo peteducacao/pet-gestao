@@ -13,12 +13,14 @@ const user={id:"u1",name:"Usuário de teste",role:"tutor",email:"exemplo@local.t
 const admin={id:"admin",name:"Admin",role:"admin",email:"admin@local.test",notificationEnabled:false,adminSession:true};
 const task={id:"t1",title:"Poesia no PET",description:"Ideias 📚",captionText:"Olá!\n\n#PET",
   assigneeIds:["u1"],commissionIds:["videos"],userDone:{},commissionDone:{},
-  deadlines:[{id:"p1",label:"Prazo",dueAt:"2026-11-09T12:00:00",assigneeIds:["u1"]}],
+  deadlines:[{id:"p1",label:"Prazo",dueAt:new Date(Date.now()-15*60*1000).toISOString(),assigneeIds:["u1"]}],
   registeredAt:"2026-11-09",archivedAt:null,status:"pendente"};
 const commissionOnly={...task,id:"t2",title:"Atividade exclusiva da comissão",description:"",captionText:"",assigneeIds:[],commissionIds:["videos"],overviewVisible:false,userDone:{},commissionDone:{},deadlines:[{id:"p2",label:"Prazo",dueAt:"2026-11-20T17:00:00",assigneeIds:[]}]};
 let tasks=[task,commissionOnly],meetings=[{id:"m1",title:"Reunião de teste",date:"2026-11-09",rawNotes:"Pauta\nResponsável: (???)"}];
 const committees=[{id:"videos",name:"Vídeos",memberIds:["u1"],memberCount:1,maxMembers:0,backgroundColor:"#f7f3ff"}];
-const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user],committees,tasks,meetings,events:[],history:[],settings:{autoMonth:true,autoWeek:true}});
+const history=[{task_id:"t1",action:"Criou a demanda",actor_name:"Usuário de teste",created_at:new Date().toISOString()},
+{task_id:"t1",action:"Editou texto para revisão",actor_name:"Usuário de teste",created_at:new Date().toISOString()}];
+const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user],committees,tasks,meetings,events:[],history,settings:{autoMonth:true,autoWeek:true}});
 const calls=[];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
@@ -100,10 +102,25 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#meeting-form textarea").waitFor({timeout:5000});
  assert.equal(await page.locator("#meeting-form textarea").inputValue(),"Pauta\nResponsável: (???)");
  await page.goto(origin+"/#/atividade/t1");
- await page.locator('button[data-do="finish-joint-open"]').waitFor();
- await page.locator('button[data-do="finish-joint-open"]').click();
+ await page.locator("select[data-detail-status]").waitFor();
+ assert.equal(await page.locator("select[data-detail-status]").inputValue(),"atrasada","Venceu há poucos minutos: status atrasada");
+ assert.equal(await page.locator(".detail-status-atrasada").count(),1,"Status vermelho nos detalhes");
+ assert.ok((await page.locator(".assignee-card").innerText()).includes("Vídeos"),"Comissão é reconhecida como responsável");
+ assert.equal(await page.locator(".activity-detail-page").getByText("Anotações da comissão").count(),0,"Anotações apenas na edição");
+ assert.equal(await page.locator(".activity-history").evaluate(x=>x.open),false,"Histórico recolhido");
+ await page.locator(".activity-history summary").click();
+ assert.equal(await page.locator(".activity-history").evaluate(x=>x.open),true,"Histórico expande");
+ assert.equal(await page.locator(".revision-symbol").count(),2,"Registros aparecem com ícones");
+ await page.locator(".activity-history summary").click();
+ assert.equal(await page.locator(".activity-history").evaluate(x=>x.open),false,"Histórico recolhe");
+ await page.locator("select[data-detail-status]").selectOption("concluir");
  assert.equal(await page.locator('#finish-dialog input[data-kind="commission"]').count(),1);
  await page.locator('[data-do="finish-close"]').last().click();
+ await page.goto(origin+"/#/atividade/t2");
+ await page.locator(".assignee-card").waitFor();
+ assert.ok((await page.locator(".assignee-card").innerText()).includes("Vídeos"),"Demanda apenas de comissão exibe a equipe");
+ assert.equal(await page.locator(".assignee-card").getByText("Não definido").count(),0,"Não mostrar responsável indefinido quando há comissão");
+ assert.equal(await page.locator("select[data-detail-status]").inputValue(),"pendente","Prazo futuro permanece pendente");
  await page.goto(origin+"/#/registrar/t1");
  await page.locator('[data-rich-input="captionText"]').waitFor();
  assert.ok((await page.locator('[data-rich-input="captionText"]').innerText()).includes("#PET"),"Legenda preservada");
@@ -115,6 +132,12 @@ await page.locator('a[data-route="reunioes"]').click();
  await editor.selectText();
  await page.locator('[data-rich="captionText"] input[type="color"]').fill("#dd3344");
  assert.match(await editor.innerHTML(),/(color|font)/i,"Aplicar cor funciona");
+ assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),2,"Formatação agrupada");
+ assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
+ await editor.fill("Primeira linha\nSegunda linha");
+ await editor.selectText();
+ await page.locator('[data-rich="captionText"] button[data-format="insertOrderedList"]').click();
+ assert.match(await editor.innerHTML(),/<ol\b/i,"Lista numerada deve usar marcador semântico real");
 
  await page.locator('a[data-route="demandas"]').click();
  await page.setViewportSize({width:390,height:844});
@@ -135,6 +158,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/inicio");
  await page.locator(".dashboard-grid .demand-card-cover-link").first().click();
  await page.waitForURL(/#\/atividade\/t1/,{timeout:6000});
+ assert.ok(await page.locator('a[data-route="inicio"]').evaluate(el=>el.classList.contains("active")),"Visão geral continua destacada após entrar no card");
  assert.ok(page.url().includes("#/atividade/t1"),"Card inteiro deve abrir os detalhes");
  await page.goto(origin+"/#/minhas-pendencias");
  const mixed=page.locator(".mine-task-item").filter({hasText:"Poesia no PET"});
