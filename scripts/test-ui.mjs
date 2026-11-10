@@ -311,7 +311,7 @@ assert.ok(archivedStatusSelect,"Filtro de situação disponível");
 archivedStatusSelect.value="concluida";archivedStatusSelect.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 const bulkEntry=document.querySelector('[data-do="archive-selection-open"]');
 assert.ok(bulkEntry,"Admin encontra Excluir na lista de concluídas");
-tap('[data-do="archive-bulk-toggle"]');await wait();
+tap('[data-do="archive-selection-open"]');await wait();
 assert.equal(document.querySelectorAll('[data-archive-select]').length,2,"Caixas individuais aparecem para as concluídas");
 tap('[data-do="archive-select-all"]');await wait();
 assert.equal(document.querySelectorAll('[data-archive-select]:checked').length,2,"Selecionar todas marca ambas");
