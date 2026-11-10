@@ -791,3 +791,6 @@ body.notice-open{overflow:hidden}
  .meeting-card-link{padding-right:48px}
  .finish-actions .button{flex:1}
 }
+
+.brand-mark{background:transparent!important;box-shadow:none!important;overflow:visible!important}
+.brand-mark img{display:block;width:44px;height:44px;border-radius:12px}
