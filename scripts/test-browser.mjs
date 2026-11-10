@@ -84,6 +84,16 @@ await context.addInitScript(()=>{
  // Administração obtém sessão pelo login comum, não por uma segunda sessão.
 });
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function loginAs(person){
+ await page.goto(origin+"/#/login");
+ const form=page.locator("#login-form");
+ await form.locator('input[name="email"]').fill(person.email);
+ await form.locator('input[name="password"]').fill("SenhaDeTeste");
+ await form.locator('input[name="rememberMe"]').check();
+ await form.locator('button[type="submit"]').click();
+ await page.waitForURL("**/#/inicio");
+ await page.locator("#screen .page-title").waitFor({state:"visible",timeout:10000});
+}
 try{
  await page.goto(origin+"/#/demandas",{waitUntil:"domcontentloaded"});
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
@@ -512,13 +522,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('select[data-filter="mineStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="mineStatus"] option').count(),3);
  // Administração: autenticar pelo mesmo formulário de qualquer integrante.
- await page.goto(origin+"/#/login");
- const loginForm=page.locator("#login-form");
- await loginForm.locator('input[name="email"]').fill(admin.email);
- await loginForm.locator('input[name="password"]').fill("SenhaDeTeste");
- await loginForm.locator('input[name="rememberMe"]').check();
- await loginForm.locator('button[type="submit"]').click();
- await page.waitForURL("**/#/inicio");
+ await loginAs(admin);
  assert.equal(await page.evaluate(()=>localStorage.getItem("pet-gestao:session-token")),"admin-token","Admin usa o mesmo token do login comum");
  await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#admin-link").isVisible(),true,"Somente a Administração visualiza Painel Admin");
@@ -593,6 +597,8 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok((await page.locator(".mail-preview-message").innerText()).includes("Prévia antes do envio"));
  await page.locator('#mail-preview-dialog .mail-preview-heading [data-do="mail-preview-close"]').first().click();
  assert.equal(calls.some(x=>x.p==="/mail"&&x.method==="POST"),false,"Prévia não dispara envio");
+ // Retornar à conta Tutor(a) para testar suas pendências pessoais.
+ await loginAs(user);
  user.notificationEnabled=true;
  tasks.push({...task,id:"t3",title:"Concluir sem e-mail da tutoria",assigneeIds:["u1"],commissionIds:[],createdBy:"u1",
    deadlines:[{id:"p3",label:"Prazo",dueAt:new Date(Date.now()-60000).toISOString(),assigneeIds:["u1"]}],
@@ -607,6 +613,9 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(!messageAfterFinish.toLowerCase().includes("notificar"),"Conclusão não pede notificação por e-mail");
  const finishCall=calls.find(x=>x.p==="/tasks/t3/finish"&&x.method==="PATCH");
  assert.equal(finishCall?.body.notify,false,"Concluir jamais notifica automaticamente");
+ // Voltar ao Admin pela mesma entrada, sem formulário administrativo separado.
+ await loginAs(admin);
+ await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  // Na tela de detalhes de uma concluída, a sessão Admin também é reconhecida fora da rota /admin.
  tasks.push({...task,id:"t-archived",title:"Demanda concluída de teste",
    archivedAt:"2026-11-10T18:00:00.000Z",status:"concluida",
