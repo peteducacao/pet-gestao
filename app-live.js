@@ -110,10 +110,15 @@ const completedCount=t=>Object.keys(t.commissionDone||{}).length;
 const isUserDone=(task,uid)=>Boolean(task.userDone?.[uid]);
 const isTaskAssignedToMe=task=>Boolean(me&&(task.assigneeIds||[]).includes(me.id));
 const canCompleteCommission=cid=>Boolean(me&&(committee(cid)?.memberIds||[]).includes(me.id));
-const myPendingParts=t=>({
- personal:Boolean(me&&(t.assigneeIds||[]).includes(me.id)&&!isUserDone(t,me.id)),
- committees:me?(t.commissionIds||[]).filter(cid=>canCompleteCommission(cid)&&!commissionFinished(t,cid)):[]
-});
+const myPendingParts=t=>{
+ // Registrar uma correção encerra somente a pendência pessoal do(a) tutor(a).
+ // Não altera status, nem userDone/commissionDone, nem as listas gerais.
+ if(me?.role==="tutor"&&t.tutorReviewedByMe)return {personal:false,committees:[]};
+ return {
+  personal:Boolean(me&&(t.assigneeIds||[]).includes(me.id)&&!isUserDone(t,me.id)),
+  committees:me?(t.commissionIds||[]).filter(cid=>canCompleteCommission(cid)&&!commissionFinished(t,cid)):[]
+ };
+};
 const isMyPending=t=>Boolean(me&&active(t)&&(myPendingParts(t).personal||myPendingParts(t).committees.length));
 const taskProgress=task=>({done:Object.keys(task.commissionDone||{}).length+Object.keys(task.userDone||{}).length,total:(task.commissionIds||[]).length+(task.assigneeIds||[]).length});
 const commissionFinished=(t,cid)=>Boolean(t.commissionDone?.[cid]);
@@ -739,8 +744,17 @@ function openFinishDialog(task){
  const groups=(task.commissionIds||[]).filter(id=>!task.commissionDone?.[id]);
  if(!users.length&&!groups.length){setToast("Todas as participações já foram concluídas.");return;}
  const make=(items,type)=>items.map(key=>'<label class="joint-pick"><input type="checkbox" name="joint-target" value="'+esc(key)+'" data-kind="'+type+'" '+(key===me.id||users.length+groups.length===1?"checked":"")+'><span>'+esc(type==="user"?nameFor(key):committee(key)?.name||"Comissão")+'</span></label>').join("");
+ const myGroups=groups.filter(cid=>canCompleteCommission(cid));
+ const canFinishSelf=users.includes(me?.id)||myGroups.length>0;
+ const moreThanOne=users.length+groups.length>1;
+ const choices=moreThanOne?
+  '<div class="finish-quick-actions">'+
+    (canFinishSelf?'<button class="button ghost" type="button" data-do="finish-select-self">'+ico("user")+(users.includes(me.id)?" Só minha participação":" Só minha(s) comissão(ões)")+'</button>':"")+
+    '<button class="button ghost" type="button" data-do="finish-select-everyone">'+ico("users")+' Concluir para todos(as)</button>'+
+   '</div>':"";
  layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Concluir participações">'+
- '<h2>Concluir participações</h2><p>Selecione as pessoas e comissões que concluíram esta atividade.</p>'+
+ '<h2>Concluir participações</h2><p>Se houver mais de um responsável, escolha concluir somente a sua participação ou todas as participações. Também é possível selecionar manualmente.</p>'+
+ choices+
  '<label class="joint-select-all"><input type="checkbox" id="finish-select-all"><span><strong>Marcar todos</strong><small>Selecionar ou desmarcar todas as participações pendentes</small></span></label>'+
  (users.length?'<h3>Pessoas</h3>'+make(users,"user"):"")+
  (groups.length?'<h3>Comissões</h3>'+make(groups,"commission"):"")+
@@ -1179,6 +1193,18 @@ async function handleClick(e){
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
  if(action==="reset-color"){$('input[name="backgroundColor"]').value="#f7f3ff";return}
  if(action==="finish-joint-open"){openFinishDialog(data.tasks.find(t=>t.id===tid));return;}
+ if(action==="finish-select-self"||action==="finish-select-everyone"){
+   const task=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(!task||!layer)return;
+   const all=layer.querySelectorAll('input[name="joint-target"]');
+   const myPersonal=(task.assigneeIds||[]).includes(me?.id)&&!task.userDone?.[me.id];
+   const myCommissions=(task.commissionIds||[]).filter(cid=>canCompleteCommission(cid)&&!task.commissionDone?.[cid]);
+   all.forEach(input=>{
+     input.checked=action==="finish-select-everyone"||
+       (myPersonal?input.dataset.kind==="user"&&input.value===me.id:
+        input.dataset.kind==="commission"&&myCommissions.includes(input.value));
+   });
+   syncFinishSelectAll();return;
+ }
  if(action==="finish-close"){closeFinishDialog();return;}
  if(action==="finish-joint-confirm"){
    const t=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(t&&layer)await completeJoint(t,layer);
