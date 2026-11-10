@@ -97,6 +97,9 @@
     const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
     const privateView=!!user&&user.role!=="usuario"&&!user.must_change_password;
     const rawTasks=(await db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 1000").all()).results;
+    const tutorReviewedIds=user?.role==="tutor"?new Set(
+      (await db.prepare("SELECT task_id FROM task_tutor_reviews WHERE user_id=?").bind(user.id).all()).results.map(row=>row.task_id)
+    ):new Set();
     const settings=Object.fromEntries((await db.prepare("SELECT key,value FROM app_settings").all()).results.map(x=>[x.key,asJson(x.value,x.value)]));
     let meetings=[],users=[],history=[];
     if(privateView){
@@ -109,7 +112,7 @@
     const counts=Object.create(null);
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
     return {session:user?{user:userPublic(user)}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
-      tasks:rawTasks.map(t=>privateView?privateTask(t):publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings};
+      tasks:rawTasks.map(t=>privateView?{...privateTask(t),tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings};
   }
   const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
   const bridgePost=async(env,payload)=>{
@@ -413,6 +416,17 @@
       fail("Para Todos(as), a demanda deve incluir todas as pessoas elegíveis.");
   }
   function fullAfter(t,patch){return {...t,...patch}};
+  async function markTutorReviewAfterCorrection(db,task,user,stamp){
+    if(user.role!=="tutor"||task.archivedAt||task.assignmentScope==="todos")return;
+    let isParticipant=(task.assigneeIds||[]).includes(user.id);
+    if(!isParticipant&&(task.commissionIds||[]).length){
+      const memberships=(await db.prepare("SELECT commission_id FROM commission_members WHERE user_id=?").bind(user.id).all()).results;
+      isParticipant=memberships.some(row=>task.commissionIds.includes(row.commission_id));
+    }
+    if(!isParticipant)return;
+    await db.prepare("INSERT INTO task_tutor_reviews(task_id,user_id,reviewed_at) VALUES(?,?,?) ON CONFLICT(task_id,user_id) DO UPDATE SET reviewed_at=excluded.reviewed_at")
+      .bind(task.id,user.id,stamp).run();
+  }
   async function readTask(db,id){const t=await db.prepare("SELECT * FROM tasks WHERE id=?").bind(id).first();if(!t)fail("Demanda não encontrada.",404);return privateTask(t)}
   async function fetchApi(req,env,ctx){
     const url=new URL(req.url),path=url.pathname.replace(/\/+$/,""),method=req.method,db=env.DB,origin=req.headers.get("Origin")||"";
@@ -682,7 +696,10 @@
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,assignment_scope=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,t.assignmentScope,user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
         await audit(db,old.id,user,"Atualizou dados, prazos ou responsáveis");
-        if(t.captionText!==old.captionText)await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
+        if(t.captionText!==old.captionText){
+          await markTutorReviewAfterCorrection(db,old,user,stamp);
+          await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
+        }
         return answer({ok:true});
       }
       if(match&&method==="DELETE"){
@@ -715,7 +732,10 @@
           const value=String(b.captionText||"").slice(0,30000);
           await db.prepare("UPDATE tasks SET caption_text=?,updated_by=?,updated_at=?,version=version+1 WHERE id=?").bind(value,user.id,stamp,old.id).run();
           await audit(db,old.id,user,"Atualizou observações");
-          await askNotify(db,env,ctx,user,b,old,"Texto para revisão","atualizou o texto para revisão");
+          if(value!==old.captionText){
+            await markTutorReviewAfterCorrection(db,old,user,stamp);
+            await askNotify(db,env,ctx,user,b,old,"Texto para revisão","atualizou o texto para revisão");
+          }
           return answer({ok:true});
         }
         if(match[2]==="status")fail("Utilize apenas a opção Concluir, sem estados de pendência ou aprovação.",410);
