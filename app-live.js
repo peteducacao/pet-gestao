@@ -883,7 +883,7 @@ function closeMailPreview(){
  mailPreviewReturnFocus=null;
 }
 function showMailPreview(mode){
- const form=$(mode==="template"?"#notification-template-form":"#mail-form");
+ const form=$(mode==="template"?"#notification-template-form":mode==="deadline-template"?"#deadline-template-form":"#mail-form");
  if(!form)return;
  const f=collectRich(form,userFields(form));
  const title=String(f.subject||"").trim(),message=String(f.message||"");
@@ -897,15 +897,15 @@ function showMailPreview(mode){
    tipo:"Notificação",etapa:"Prazo",prazo:exampleDate+" às 17:00",
    dias:String(days),link:"https://peteducacao.github.io/pet-gestao/#/atividade/exemplo"
  };
- if(mode==="template"){
+ if(mode!=="manual"){
    if(f.kind==="due_soon"){sample.tipo="Prazo vencendo";sample.acao="avisa que o prazo está vencendo"}
    if(f.kind==="overdue"){sample.tipo="Prazo vencido";sample.acao="avisa que o prazo venceu"}
    if(f.kind==="create")sample.tipo="Nova demanda";
    if(f.kind==="review")sample.tipo="Texto para revisão";
  }
  const hydrate=(value,escapeValue=false)=>String(value).replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link)\}/g,(_,key)=>escapeValue?esc(sample[key]):sample[key]);
- const subject=mode==="template"?hydrate(title):title;
- const html=mode==="template"?hydrate(safeRich(message),true):safeRich(message);
+ const subject=mode!=="manual"?hydrate(title):title;
+ const html=mode!=="manual"?hydrate(safeRich(message),true):safeRich(message);
  let audience="Responsáveis vinculados à demanda";
  if(mode==="manual"){
    const ids=$('input[name="mail-target"]:checked');
@@ -918,7 +918,7 @@ function showMailPreview(mode){
  layer.innerHTML='<div class="mail-preview-shade" data-do="mail-preview-close"></div>'+
   '<section class="mail-preview-card" role="dialog" aria-modal="true" aria-labelledby="mail-preview-title">'+
   '<div class="mail-preview-heading"><div><h2 id="mail-preview-title">Pré-visualização do e-mail</h2><p>Confira como a mensagem será apresentada antes de salvar ou enviar.</p></div><button type="button" class="button ghost" data-do="mail-preview-close" aria-label="Fechar prévia">Fechar</button></div>'+
-  (mode==="template"?'<p class="mail-preview-sample-note">Prévia ilustrativa: os campos automáticos aparecem com dados de exemplo, sem disparar nenhum e-mail.</p>':"")+
+  (mode!=="manual"?'<p class="mail-preview-sample-note">Prévia ilustrativa: os campos automáticos aparecem com dados de exemplo, sem disparar nenhum e-mail.</p>':"")+
   '<div class="mail-preview-envelope"><div class="mail-preview-meta"><span>De: <strong>PET Educação</strong></span><span>Para: '+esc(audience)+'</span><span>Assunto: <strong>'+esc(subject)+'</strong></span></div>'+
   '<div class="mail-preview-message">'+html+'</div></div>'+
   '<div class="mail-preview-actions"><button type="button" class="button primary" data-do="mail-preview-close">Voltar à edição</button></div></section>';
@@ -1113,6 +1113,7 @@ async function handleClick(e){
  }
  if(action==="mail-preview-close"){closeMailPreview();return}
  if(action==="mail-preview-template"){showMailPreview("template");return}
+ if(action==="mail-preview-deadline"){showMailPreview("deadline-template");return}
  if(action==="mail-preview-manual"){showMailPreview("manual");return}
  if(action==="save-reminder-settings"){
    const days=Number($("#reminder-days")?.value);
@@ -1235,12 +1236,40 @@ async function handleClick(e){
    await reload();location.hash="#/inicio";return;
  }
  if(action==="move-commission"){
-   const ids=data.committees.map(x=>x.id),old=ids.indexOf(tid),target=old+Number(b.dataset.direction);[ids[old],ids[target]]=[ids[target],ids[old]];
-   await saveAndReload(()=>request("/admin/commission-order","PUT",{ids}),"Ordem salva.");return;
+   if(!isAdmin())return;
+   const item=b.closest(".admin-commission-item"),list=item?.parentElement;
+   const direction=Number(b.dataset.direction);
+   if(!list||!item||![1,-1].includes(direction))return;
+   const neighbor=direction<0?item.previousElementSibling:item.nextElementSibling;
+   if(!neighbor)return;
+   if(direction<0)list.insertBefore(item,neighbor);
+   else list.insertBefore(neighbor,item);
+   [...list.children].forEach((row,i)=>{
+     const label=row.querySelector("[data-commission-position]");
+     if(label)label.textContent="Posição "+(i+1);
+     const up=row.querySelector('[data-direction="-1"]'),down=row.querySelector('[data-direction="1"]');
+     if(up)up.disabled=i===0;
+     if(down)down.disabled=i===list.children.length-1;
+   });
+   return;
  }
- if(action==="save-vagas"){
-   const c=committee(tid),n=Number($('[data-vagas="'+CSS.escape(tid)+'"]').value);
-   await saveAndReload(()=>request("/commissions/"+id(tid),"PUT",{name:c.name,description:c.description,backgroundColor:c.backgroundColor,imageData:c.imageData,maxMembers:n}),"Vagas atualizadas.");return;
+ if(action==="save-all-commissions"){
+   if(!isAdmin())return;
+   const rows=[...document.querySelectorAll(".admin-commission-list .admin-commission-item")];
+   if(!rows.length)return setToast("Nenhuma comissão disponível para salvar.");
+   const commissions=[];
+   for(const row of rows){
+     const input=row.querySelector("[data-vagas]");
+     const maxMembers=Number(input?.value);
+     if(!input||String(input.value).trim()===""||!Number.isInteger(maxMembers)||maxMembers<0||maxMembers>999){
+       if(input)input.focus();
+       return setToast("Confira as vagas: informe um número inteiro entre 0 e 999.");
+     }
+     commissions.push({id:row.dataset.commissionId,maxMembers});
+   }
+   await saveAndReload(()=>request("/admin/commissions-batch","PUT",{commissions},"admin"),
+     "Todas as alterações das comissões foram salvas.");
+   return;
  }
  if(action==="save-settings"){await saveAndReload(()=>request("/admin/settings","PUT",{autoMonth:$("#setting-month").checked,autoWeek:$("#setting-week").checked}),"Preferências atualizadas.");return}
  if(action==="save-user"){
@@ -1317,7 +1346,7 @@ async function handleSubmit(e){
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
- if(form.id==="notification-template-form"){
+ if(form.id==="notification-template-form"||form.id==="deadline-template-form"){
    const f=collectRich(form,userFields(form));
    if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
    const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",{kind:f.kind,subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
@@ -1385,14 +1414,16 @@ async function handleChange(e){
    }
    return;
  }
- if(t.id==="notification-template-kind"){
-   const form=t.closest("#notification-template-form");
+ if(t.id==="notification-template-kind"||t.id==="deadline-template-kind"){
+   const deadline=t.id==="deadline-template-kind";
+   const form=t.closest(deadline?"#deadline-template-form":"#notification-template-form");
    if(form){
-     const previous=state.templateKind;
+     const previous=deadline?state.deadlineTemplateKind:state.templateKind;
      state.templateDrafts[previous]={subject:form.elements.subject.value,body:safeRich(form.querySelector('[data-rich-input="message"]')?.innerHTML||"")};
-     state.templateKind=t.value;
-     const fields=form.querySelector("#notification-template-fields");
-     if(fields)fields.innerHTML=notificationTemplateFields(state.templateKind);
+     if(deadline)state.deadlineTemplateKind=t.value;
+     else state.templateKind=t.value;
+     const fields=form.querySelector(deadline?"#deadline-template-fields":"#notification-template-fields");
+     if(fields)fields.innerHTML=notificationTemplateFields(t.value);
    }
    return;
   }
