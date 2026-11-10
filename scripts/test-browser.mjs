@@ -208,9 +208,9 @@ try{
    "Texto Todos(as) não deve falar em permissão de concluir");
  const eventInput=page.locator("#collective-event-day");
  assert.equal(await eventInput.getAttribute("min"),null,"Qualquer ano deve ser selecionável");
- assert.equal(await page.locator("#collective-date-year").inputValue(),"2026","Ano atual já vem preenchido");
- assert.equal(await page.locator("#collective-date-day").inputValue(),"","Dia deve começar vazio");
- assert.equal(await page.locator("#collective-date-month").inputValue(),"","Mês deve começar vazio");
+ assert.equal(await page.locator("#collective-date-year").inputValue(),"2026","Ano editável permanece preenchido");
+ assert.equal(await page.locator("#collective-date-day").inputValue(),"29","Editar evento existente mantém o dia");
+ assert.equal(await page.locator("#collective-date-month").inputValue(),"11","Editar evento existente mantém o mês");
  const labelBounds=await eventSettings.locator(".collective-date-label-text").boundingBox();
  const starBounds=await eventSettings.locator(".collective-date-label-text .task-form-required").boundingBox();
  assert.ok(labelBounds&&starBounds&&starBounds.y>=labelBounds.y-2&&
@@ -241,6 +241,11 @@ try{
  const savedAll=calls.filter(x=>x.p==="/tasks/t-everyone"&&x.method==="PUT").at(-1)?.body;
  assert.deepEqual(savedAll?.deadlines.map(x=>x.label),["Evento"]);
  assert.ok(savedAll.deadlines[0].dueAt.startsWith("2026-12-01"));
+ await page.goto(origin+"/#/registrar");
+ await page.locator('.assignment-modes [data-value="todos"]').click();
+ assert.equal(await page.locator("#collective-date-year").inputValue(),"2026","Em evento novo, só ano é pré-preenchido");
+ assert.equal(await page.locator("#collective-date-day").inputValue(),"","Evento novo não escolhe dia sozinho");
+ assert.equal(await page.locator("#collective-date-month").inputValue(),"","Evento novo não escolhe mês sozinho");
  await page.goto(origin+"/#/atividade/t-everyone");
  assert.ok((await page.locator(".details-facts").innerText()).includes("Data do evento"));
  // Demanda individual: remover todos os prazos, salvar e voltar para adicionar.
