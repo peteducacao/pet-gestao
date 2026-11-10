@@ -155,7 +155,11 @@ assert.equal(tasks.find(t=>t.id==="t-all").deadlines.length,1,"Etapa adicionada 
 await move("#/registrar/t-all");
 tap('.assignment-modes [data-value="todos"]');await wait();
 assert.ok(document.querySelector("#collective-event-day"),"Troca para Todos(as) exibe data única");
-document.querySelector("#collective-event-day").value="2026-11-29";
+assert.equal(document.querySelector("#collective-date-year").value,String(new Date().getFullYear()),"Ano atual inicia preenchido");
+assert.equal(document.querySelector("#collective-date-day").value,"","Dia novo inicia vazio");
+assert.equal(document.querySelector("#collective-date-month").value,"","Mês novo inicia vazio");
+document.querySelector("#collective-date-day").value="29";
+document.querySelector("#collective-date-month").value="11";
 submit("#task-form");await wait();await wait();
 const event=tasks.find(t=>t.id==="t-all");
 assert.equal(event.assignmentScope,"todos");
@@ -298,4 +302,22 @@ tap('[data-do="account-delete-close"]');
 assert.equal(document.querySelector("#account-delete-dialog")?.hidden,true,
   "Cancelar volta ao perfil sem apagar a conta");
 assert.equal(user.role,"tutor","Cancelar preserva sessão e perfil");
+// No modo arquivadas, só Admin tem exclusão em lote.
+tasks.push({...tasks[0],id:"t-archive-bulk-1",title:"Concluída A",archivedAt:"2026-11-10T12:00:00Z",status:"concluida"},
+ {...tasks[0],id:"t-archive-bulk-2",title:"Concluída B",archivedAt:"2026-11-10T12:00:00Z",status:"concluida"});
+await move("#/demandas");
+const statusSelect=document.querySelector('[data-filter="status"]');
+assert.ok(statusSelect,"Filtro de situação disponível");
+statusSelect.value="concluida";statusSelect.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+const bulkEntry=document.querySelector('[data-do="archive-bulk-toggle"]');
+assert.ok(bulkEntry,"Admin encontra Excluir na lista de concluídas");
+tap('[data-do="archive-bulk-toggle"]');await wait();
+assert.equal(document.querySelectorAll('[data-archive-select]').length,2,"Caixas individuais aparecem para as concluídas");
+tap('[data-do="archive-select-all"]');await wait();
+assert.equal(document.querySelectorAll('[data-archive-select]:checked').length,2,"Selecionar todas marca ambas");
+tap('[data-do="archive-select-all"]');await wait();
+assert.equal(document.querySelectorAll('[data-archive-select]:checked').length,0,"Botão desmarca todas também");
+tap('[data-do="archive-bulk-toggle"]');await wait();
+assert.equal(document.querySelectorAll('[data-archive-select]').length,0,"Cancelar encerra modo de seleção");
+tasks=tasks.filter(t=>!t.id.startsWith("t-archive-bulk-"));
 window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
