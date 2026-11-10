@@ -321,8 +321,8 @@ await test("painel usa apenas áreas existentes e respeita identidade",async()=>
  assert.ok(js.includes('const person=regularMe, logged=Boolean(person)'));
  assert.ok(js.includes('const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true)'));
  assert.ok(js.includes('admin-menu-link'));
- assert.ok(js.includes('data-value="emails"'));
- assert.ok(js.includes('data-value="comissoes"'));
+ assert.ok(js.includes('href="#/admin/emails"'));
+ assert.ok(js.includes('href="#/admin/comissoes"'));
  assert.ok(js.includes('admin-signout'));
  assert.ok(css.includes('.admin-layout{'));
  assert.ok(css.includes('#admin-link[hidden]{display:none!important}'));
