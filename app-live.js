@@ -527,13 +527,39 @@ function stageRow(stage={},i=0){
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function collectiveEventDate(stage=null){
- // O navegador usa a data local para preencher automaticamente o ano atual.
- // Não restringir min/max: eventos antigos ou futuros podem ser cadastrados.
- const day=(stage?.dueAt||"").slice(0,10)||dateKey(new Date());
- return '<div class="collective-event-date"><label for="collective-event-day"><span class="collective-date-label-text">Data do evento <span class="task-form-required" aria-hidden="true">*</span></span>'+
-  '<input id="collective-event-day" type="date" value="'+esc(day)+'" required></label>'+
+ // Os campos separados permitem deixar APENAS o ano atual preenchido.
+ // <input type=date> não permite um ano sem dia/mês; permanece para o calendário nativo.
+ const saved=(stage?.dueAt||"").slice(0,10);
+ const parts=/^\\d{4}-\\d{2}-\\d{2}$/.test(saved)?saved.split("-"):[];
+ const yy=parts[0]||String(current.getFullYear()),mm=parts[1]||"",dd=parts[2]||"";
+ return '<div class="collective-event-date"><div class="collective-date-fields" role="group" aria-label="Data do evento">'+
+  '<span class="collective-date-label-text">Data do evento <span class="task-form-required" aria-hidden="true">*</span></span>'+
+  '<div class="collective-date-parts">'+
+   '<label for="collective-date-day">Dia<input id="collective-date-day" type="text" inputmode="numeric" maxlength="2" placeholder="DD" autocomplete="off" value="'+esc(dd)+'" required></label>'+
+   '<label for="collective-date-month">Mês<input id="collective-date-month" type="text" inputmode="numeric" maxlength="2" placeholder="MM" autocomplete="off" value="'+esc(mm)+'" required></label>'+
+   '<label for="collective-date-year">Ano<input id="collective-date-year" type="text" inputmode="numeric" maxlength="4" placeholder="AAAA" autocomplete="off" value="'+esc(yy)+'" required></label>'+
+   '<button type="button" class="button ghost collective-calendar-button" data-do="collective-pick-date" title="Abrir calendário" aria-label="Abrir calendário">'+ico("calendar")+'</button>'+
+  '</div>'+
+  '<input id="collective-event-day" class="collective-native-date" type="date" tabindex="-1" aria-label="Selecionar data pelo calendário" value="'+esc(saved)+'"></div>'+
   '<p>'+ico("calendar")+' Evento coletivo para Todos(as). Será concluído e arquivado automaticamente ao terminar a data do evento (horário de Sergipe), sem confirmação manual.</p></div>';
 }
+function collectiveSelectedDay(){
+ const dd=$("#collective-date-day")?.value.trim()||"",
+  mm=$("#collective-date-month")?.value.trim()||"",
+  yy=$("#collective-date-year")?.value.trim()||"";
+ if(!/^\\d{1,2}$/.test(dd)||!/^\\d{1,2}$/.test(mm)||!/^\\d{4}$/.test(yy))return "";
+ const iso=yy+"-"+mm.padStart(2,"0")+"-"+dd.padStart(2,"0");
+ const time=new Date(iso+"T12:00:00Z");
+ return Number.isFinite(time.getTime())&&time.toISOString().slice(0,10)===iso?iso:"";
+}
+function updateCollectiveDateInputs(date){
+ const p=String(date||"").split("-");
+ if(p.length!==3)return;
+ $("#collective-date-year").value=p[0];
+ $("#collective-date-month").value=p[1];
+ $("#collective-date-day").value=p[2];
+}
+
 function renderDeadlineSettings(stagesList=[]){
  if(state.assignmentScope==="todos")return '<div class="register-deadlines collective-date-panel"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Data do evento</h3><p>Informe o dia em que o evento coletivo acontecerá. Não é necessário definir Prazo, Correção, Postagem ou responsáveis por etapa.</p></div></div>'+
   collectiveEventDate((stagesList||[])[0])+'</div>';
@@ -542,7 +568,7 @@ function renderDeadlineSettings(stagesList=[]){
 }
 function refreshDeadlineMode(previousScope=null){
  const host=$("#deadline-settings");if(!host)return;
- const eventDay=$("#collective-event-day")?.value;
+ const eventDay=collectiveSelectedDay();
  const currentRows=$$(".live-stage").map(row=>({
    id:row.dataset.stageId,
    label:row.querySelector('[data-stage="label"]')?.value||"Prazo",
@@ -1014,8 +1040,8 @@ function userFields(form){return Object.fromEntries(new FormData(form).entries()
 async function saveTask(form){
  const f=collectRich(form,userFields(form));
  const isCollective=state.assignmentScope==="todos";
- const eventDay=$("#collective-event-day")?.value||"";
- if(isCollective&&!eventDay)return setToast("Informe a data do evento coletivo.");
+ const eventDay=isCollective?collectiveSelectedDay():"";
+ if(isCollective&&!eventDay)return setToast("Informe dia, mês e ano válidos para o evento coletivo.");
  const stages=isCollective?
   [{id:"evento-data",label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:
   $$(".live-stage").map(row=>{
@@ -1141,6 +1167,12 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="collective-pick-date"){
+   const picker=$("#collective-event-day");
+   if(!picker)return;
+   try{picker.showPicker()}catch{picker.focus();picker.click()}
+   return;
+ }
  if(action==="auth-message-close"){closeAuthMessage();return}
  if(action==="notice-confirm"){closeNotice(true);return}
  if(action==="notice-cancel"){closeNotice(false);return}
@@ -1436,6 +1468,12 @@ async function handleSubmit(e){
 }
 async function handleChange(e){
  const t=e.target;if(!t)return;
+ if(t.id==="collective-event-day"&&t.value){updateCollectiveDateInputs(t.value);return;}
+ if(["collective-date-day","collective-date-month","collective-date-year"].includes(t.id)){
+   const native=$("#collective-event-day");
+   if(native)native.value=collectiveSelectedDay();
+   return;
+ }
  if(t.id==="finish-select-all"){
    document.querySelectorAll('#finish-dialog input[name="joint-target"]').forEach(input=>{input.checked=t.checked});
    syncFinishSelectAll();return;
