@@ -463,23 +463,66 @@ function deadlineFacts(t){
  '<div class="deadline-field"><small>Responsável</small><strong>'+esc((stage.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div>'+
  '<div class="deadline-field"><small>Data</small><strong>'+textDate(stage.dueAt)+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>';
 }
+
+function historySymbol(action){
+ const a=String(action||"").toLowerCase();
+ if(/conclu|finaliz|aprovad/.test(a))return ["✅","complete"];
+ if(/cri(o|ou|ad)|cadastr|registrou|nova demanda/.test(a))return ["📝","create"];
+ if(/revis|correç|texto/.test(a))return ["✏️","review"];
+ if(/email|e-mail|notific/.test(a))return ["✉️","message"];
+ if(/remov|exclu|apag/.test(a))return ["🗑️","remove"];
+ return ["🔄","change"];
+}
+function renderAssignees(t){
+ const people=(t.assigneeIds||[]).map(id=>nameFor(id)).filter(Boolean);
+ const teams=(t.commissionIds||[]).map(cid=>committee(cid)).filter(Boolean);
+ return '<section class="card card-pad assignee-card"><h2>Responsáveis</h2>'+
+ (people.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("user")+' Pessoas</span>'+
+ '<div class="assignee-chips">'+people.map(name=>'<span class="assignee-person">'+esc(name)+'</span>').join("")+'</div></div>':"")+
+ (teams.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("users")+' Comissões</span>'+
+ teams.map(c=>{
+  const members=(c.memberIds||[]).map(nameFor).filter(Boolean);
+  return '<div class="assignee-team"><strong>'+ico("users")+' '+esc(c.name)+'</strong>'+
+  (members.length?'<small>Integrantes: '+esc(members.slice(0,4).join(", "))+(members.length>4?' e mais '+(members.length-4):"")+'</small>':"")+'</div>';
+ }).join("")+'</div>':"")+
+ (!people.length&&!teams.length?'<p class="assignee-empty">Nenhum responsável vinculado.</p>':"")+
+ '</section>';
+}
+function renderHistory(t){
+ const history=historyFor(t.id);
+ return '<details class="card card-pad activity-history"><summary aria-label="Expandir ou recolher histórico de alterações">'+
+ '<span class="activity-history-heading"><span class="history-title-icon" aria-hidden="true">'+ico("clock")+'</span><strong>Histórico de alterações</strong><span class="history-counter">'+history.length+'</span></span>'+
+ '<span class="history-toggle"><span class="history-toggle-caption">Ver registros</span><svg class="history-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary>'+
+ '<div class="revision-list">'+
+ (history.length?history.map(h=>{
+  const [emoji,kind]=historySymbol(h.action);
+  const stamp=dt(h.created_at),time=stamp?stamp.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
+  return '<div class="revision-entry"><span class="revision-symbol revision-symbol-'+kind+'" aria-hidden="true">'+emoji+'</span>'+
+  '<div class="revision-copy"><strong>'+esc(h.action||"Alteração")+'</strong>'+
+  '<span>'+esc(h.actor_name||"Responsável não identificado")+'</span><small>'+textDate(h.created_at)+(time?' · '+time:"")+'</small></div></div>';
+ }).join(""):'<p class="history-empty">Nenhuma alteração registrada.</p>')+
+ '</div></details>';
+}
+function detailStatusSelector(t,status){
+ if(t.archivedAt)return '<span class="task-status task-status-concluida detail-status-final">Concluída</span>';
+ return '<label class="detail-status-control detail-status-'+status+'"><span class="detail-status-caption">Status</span>'+
+ '<select class="detail-status-select" data-detail-status data-id="'+esc(t.id)+'" aria-label="Status da demanda: '+statusLabel[status]+'">'+
+ '<option value="'+status+'" selected>'+statusLabel[status]+'</option>'+
+ '<option value="concluir">Registrar conclusão…</option></select>'+
+ '<svg class="detail-status-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="18" height="18" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></label>';
+}
 function activitySections(t,readOnly=false){
- const ids=t.commissionIds||[],history=historyFor(t.id),names=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
- const body='<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+
- '<section class="card card-pad"><h2>Anotações da comissão</h2><div class="saved-activity-text">'+safeRich(t.description||"Nenhuma anotação registrada.")+'</div></section>'+
- '<section class="card card-pad"><div class="section-head"><h2>Texto para revisão</h2>'+
- (!readOnly&&!t.archivedAt?button("Editar demanda","registrar/"+id(t.id)):"")+'</div><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section></div>'+
- '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(names.join(", ")||"Não definido")+'</p></section>'+
+ const ids=t.commissionIds||[];
+ return '<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+
+ '<section class="card card-pad"><h2>Texto para revisão</h2><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section></div>'+
+ '<div class="stack">'+renderAssignees(t)+
  (ids.length>=2?'<section class="card card-pad"><h2>Andamento das comissões</h2>'+
  ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
  '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"")+
- '<details class="card card-pad activity-history"><summary><strong>Histórico de alterações</strong> ('+history.length+')</summary><div class="revision-list">'+
- (history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong><span>'+esc(h.actor_name)+'</span><small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+
- '</div></details></div></div>';
- return body;
+ renderHistory(t)+'</div></div>';
 }
 function renderDetailReadOnly(t){
- return header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true);
+ return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true)+'</div>';
 }
 function renderDetail(taskId,contextCid){
  if(!me)return authRequired();
@@ -487,11 +530,9 @@ function renderDetail(taskId,contextCid){
  if(!canWrite())return renderDetailReadOnly(t);
  const status=taskStatus(t,contextCid);
  const actions=(t.archivedAt?"":button("Editar demanda","registrar/"+id(t.id)))+
- (t.archivedAt?'<span class="task-status task-status-concluida">Concluída</span>':
- '<button class="button primary small-action" type="button" data-do="finish-joint-open" data-id="'+esc(t.id)+'">Status: '+(status==="atrasada"?"Atrasada":status==="concluida"?"Concluída":"Pendente")+' · Concluir</button>')+backButton();
- return header("Atividade",t.title,"",actions)+activitySections(t,false);
+ detailStatusSelector(t,status)+backButton();
+ return '<div class="activity-detail-page">'+header("Atividade",t.title,"",actions)+activitySections(t,false)+'</div>';
 }
-
 
 function closeFinishDialog(){
  const layer=$("#finish-dialog");if(layer){layer.hidden=true;layer.innerHTML="";}
@@ -991,6 +1032,13 @@ async function handleChange(e){
    const set=t.dataset.assign==="comissoes"?state.selectedCommissions:state.selectedUsers;
    if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncVisibilityOptions();syncStageAssigneePlaceholder();return;
  }
+ if(t.matches?.("[data-detail-status]")){
+   const task=data.tasks.find(x=>x.id===t.dataset.id);
+   const choice=t.value;
+   if(task)t.value=taskStatus(task);
+   if(choice==="concluir"&&task&&!task.archivedAt)openFinishDialog(task);
+   return;
+  }
  if(t.dataset.filter){
    if(t.dataset.filter==="status"){state.statusFilter=t.value;render();return;}
     const val=Number(t.value);
