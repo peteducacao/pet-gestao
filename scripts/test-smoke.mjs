@@ -268,6 +268,72 @@ await test("correção da Tutoria remove só a sua pendência, sem concluir dema
   if(commissionId)good(await api("/commissions/"+commissionId,"DELETE"));
  }
 });
+await test("excluir minha conta: exigir senha, limpar identidade e preservar tarefas da equipe",async()=>{
+ const adminToken=token,admin=good(await api("/auth/me")).user;
+ const identifier="exclusao-teste-"+Date.now(),email=identifier+"@pet.local",pass="SenhaSeguraDeExclusao123!";
+ const created=good(await api("/auth/register","POST",{name:"Pessoa que pediu exclusão",email,password:pass}),201);
+ assert.equal(created.ok,true);
+ const personal=good(await api("/auth/login","POST",{email,password:pass}));
+ const personId=personal.user.id,personalToken=personal.token;
+ token=adminToken;
+ good(await api("/admin/users/"+personId,"PATCH",{role:"petiano",notificationEnabled:false}));
+ token=personalToken;
+ const taskId=good(await api("/tasks","POST",{
+   title:"Demanda institucional para preservar após exclusão",
+   assignmentScope:"usuarios",assigneeIds:[admin.id,personId],commissionIds:[],
+   description:"Atividade compartilhada da equipe",captionText:"Versão de teste",deadlines:[]
+ }),201).id;
+ try{
+   good(await api("/tasks/"+taskId+"/notes","PATCH",{captionText:"Revisão feita pela pessoa",notify:false}));
+   assert.equal((await api("/account","DELETE",{password:pass,confirmation:"CONFIRMO"})).status,400,
+     "Não exclui sem a frase de confirmação");
+   assert.equal((await api("/account","DELETE",{password:"senha-errada",confirmation:"EXCLUIR MINHA CONTA"})).status,401,
+     "Senha incorreta não exclui");
+   assert.equal(good(await api("/auth/me")).user.id,personId,"Conta permanece após tentativas inválidas");
+   const removed=good(await api("/account","DELETE",{password:pass,confirmation:"EXCLUIR MINHA CONTA"}));
+   assert.equal(removed.deleted,true,"A conta foi efetivamente excluída");
+   assert.equal((await api("/auth/me")).status,401,"Sessões da conta excluída são inválidas");
+   assert.equal((await api("/auth/login","POST",{email,password:pass})).status,401,"Credenciais removidas não permitem login");
+   token=adminToken;
+   const bootstrap=good(await api("/bootstrap"));
+   const item=bootstrap.tasks.find(t=>t.id===taskId);
+   assert.ok(item,"A demanda institucional não foi apagada");
+   assert.equal(item.archivedAt,null,"Exclusão da conta não conclui nem arquiva a demanda");
+   assert.equal(item.createdBy,admin.id,"Responsabilidade técnica pela autoria passa para a Administração");
+   assert.ok(item.assigneeIds.includes(admin.id),"Demais responsáveis são preservados");
+   assert.ok(!item.assigneeIds.includes(personId),"A pessoa excluída não permanece entre responsáveis");
+   assert.equal(bootstrap.users.some(u=>u.id===personId||u.email===email),false,
+     "A pessoa excluída não permanece na lista de usuários");
+   const ownHistory=bootstrap.history.filter(h=>h.task_id===taskId);
+   assert.ok(ownHistory.length>0);
+   assert.ok(ownHistory.every(h=>h.actor_name!=="Pessoa que pediu exclusão"),
+     "Autoria pessoal é anonimizada no histórico");
+   good(await api("/tasks/"+taskId,"DELETE"));
+ }finally{
+   token=adminToken;
+   const tasks=good(await api("/bootstrap")).tasks;
+   if(tasks.some(t=>t.id===taskId))good(await api("/tasks/"+taskId,"DELETE"));
+ }
+});
+await test("a última conta de Administração não pode ser excluída por engano",async()=>{
+ const res=await api("/account","DELETE",{
+   password:process.env.TEST_ADMIN_PASSWORD,confirmation:"EXCLUIR MINHA CONTA"
+ });
+ assert.equal(res.status,409,"O sistema precisa manter uma Administração ativa");
+ assert.equal(good(await api("/auth/me")).user.role,"admin");
+});
+await test("Usuário com permissão somente de leitura também pode excluir sua conta",async()=>{
+ const adminToken=token,email="perfil-usuario-excluir-"+Date.now()+"@pet.local",password="SenhaUsuarioExcluir123!";
+ good(await api("/auth/register","POST",{name:"Pessoa de leitura",email,password}),201);
+ const session=good(await api("/auth/login","POST",{email,password}));
+ assert.equal(session.user.role,"usuario");
+ token=session.token;
+ const res=good(await api("/account","DELETE",{password,confirmation:"EXCLUIR MINHA CONTA"}));
+ assert.equal(res.deleted,true);
+ assert.equal((await api("/auth/me")).status,401);
+ token=adminToken;
+ assert.equal(good(await api("/bootstrap")).users.some(x=>x.email===email),false);
+});
 await test("criar demanda",async()=>{task=good(await api("/tasks","POST",{title:"Teste Demanda",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}),201).id});
 await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir",async()=>{
  const original=token;
