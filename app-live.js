@@ -70,7 +70,16 @@ const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
 const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
-const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
+const stageDueAt=value=>{
+ const raw=String(value||"");
+ const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
+ return parsed&&Number.isFinite(parsed.getTime())?parsed:null;
+};
+const isLate=t=>active(t)&&stages(t).some(s=>{
+ if(s.completedAt)return false;
+ const due=stageDueAt(s.dueAt);
+ return !!due&&due.getTime()<Date.now();
+});
 const taskStatus=(t,cid="")=>t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente";
 const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída"};
 const stateBadge=t=>'<span class="task-status task-status-'+taskStatus(t)+'">'+statusLabel[taskStatus(t)]+'</span>';
@@ -260,9 +269,16 @@ function nav(){
  if(adminCaption)adminCaption.hidden=!adminVisible;
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
+ // Os detalhes destacam a seção pela qual a pessoa entrou.
+ let selectedSection=page;
+ if(["atividade","registrar"].includes(page)){
+   const from=String(state.previousRoute||"");
+   selectedSection=from.includes("/minhas-pendencias")?"minhas-pendencias":
+     from.includes("/comissoes")?"comissoes":"demandas";
+ }
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
-   el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===page);
+   el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
    if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite();
    if(profile){
      el.hidden=false;el.href=regularMe?"#/conta":"#/login";
