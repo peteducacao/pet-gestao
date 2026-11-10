@@ -20,7 +20,7 @@ let tasks=[task,commissionOnly],meetings=[{id:"m1",title:"Reunião de teste",dat
 const committees=[{id:"videos",name:"Vídeos",memberIds:["u1"],memberCount:1,maxMembers:0,backgroundColor:"#f7f3ff"}];
 const history=[{task_id:"t1",action:"Criou a demanda",actor_name:"Usuário de teste",created_at:new Date().toISOString()},
 {task_id:"t1",action:"Editou texto para revisão",actor_name:"Usuário de teste",created_at:new Date().toISOString()}];
-const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user],committees,tasks,meetings,events:[],history,settings:{autoMonth:true,autoWeek:true}});
+const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user,admin],committees,tasks,meetings,events:[],history,settings:{autoMonth:true,autoWeek:true}});
 const calls=[];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
@@ -64,10 +64,48 @@ try{
  assert.equal(await page.locator('select[data-filter="periodMode"]').count(),1,"Mensal e semanal em seletor");
  assert.equal(await page.locator('select[data-filter="status"] option').count(),4,"Visualização inclui concluídas");
  assert.equal(await page.locator('button[data-do="mode"]').count(),0,"Sem controles segmentados redundantes");
- assert.ok((await page.locator(".demand-activity-card").first().innerText()).includes("Usuário de teste"),"Responsável de comissão aparece também no card");
+ const single=page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"});
+ assert.equal(await single.locator(".demand-card-single.demand-card-committee").count(),1,"Uma comissão aparece diretamente, sem seletor");
+ assert.equal(await single.locator(".demand-card-single.demand-card-person").count(),1,"Responsável individual real aparece diretamente");
+ assert.equal(await single.locator(".demand-card-picker").count(),0,"Não transformar nomes únicos em menus");
+ assert.equal(await single.locator(".demand-card-single.demand-card-committee").innerText(),"Vídeos");
+ assert.equal(await single.locator(".demand-card-single.demand-card-person").innerText(),"Usuário de teste");
  
  assert.equal(await page.locator('#account-button').count(),0,"Botão Meu perfil removido do topo");
  assert.equal(await page.locator('a[data-route="conta"][href="#/conta"]').count(),1,"Perfil acessível pelo menu lateral");
+ // Cenário isolado: quatro comissões + dois responsáveis nomeados.
+ committees.push({id:"cards",name:"Cards",memberIds:[],memberCount:0},
+  {id:"imaginacao",name:"ImaginAÇÃO",memberIds:[],memberCount:0},
+  {id:"cinepet",name:"CinePET",memberIds:[],memberCount:0});
+ tasks.push({...task,id:"t-selectors",title:"Demanda com vários vínculos",assigneeIds:["u1","admin"],
+  commissionIds:["videos","cards","imaginacao","cinepet"],archivedAt:null,userDone:{},commissionDone:{}});
+ await page.reload();
+ const mult=page.locator(".demand-activity-card").filter({hasText:"Demanda com vários vínculos"});
+ await mult.waitFor();
+ assert.equal(await mult.locator(".demand-card-picker").count(),2,"Menus separados para comissão e responsáveis");
+ assert.equal(await mult.locator(".demand-card-person>summary").count(),1);
+ assert.ok((await mult.locator(".demand-card-committee>summary").innerText()).includes("+3"));
+ assert.ok((await mult.locator(".demand-card-person>summary").innerText()).includes("+1"));
+ assert.equal(await mult.locator(".demand-card-committee .demand-card-picker-popover li").count(),4);
+ assert.equal(await mult.locator(".demand-card-person .demand-card-picker-popover li").count(),2);
+ await mult.locator(".demand-card-committee>summary").click();
+ assert.equal(await mult.locator(".demand-card-committee").evaluate(x=>x.open),true,"Clicar expande lista de comissões");
+ assert.equal(await mult.locator(".demand-card-person").evaluate(x=>x.open),false);
+ await mult.locator(".demand-card-person>summary").click();
+ assert.equal(await mult.locator(".demand-card-committee").evaluate(x=>x.open),false,"Abrir outro fecha menu anterior");
+ assert.equal(await mult.locator(".demand-card-person").evaluate(x=>x.open),true);
+ await page.locator(".page-title").click();
+ assert.equal(await mult.locator(".demand-card-person").evaluate(x=>x.open),false,"Clicar fora fecha a lista");
+ assert.ok((await mult.locator(".demand-card-person .demand-card-picker-popover").innerText()).includes("Admin"));
+ assert.equal(await mult.locator(".demand-card-person .demand-card-picker-popover").getByText("Cards").count(),0,"Comissões não aparecem como pessoas");
+ const columnsOnDesktop=await mult.evaluate(el=>getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
+ assert.equal(columnsOnDesktop,4,"Quatro colunas compactas: nome, status, data e ação");
+ const oneCommittee=page.locator(".demand-activity-card").filter({hasText:"Atividade exclusiva da comissão"});
+ assert.equal(await oneCommittee.locator(".demand-card-single.demand-card-committee").count(),1,"Comissão única visível");
+ assert.equal(await oneCommittee.locator(".demand-card-person").count(),0,"Integrante não vira responsável individual automaticamente");
+ tasks=tasks.filter(x=>x.id!=="t-selectors");
+ committees.splice(1);
+ await page.reload();
  const [extra]=await Promise.all([context.waitForEvent("page"),page.locator('a[data-route="comissoes"]').click({modifiers:["Control"]})]);
  await extra.waitForURL(/#\/comissoes/,{timeout:10000});assert.ok(extra.url().includes("#/comissoes"),"Comissão abre em outra guia");await extra.close();
  await page.goto(origin+"/#/inicio");
