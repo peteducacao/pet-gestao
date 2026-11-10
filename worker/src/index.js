@@ -522,6 +522,95 @@
         await db.prepare("DELETE FROM sessions WHERE user_id=?").bind(r.user_id).run();
         return answer({ok:true});
       }
+      if(path==="/api/v1/account"&&method==="DELETE"){
+        // Exclusão da PRÓPRIA conta: disponível inclusive ao perfil Usuário.
+        // Nunca aceitar o ID de outra pessoa como parâmetro.
+        requireLogin(user);
+        const b=await body(req);
+        if(String(b.confirmation||"").trim()!=="EXCLUIR MINHA CONTA")
+          fail("Digite EXCLUIR MINHA CONTA para confirmar a exclusão.",400);
+        const password=String(b.password||"");
+        if(!password||await pwHash(password,user.pass_salt)!==user.pass_hash)
+          fail("Senha atual incorreta.",401);
+        // Uma conta de Administração precisa permanecer como responsável
+        // institucional pelas demandas e pelo acesso administrativo.
+        const caretaker=await db.prepare(
+          "SELECT id FROM users WHERE role='admin' AND id!=? ORDER BY created_at LIMIT 1"
+        ).bind(user.id).first();
+        if(!caretaker){
+          if(user.role==="admin")fail("A última conta de Administração não pode ser excluída. Cadastre outra conta administrativa antes de prosseguir.",409);
+          fail("Não é possível excluir a conta sem uma Administração ativa para preservar as demandas. Procure a Administração.",409);
+        }
+        const anonymous="Conta excluída";
+        const stamp=now(),updates=[];
+        // Responsabilidades e conclusões são campos JSON; devem perder o ID
+        // da pessoa excluída, sem apagar as tarefas dos demais.
+        const tasks=(await db.prepare(
+          "SELECT id,created_by,updated_by,assignee_ids,user_done,commission_done,deadlines FROM tasks"
+        ).all()).results;
+        const scrubAttribution=original=>{
+          if(!original||typeof original!=="object")return original;
+          const copy={...original};
+          if(copy.by===user.id)copy.by=null;
+          if(copy.byName===user.name||copy.byName===user.email||copy.byName&&copy.by===null)
+            copy.byName=anonymous;
+          return copy;
+        };
+        for(const task of tasks){
+          const assigneeIds=asJson(task.assignee_ids,[]).filter(id=>id!==user.id);
+          const userDone=Object.fromEntries(Object.entries(asJson(task.user_done,{}))
+            .filter(([id])=>id!==user.id).map(([id,state])=>[id,scrubAttribution(state)]));
+          const commissionDone=Object.fromEntries(Object.entries(asJson(task.commission_done,{}))
+            .map(([id,state])=>[id,scrubAttribution(state)]));
+          const deadlines=asJson(task.deadlines,[]).map(stage=>({
+            ...stage,
+            assigneeIds:(stage.assigneeIds||[]).filter(id=>id!==user.id),
+            commissionCompleted:Object.fromEntries(Object.entries(stage.commissionCompleted||{})
+              .map(([id,state])=>[id,scrubAttribution(state)]))
+          }));
+          const createdBy=task.created_by===user.id?caretaker.id:task.created_by;
+          const updatedBy=task.updated_by===user.id?caretaker.id:task.updated_by;
+          if(createdBy!==task.created_by||updatedBy!==task.updated_by||
+             JSON.stringify(assigneeIds)!==JSON.stringify(asJson(task.assignee_ids,[]))||
+             JSON.stringify(userDone)!==JSON.stringify(asJson(task.user_done,{}))||
+             JSON.stringify(commissionDone)!==JSON.stringify(asJson(task.commission_done,{}))||
+             JSON.stringify(deadlines)!==JSON.stringify(asJson(task.deadlines,[]))){
+            updates.push(db.prepare(
+              "UPDATE tasks SET created_by=?,updated_by=?,assignee_ids=?,user_done=?,commission_done=?,deadlines=?,updated_at=?,version=version+1 WHERE id=?"
+            ).bind(createdBy,updatedBy,JSON.stringify(assigneeIds),JSON.stringify(userDone),
+              JSON.stringify(commissionDone),JSON.stringify(deadlines),stamp,task.id));
+          }
+        }
+        // Os registros institucionais permanecem, mas sem nome/e-mail do titular.
+        updates.push(db.prepare(
+          "UPDATE task_history SET actor_name=CASE WHEN actor_id=? THEN ? ELSE actor_name END,action=REPLACE(REPLACE(action,?,?),?,?),details=REPLACE(REPLACE(details,?,?),?,?) WHERE actor_id=? OR instr(action,?)>0 OR instr(action,?)>0 OR instr(details,?)>0 OR instr(details,?)>0"
+        ).bind(user.id,anonymous,user.name,anonymous,user.email,anonymous,
+          user.name,anonymous,user.email,anonymous,user.id,
+          user.name,user.email,user.name,user.email));
+        // E-mails pendentes não devem continuar endereçados à pessoa excluída;
+        // registros antigos são redigidos na base local (envios anteriores são irrecuperáveis).
+        const queued=(await db.prepare(
+          "SELECT id,recipient_emails,subject,body,status FROM email_queue"
+        ).all()).results;
+        for(const row of queued){
+          const recipients=asJson(row.recipient_emails,[]).filter(e=>String(e).toLowerCase()!==user.email.toLowerCase());
+          const subject=String(row.subject||"").replaceAll(user.name,anonymous).replaceAll(user.email,anonymous);
+          const message=String(row.body||"").replaceAll(user.name,anonymous).replaceAll(user.email,anonymous);
+          const status=recipients.length?"":(["pendente","processando"].includes(row.status)?"cancelado":"");
+          if(JSON.stringify(recipients)!==JSON.stringify(asJson(row.recipient_emails,[]))||
+             subject!==row.subject||message!==row.body||status){
+            updates.push(db.prepare(
+              "UPDATE email_queue SET recipient_emails=?,subject=?,body=?,status=? WHERE id=?"
+            ).bind(JSON.stringify(recipients),subject,message,status||row.status,row.id));
+          }
+        }
+        updates.push(db.prepare("DELETE FROM auth_attempts WHERE email=?").bind(user.email));
+        // FK CASCADE apaga todas as sessões, resets de senha, participações em
+        // comissões e indicadores pessoais de revisão; atas têm FK SET NULL.
+        updates.push(db.prepare("DELETE FROM users WHERE id=?").bind(user.id));
+        await db.batch(updates);
+        return answer({ok:true,deleted:true});
+      }
       if(path==="/api/v1/account"&&method==="PATCH"){
         ensure(user);const b=await body(req);
         await db.prepare("UPDATE users SET notification_enabled=?,updated_at=? WHERE id=?").bind(b.notificationEnabled?1:0,now(),user.id).run();
