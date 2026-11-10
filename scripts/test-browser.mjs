@@ -520,7 +520,11 @@ await page.locator('a[data-route="reunioes"]').click();
  await loginForm.locator('button[type="submit"]').click();
  await page.waitForURL("**/#/inicio");
  assert.equal(await page.evaluate(()=>localStorage.getItem("pet-gestao:session-token")),"admin-token","Admin usa o mesmo token do login comum");
+ await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#admin-link").isVisible(),true,"Somente a Administração visualiza Painel Admin");
+ // Recarregar confirma que a sessão persistida mantém a conta Admin conectada.
+ await page.reload({waitUntil:"domcontentloaded"});
+ await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  // Administração: mudanças de vagas e de ordem somente após Salvar todas.
  committees.push({id:"cards",name:"Cards",memberIds:[],memberCount:0,maxMembers:0,backgroundColor:"#f7f3ff"});
  await page.goto(origin+"/#/admin/comissoes");
