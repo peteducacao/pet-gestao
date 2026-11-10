@@ -90,11 +90,19 @@ try{
   assert.ok(actions.container>=actions.buttons+10,"Botões não podem se sobrepor");
  assert.ok(mineSize.button<mineSize.card*.45,"Concluir deve ser um botão compacto, não largura total");
  await page.goto(origin+"/#/registrar/t2");
+ await page.locator('.task-form-header-save').waitFor();
  await page.locator('input[name="overviewVisibility"][value="comissao"]').waitFor();
  assert.equal(await page.locator('input[name="overviewVisibility"][value="comissao"]').isChecked(),true,"Opção de comissão preservada na edição");
  await page.goto(origin+"/#/registrar/t1");
  await page.locator('input[name="overviewVisibility"][value="comissao"]').check();
- await page.locator('#task-form button[type="submit"]').click();
+ assert.equal(await page.locator('#task-form button[type="submit"]').count(),0,"Nenhum Salvar demanda duplicado abaixo do formulário de edição");
+ assert.equal(await page.locator('.page-actions button[form="task-form"].task-form-header-save').count(),1,"Salvar demanda junto de Voltar no cabeçalho");
+ const formButtons=await page.locator('.page-actions').evaluate(el=>{
+  const buttons=[...el.querySelectorAll('button')],save=buttons.find(b=>b.classList.contains("task-form-header-save")),back=buttons.find(b=>b.dataset.do==="back");
+  return {save:!!save,back:!!back,near:Math.abs(save.getBoundingClientRect().top-back.getBoundingClientRect().top)<8};
+ });
+ assert.ok(formButtons.save&&formButtons.back&&formButtons.near,"Salvar e Voltar devem ficar na mesma linha");
+ await page.locator('.task-form-header-save').click();
  await page.waitForTimeout(200);
  assert.ok(calls.some(x=>x.method==="PUT"&&x.p==="/tasks/t1"&&x.body.overviewVisible===false),"Cadastro deve enviar escolha de exibição ao servidor");
  await page.goto(origin+"/#/inicio");
@@ -155,6 +163,9 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok((await page.locator(".assignee-team").innerText()).includes("Usuário de teste"),"Integrante da comissão identificado");
  
  assert.equal(await page.locator("select[data-detail-status]").inputValue(),"pendente","Prazo futuro permanece pendente");
+ await page.goto(origin+"/#/registrar");
+ await page.locator('#task-form button[type="submit"]').waitFor();
+ assert.equal(await page.locator('.task-form-header-save').count(),0,"Cadastro mantém o botão Salvar no rodapé");
  await page.goto(origin+"/#/registrar/t1");
  await page.locator('[data-rich-input="captionText"]').waitFor();
  assert.ok((await page.locator('[data-rich-input="captionText"]').innerText()).includes("#PET"),"Legenda preservada");
