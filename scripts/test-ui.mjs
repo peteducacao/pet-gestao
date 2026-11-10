@@ -130,6 +130,14 @@ assert.equal(document.querySelectorAll(".live-stage").length,0,"Evento coletivo 
 assert.equal(document.querySelectorAll('[data-do="add-stage"]').length,0,"Evento coletivo não exige prazo/correção/postagem");
 tap('.assignment-modes [data-value="usuarios"]');await wait();
 assert.ok(document.querySelector("#stage-rows"),"Voltar a Pessoas recupera etapas comuns");
+tap('.assignment-modes [data-value="comissoes"]');await wait();
+assert.ok(document.querySelector("#stage-rows"),"Comissões mantém formulário comum sem lançar erro");
+tap('.assignment-modes [data-value="usuarios"]');await wait();
+assert.ok(document.querySelector("#stage-rows"),"Pessoas volta a funcionar após Comissões");
+const personChoice=document.querySelector('input[data-assign="usuarios"][value="u1"]');
+assert.ok(personChoice,"É possível selecionar um responsável individual");
+personChoice.checked=true;
+personChoice.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 for(const row of [...document.querySelectorAll('.live-stage')])row.querySelector('[data-do="remove-stage"]').click();
 await wait();
 assert.equal(document.querySelectorAll(".live-stage").length,0,"Pode retirar todas as etapas");
