@@ -343,7 +343,7 @@
     const overviewVisible=payload.overviewVisible===undefined?old?.overviewVisible!==false:payload.overviewVisible;
     if(!overviewVisible&&!commissionIds.length)fail("Para exibir somente nas comissões, selecione uma comissão.");
     const stages=isArr(payload.deadlines).slice(0,40).map(d=>({id:str(d.id||uid(),60),label:str(d.label,20),dueAt:standardTime(d.dueAt),assigneeIds:assignmentScope==="todos"?[]:unique(d.assigneeIds),commissionCompleted:d.commissionCompleted&&typeof d.commissionCompleted==="object"?d.commissionCompleted:{},completedAt:d.completedAt||null}));
-    if(!stages.some(d=>d.label==="Prazo"&&d.dueAt))fail("Informe pelo menos uma etapa Prazo com data.");
+    // Sem etapas é permitido; se houver alguma, todas exigem tipo e data válidos.
     if(stages.some(d=>!["Prazo","Correção","Postagem"].includes(d.label)||!d.dueAt))fail("Etapa inválida ou sem data.");
     if(!old&&stages.some(d=>Number(d.dueAt.slice(0,4))<currentYear()))fail("Não é permitido cadastrar datas de anos anteriores.");
     const limits=["Prazo","Correção","Postagem"].map(s=>stages.filter(d=>d.label===s).map(x=>x.dueAt).sort());
