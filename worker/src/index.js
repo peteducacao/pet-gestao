@@ -786,6 +786,28 @@
         await db.batch(operations);
         return answer({ok:true,deleted:selected.length});
       }
+      if(path==="/api/v1/admin/tasks/bulk-delete"&&method==="POST"){
+        ensure(user,true);
+        const b=await body(req);
+        if(!Array.isArray(b.taskIds)||!b.taskIds.length||b.taskIds.length>100)
+          fail("Selecione de 1 a 100 demandas concluídas para excluir.",400);
+        const ids=unique(b.taskIds);
+        if(ids.length!==b.taskIds.length||ids.some(id=>typeof id!=="string"||!id||id.length>100))
+          fail("Seleção de demandas inválida ou repetida.",400);
+        const placeholders=ids.map(()=>"?").join(",");
+        // Nenhuma remoção ocorre caso haja demandas pendentes, inexistentes ou alteradas.
+        const rows=(await db.prepare("SELECT id,archived_at FROM tasks WHERE id IN ("+placeholders+")")
+          .bind(...ids).all()).results;
+        if(rows.length!==ids.length||rows.some(t=>!t.archived_at))
+          fail("A seleção contém uma demanda que não está concluída. Atualize a listagem e tente novamente.",409);
+        await db.batch([
+          db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id IN ("+placeholders+"))").bind(...ids),
+          db.prepare("DELETE FROM deadline_notice_log WHERE task_id IN ("+placeholders+")").bind(...ids),
+          db.prepare("DELETE FROM task_history WHERE task_id IN ("+placeholders+")").bind(...ids),
+          db.prepare("DELETE FROM tasks WHERE id IN ("+placeholders+") AND archived_at IS NOT NULL").bind(...ids)
+        ]);
+        return answer({ok:true,deletedCount:ids.length});
+      }
       if(path==="/api/v1/tasks"&&method==="POST"){
         ensure(user);const b=await body(req),t=validateTask(b),id=uid(),stamp=now(),start=stamp.slice(0,10);
         const allC=(await db.prepare("SELECT id FROM commissions").all()).results.map(c=>c.id),allU=(await db.prepare("SELECT id FROM users").all()).results.map(c=>c.id);
