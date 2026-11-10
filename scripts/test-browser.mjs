@@ -58,7 +58,8 @@ try{
  assert.equal(await page.locator('a[data-route="reunioes"]').count(),1,"Atas no menu");
  assert.equal(await page.locator('select[data-filter="status"]').count(),1);
  assert.equal(await page.locator('.task-status-atrasada').count()>0,true);
- assert.equal(await page.locator('a#account-button[href="#/conta"]').count(),1);
+ assert.equal(await page.locator('#account-button').count(),0,"Botão Meu perfil removido do topo");
+ assert.equal(await page.locator('a[data-route="conta"][href="#/conta"]').count(),1,"Perfil acessível pelo menu lateral");
  const [extra]=await Promise.all([context.waitForEvent("page"),page.locator('a[data-route="comissoes"]').click({modifiers:["Control"]})]);
  await extra.waitForURL(/#\/comissoes/,{timeout:10000});assert.ok(extra.url().includes("#/comissoes"),"Comissão abre em outra guia");await extra.close();
  await page.goto(origin+"/#/inicio");
@@ -71,6 +72,14 @@ try{
  assert.equal(await page.locator(".mine-task-item").count(),2,"Pessoa vê demanda individual e a atribuída por comissão sem duplicidade");
  assert.equal(await page.locator(".mine-task-item").filter({hasText:"Atividade exclusiva da comissão"}).count(),1);
  const mineSize=await page.locator(".mine-task-item").first().evaluate(el=>({button:el.querySelector(".demand-finish-action").getBoundingClientRect().width,card:el.querySelector(".demand-activity-card").getBoundingClientRect().width}));
+ const actions=await page.locator(".mine-task-item").first().evaluate(el=>{
+   const parent=el.querySelector(".demand-card-actions"),details=parent.querySelector(".demand-activity-action"),finish=parent.querySelector(".demand-finish-action");
+   const a=details.getBoundingClientRect(),b=finish.getBoundingClientRect(),p=parent.getBoundingClientRect();
+   return {sameRow:Math.abs(a.top-b.top)<3,gap:b.left-a.right,container:p.width,buttons:a.width+b.width};
+  });
+  assert.equal(actions.sameRow,true,"Ver detalhes e Concluir na mesma linha");
+  assert.ok(actions.gap>=10,"Botões devem ter separação visual");
+  assert.ok(actions.container>=actions.buttons+10,"Botões não podem se sobrepor");
  assert.ok(mineSize.button<mineSize.card*.45,"Concluir deve ser um botão compacto, não largura total");
  await page.goto(origin+"/#/registrar/t2");
  await page.locator('input[name="overviewVisibility"][value="comissao"]').waitFor();
@@ -113,6 +122,12 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".dashboard-grid .demand-activity-card").first().waitFor();
  await page.goto(origin+"/#/minhas-pendencias");
  const mobileSize=await page.locator(".mine-task-item").first().evaluate(el=>({button:el.querySelector(".demand-finish-action").getBoundingClientRect().width,card:el.querySelector(".demand-activity-card").getBoundingClientRect().width}));
+ const mobileActions=await page.locator(".mine-task-item").first().evaluate(el=>{
+   const group=el.querySelector(".demand-card-actions"),a=group.querySelector(".demand-activity-action").getBoundingClientRect(),b=group.querySelector(".demand-finish-action").getBoundingClientRect();
+   return {sameRow:Math.abs(a.top-b.top)<3,gap:b.left-a.right};
+  });
+  assert.equal(mobileActions.sameRow,true,"Ações na mesma linha no celular");
+  assert.ok(mobileActions.gap>=8,"Separação visual no celular");
  assert.ok(mobileSize.button<mobileSize.card*.7,"Concluir deve continuar compacto no celular");
  await wait(200);
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+4);
