@@ -72,7 +72,18 @@ const active=t=>!t.archivedAt;
 const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name||"Comissão").join(", ");
-const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido";
+// Quem responde pela demanda pode ser uma pessoa, uma comissão ou ambos.
+ // Associação à comissão não cria participação individual nem altera regras de conclusão.
+function who(t){
+ const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
+ const teams=(t.commissionIds||[]).map(committee).filter(Boolean);
+ const members=teams.flatMap(c=>(c.memberIds||[]).map(nameFor).filter(Boolean));
+ const names=[...new Set([...assigned,...members])];
+ if(names.length)return names.join(", ");
+ if(teams.length)return teams.map(c=>c.name).join(", ");
+ if((t.assigneeIds||[]).length)return "Responsáveis vinculados";
+ return "Não definido";
+}
 // Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
 const hasAdminRole=u=>Boolean(u&&u.role==="admin");
@@ -467,11 +478,31 @@ function renderTaskForm(routeId){
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
 
 
+function stageResponsibleNames(stage,t){
+ const assigned=(stage.assigneeIds||[]).map(nameFor).filter(Boolean);
+ if(assigned.length)return assigned.join(", ");
+ if((stage.assigneeIds||[]).length)return "Responsável vinculado";
+ // Se a etapa não tem pessoa selecionada, não atribuir automaticamente integrantes da comissão.
+ return "Não definido";
+}
 function deadlineFacts(t){
- return '<section class="card card-pad details-facts"><h2>Prazos e etapas</h2>'+
- (stages(t).length?stages(t).map(stage=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(stage.label)+'</strong></div>'+
- '<div class="deadline-field"><small>Responsável</small><strong>'+esc((stage.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div>'+
- '<div class="deadline-field"><small>Data</small><strong>'+textDate(stage.dueAt)+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>';
+ const ordered=stages(t);
+ const postings=ordered.filter(x=>x.label==="Postagem");
+ const primary=ordered.filter(x=>x.label!=="Postagem");
+ const tile=stage=>{
+  const icon=stage.label==="Prazo"?"clock":stage.label==="Correção"?"check":"calendar";
+  return '<div class="stage-compact-item stage-compact-'+esc(stage.label.toLowerCase())+'">'+
+   '<span class="stage-compact-icon" aria-hidden="true">'+ico(icon)+'</span>'+
+   '<div class="stage-compact-info"><strong>'+esc(stage.label)+'</strong>'+
+   '<time>'+textDate(stage.dueAt)+'</time>'+
+   '<small>Responsável: '+esc(stageResponsibleNames(stage,t))+'</small></div></div>';
+ };
+ return '<section class="card card-pad details-facts detail-accent-card">'+
+  '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("calendar")+'</span>Prazos e etapas</h2>'+
+  (ordered.length?'<div class="stage-compact">'+
+    (postings.length?'<div class="stage-posting-top">'+postings.map(tile).join("")+'</div>':"")+
+    (primary.length?'<div class="stage-compact-main">'+primary.map(tile).join("")+'</div>':"")+
+   '</div>':'<p>Sem etapas cadastradas.</p>')+'</section>';
 }
 
 function historySymbol(action){
@@ -486,10 +517,10 @@ function historySymbol(action){
 function renderAssignees(t){
  const people=(t.assigneeIds||[]).map(id=>nameFor(id)).filter(Boolean);
  const teams=(t.commissionIds||[]).map(cid=>committee(cid)).filter(Boolean);
- return '<section class="card card-pad assignee-card"><h2>Responsáveis</h2>'+
+ return '<section class="card card-pad assignee-card detail-accent-card"><h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("users")+'</span>Responsáveis</h2>'+
  (people.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("user")+' Pessoas</span>'+
  '<div class="assignee-chips">'+people.map(name=>'<span class="assignee-person">'+esc(name)+'</span>').join("")+'</div></div>':"")+
- (teams.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("users")+' Comissões</span>'+
+ (teams.length?'<div class="assignee-group">'+
  teams.map(c=>{
   const members=(c.memberIds||[]).map(nameFor).filter(Boolean);
   return '<div class="assignee-team"><strong>'+ico("users")+' '+esc(c.name)+'</strong>'+
@@ -523,12 +554,16 @@ function detailStatusSelector(t,status){
 }
 function activitySections(t,readOnly=false){
  const ids=t.commissionIds||[];
- return '<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+renderAssignees(t)+'</div>'+
- '<div class="stack"><section class="card card-pad"><h2>Texto para revisão</h2><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section>'+
- (ids.length>=2?'<section class="card card-pad"><h2>Andamento das comissões</h2>'+
+ const commissionProgress=ids.length>=2?'<section class="card card-pad detail-accent-card"><h2 class="detail-card-heading"><span class="detail-heading-icon">'+ico("users")+'</span>Andamento das comissões</h2>'+
  ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
- '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"")+
- renderHistory(t)+'</div></div>';
+ '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"";
+ return '<div class="activity-detail-layout">'+
+  '<div class="activity-detail-top"><div class="stack detail-left-column">'+deadlineFacts(t)+renderAssignees(t)+commissionProgress+'</div>'+
+  '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+
+  '<section class="card card-pad detail-accent-card detail-review-full">'+
+   '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("list")+'</span>Texto para revisão</h2>'+
+   '<div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div>'+
+  '</section></div>';
 }
 function renderDetailReadOnly(t){
  return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true)+'</div>';
