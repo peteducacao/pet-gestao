@@ -21,7 +21,7 @@
   const isArr=v=>Array.isArray(v)?v:[];
   const unique=v=>[...new Set(isArr(v).map(String).filter(Boolean))];
   const idName=row=>({id:row.id,name:row.name,role:row.role_override||row.role});
-  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role_override||u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password});
+  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role_override||u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password,adminSession:u.session_admin_scope===1});
   const color=s=>/^#[0-9a-fA-F]{6}$/.test(String(s))?s:"#f7f3ff";
   const arrayToJson=v=>JSON.stringify(v);
   const standardTime=d=>/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(String(d||""))?String(d):"";
@@ -60,7 +60,7 @@
     const token=header.match(/^Bearer ([A-Za-z0-9_-]{20,})$/);
     if(!token)return null;
     const digest=await sha(token[1]);
-    const u=await db.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?").bind(digest,now()).first();
+    const u=await db.prepare("SELECT u.*,s.admin_scope AS session_admin_scope FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?").bind(digest,now()).first();
     if(u)u.role=u.role_override||u.role;
     return u;
   }
@@ -68,18 +68,18 @@
     if(!user)fail("Entre na sua conta para continuar.",401);
     if(user.must_change_password)fail("Troque sua senha temporária antes de continuar.",403);
     if((user.role_override||user.role)==="usuario")fail("Usuários possuem acesso somente à visualização.",403);
-    if(admin&&!["admin","tutor"].includes(user.role))fail("Acesso restrito à Administração e Tutoria.",403);
+    if(admin&&(user.role!=="admin"||user.session_admin_scope!==1))fail("Acesso exclusivo à sessão da Administração.",403);
   }
   function requireLogin(user){if(!user)fail("É necessário entrar na sua conta.",401)}
   async function audit(db,taskId,user,action,details=""){
     await db.prepare("INSERT INTO task_history (id,task_id,actor_id,actor_name,action,details,created_at) VALUES (?,?,?,?,?,?,?)").bind(uid(),taskId,user.id,user.name,action,details,now()).run();
   }
-  async function createSession(db,user,rememberMe=false){
+  async function createSession(db,user,rememberMe=false,adminScope=false){
     // A sessão comum dura 7 dias; a opção explícita permite até 30 dias.
     const token=randomToken(),digest=await sha(token);
     const expiresAt=isoAfter((rememberMe===true?30:7)*24*60);
-    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)").bind(digest,user.id,expiresAt,now()).run();
-    return {token,user:userPublic(user),expiresAt};
+    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,admin_scope) VALUES(?,?,?,?,?)").bind(digest,user.id,expiresAt,now(),adminScope&&user.role==="admin"?1:0).run();
+    return {token,user:{...userPublic(user),adminSession:adminScope===true&&user.role==="admin"},expiresAt};
   }
   async function resetRate(db,mail){await db.prepare("DELETE FROM auth_attempts WHERE email=?").bind(mail).run()}
   async function rateFail(db,mail){
@@ -95,10 +95,11 @@
   async function bootstrap(db,user){
     const committees=(await db.prepare("SELECT c.*, (SELECT COUNT(*) FROM commission_members m WHERE m.commission_id=c.id) AS member_count FROM commissions c ORDER BY sort_order,name").all()).results;
     const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
+    const privateView=!!user&&user.role!=="usuario"&&!user.must_change_password;
     const rawTasks=(await db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 1000").all()).results;
     const settings=Object.fromEntries((await db.prepare("SELECT key,value FROM app_settings").all()).results.map(x=>[x.key,asJson(x.value,x.value)]));
     let meetings=[],users=[],history=[];
-    if(user){
+    if(privateView){
       meetings=(await db.prepare("SELECT * FROM meetings ORDER BY meeting_date DESC LIMIT 250").all()).results.map(m=>({id:m.id,title:m.title,date:m.meeting_date,rawNotes:m.raw_notes,theme:m.theme,colorA:m.color_a,colorB:m.color_b,updatedAt:m.updated_at}));
       users=(await db.prepare("SELECT id,name,role,role_override FROM users ORDER BY name").all()).results.map(idName);
       history=(await db.prepare("SELECT h.task_id,h.actor_name,h.action,h.details,h.created_at,u.role AS actor_role FROM task_history h LEFT JOIN users u ON u.id=h.actor_id ORDER BY h.created_at DESC LIMIT 800").all()).results;
@@ -107,8 +108,8 @@
     }
     const counts=Object.create(null);
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
-    return {session:user?{user:userPublic(user)}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:user?(counts[c.id]||[]):[]})),
-      tasks:rawTasks.map(t=>user?privateTask(t):publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:user?history:[],settings};
+    return {session:user?{user:userPublic(user)}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
+      tasks:rawTasks.map(t=>privateView?privateTask(t):publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings};
   }
   const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
   const bridgePost=async(env,payload)=>{
@@ -253,7 +254,9 @@
         if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
         const u=await db.prepare("SELECT * FROM users WHERE email=?").bind(mail).first();
         if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,mail);fail("Credenciais inválidas.",401)}
-        await resetRate(db,mail);return answer(await createSession(db,u,b.rememberMe===true));
+        await resetRate(db,mail);
+        if((u.role_override||u.role)==="admin")fail("A conta Administração entra exclusivamente pela entrada administrativa.",403);
+        return answer(await createSession(db,u,b.rememberMe===true));
       }
       if(path==="/api/v1/auth/admin-login"&&method==="POST"){
         const b=await body(req),identifier=String(b.identifier||b.email||"").trim().toLowerCase(),pw=String(b.password||"");
@@ -268,7 +271,7 @@
           await rateFail(db,key);fail("Credenciais administrativas inválidas.",401);
         }
         await resetRate(db,key);
-        return answer(await createSession(db,admin,b.rememberMe===true));
+        return answer(await createSession(db,admin,b.rememberMe===true,true));
       }
       if(path==="/api/v1/auth/logout"&&method==="POST"){
         if(user){const token=(req.headers.get("authorization")||"").slice(7);await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await sha(token)).run()}
@@ -325,6 +328,8 @@
         ensure(user,true);const b=await body(req),target=await db.prepare("SELECT * FROM users WHERE id=?").bind(match[1]).first();
         if(!target)fail("Usuário não encontrado.",404);
         const desired=["usuario","petiano","tutor","admin"].includes(b.role)?b.role:(target.role_override||target.role);
+        if(desired==="admin"&&target.role!=="admin")fail("A conta Administração é exclusiva e não pode ser atribuída a outro usuário.",403);
+        if(target.role==="admin"&&desired!=="admin")fail("Não é permitido alterar o cargo da conta Administração.",403);
         const role=desired==="usuario"?"petiano":desired;
         const override=desired==="usuario"?"usuario":null;
         if(target.role==="admin"&&role!=="admin"){
@@ -371,7 +376,9 @@
         if(!c)fail("Comissão não encontrada.",404);
         const image=b.imageData===undefined?c.image_data:String(b.imageData);
         if(image.length>950000||image&&!/^data:image\/(png|jpeg|webp);base64,/.test(image))fail("Imagem inválida ou muito grande.");
-        const max=["admin","tutor"].includes(user.role)&&Number.isInteger(b.maxMembers)&&b.maxMembers>=0?b.maxMembers:c.max_members;
+        const mayManageVacancies=user.role==="admin"&&user.session_admin_scope===1;
+        if(b.maxMembers!==undefined&&Number(b.maxMembers)!==Number(c.max_members)&&!mayManageVacancies)fail("Somente a Administração altera vagas das comissões.",403);
+        const max=mayManageVacancies&&Number.isInteger(b.maxMembers)&&b.maxMembers>=0?b.maxMembers:c.max_members;
         if(max>0){const count=await db.prepare("SELECT COUNT(*) AS n FROM commission_members WHERE commission_id=?").bind(c.id).first();if(count.n>max)fail("O limite não pode ser inferior à quantidade de integrantes atuais.")}
         await db.prepare("UPDATE commissions SET name=?,description=?,background_color=?,image_data=?,max_members=? WHERE id=?").bind(str(b.name||c.name,90),str(b.description??c.description,2000),color(b.backgroundColor||c.background_color),image,max,c.id).run();
         return answer({ok:true});
@@ -426,7 +433,7 @@
         return answer({ok:true});
       }
       if(match&&method==="DELETE"){
-        ensure(user);const old=await readTask(db,match[1]);
+        ensure(user,true);const old=await readTask(db,match[1]);
         if(!old.archivedAt)fail("Somente demandas arquivadas podem ser excluídas definitivamente.");
         await db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id).run();
         return answer({ok:true});

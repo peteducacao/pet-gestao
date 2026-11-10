@@ -4,6 +4,14 @@ on:
     branches: [main]
     paths:
       - 'worker/**'
+      - 'app-live.js'
+      - 'scripts/test-smoke.mjs'
+      - '.github/workflows/integration-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - 'app-live.js'
       - 'scripts/test-smoke.mjs'
       - '.github/workflows/integration-tests.yml'
   workflow_dispatch:
@@ -17,6 +25,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validar sintaxe e isolar o teste da produção
+        run: |
+          node --check app-live.js
+          node --check --input-type=module < worker/src/index.js
+          node --check scripts/test-smoke.mjs
       - name: Instalar Wrangler
         run: npm install -g wrangler@4
       - name: Configurar banco de teste local

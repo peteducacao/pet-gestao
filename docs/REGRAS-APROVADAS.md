@@ -13,6 +13,9 @@
 - Cadastro: Nome, E-mail, Senha, sem sexo/gênero, seguindo o Inventário PET.
 - Cargos: PETiano(a), Tutor(a), Administração. Cargo exibido em Minha conta; nenhuma assinatura usa prefixo.
 - Conta própria assina com o nome cadastrado, mesmo quando utiliza a Administração. A conta administrativa se chama Admin.
+- O painel Admin é EXCLUSIVO da conta Administração, autenticada diretamente pela entrada administrativa (#/admin). Tutor(a) entra na Visão geral pela entrada comum e não pode acessar nenhum endpoint administrativo.
+- Cada sessão possui escopo atribuído no servidor: uma sessão comum (mesmo que alguém altere seu JavaScript ou suas requisições) nunca vira sessão Admin. Somente o login administrativo emite escopo administrativo. O Worker valida cargo e escopo em cada operação privilegiada.
+- As funções acordadas da Tutoria (criar e revisar demandas, observações, correções, prazos, memórias e notificações automáticas) permanecem nas páginas comuns. Gestão de cargos, senhas, configuração, vagas, e-mails manuais/agendados e exclusões definitivas é exclusiva da Administração.
 - Admin gera senha temporária e o próximo login exige mudança; “Esqueceu sua senha?” envia link de uso único, expirando em 30 minutos.
 - PETiano(a) autenticado(a) pode visualizar e interagir em todas as comissões, mesmo sem ser integrante.
 
@@ -34,7 +37,7 @@
 - Conclusão antecipada, quando há prazos futuros, exige confirmação e marca etapas pendentes daquela comissão como concluídas com a data real.
 - Para duas ou mais comissões, **cada comissão confirma separadamente**, mas qualquer PETiano(a) logado(a) pode confirmar a outra. A demanda desaparece da comissão que concluiu e permanece nas outras e nas demandas gerais até todas finalizarem. Um aviso deve informar quais ainda faltam.
 - Só após todas confirmarem, a demanda vai para Arquivadas e desaparece das áreas ativas.
-- Arquivadas: filtros de período e botão de exclusão definitiva com confirmação, acessível a PETiano(a) autenticado(a); apaga o registro em todo o sistema e preserva os cadastros das comissões.
+- Arquivadas: filtros de período e exclusão definitiva com confirmação, **exclusiva da conta Administração autenticada no painel**; apaga o registro em todo o sistema e preserva os cadastros das comissões.
 - Sem anexos nas demandas, devido à decisão de não contratar armazenamento externo.
 
 ## E-mails e notificações

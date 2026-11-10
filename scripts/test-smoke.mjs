@@ -12,22 +12,21 @@ await test("saúde",async()=>{assert.equal(good(await api("/health")).database,t
 await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,10);assert.equal(r.session,null)});
 await test("controle de acesso",async()=>{assert.equal((await api("/admin/users")).status,401)});
 await test("login Admin separado",async()=>{const r=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:process.env.TEST_ADMIN_PASSWORD}));token=r.token;assert.equal(r.user.role,"admin")});
-await test("Admin pode entrar diretamente pela conta principal",async()=>{
- const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD}));
- assert.equal(r.user.role,"admin");
- assert.ok(r.token);
+await test("Admin não acessa pela sessão comum",async()=>{
+ const r=await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD,role:"admin",adminScope:true});
+ assert.equal(r.status,403);
 });
-await test("manter-me conectado diferencia validade e exige opt-in",async()=>{
- const email=process.env.TEST_ADMIN_EMAIL,password=process.env.TEST_ADMIN_PASSWORD;
- const regular=good(await api("/auth/login","POST",{email,password,rememberMe:false}));
- const persistent=good(await api("/auth/login","POST",{email,password,rememberMe:true}));
- const legacy=good(await api("/auth/login","POST",{email,password}));
- const adminPersistent=good(await api("/auth/admin-login","POST",{identifier:"Admin",password,rememberMe:true}));
+await test("sessões do Admin têm escopo exclusivo e validade configurada",async()=>{
+ const password=process.env.TEST_ADMIN_PASSWORD;
+ const regular=good(await api("/auth/admin-login","POST",{identifier:"Admin",password,rememberMe:false}));
+ const persistent=good(await api("/auth/admin-login","POST",{identifier:"Admin",password,rememberMe:true}));
+ const legacy=good(await api("/auth/admin-login","POST",{identifier:"Admin",password}));
  const days=r=>(Date.parse(r.expiresAt)-Date.now())/86400000;
- assert.ok(days(regular)>6.95&&days(regular)<7.02,"Sessão comum: 7 dias");
- assert.ok(days(legacy)>6.95&&days(legacy)<7.02,"Sessão sem opt-in: 7 dias");
- assert.ok(days(persistent)>29.95&&days(persistent)<30.02,"Sessão mantida: 30 dias");
- assert.ok(days(adminPersistent)>29.95&&days(adminPersistent)<30.02,"Admin mantido: 30 dias");
+ assert.ok(days(regular)>6.95&&days(regular)<7.02,"Sessão Admin comum: 7 dias");
+ assert.ok(days(legacy)>6.95&&days(legacy)<7.02,"Sessão Admin padrão: 7 dias");
+ assert.ok(days(persistent)>29.95&&days(persistent)<30.02,"Admin mantido: 30 dias");
+ for(const r of [regular,persistent,legacy])assert.equal(r.user.adminSession,true);
+ assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
 let a,b,task,meeting;
 await test("login administrativo independente",async()=>{
@@ -37,9 +36,10 @@ await test("login administrativo independente",async()=>{
  assert.equal(r.user.role,"admin");assert.ok(r.token);
 });
 await test("cadastro começa como Usuário",async()=>{
- good(await api("/auth/register","POST",{name:"Pessoa Teste",email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}),201);
+ good(await api("/auth/register","POST",{name:"Pessoa Teste",email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!",role:"admin",adminSession:true}),201);
  const r=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
  assert.equal(r.user.role,"usuario");
+ assert.equal(r.user.adminSession,false,"Campos enviados pelo navegador não criam permissão Admin.");
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
 });
@@ -50,35 +50,59 @@ await test("admin pode promover ou voltar à categoria Usuário",async()=>{
  good(await api("/admin/users/"+id,"PATCH",{role:"usuario",notificationEnabled:false}));
  assert.equal(good(await api("/admin/users")).users.find(u=>u.id===id).role,"usuario");
 });
-await test("Tutor possui acesso administrativo completo",async()=>{
+await test("ataques simulados: Tutoria não entra no Admin nem modifica credenciais",async()=>{
  const admin=token;
  const id=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
- good(await api("/admin/users/"+id,"PATCH",{role:"tutor",notificationEnabled:false}));
+ good(await api("/admin/users/"+id,"PATCH",{role:"tutor",notificationEnabled:true}));
  try{
-   const tutor=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
-   assert.equal(tutor.user.role,"tutor");
-   token=tutor.token;
-   good(await api("/admin/users"));
-   good(await api("/bootstrap"));
-   good(await api("/admin/settings","PUT",{autoWeek:true,autoMonth:false}));
-   const recipient=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
-   const scheduled=await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de agendamento local",message:"Teste isolado sem envio ao Gmail.",scheduledAt:new Date(Date.now()+86400000).toISOString()});
-   assert.equal(scheduled.ok,true);
-   assert.equal(scheduled.status,"agendado");
-   const history=good(await api("/mail")).items;
-   assert.ok(history.some(x=>x.id===scheduled.id&&x.recipientEmails.includes("teste-usuario@pet.local")));
-   const status=good(await api("/mail/status"));
-   assert.equal(status.connected,false,"O teste isolado não pode fingir que existe integração Gmail.");
-   assert.equal(status.code,"UNCONFIGURED");
-   const before=good(await api("/mail")).items.length;
-   const immediate=await api("/mail","POST",{all:false,userIds:[recipient],subject:"Ensaio de fila imediata local",message:"Fila isolada, não enviada ao Gmail."});
-   assert.equal(immediate.status,503,"Não se deve registrar um envio quando a integração está desconectada.");
-   assert.equal(good(await api("/mail")).items.length,before,"Falha da ponte não pode criar e-mail pendente.");
-   assert.equal((await api("/mail/retry","POST",{id:scheduled.id})).status,503);
-   assert.equal((await api("/mail","POST",{all:false,userIds:[],subject:"Sem destino",message:"Não pode enviar"})).status,400);
+  const tutor=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!",role:"admin",adminScope:true}));
+  assert.equal(tutor.user.role,"tutor");
+  assert.equal(tutor.user.adminSession,false);
+  token=tutor.token;
+  const me=good(await api("/auth/me"));
+  assert.equal(me.user.role,"tutor");
+  assert.equal(me.user.adminSession,false);
+  const bootstrap=good(await api("/bootstrap"));
+  assert.equal(bootstrap.session.user.role,"tutor");
+  assert.equal(bootstrap.session.user.adminSession,false);
+  const forbidden=[
+   ["/admin/users","GET"],
+   ["/admin/users/"+id,"PATCH",{role:"admin",adminScope:true}],
+   ["/admin/users/"+id+"/temporary-password","POST",{}],
+   ["/admin/settings","PUT",{autoWeek:false,autoMonth:false}],
+   ["/admin/commission-order","PUT",{ids:[]}],
+   ["/mail/status","GET"],
+   ["/mail","GET"],
+   ["/mail","POST",{all:true,subject:"Ataque",message:"Envio não autorizado"}],
+   ["/mail/clear","POST",{}],
+   ["/mail/retry","POST",{id:"qualquer"}],
+   ["/commissions/videos","DELETE"]
+  ];
+  for(const [route,method,payload] of forbidden){
+    const answer=await api(route,method,payload);
+    assert.equal(answer.status,403,"Falha de isolamento "+method+" "+route+": "+JSON.stringify(answer));
+  }
+  const direct=await api("/auth/admin-login","POST",{identifier:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!",adminScope:true});
+  assert.equal(direct.status,401,"Tutor(a) não deve autenticar como Administração");
+  // Funções acordadas de Tutoria permanecem habilitadas.
+  good(await api("/commissions","POST",{name:"Teste Comissão da Tutoria"}),200);
+  const all=good(await api("/bootstrap")).committees;
+  const own=all.find(x=>x.name==="Teste Comissão da Tutoria");
+  assert.ok(own);
+  good(await api("/commissions/"+own.id,"PUT",{name:"Teste Comissão Tutoria Editada",description:"Revisada pela Tutoria"}));
+  assert.equal((await api("/commissions/"+own.id,"PUT",{name:"Não autorizado",maxMembers:999})).status,403);
+  const taskId=good(await api("/tasks","POST",{title:"Revisão da Tutoria",commissionIds:[own.id],assigneeIds:[],deadlines:[{id:"p-tutor",label:"Prazo",dueAt}]}),201).id;
+  good(await api("/tasks/"+taskId+"/notes","PATCH",{captionText:"Orientação da tutoria",notify:false}));
+  good(await api("/tasks/"+taskId,"PUT",{title:"Revisão ajustada pela Tutoria",commissionIds:[own.id],assigneeIds:[],deadlines:[{id:"p-tutor",label:"Prazo",dueAt}],notify:false}));
+  good(await api("/meetings","POST",{title:"Memória de teste da Tutoria",date:dueAt,rawNotes:"Responsável: (???)"}));
  }finally{
-   token=admin;
-   good(await api("/admin/users/"+id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  token=admin;
+  const own=good(await api("/bootstrap")).committees.find(x=>x.name==="Teste Comissão Tutoria Editada");
+  if(own) {
+    // Exclusão de comissão vinculada é bloqueada para qualquer perfil.
+    assert.equal((await api("/commissions/"+own.id,"DELETE")).status,400);
+  }
+  good(await api("/admin/users/"+id,"PATCH",{role:"usuario",notificationEnabled:false}));
  }
 });
 await test("criar comissões",async()=>{good(await api("/commissions","POST",{name:"Teste Comissão A"}));good(await api("/commissions","POST",{name:"Teste Comissão B"}));const c=good(await api("/bootstrap")).committees;a=c.find(x=>x.name==="Teste Comissão A").id;b=c.find(x=>x.name==="Teste Comissão B").id});
@@ -150,7 +174,47 @@ await test("conclusão independente",async()=>{
  assert.equal(r.remainingCommissions.length,1);
 });
 await test("arquivamento",async()=>{const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:b,early:true}));assert.equal(r.archived,true)});
-await test("exclusão definitiva",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
+await test("ataque simulado: PETiano(a) e Tutor(a) não apagam demandas arquivadas",async()=>{
+ const original=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+ try{
+  for(const role of ["petiano","tutor"]){
+   good(await api("/admin/users/"+person.id,"PATCH",{role,notificationEnabled:false}));
+   const login=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
+   token=login.token;
+   assert.equal((await api("/tasks/"+task,"DELETE")).status,403,"Exclusão liberada a "+role);
+   assert.ok(good(await api("/bootstrap")).tasks.some(x=>x.id===task),"Registro arquivado não foi apagado.");
+   token=original;
+  }
+ }finally{
+  token=original;
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+ }
+});
+await test("ataques simulados: injeção SQL e sessão falsa não revelam dados ou tabelas",async()=>{
+ const original=token;
+ const malicious="'); DROP TABLE users; --";
+ const userListBefore=good(await api("/admin/users")).users.length;
+ const created=good(await api("/commissions","POST",{name:malicious}),200);
+ assert.equal(created.ok,true,"SQL deve entrar como valor, não comando.");
+ const live=good(await api("/bootstrap"));
+ assert.ok(live.committees.some(x=>x.name===malicious));
+ assert.equal(good(await api("/admin/users")).users.length,userListBefore,"A tabela de usuários deve continuar íntegra.");
+ const injectedId=encodeURIComponent("' OR 1=1 --");
+ assert.equal((await api("/admin/users/"+injectedId,"PATCH",{role:"admin"})).status,404);
+ const c=live.committees.find(x=>x.name===malicious);
+ good(await api("/commissions/"+c.id,"DELETE"));
+ token="x".repeat(50);
+ assert.equal((await api("/admin/users")).status,401,"Token falso não autoriza acesso.");
+ assert.equal((await api("/bootstrap")).session,null);
+ token="";
+ const preview=good(await api("/bootstrap"));
+ assert.ok(preview.tasks.every(t=>!Object.hasOwn(t,"captionText")&&!Object.hasOwn(t,"assigneeIds")),"Detalhes privados não saem na API pública.");
+ assert.deepEqual(preview.history,[],"Histórico privado não deve sair na API pública.");
+ token=original;
+ const cross=await fetch(base+"/admin/users",{headers:{Origin:"https://site-externo.example",Authorization:"Bearer "+original}});
+ assert.equal(cross.status,403,"Origem não permitida");
+});
+await test("exclusão definitiva somente pela sessão Admin",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
 await test("cada pessoa conclui apenas sua própria tarefa e a última conclusão arquiva",async()=>{
  const adminToken=token,admin=good(await api("/auth/me")).user;
  const other=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
@@ -230,7 +294,7 @@ await test("painel usa apenas áreas existentes e respeita identidade",async()=>
  const html=readFileSync("index.html","utf8");
  assert.ok(js.includes('const roleLabel=role=>'));
  assert.ok(js.includes('const person=regularMe, logged=Boolean(person)'));
- assert.ok(js.includes('["tutor","admin"].includes(u.role)'));
+ assert.ok(js.includes('const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true)'));
  assert.ok(js.includes('admin-menu-link'));
  assert.ok(js.includes('data-value="emails"'));
  assert.ok(js.includes('data-value="comissoes"'));
@@ -358,13 +422,13 @@ await test("responsáveis humanos não se confundem com nome da comissão",async
  assert.ok(!js.includes('defaultTutor=owners[0]'));
  assert.ok(!js.includes('person.value=data.users.find(x=>x.role==="tutor")'));
 });
-await test("seção SISTEMA e Administração somente Admin e Tutor sem piscar no F5",async()=>{
+await test("seção SISTEMA e Administração só aparecem na sessão administrativa",async()=>{
  const {readFileSync}=await import("node:fs");
  const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8");
  assert.match(index,/<p class="nav-caption separated" id="admin-nav-caption" hidden>SISTEMA<\/p>/);
  assert.match(index,/<nav class="nav-group" id="admin-nav-group" aria-label="Administração" hidden>/);
  assert.match(index,/<button class="nav-link" id="admin-link" type="button" hidden>/);
- assert.ok(src.includes('const adminVisible=adminRole(regularMe);'));
+ assert.ok(src.includes('const adminVisible=routeParts().page==="admin"&&isAdmin();'));
  assert.ok(src.includes('if(adminCaption)adminCaption.hidden=!adminVisible'));
  assert.ok(src.includes('if(adminGroup)adminGroup.hidden=!adminVisible'));
 });
