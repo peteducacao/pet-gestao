@@ -98,7 +98,7 @@ const stageDueAt=value=>{
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
  return parsed&&Number.isFinite(parsed.getTime())?parsed:null;
 };
-const isLate=t=>active(t)&&stages(t).some(s=>{
+const isLate=t=>active(t)&&t.assignmentScope!=="todos"&&stages(t).some(s=>{
  if(s.completedAt)return false;
  const due=stageDueAt(s.dueAt);
  return !!due&&due.getTime()<Date.now();
@@ -362,7 +362,7 @@ function taskCard(t,commissionId,withFinishAction=false){
  '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
  '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
  (me?'<div class="demand-card-actions"><a class="activity-details-link demand-activity-action" href="'+taskHref+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>'+
- (withFinishAction&&(mine.personal||mine.committees.length)?'<button type="button" class="button demand-finish-action" data-do="finish-mine" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+'</div>':"")+
+ (withFinishAction&&!isEveryoneAssigned(t)&&(mine.personal||mine.committees.length)?'<button type="button" class="button demand-finish-action" data-do="finish-mine" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+'</div>':"")+
  '</article>';
 }
 
@@ -517,6 +517,32 @@ function stageRow(stage={},i=0){
  '<label data-previous-owner="'+esc(selectedOwner)+'">'+(state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)")+stageAssigneeField(selectedOwner)+'</label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
+function collectiveEventDate(stage=null){
+ const day=(stage?.dueAt||"").slice(0,10);
+ return '<div class="collective-event-date"><label for="collective-event-day">Data do evento <span class="task-form-required">*</span>'+
+  '<input id="collective-event-day" type="date" min="'+current.getFullYear()+'-01-01" value="'+esc(day)+'" required></label>'+
+  '<p>'+ico("calendar")+' Evento coletivo para Todos(as). Será concluído e arquivado automaticamente ao terminar a data do evento (horário de Sergipe), sem confirmação manual.</p></div>';
+}
+function renderDeadlineSettings(stagesList=[]){
+ if(state.assignmentScope==="todos")return '<div class="register-deadlines collective-date-panel"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Data do evento</h3><p>Informe o dia em que o evento coletivo acontecerá. Não é necessário definir Prazo, Correção, Postagem ou responsáveis por etapa.</p></div></div>'+
+  collectiveEventDate((stagesList||[])[0])+'</div>';
+ return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>As etapas são <strong>opcionais</strong>. Você pode salvar a demanda sem prazo ou adicionar Prazo, Correção e Postagem, cada uma com sua data e responsável.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
+ '<div id="stage-rows">'+(stagesList||[]).filter(x=>x.label!=="Evento").map(stageRow).join("")+'</div></div>';
+}
+function refreshDeadlineMode(){
+ const host=$("#deadline-settings");if(!host)return;
+ const eventDay=$("#collective-event-day")?.value;
+ const currentRows=$(".live-stage").map(row=>({
+   id:row.dataset.stageId,
+   label:row.querySelector('[data-stage="label"]')?.value||"Prazo",
+   dueAt:(row.querySelector('[data-stage="day"]')?.value||"")+
+     (row.querySelector('[data-stage="day"]')?.value?"T"+(row.querySelector('[data-stage="hour"]')?.value||"23:59")+":00":""),
+   assigneeIds:row.querySelector('select[data-stage="assignee"]')?.value?[row.querySelector('select[data-stage="assignee"]').value]:[]
+ }));
+ const list=currentRows.length?currentRows:
+   eventDay?[{label:"Prazo",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:[];
+ host.innerHTML=renderDeadlineSettings(list);
+}
 function renderTaskForm(routeId){
  if(!canWrite())return authRequired();
  let t=null,cid=null;
@@ -531,7 +557,7 @@ function renderTaskForm(routeId){
       isEveryoneAssigned(t)?"todos":t.commissionIds?.length&&!t.assigneeIds?.length?"comissoes":"usuarios"
     )):"usuarios";
  }
- return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina os responsáveis e, se precisar, os prazos da demanda.",
+ return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina os responsáveis e a data do evento ou etapas, quando necessárias.",
  backButton()+
  (t?'<button type="submit" form="task-form" class="button primary task-form-header-save">'+ico("check")+' Salvar demanda</button>':""))+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
@@ -540,7 +566,7 @@ function renderTaskForm(routeId){
  '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">A demanda continua disponível em Demandas e nas pendências dos responsáveis.</p>'+
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral e comissões</strong><small>Visível na Visão geral e nas comissões vinculadas.</small></span></label>'+
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
- '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Defina até quando os(as) PETianos(as) deverão concluir cada etapa da demanda. As etapas são <strong>opcionais</strong>: você pode salvar a demanda sem prazo. Se precisar, adicione <strong>Prazo</strong>, <strong>Correção</strong> pela tutoria ou <strong>Postagem</strong>. Cada etapa adicionada deve ter data, e você pode escolher um responsável.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?(t.deadlines||[]):[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
+ '<div id="deadline-settings">'+renderDeadlineSettings(t?(t.deadlines||[]):state.assignmentScope==="todos"?[]:[{label:"Prazo",dueAt:""}])+'</div>'+ 
  '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+richEditor("captionText",t?.captionText||"")+
  (t?"":'<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div>')+'</form></section>';
 }
@@ -557,6 +583,14 @@ function stageResponsibleNames(stage,t){
 }
 function deadlineFacts(t){
  const ordered=stages(t);
+ if(isEveryoneAssigned(t)){
+   const day=ordered[0]?.dueAt;
+   return '<section class="card card-pad details-facts detail-accent-card">'+
+    '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("calendar")+'</span>Data do evento</h2>'+
+    (day?'<div class="collective-event-detail"><span class="collective-event-day">'+ico("calendar")+' <strong>'+textDate(day)+'</strong></span><p>'+ico("users")+' Todos(as) participam do evento coletivo.</p><p>'+ico("check")+' '+(t.archivedAt?"Evento concluído e arquivado automaticamente.":"A conclusão é automática após o término da data do evento.")+'</p></div>':'<p>Data do evento ainda não definida.</p>')+
+    '</section>';
+ }
+
  const postings=ordered.filter(x=>x.label==="Postagem");
  const primary=ordered.filter(x=>x.label!=="Postagem");
  const tile=stage=>{
@@ -645,6 +679,7 @@ function renderHistory(t){
 }
 function detailStatusSelector(t,status){
  if(t.archivedAt)return '<span class="task-status task-status-concluida detail-status-final">Concluída</span>';
+ if(isEveryoneAssigned(t))return '<span class="task-status task-status-pendente detail-status-final" title="Concluído automaticamente após o dia do evento">Evento programado · Conclusão automática</span>';
  return '<label class="detail-status-control detail-status-'+status+'"><span class="detail-status-caption">Status</span>'+
  '<select class="detail-status-select" data-detail-status data-id="'+esc(t.id)+'" aria-label="Status da demanda: '+statusLabel[status]+'">'+
  '<option value="'+status+'" selected>'+statusLabel[status]+'</option>'+
@@ -687,6 +722,7 @@ function closeFinishDialog(){
 }
 function openFinishDialog(task){
  const layer=$("#finish-dialog");if(!layer||!task)return;
+ if(isEveryoneAssigned(task)){setToast("Eventos coletivos são concluídos automaticamente após a data do evento.");return;}
  const users=(task.assigneeIds||[]).filter(id=>!task.userDone?.[id]);
  const groups=(task.commissionIds||[]).filter(id=>!task.commissionDone?.[id]);
  if(!users.length&&!groups.length){setToast("Todas as participações já foram concluídas.");return;}
@@ -930,11 +966,19 @@ async function saveAndReload(action,success="Alterações salvas."){
 }
 function userFields(form){return Object.fromEntries(new FormData(form).entries())}
 async function saveTask(form){
- const f=collectRich(form,userFields(form)),stages=$$(".live-stage").map(row=>{
- const label=row.querySelector('[data-stage="label"]').value,day=row.querySelector('[data-stage="day"]').value,time=row.querySelector('[data-stage="hour"]').value,
-  person=state.assignmentScope==="todos"?"":row.querySelector('[data-stage="assignee"]').value;
- return{id:row.dataset.stageId,label,dueAt:day?day+"T"+(time||"23:59")+":00":"",assigneeIds:person?[person]:[]}
- });
+ const f=collectRich(form,userFields(form));
+ const isCollective=state.assignmentScope==="todos";
+ const eventDay=$("#collective-event-day")?.value||"";
+ if(isCollective&&!eventDay)return setToast("Informe a data do evento coletivo.");
+ const stages=isCollective?
+  [{id:"evento-data",label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:
+  $(".live-stage").map(row=>{
+    const label=row.querySelector('[data-stage="label"]')?.value||"Prazo",
+      day=row.querySelector('[data-stage="day"]')?.value||"",
+      time=row.querySelector('[data-stage="hour"]')?.value||"23:59",
+      person=row.querySelector('[data-stage="assignee"]')?.value||"";
+    return {id:row.dataset.stageId,label,dueAt:day?day+"T"+time+":00":"",assigneeIds:person?[person]:[]};
+  });
  if(!f.title.trim())return setToast("Informe o título.");
  if(stages.some(x=>!x.dueAt))return setToast("Informe a data de todas as etapas inseridas.");
  if(stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores.");
@@ -952,6 +996,7 @@ async function saveTask(form){
  },"Demanda salva com sucesso.");
 }
 async function finishTask(t,cid){
+ if(isEveryoneAssigned(t))return setToast("O evento será concluído automaticamente após a data informada.");
  const future=stages(t).some(s=>dt(s.dueAt)>new Date());
  const remainingCommissions=(t.commissionIds||[]).filter(x=>x!==cid&&!t.commissionDone?.[x]);
  const remainingPeople=(t.assigneeIds||[]).filter(x=>cid||x!==me?.id).filter(x=>!t.userDone?.[x]);
@@ -1110,7 +1155,7 @@ async function handleClick(e){
  if(action==="assignment-scope"){
   if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
   state.assignmentScope=b.dataset.value;
-  $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();syncStageAssigneePlaceholder();return;
+  $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();refreshDeadlineMode();syncStageAssigneePlaceholder();return;
  }
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
