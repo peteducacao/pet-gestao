@@ -293,13 +293,13 @@
         const stageId=String(stage.id||stage.label+"-"+stageIndex);
         const dedupeKey=[task.id,stageId,rawDue,kind].join("|");
         const queueId=uid(),stamp=now();
-        await db.batch([
+        const noticeBatch=await db.batch([
           db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)")
             .bind(dedupeKey,task.id,stageId,kind,rawDue,queueId,stamp),
           db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at) SELECT ?,NULL,?,?,?,?,?,'pendente',? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)")
             .bind(queueId,kind,JSON.stringify(recipients),subject,text,stamp,stamp,dedupeKey,queueId)
         ]);
-        registered++;
+        if(noticeBatch[0]?.meta?.changes)registered++;
         if(registered>=30)return;
       }
     }
