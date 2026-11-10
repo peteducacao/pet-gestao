@@ -198,14 +198,21 @@ try{
    "Texto Todos(as) não deve falar em permissão de concluir");
  const eventInput=page.locator("#collective-event-day");
  assert.equal(await eventInput.getAttribute("min"),null,"Qualquer ano deve ser selecionável");
+ assert.equal(await page.locator("#collective-date-year").inputValue(),"2026","Ano atual já vem preenchido");
+ assert.equal(await page.locator("#collective-date-day").inputValue(),"","Dia deve começar vazio");
+ assert.equal(await page.locator("#collective-date-month").inputValue(),"","Mês deve começar vazio");
  const labelBounds=await eventSettings.locator(".collective-date-label-text").boundingBox();
  const starBounds=await eventSettings.locator(".collective-date-label-text .task-form-required").boundingBox();
  assert.ok(labelBounds&&starBounds&&starBounds.y>=labelBounds.y-2&&
    starBounds.y+starBounds.height<=labelBounds.y+labelBounds.height+2,
    "Asterisco fica alinhado ao texto Data do evento no celular");
- await eventInput.fill("2015-04-12");
+ await page.locator("#collective-date-year").fill("2015");
+ await page.locator("#collective-date-month").fill("04");
+ await page.locator("#collective-date-day").fill("12");
  assert.equal(await eventInput.inputValue(),"2015-04-12","Seletor aceita qualquer ano passado");
- await eventInput.fill("2026-12-01");
+ await page.locator("#collective-date-year").fill("2026");
+ await page.locator("#collective-date-month").fill("12");
+ await page.locator("#collective-date-day").fill("01");
  assert.equal(await eventSettings.locator('input[type="date"]').count(),1,
    "No celular, Todos(as) tem exatamente um campo: a data");
  assert.equal(await eventSettings.locator('input[type="time"]').count(),0,
@@ -218,7 +225,7 @@ try{
  await page.setViewportSize({width:1420,height:900});
  assert.equal(await page.locator(".live-stage").count(),0,"Todos(as) não usa etapas");
  assert.equal(await page.locator('[data-do="add-stage"]').count(),0,"Todos(as) só solicita a data");
- await page.locator("#collective-event-day").fill("2026-12-01");
+ assert.equal(await page.locator("#collective-date-year").inputValue(),"2026");
  await page.locator(".task-form-header-save").click();
  await page.waitForTimeout(180);
  const savedAll=calls.filter(x=>x.p==="/tasks/t-everyone"&&x.method==="PUT").at(-1)?.body;
