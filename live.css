@@ -1366,3 +1366,27 @@ body.notice-open{overflow:hidden}
  #screen .stage-compact-main{grid-template-columns:1fr}
  #screen .stage-compact-info time{font-size:15px}
 }
+
+
+/* Salvar no cabeçalho de Editar demanda, ao lado de Voltar. */
+#screen .page-actions .task-form-header-save{
+ display:inline-flex;align-items:center;justify-content:center;gap:8px;
+ min-height:43px;padding:11px 18px;border-radius:11px;
+ font-size:13px;font-weight:800;
+ background:#7140d1;color:#fff;border-color:#7140d1;
+ box-shadow:0 4px 13px rgba(88,50,161,.13);
+}
+#screen .page-actions .task-form-header-save:hover{
+ background:#5d2bbd;border-color:#5d2bbd;
+}
+#screen .page-actions .task-form-header-save:focus-visible{
+ outline:3px solid #b99ff1;outline-offset:3px;
+}
+#screen .page-actions .task-form-header-save svg{height:17px;width:17px}
+@media(max-width:640px){
+ #screen .page-actions:has(.task-form-header-save){
+  width:100%;display:flex;flex-wrap:wrap;gap:10px;
+  justify-content:flex-start;
+ }
+ #screen .page-actions .task-form-header-save{flex:0 1 auto;min-height:42px}
+}
