@@ -130,3 +130,9 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - Nenhuma segunda tela ou segunda senha é solicitada para abrir o Painel Admin. O botão permanece oculto para perfis não administrativos, inclusive Tutor(a).
 - Quem estiver conectado como Admin pode acessar e editar demandas pelas páginas comuns. Alterações administrativas continuam verificadas no servidor, e sessões de perfis comuns não ganham privilégios por tentar acessar a URL `#/admin` ou chamar APIs diretamente.
 - Sessões antigas da entrada administrativa são migradas localmente quando não há outra sessão comum ativa. O token separado antigo é descartado e as credenciais não são expostas no front-end.
+
+## Permanência da sessão e entrada neutra — 10/11/2026
+- A tela pública de login deve indicar apenas **E-mail** e **Digite seu e-mail**, sem mencionar Administração, Painel Admin nem identificadores especiais. O painel permanece acessível apenas após login autorizado.
+- **Manter-me conectado** significa sessão persistente no dispositivo até a própria pessoa sair da conta; não existe mais limite de 30 dias. A API mantém a sessão em banco com data sentinela máxima, revogável a qualquer momento. A opção desmarcada usa armazenamento temporário no navegador e uma sessão de até 7 dias.
+- Em ambos os casos, trocar ou redefinir a senha, excluir a conta ou revogar a sessão invalida o acesso. A limpeza dos dados do navegador ou restrições de armazenamento também podem exigir novo login.
+- No navegador, a sessão persistente do armazenamento local prevalece sobre tokens temporários antigos quando o site é reaberto. Jamais armazenar senhas no cliente.
