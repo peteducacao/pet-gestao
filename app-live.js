@@ -274,7 +274,8 @@ async function reload(){
    const personal=token?await request("/auth/me","GET",undefined,"user").catch(()=>null):null;
    regularMe=personal?.user||null;
    if(token&&!regularMe){token="";forgetSessionToken(tokenKey)}
-   const scope=inAdmin?(adminToken?"admin":"guest"):"user";
+   const scope=inAdmin?(adminToken?"admin":"guest"):
+    (!token&&adminToken&&routeParts().page==="conta"?"admin":"user");
    const b=await request("/bootstrap","GET",undefined,scope);
    data=b;
    me=b.session?.user||null;
@@ -822,7 +823,20 @@ function renderAccount(){
  return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Status:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
- '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div></section>';
+ '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
+ '<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
+ '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section></section>'+
+ '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
+  '<div class="account-delete-backdrop" data-do="account-delete-close"></div>'+
+  '<section class="account-delete-card" role="dialog" aria-modal="true" aria-labelledby="account-delete-heading">'+
+   '<h2 id="account-delete-heading">Excluir minha conta definitivamente?</h2>'+
+   '<p>Seu cadastro e acesso serão apagados. Demandas e atas da equipe permanecem, sem vincular sua identidade. E-mails já enviados não podem ser recolhidos.</p>'+
+   '<form id="delete-account-form" class="register-form" autocomplete="off">'+
+    '<label>Senha atual<input type="password" name="password" autocomplete="current-password" required placeholder="Digite sua senha"></label>'+
+    '<label>Digite <strong>EXCLUIR MINHA CONTA</strong> para confirmar<input type="text" name="confirmation" required spellcheck="false" autocapitalize="characters" placeholder="EXCLUIR MINHA CONTA"></label>'+
+    '<div class="account-delete-actions"><button class="button ghost" type="button" data-do="account-delete-close">Cancelar</button>'+
+    '<button class="button account-delete-confirm" type="submit">'+ico("close")+' Excluir definitivamente</button></div>'+
+   '</form></section></div>';
 }
 const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"],["due_soon","Prazo vencendo"],["overdue","Prazo vencido"]];
 function notificationTemplateFor(kind){
@@ -1263,6 +1277,14 @@ async function handleClick(e){
    state.adminTab="painel";state.adminMenuOpen=false;
    location.hash="#/inicio";setToast("Sessão administrativa encerrada.");return;
  }
+ if(action==="account-delete-open"){
+   const layer=$("#account-delete-dialog");if(!layer)return;
+   layer.hidden=false;
+   layer.querySelector('input[name="password"]')?.focus();return;
+ }
+ if(action==="account-delete-close"){
+   const layer=$("#account-delete-dialog");if(layer)layer.hidden=true;return;
+ }
  if(action==="logout"){
    try{await request("/auth/logout","POST",{},"user")}catch{}
    // Invalida também sessão administrativa independente antes de limpar ambos os tipos de armazenamento.
@@ -1379,6 +1401,23 @@ async function handleSubmit(e){
    await reload();setToast("Senha administrativa atualizada. Entre novamente no Admin.");return;
  }
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
+ if(form.id==="delete-account-form"){
+   const fields=userFields(form);
+   if(String(fields.confirmation||"").trim()!=="EXCLUIR MINHA CONTA")
+     return setToast("Digite exatamente EXCLUIR MINHA CONTA para confirmar.");
+   if(!await askConfirm("Sua conta e suas credenciais serão excluídas definitivamente. As demandas e atas permanecerão no PET Gestão, com referências à sua identidade anonimizadas. Tem certeza?",{title:"Exclusão definitiva da conta",danger:true}))return;
+   const submit=form.querySelector('button[type="submit"]');
+   if(submit)submit.disabled=true;
+   try{
+     await request("/account","DELETE",{password:fields.password,confirmation:fields.confirmation},token?"user":"admin");
+     token="";adminToken="";me=null;regularMe=null;
+     forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);
+     location.hash="#/login";
+     await reload();
+     setToast("Sua conta foi excluída definitivamente.");
+   }finally{if(submit?.isConnected)submit.disabled=false}
+   return;
+ }
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
