@@ -2,6 +2,7 @@
 (function frontModule(){
 "use strict";
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+ let lastRichRange=null;
 const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").replace(/\/$/,"");
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
@@ -956,7 +957,14 @@ async function handleChange(e){
  }
  if(t.matches?.("[data-rich-color]")){
    const editor=t.closest(".rich-editor")?.querySelector("[contenteditable]");
-   if(editor){editor.focus();document.execCommand("foreColor",false,t.value);}
+   if(editor){
+     editor.focus();
+     const selection=window.getSelection();
+     if(lastRichRange&&editor.contains(lastRichRange.commonAncestorContainer)){
+       selection.removeAllRanges();selection.addRange(lastRichRange);
+     }
+     document.execCommand("foreColor",false,t.value);
+   }
    return;
  }
  if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
@@ -991,6 +999,12 @@ function start(){
     else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
  }});
 
+ document.addEventListener("selectionchange",()=>{
+   const selected=window.getSelection();
+   if(!selected?.rangeCount)return;
+   const anchor=selected.anchorNode?.nodeType===1?selected.anchorNode:selected.anchorNode?.parentElement;
+   if(anchor?.closest?.("[data-rich-input]"))lastRichRange=selected.getRangeAt(0).cloneRange();
+ });
  document.addEventListener("pointerdown",e=>{
    if(e.target.closest('[data-do="rich-format"]'))e.preventDefault();
  });
