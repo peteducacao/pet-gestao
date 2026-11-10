@@ -1759,3 +1759,26 @@ body.mail-preview-open{overflow:hidden}
 #screen .deadline-notice-settings .deadline-notice-audience small{
  font-weight:450;line-height:1.55;color:#746886;
 }
+
+
+/* Conclusão coletiva: seletor geral de participações. */
+.finish-popup .joint-select-all{
+ display:flex;align-items:center;gap:12px;cursor:pointer;
+ padding:13px 15px;margin-top:16px;
+ border-radius:12px;border:1px solid #d9c8f5;background:#f4efff;
+ color:#4c3378;
+}
+.finish-popup .joint-select-all input{
+ flex:0 0 19px;width:19px;height:19px;accent-color:#7547ca;
+}
+.finish-popup .joint-select-all span{display:grid;gap:3px;min-width:0}
+.finish-popup .joint-select-all strong{font-size:14px}
+.finish-popup .joint-select-all small{font-size:12px;font-weight:450;line-height:1.35;color:#6f627e}
+/* A ausência de prazos é permitida e deve ser compreensível ao editar. */
+#screen .register-deadlines #stage-rows:empty::before{
+ content:"Nenhuma etapa adicionada. Você pode salvar a demanda sem prazo.";
+ display:block;padding:14px 16px;margin-top:12px;
+ border:1px dashed #d5c6ea;border-radius:11px;
+ color:#6f647e;font-size:13px;line-height:1.5;
+ background:#fff;
+}
