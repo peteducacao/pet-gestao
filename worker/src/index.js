@@ -466,33 +466,35 @@
           return answer({ok:true});
         }
         if(match[2]==="status")fail("Utilize apenas a opção Concluir, sem estados de pendência ou aprovação.",410);
-        // Conclusão pessoal é estritamente da conta autenticada.
-        // Conclusão da comissão pode ser registrada somente por integrante.
+        // Conclusão individual ou conjunta: pessoas e comissões vinculadas, uma única gravação.
         const commissionIds=old.commissionIds||[],assigneeIds=old.assigneeIds||[];
-        const commissionId=str(b.commissionId,100),done={...old.commissionDone},userDone={...(old.userDone||{})};
-        if(commissionId){
-          if(!commissionIds.includes(commissionId))fail("Comissão não vinculada à demanda.",403);
-          const member=await db.prepare("SELECT 1 AS allowed FROM commission_members WHERE commission_id=? AND user_id=?").bind(commissionId,user.id).first();
-          if(!member)fail("Somente integrantes desta comissão podem concluir sua participação.",403);
-          if(done[commissionId])return answer({ok:true,alreadyDone:true,archived:false});
-          done[commissionId]={at:stamp,by:user.id,byName:user.name};
-        }else{
-          if(!assigneeIds.includes(user.id))fail("A demanda não está atribuída à sua conta.",403);
-          if(userDone[user.id])return answer({ok:true,alreadyDone:true,archived:false});
-          userDone[user.id]={at:stamp,by:user.id,byName:user.name};
+        const selectedCommissions=unique(b.commissionIds),selectedUsers=unique(b.userIds);
+        if(!selectedCommissions.length&&!selectedUsers.length){
+          if(b.commissionId)selectedCommissions.push(str(b.commissionId,100));
+          else selectedUsers.push(user.id);
         }
+        if(selectedCommissions.some(id=>!commissionIds.includes(id))||selectedUsers.some(id=>!assigneeIds.includes(id)))
+          fail("Selecione apenas responsáveis vinculados à demanda.",403);
+        const done={...old.commissionDone},userDone={...(old.userDone||{})};
+        const changedCommissions=[],changedUsers=[];
+        for(const id of selectedCommissions)if(!done[id]){done[id]={at:stamp,by:user.id,byName:user.name};changedCommissions.push(id);}
+        for(const id of selectedUsers)if(!userDone[id]){userDone[id]={at:stamp,by:user.id,byName:user.name};changedUsers.push(id);}
+        if(!changedCommissions.length&&!changedUsers.length)return answer({ok:true,alreadyDone:true,archived:false});
         const finished=commissionIds.every(id=>Boolean(done[id]))&&assigneeIds.every(id=>Boolean(userDone[id]));
         const stages=old.deadlines.map(d=>{
           const copy={...d,commissionCompleted:{...(d.commissionCompleted||{})}};
-          if(commissionId)copy.commissionCompleted[commissionId]={at:stamp,by:user.id};
+          for(const id of changedCommissions)copy.commissionCompleted[id]={at:stamp,by:user.id};
           if(finished)copy.completedAt=stamp;
           return copy;
         });
         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
-        const action=commissionId?"Concluiu participação da comissão "+(await db.prepare("SELECT name FROM commissions WHERE id=?").bind(commissionId).first())?.name:"Concluiu sua participação individual";
+        const names=[];
+        for(const id of changedUsers){const row=await db.prepare("SELECT name FROM users WHERE id=?").bind(id).first();names.push(row?.name||"Usuário");}
+        for(const id of changedCommissions){const row=await db.prepare("SELECT name FROM commissions WHERE id=?").bind(id).first();names.push("Comissão "+(row?.name||id));}
+        const action="Registrou conclusão de: "+names.join(", ");
         await audit(db,old.id,user,action,b.early?"Conclusão antecipada confirmada":"");
-        await askNotify(db,env,ctx,user,b,old,"Conclusão","concluiu sua participação");
+        await askNotify(db,env,ctx,user,b,old,"Conclusão",action.toLowerCase());
         return answer({ok:true,archived:finished,remainingCommissions:commissionIds.filter(id=>!done[id]),remainingUsers:assigneeIds.filter(id=>!userDone[id])});
       }
       if(path==="/api/v1/meetings"&&method==="POST"){
