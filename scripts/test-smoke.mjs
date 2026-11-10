@@ -70,7 +70,7 @@ await test("ataques simulados: Tutoria não entra no Admin nem modifica credenci
    ["/admin/users/"+id,"PATCH",{role:"admin",adminScope:true}],
    ["/admin/users/"+id+"/temporary-password","POST",{}],
    ["/admin/settings","PUT",{autoWeek:false,autoMonth:false}],
-   ["/admin/reminder-settings","PUT",{dueSoonEnabled:true,overdueEnabled:true,daysBefore:3}],
+   ["/admin/reminder-settings","PUT",{dueSoonEnabled:true,overdueEnabled:true,daysBefore:3,overdueAudience:"all"}],
    ["/admin/commission-order","PUT",{ids:[]}],
    ["/mail/status","GET"],
    ["/mail","GET"],
@@ -155,7 +155,10 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  assert.equal((await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:0,overdueEnabled:true})).status,400);
  assert.equal((await api("/admin/reminder-settings","PUT",{dueSoonEnabled:"true",daysBefore:3,overdueEnabled:true})).status,400);
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false}));
- assert.deepEqual(good(await api("/bootstrap")).settings.reminderSettings,{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false});
+ assert.deepEqual(good(await api("/bootstrap")).settings.reminderSettings,{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false,overdueAudience:"pending"},"Quando não selecionado, preservar somente pendentes.");
+ assert.equal((await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:3,overdueEnabled:true,overdueAudience:"invalido"})).status,400);
+ good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:3,overdueEnabled:true,overdueAudience:"all"}));
+ assert.equal(good(await api("/bootstrap")).settings.reminderSettings.overdueAudience,"all","Admin pode selecionar todos(as) os vinculados.");
  good(await api("/admin/notification-template","PUT",{kind:"due_soon",subject:"Faltam {dias} dias — {demanda}",message:"A etapa {etapa} vence em {prazo}."}));
  good(await api("/admin/notification-template","PUT",{kind:"overdue",subject:"Atrasou: {demanda}",message:"Prazo vencido em {prazo}."}));
  const models=good(await api("/bootstrap")).settings.notificationTemplates;
@@ -163,6 +166,7 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  assert.equal(models.overdue.subject,"Atrasou: {demanda}");
  assert.equal(models.create.subject,"Nova: {demanda}","Alerta de prazo não substitui modelo de criação.");
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:false,daysBefore:5,overdueEnabled:false}));
+ assert.equal(good(await api("/bootstrap")).settings.reminderSettings.overdueAudience,"all","Desativar os alertas preserva o público selecionado.");
 });
 await test("Todos(as) persiste sem seletores individuais e é validado na API",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
