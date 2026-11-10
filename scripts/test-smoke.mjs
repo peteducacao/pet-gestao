@@ -482,7 +482,9 @@ await test("login opcional persiste somente token e recuperação abre popup leg
 await test("responsáveis humanos não se confundem com nome da comissão",async()=>{
  const {readFileSync}=await import("node:fs");
  const js=readFileSync("app-live.js","utf8");
- assert.ok(js.includes('const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido"'));
+ assert.ok(js.includes('function who(t){'),"Responsáveis devem incluir comissões e participantes");
+ assert.ok(js.includes('teams.flatMap(c=>(c.memberIds||[]).map(nameFor)'),"Integrantes da comissão aparecem quando disponíveis");
+ assert.ok(js.includes('if(teams.length)return teams.map(c=>c.name).join(", ")'),"Sem pessoas visíveis, mostrar comissão, não Não definido");
  assert.ok(!js.includes('||selectedCommitteeNames(t)||"A definir"'));
  assert.ok(js.includes('const tag=ids.length?'),"Comissões devem aparecer apenas quando vinculadas.");
  assert.ok(js.includes('function renderAssignees(t)'),"Detalhes devem mostrar responsáveis reais");
@@ -513,7 +515,8 @@ await test("conclusão conjunta, filtros e seleção independente estão no cód
  assert.ok(ui.includes('function openFinishDialog(task)'));
  assert.ok(ui.includes('data-detail-status'),"Conclusão conjunta deve abrir pelo seletor de status");
  assert.ok(ui.includes('data-do="finish-joint-confirm"'));
- assert.ok(ui.includes('status-filter-label'));
+ assert.ok(ui.includes('function visualizationSelect('),"Visualização em seletor único");
+ assert.ok(ui.includes('data-filter="periodMode"'),"Período continua independente de situação");
  assert.ok(ui.includes('taskStatus(t'));
  assert.ok(worker.includes('const selectedCommissions=unique(b.commissionIds),selectedUsers=unique(b.userIds)'));
  assert.ok(worker.includes('const finished=commissionIds.every('));
@@ -574,7 +577,8 @@ await test("formulário explica responsáveis e prazos e etapa sem pessoa indica
  assert.ok(ui.includes("Escolha quem ficará responsável por realizar esta atividade"));
  assert.ok(ui.includes("Defina até quando os(as) PETianos(as) deverão concluir cada etapa"));
  assert.ok(ui.includes("function inheritedAssigneeLabel(){return \"Não definido\"}"));
- assert.ok(ui.includes('||"Não definido")'));
+ assert.ok(ui.includes('function stageResponsibleNames('),"Etapa distingue pessoa vinculada de não definida");
+ assert.ok(ui.includes('return "Não definido"'),"Etapa sem responsável não recebe integrante automaticamente");
  assert.ok(styles.includes(".task-form-help{"));
 });
 await test("avisos e confirmações usam popup central sem caixas nativas",async()=>{

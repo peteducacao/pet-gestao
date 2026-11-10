@@ -14,7 +14,7 @@ function saveSessionToken(key,value,remember){
 }
 function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
 let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",meetingView:"todas",previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -72,7 +72,18 @@ const active=t=>!t.archivedAt;
 const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name||"Comissão").join(", ");
-const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido";
+// Quem responde pela demanda pode ser uma pessoa, uma comissão ou ambos.
+ // Associação à comissão não cria participação individual nem altera regras de conclusão.
+function who(t){
+ const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
+ const teams=(t.commissionIds||[]).map(committee).filter(Boolean);
+ const members=teams.flatMap(c=>(c.memberIds||[]).map(nameFor).filter(Boolean));
+ const names=[...new Set([...assigned,...members])];
+ if(names.length)return names.join(", ");
+ if(teams.length)return teams.map(c=>c.name).join(", ");
+ if((t.assigneeIds||[]).length)return "Responsáveis vinculados";
+ return "Não definido";
+}
 // Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
 const hasAdminRole=u=>Boolean(u&&u.role==="admin");
@@ -344,20 +355,34 @@ function renderHome(){
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 
+const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
+function visualizationSelect(filter,value,options=VISUALIZATIONS){
+ return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
+ '<span class="visualization-select-wrap"><span class="visualization-symbol" aria-hidden="true">'+ico("list")+'</span>'+
+ '<select class="visualization-select" data-filter="'+esc(filter)+'" aria-label="Visualização">'+options.map(([v,l])=>opt(v,l,value)).join("")+'</select>'+
+ '<span class="visualization-chevron" aria-hidden="true">⌄</span></span></label>';
+}
 function renderDemandas(){
- const options=[["mensal","Mensal"],["semanal","Semanal"],["arquivo","Concluídas"]];
+ const done=state.statusFilter==="concluida"||state.mode==="arquivo";
+ const displayMode=state.mode==="arquivo"?"mensal":state.mode;
  const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
- let list=data.tasks.filter(t=>filtered(t));
- if(state.mode==="arquivo")list=list.filter(t=>{const d=dt(t.archivedAt);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&(!state.week||weekFor(d)===state.week)});
+ let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
+ if(done)list=list.filter(t=>{
+  const date=dt(t.archivedAt);
+  return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&(!state.week||displayMode!=="semanal"||weekFor(date)===state.week);
+ });
  else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
- const filter=state.mode==="arquivo"?"":'<label class="status-filter-label">Status<select class="select" data-filter="status">'+[["todas","Todas"],["pendente","Pendentes"],["atrasada","Atrasadas"]].map(([v,l])=>opt(v,l,state.statusFilter)).join("")+'</select></label>';
- return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.")+
- '<section class="card card-pad"><div class="section-head"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div>'+actions+'</div>'+
- '<div class="list-toolbar">'+period()+filter+'</div><hr class="divider">'+
- (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
+ const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
+ [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
+ return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
+ '<section class="card card-pad demand-management-panel">'+
+ '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+periodSelect+'</div>'+
+ '<div class="list-toolbar">'+period()+'</div><hr class="divider">'+
+ (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+
+ (done&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+
+ '</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
-
 function renderCronograma(){
  const all=data.tasks.filter(t=>active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
  const groups=new Map();for(const t of all){const w=weekFor(taskDate(t));if(!groups.has(w))groups.set(w,[]);groups.get(w).push(t)}
@@ -387,9 +412,12 @@ function renderComissoes(){
 
 function renderCommittee(cid){
  const c=committee(cid);if(!c)return empty("Comissão não encontrada");
- const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid)).sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
+ const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))
+ .filter(t=>state.commissionStatusFilter==="todas"||taskStatus(t,cid)===state.commissionStatusFilter)
+ .sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  return header("Comissões",c.name,c.description||"","")+
  '<section class="card card-pad"><div class="section-head"><div><h2>Pendências da comissão</h2><p>Atividades vinculadas a esta equipe em Demandas.</p></div><span class="pill soft">'+all.length+' pendente(s)</span></div>'+
+ visualizationSelect("commissionStatus",state.commissionStatusFilter,[["todas","Todas as pendências"],["pendente","Pendentes"],["atrasada","Atrasadas"]])+
  (all.length?all.map(t=>taskCard(t,cid)).join(""):empty("Nenhuma pendência nesta comissão","As atividades atribuídas à comissão aparecerão aqui."))+'</section>';
 }
 
@@ -406,8 +434,11 @@ function renderCommitteeEdit(cid){
 }
 function renderMine(){
  if(!canWrite())return authRequired();
- const a=data.tasks.filter(isMyPending).sort((x,y)=>String(taskDate(x)).localeCompare(String(taskDate(y))));
- return header("Pessoal","Minhas pendências","Suas atividades individuais e das comissões das quais participa.")+'<section class="card card-pad mine-list">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t,null,true)+'</div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
+ const a=data.tasks.filter(isMyPending)
+ .filter(t=>state.mineStatusFilter==="todas"||taskStatus(t)===state.mineStatusFilter)
+ .sort((x,y)=>String(taskDate(x)).localeCompare(String(taskDate(y))));
+ return header("Pessoal","Minhas pendências","Suas atividades individuais e das comissões das quais participa.")+
+ '<section class="card card-pad mine-list">'+visualizationSelect("mineStatus",state.mineStatusFilter,[["todas","Todas as pendências"],["pendente","Pendentes"],["atrasada","Atrasadas"]])+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t,null,true)+'</div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
 }
 function assignmentView(){
  const opts=[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Pessoas"]];
@@ -467,11 +498,31 @@ function renderTaskForm(routeId){
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
 
 
+function stageResponsibleNames(stage,t){
+ const assigned=(stage.assigneeIds||[]).map(nameFor).filter(Boolean);
+ if(assigned.length)return assigned.join(", ");
+ if((stage.assigneeIds||[]).length)return "Responsável vinculado";
+ // Se a etapa não tem pessoa selecionada, não atribuir automaticamente integrantes da comissão.
+ return "Não definido";
+}
 function deadlineFacts(t){
- return '<section class="card card-pad details-facts"><h2>Prazos e etapas</h2>'+
- (stages(t).length?stages(t).map(stage=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(stage.label)+'</strong></div>'+
- '<div class="deadline-field"><small>Responsável</small><strong>'+esc((stage.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div>'+
- '<div class="deadline-field"><small>Data</small><strong>'+textDate(stage.dueAt)+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>';
+ const ordered=stages(t);
+ const postings=ordered.filter(x=>x.label==="Postagem");
+ const primary=ordered.filter(x=>x.label!=="Postagem");
+ const tile=stage=>{
+  const icon=stage.label==="Prazo"?"clock":stage.label==="Correção"?"check":"calendar";
+  return '<div class="stage-compact-item stage-compact-'+esc(stage.label.toLowerCase())+'">'+
+   '<span class="stage-compact-icon" aria-hidden="true">'+ico(icon)+'</span>'+
+   '<div class="stage-compact-info"><strong>'+esc(stage.label)+'</strong>'+
+   '<time>'+textDate(stage.dueAt)+'</time>'+
+   '<small>Responsável: '+esc(stageResponsibleNames(stage,t))+'</small></div></div>';
+ };
+ return '<section class="card card-pad details-facts detail-accent-card">'+
+  '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("calendar")+'</span>Prazos e etapas</h2>'+
+  (ordered.length?'<div class="stage-compact">'+
+    (postings.length?'<div class="stage-posting-top">'+postings.map(tile).join("")+'</div>':"")+
+    (primary.length?'<div class="stage-compact-main">'+primary.map(tile).join("")+'</div>':"")+
+   '</div>':'<p>Sem etapas cadastradas.</p>')+'</section>';
 }
 
 function historySymbol(action){
@@ -486,10 +537,10 @@ function historySymbol(action){
 function renderAssignees(t){
  const people=(t.assigneeIds||[]).map(id=>nameFor(id)).filter(Boolean);
  const teams=(t.commissionIds||[]).map(cid=>committee(cid)).filter(Boolean);
- return '<section class="card card-pad assignee-card"><h2>Responsáveis</h2>'+
+ return '<section class="card card-pad assignee-card detail-accent-card"><h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("users")+'</span>Responsáveis</h2>'+
  (people.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("user")+' Pessoas</span>'+
  '<div class="assignee-chips">'+people.map(name=>'<span class="assignee-person">'+esc(name)+'</span>').join("")+'</div></div>':"")+
- (teams.length?'<div class="assignee-group"><span class="assignee-group-heading">'+ico("users")+' Comissões</span>'+
+ (teams.length?'<div class="assignee-group">'+
  teams.map(c=>{
   const members=(c.memberIds||[]).map(nameFor).filter(Boolean);
   return '<div class="assignee-team"><strong>'+ico("users")+' '+esc(c.name)+'</strong>'+
@@ -500,7 +551,7 @@ function renderAssignees(t){
 }
 function renderHistory(t){
  const history=historyFor(t.id);
- return '<details class="card card-pad activity-history"><summary aria-label="Expandir ou recolher histórico de alterações">'+
+ return '<details class="card card-pad activity-history" '+(history.length?'open':"")+'><summary aria-label="Expandir ou recolher histórico de alterações">'+
  '<span class="activity-history-heading"><span class="history-title-icon" aria-hidden="true">'+ico("clock")+'</span><strong>Histórico de alterações</strong><span class="history-counter">'+history.length+'</span></span>'+
  '<span class="history-toggle"><span class="history-toggle-caption">Ver registros</span><svg class="history-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary>'+
  '<div class="revision-list">'+
@@ -523,15 +574,22 @@ function detailStatusSelector(t,status){
 }
 function activitySections(t,readOnly=false){
  const ids=t.commissionIds||[];
- return '<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+renderAssignees(t)+'</div>'+
- '<div class="stack"><section class="card card-pad"><h2>Texto para revisão</h2><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section>'+
- (ids.length>=2?'<section class="card card-pad"><h2>Andamento das comissões</h2>'+
+ const commissionProgress=ids.length>=2?'<section class="card card-pad detail-accent-card"><h2 class="detail-card-heading"><span class="detail-heading-icon">'+ico("users")+'</span>Andamento das comissões</h2>'+
  ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
- '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"")+
- renderHistory(t)+'</div></div>';
+ '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"";
+ return '<div class="activity-detail-layout">'+
+  '<div class="activity-detail-top"><div class="stack detail-left-column">'+deadlineFacts(t)+renderAssignees(t)+commissionProgress+'</div>'+
+  '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+
+  '<section class="card card-pad detail-accent-card detail-review-full">'+
+   '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("list")+'</span>Texto para revisão</h2>'+
+   '<div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div>'+
+  '</section></div>';
+}
+function detailVisualization(){
+ return '<div class="detail-visualization">'+visualizationSelect("navigateDemands","todas")+'</div>';
 }
 function renderDetailReadOnly(t){
- return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true)+'</div>';
+ return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda",backButton())+detailVisualization()+activitySections(t,true)+'</div>';
 }
 function renderDetail(taskId,contextCid){
  if(!me)return authRequired();
@@ -541,7 +599,7 @@ function renderDetail(taskId,contextCid){
  const actions=(t.archivedAt?"":button("Editar demanda","registrar/"+id(t.id)))+
  detailStatusSelector(t,status)+
  (canDeleteTask(t)?'<button type="button" class="button danger-outline" data-do="delete-task" data-id="'+esc(t.id)+'">'+ico("close")+' Excluir</button>':"");
- return '<div class="activity-detail-page">'+header("Atividade",t.title,"",actions)+activitySections(t,false)+'</div>';
+ return '<div class="activity-detail-page">'+header("Atividade",t.title,"",actions)+detailVisualization()+activitySections(t,false)+'</div>';
 }
 
 function closeFinishDialog(){
@@ -578,7 +636,7 @@ function renderMeetings(){
  const items=[...(data.meetings||[])].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
  const showing=state.meetingView==="recentes"?items.slice(0,5):items;
  return header("Registros","Atas de Reunião","Registros organizados das reuniões da equipe.",canWrite()?button("+ Criar ata","reunioes/nova",true):"")+
- '<section class="card card-pad meeting-list"><div class="segmented"><button type="button" data-do="meetings-view" data-value="todas" class="'+(state.meetingView==="todas"?"active":"")+'">Todas</button><button type="button" data-do="meetings-view" data-value="recentes" class="'+(state.meetingView==="recentes"?"active":"")+'">Recentes</button></div>'+
+ '<section class="card card-pad meeting-list">'+visualizationSelect("meetings",state.meetingView,[["todas","Todas as atas"],["recentes","Recentes"]])+
  (showing.length?showing.map(m=>'<article class="meeting-card"><a class="meeting-card-link" href="'+workspaceHash("reunioes/editar/"+id(m.id))+'"><span class="meeting-card-icon">'+ico("calendar")+'</span><span class="meeting-card-main"><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small><span class="meeting-card-preview">'+esc((m.rawNotes||"").replace(/<[^>]+>/g," ").slice(0,130))+'</span></span>'+ico("arrow")+'</a>'+
  (canWrite()?'<details class="meeting-menu"><summary title="Opções da ata" aria-label="Opções da ata">⋮</summary><div class="meeting-menu-options">'+button("Editar","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir</button></div></details>':"")+'</article>').join(""):empty("Nenhuma ata registrada","Crie uma ata para registrar os encontros da equipe."))+
  '</section>';
@@ -1054,8 +1112,23 @@ async function handleChange(e){
    if(choice==="concluir"&&task&&!task.archivedAt)openFinishDialog(task);
    return;
   }
+ if(t.dataset.filter==="navigateDemands"){
+   state.statusFilter=t.value;
+   if(t.value==="concluida")state.mode="arquivo";
+   else if(state.mode==="arquivo")state.mode="mensal";
+   location.hash=workspaceHash("demandas");return;
+ }
+ if(t.dataset.filter==="commissionStatus"){state.commissionStatusFilter=t.value;render();return}
+ if(t.dataset.filter==="mineStatus"){state.mineStatusFilter=t.value;render();return}
+ if(t.dataset.filter==="meetings"){state.meetingView=t.value;render();return}
+ if(t.dataset.filter==="periodMode"){state.mode=t.value;render();return}
  if(t.dataset.filter){
-   if(t.dataset.filter==="status"){state.statusFilter=t.value;render();return;}
+   if(t.dataset.filter==="status"){
+    state.statusFilter=t.value;
+    if(t.value==="concluida")state.mode="arquivo";
+    else if(state.mode==="arquivo")state.mode="mensal";
+    render();return;
+   }
     const val=Number(t.value);
    if(t.dataset.filter==="month"){state.month=val;state.week=0}
    if(t.dataset.filter==="year"){state.year=val;state.week=0}

@@ -1185,3 +1185,184 @@ body.notice-open{overflow:hidden}
  #screen .activity-history .revision-symbol{flex-basis:43px;width:43px;height:43px}
  #screen .activity-history .revision-symbol svg{width:22px;height:22px}
 }
+
+
+/* Layout compartilhado aprovado para PET Gestão: cards legíveis, roxo discreto e único seletor de visualização. */
+#screen .visualization-control{
+ display:inline-flex;align-items:center;flex-wrap:wrap;gap:12px;
+ width:max-content;max-width:100%;margin:0 0 15px;
+ font-size:12.5px;line-height:1.4;font-weight:800;color:#30234d;
+}
+#screen .visualization-label{white-space:nowrap}
+#screen .visualization-select-wrap{
+ position:relative;display:flex;align-items:center;
+ min-height:40px;min-width:220px;max-width:100%;
+ border-radius:999px;background:linear-gradient(135deg,#fff 40%,#f4edff);
+ border:1px solid #c6aff3;box-shadow:0 2px 9px rgba(81,51,147,.045);
+}
+#screen .visualization-select-wrap:focus-within{
+ outline:2px solid #ad8af4;outline-offset:2px;
+}
+#screen .visualization-select-wrap:hover{border-color:#976adf;background:#f8f3ff}
+#screen .visualization-symbol{
+ display:grid;place-items:center;flex:0 0 30px;margin-left:7px;color:#703dc2;
+}
+#screen .visualization-symbol svg{width:17px;height:17px}
+#screen .visualization-select{
+ position:relative;z-index:2;flex:1;min-width:0;width:auto;
+ background:transparent;border:0;outline:0;
+ appearance:none;-webkit-appearance:none;cursor:pointer;
+ padding:9px 25px 9px 2px;color:#6231b2;
+ font:inherit;font-size:12.5px;font-weight:800;line-height:1.45;
+}
+#screen .visualization-chevron{
+ position:absolute;right:14px;top:50%;transform:translateY(-58%);
+ color:#6d42b5;font-size:22px;pointer-events:none;
+}
+#screen .detail-visualization{
+ display:flex;align-items:center;margin:-8px 0 19px;
+ padding-bottom:16px;border-bottom:1px solid #e9e2f4;
+}
+#screen .detail-visualization .visualization-control{margin:0}
+#screen .demand-management-panel .demand-visual-toolbar{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:13px 24px;flex-wrap:wrap;margin-bottom:13px;
+}
+#screen .demand-visual-toolbar .visualization-control{margin:0}
+#screen .demand-visual-toolbar .period-mode-filter{
+ display:flex;flex-direction:row;align-items:center;gap:9px;
+ font-size:11px;font-weight:800;color:#76688e;
+}
+#screen .demand-visual-toolbar .period-mode-filter .select{
+ min-width:135px;min-height:40px;border-radius:10px;
+ color:#604b8d;font-size:12px;
+}
+#screen .meeting-list>.visualization-control{margin-bottom:18px}
+
+/* Detalhes: prazos e responsáveis à esquerda; somente histórico à direita; revisão embaixo. */
+#screen .activity-detail-layout{display:flex;flex-direction:column;gap:20px;min-width:0}
+#screen .activity-detail-top{
+ display:grid;grid-template-columns:minmax(0,1.62fr) minmax(305px,.95fr);
+ align-items:stretch;gap:20px;min-width:0;
+}
+#screen .activity-detail-top>.stack{min-width:0;display:flex;flex-direction:column;gap:18px}
+#screen .activity-detail-page .detail-accent-card,
+#screen .activity-detail-page .activity-history{
+ background:#fff;border:1px solid #e5ddf7!important;
+ border-left:4px solid #7242cd!important;
+ border-radius:17px!important;
+ padding:20px 22px!important;
+ box-shadow:0 3px 10px rgba(70,38,125,.035),0 9px 22px rgba(57,34,89,.035);
+}
+#screen .activity-detail-page .detail-card-heading{
+ display:flex;align-items:center;gap:10px;
+ font-size:17px!important;line-height:1.4;font-weight:850;
+ margin:0 0 18px;color:#221a3f;
+}
+#screen .activity-detail-page .detail-heading-icon{
+ display:inline-grid;place-items:center;flex:0 0 39px;
+ width:39px;height:39px;border-radius:11px;
+ background:linear-gradient(135deg,#f1e8ff,#e8ddff);color:#7346ca;
+}
+#screen .detail-heading-icon svg{width:21px;height:21px}
+#screen .stage-compact{
+ display:flex;flex-direction:column;gap:10px;
+ padding:13px 16px;border-radius:12px;
+ border:1px solid #e5d8fb;background:#faf7ff;
+}
+#screen .stage-compact-main{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ align-items:stretch;gap:0;
+}
+#screen .stage-compact-main>.stage-compact-item+.stage-compact-item{
+ border-left:1px solid #dcccf2;padding-left:18px;
+}
+#screen .stage-posting-top{
+ border-bottom:1px solid #e5d8fb;padding-bottom:12px;margin-bottom:3px;
+}
+#screen .stage-posting-top+.stage-compact-main{padding-top:4px}
+#screen .stage-posting-top .stage-compact-item{padding:0}
+#screen .stage-compact-item{
+ display:flex;align-items:center;gap:13px;
+ padding:5px 6px;min-width:0;
+}
+#screen .stage-compact-icon{
+ display:grid;place-items:center;flex:0 0 34px;
+ width:34px;height:34px;border-radius:11px;
+ background:#efe7fe;color:#6e3dbe;
+}
+#screen .stage-compact-icon svg{width:19px;height:19px}
+#screen .stage-compact-info{display:flex;flex-direction:column;gap:3px;min-width:0}
+#screen .stage-compact-info>strong{font-size:13px;font-weight:780;color:#4f367f}
+#screen .stage-compact-info time{font-size:17px;font-weight:850;color:#221834;letter-spacing:-.3px}
+#screen .stage-compact-info small{
+ font-size:11px;line-height:1.45;color:#766a8a;
+ word-break:break-word;overflow-wrap:anywhere;
+}
+#screen .detail-left-column .assignee-card .assignee-group{margin-top:4px}
+#screen .detail-left-column .assignee-team{padding:13px 16px;border-color:#e3d6fa;background:#faf7ff}
+#screen .detail-left-column .assignee-team strong{font-size:14px}
+#screen .detail-review-full{width:100%;min-height:140px}
+#screen .detail-review-full .saved-activity-text{
+ padding:13px 16px;min-height:61px;line-height:1.6;
+ border:1px solid #e2d4f6;border-radius:11px;background:#fcfaff;
+ font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;
+}
+#screen .detail-history-column{min-height:100%}
+#screen .detail-history-column .activity-history{
+ display:block;margin:0;height:auto;min-height:100%;
+ padding:0!important;overflow:hidden;
+}
+#screen .detail-history-column .activity-history>summary{
+ padding:19px 19px 18px;min-height:68px;
+ border-bottom:1px solid #eee7fa;
+}
+#screen .detail-history-column .activity-history[open]{min-height:100%}
+#screen .detail-history-column .activity-history .revision-list{
+ padding:10px 17px 22px;margin:0;
+}
+#screen .detail-history-column .history-title-icon{
+ width:37px;height:37px;min-width:37px;
+ border-radius:10px;background:#f0e8ff;color:#7139c6;
+}
+#screen .detail-history-column .history-title-icon svg{width:21px;height:21px}
+#screen .detail-history-column .revision-entry{
+ display:flex;gap:12px;align-items:flex-start;padding:16px 0!important;
+}
+#screen .detail-history-column .revision-symbol{
+ width:42px;height:42px;flex:0 0 42px;border-radius:12px;
+}
+#screen .detail-history-column .revision-symbol svg{width:21px;height:21px}
+#screen .detail-history-column .revision-copy strong{font-size:13.5px}
+
+/* A mesma linguagem de cartões das demandas se mantém nas demais listas. */
+#screen .demand-activity-card{border-radius:17px;border-left-width:4px}
+#screen .mine-list>.visualization-control,#screen .meeting-list>.visualization-control{
+ display:inline-flex;margin-bottom:18px;
+}
+#screen .activity-detail-page .page-header .page-actions{align-items:center}
+
+@media(max-width:1100px){
+ #screen .activity-detail-top{grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:16px}
+ #screen .activity-detail-page .detail-accent-card{padding:17px!important}
+ #screen .stage-compact-main{grid-template-columns:1fr;gap:10px}
+ #screen .stage-compact-main>.stage-compact-item+.stage-compact-item{
+  border-left:0;border-top:1px solid #e7ddf6;padding:13px 6px 3px;
+ }
+}
+@media(max-width:760px){
+ #screen .activity-detail-top{grid-template-columns:1fr}
+ #screen .detail-history-column .activity-history{min-height:0}
+ #screen .detail-history-column .activity-history[open]{min-height:0}
+ #screen .detail-visualization{margin-top:4px}
+ #screen .demand-visual-toolbar{justify-content:flex-start}
+}
+@media(max-width:530px){
+ #screen .visualization-control{gap:7px;width:100%;align-items:flex-start}
+ #screen .visualization-select-wrap{min-width:0;width:auto;flex:1}
+ #screen .detail-visualization{width:100%}
+ #screen .activity-detail-page .detail-accent-card{padding:15px!important}
+ #screen .detail-card-heading{font-size:15px!important}
+ #screen .stage-compact-main{grid-template-columns:1fr}
+ #screen .stage-compact-info time{font-size:15px}
+}
