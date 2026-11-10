@@ -1,0 +1,55 @@
+// Testes de sessão do PET Gestão sem acessar contas, e-mails ou banco de produção.
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+
+const worker=fs.readFileSync("worker/src/index.js","utf8");
+const front=fs.readFileSync("app-live.js","utf8");
+
+// Exercitar a implementação real do emissor de sessões com banco simulado.
+const start=worker.indexOf("  async function createSession(");
+const end=worker.indexOf("  async function resetRate(",start);
+assert.ok(start>=0&&end>start,"Não foi possível localizar createSession");
+const commands=[];
+const mockDb={
+  prepare(sql){return{bind(...params){return{async run(){commands.push({sql,params})}}}}}
+};
+const context={
+  randomToken:()=>"token-de-teste",
+  sha:async()=>"hash-de-teste",
+  now:()=>"2026-11-10T00:00:00.000Z",
+  isoAfter:minutes=>"expira-em-"+minutes+"-minutos",
+  userPublic:user=>({id:user.id,role:user.role}),
+};
+vm.createContext(context);
+vm.runInContext(worker.slice(start,end)+"\nthis.makeSession=createSession;",context);
+const admin={id:"admin-test",role:"admin"};
+const petiano={id:"member-test",role:"petiano"};
+const permanent=await context.makeSession(mockDb,admin,true,true);
+assert.equal(permanent.expiresAt,"9999-12-31T23:59:59.999Z");
+assert.equal(permanent.user.adminSession,true);
+assert.equal(commands.at(-1).params.at(-1),1);
+const temporary=await context.makeSession(mockDb,petiano,false,false);
+assert.equal(temporary.expiresAt,"expira-em-10080-minutos");
+assert.equal(temporary.user.adminSession,false);
+assert.equal(commands.at(-1).params.at(-1),0);
+
+// Ao reabrir, o token persistido tem prioridade sobre uma sessão temporária antiga.
+const match=front.match(/^const readSessionToken=.*;$/m);
+assert.ok(match,"Função de recuperação de sessão ausente");
+const storageContext={
+  localStorage:{getItem:()=>"persistente"},
+  sessionStorage:{getItem:()=>"temporario"},
+};
+vm.createContext(storageContext);
+vm.runInContext(match[0]+"\nthis.saved=readSessionToken('pet-gestao:session-token');",storageContext);
+assert.equal(storageContext.saved,"persistente");
+
+// A tela pública não anuncia a existência da Administração.
+const login=front.slice(front.indexOf("function renderLogin(){"),front.indexOf("function renderRegisterAccount()"));
+assert.ok(login.includes("Digite seu e-mail"));
+assert.ok(login.includes("Manter-me conectado"));
+assert.ok(login.includes("até você sair da conta"));
+assert.ok(!/\badmin\b|painel administrativo|30 dias/i.test(login),"Login público expõe Administração ou prazo antigo");
+assert.ok(front.includes('const adminVisible=adminRole(me)&&!me.mustChangePassword;'),"Painel Admin deve ser restrito ao cargo autorizado");
+console.log("Sessão persistente, sessão temporária, permissão Admin e login discreto: OK.");
