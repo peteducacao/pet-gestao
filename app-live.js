@@ -1453,7 +1453,10 @@ function onNavigation(){
  if(wasAdmin!==nowAdmin){state.adminMenuOpen=false;reload().finally(()=>setConnecting(false))}else render();
  window.scrollTo({top:0});
 }
+let hasStarted=false;
 function start(){
+ if(hasStarted)return;
+ hasStarted=true;
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
  
