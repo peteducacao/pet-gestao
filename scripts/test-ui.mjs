@@ -283,4 +283,19 @@ submit("#mail-form");await wait();await wait();
 if(!lastMail)console.log("Mail diagnostic:",document.querySelector("#notice-dialog")?.textContent,document.querySelector("#mail-form")?.outerHTML.slice(0,450));
 assert.ok(lastMail?.message?.includes("✨"),"Emojis no envio manual");
 console.log("TESTES DE INTERFACE SIMULADA: navegação, Atas (editar e excluir), cores, filtros, conclusão conjunta, arquivamento e e-mails — OK.");
+// Exclusão da conta é acessível por Meu perfil e exige confirmação e senha.
+await move("#/conta");
+const deleteAccountButton=document.querySelector('[data-do="account-delete-open"]');
+assert.ok(deleteAccountButton,"Meu perfil oferece Excluir minha conta");
+tap('[data-do="account-delete-open"]');
+assert.equal(document.querySelector("#account-delete-dialog")?.hidden,false,
+  "Abre diálogo de exclusão definitiva");
+assert.equal(document.querySelector('#delete-account-form input[name="password"]')?.required,true,
+  "A senha atual é obrigatória");
+assert.equal(document.querySelector('#delete-account-form input[name="confirmation"]')?.required,true,
+  "Exige confirmação escrita");
+tap('[data-do="account-delete-close"]');
+assert.equal(document.querySelector("#account-delete-dialog")?.hidden,true,
+  "Cancelar volta ao perfil sem apagar a conta");
+assert.equal(user.role,"tutor","Cancelar preserva sessão e perfil");
 window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
