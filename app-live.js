@@ -535,7 +535,7 @@ function renderDeadlineSettings(stagesList=[]){
 function refreshDeadlineMode(previousScope=null){
  const host=$("#deadline-settings");if(!host)return;
  const eventDay=$("#collective-event-day")?.value;
- const currentRows=$(".live-stage").map(row=>({
+ const currentRows=$$(".live-stage").map(row=>({
    id:row.dataset.stageId,
    label:row.querySelector('[data-stage="label"]')?.value||"Prazo",
    dueAt:(row.querySelector('[data-stage="day"]')?.value||"")+
@@ -988,7 +988,7 @@ async function saveTask(form){
  if(isCollective&&!eventDay)return setToast("Informe a data do evento coletivo.");
  const stages=isCollective?
   [{id:"evento-data",label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:
-  $(".live-stage").map(row=>{
+  $$(".live-stage").map(row=>{
     const label=row.querySelector('[data-stage="label"]')?.value||"Prazo",
       day=row.querySelector('[data-stage="day"]')?.value||"",
       time=row.querySelector('[data-stage="hour"]')?.value||"23:59",
