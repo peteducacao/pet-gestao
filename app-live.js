@@ -712,7 +712,7 @@ async function loadMailHistory(){
 }
 const fileData=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file)});
 async function sendMail(form){
- const f=collectRich(form,userFields(form)),ids=$('input[name="mail-target"]:checked').map(el=>el.value),userIds=state.mailAudience==="usuarios"?ids:[],committeeIds=state.mailAudience==="comissoes"?ids:[];
+ const f=collectRich(form,userFields(form)),ids=$$('input[name="mail-target"]:checked').map(el=>el.value),userIds=state.mailAudience==="usuarios"?ids:[],committeeIds=state.mailAudience==="comissoes"?ids:[];
  if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva a mensagem.");
  if(state.mailScheduled&&!f.sendAt)return setToast("Informe a data de envio.");
  const when=state.mailScheduled?new Date(f.sendAt):null;
