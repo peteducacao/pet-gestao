@@ -57,6 +57,21 @@ jobs:
           PY
       - name: Preparar configurações e arquivos públicos
         run: node scripts/prepare-deploy.mjs
+      - name: Conferir URL publica gerada e fallback do site
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import vm from 'node:vm';
+          const result={window:{}};
+          vm.runInNewContext(fs.readFileSync('_site/config.js','utf8'),result);
+          const url=result.window.PET_GESTAO_CONFIG?.apiBaseUrl||'';
+          if(!/^https:\/\/[a-z0-9.-]+(?:\/.*)?$/i.test(url))throw Error('O config.js gerado não inclui uma URL HTTPS válida.');
+          const html=fs.readFileSync('_site/index.html','utf8');
+          const app=fs.readFileSync('_site/app-live.js','utf8');
+          if(!html.includes('window.PET_GESTAO_CONFIG=Object.freeze('))throw Error('Faltou a URL pública de contingência no HTML.');
+          if(!app.includes('const API_FALLBACK='))throw Error('Faltou o fallback da API no JavaScript.');
+          console.log('Configuração pública presente em _site, sem credenciais.');
+          JS
       - name: Validar credenciais protegidas
         run: |
           test -n "$ADMIN_EMAIL" && test -n "$ADMIN_INITIAL_PASSWORD"
