@@ -1893,3 +1893,38 @@ body.mail-preview-open{overflow:hidden}
 #screen .collective-date-label-text .task-form-required{
  display:inline-block;flex:none;line-height:inherit;vertical-align:baseline;
 }
+
+
+/* Evento coletivo: dia e mês vazios; ano corrente já preenchido (editável). */
+#screen .collective-event-date .collective-date-fields{display:grid;gap:9px;max-width:440px;position:relative}
+#screen .collective-event-date .collective-date-label-text{font-weight:750;color:#4b3d63}
+#screen .collective-date-parts{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.35fr) auto;
+ align-items:end;gap:10px;max-width:100%;
+}
+#screen .collective-date-parts label{display:grid;gap:5px;min-width:0;font-size:12px;color:#70657e;font-weight:650}
+#screen .collective-date-parts input{
+ width:100%;min-width:0;min-height:48px;padding:9px 11px;
+ border:1px solid #d8c8eb;border-radius:10px;color:#2a2440;
+ background:#fff;font-size:16px;font-weight:700;text-align:center;
+}
+#screen .collective-date-parts input:focus-visible{
+ outline:2px solid #8867ce;outline-offset:2px;
+}
+#screen .collective-calendar-button{
+ display:grid;place-items:center;min-height:48px;min-width:48px;
+ border:1px solid #d8c8eb;border-radius:10px;
+ color:#7654b2;background:#f5efff;padding:0;
+}
+#screen .collective-calendar-button svg{width:20px;height:20px}
+#screen .collective-native-date{
+ position:absolute!important;width:1px!important;height:1px!important;
+ opacity:0!important;pointer-events:none!important;
+ padding:0!important;margin:0!important;border:0!important;
+ overflow:hidden!important;right:0;bottom:0;
+}
+@media(max-width:380px){
+ #screen .collective-date-parts{gap:6px}
+ #screen .collective-date-parts input{padding:8px 5px}
+ #screen .collective-calendar-button{min-height:44px;min-width:44px}
+}
