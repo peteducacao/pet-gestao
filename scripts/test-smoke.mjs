@@ -279,7 +279,7 @@ await test("logout",async()=>{good(await api("/auth/logout","POST"));assert.equa
 await test("seleção múltipla de e-mails executa sem erro de map",async()=>{
  const {readFileSync}=await import("node:fs");
  const js=readFileSync("app-live.js","utf8");
- const selector=js.match(/const f=userFields\(form\),ids=([^,]+),userIds=/);
+ const selector=js.match(/const f=collectRich\(form,userFields\(form\)\),ids=([^,]+),userIds=/);
  assert.ok(selector,"Expressão de seleção dos destinatários não encontrada");
  const evaluate=new Function("$","$$","return "+selector[1]);
  const selection=evaluate(()=>({value:"incorreto"}),()=>[{value:"pessoa-1"},{value:"pessoa-2"}]);
@@ -360,7 +360,8 @@ await test("Admin mantém ferramentas no painel novo e mostra popup de conexão"
  const js=readFileSync("app-live.js","utf8");
  const index=readFileSync("index.html","utf8");
  const css=readFileSync("live.css","utf8");
- assert.match(js,/data-do="admin-route" data-value="demandas"/);
+ assert.ok(js.includes('href="#/admin/demandas"'));
+  assert.ok(js.includes('href="#/admin/reunioes"'));
  assert.match(js,/function adminEmbeddedView\(parts\)/);
  assert.match(js,/if\(page==="demandas"\)return renderDemandas\(\)/);
  assert.match(js,/if\(page==="registrar"\)return renderTaskForm\(route\)/);
