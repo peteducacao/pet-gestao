@@ -238,6 +238,22 @@ await page.locator('a[data-route="reunioes"]').click();
  await wait(200);
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+4);
  assert.equal(overflow,false,"Sem rolagem horizontal excessiva no celular");
+ // Seletores também devem funcionar no celular sem quebrar o card.
+ committees.push({id:"cards",name:"Cards",memberIds:[]},{id:"imaginacao",name:"ImaginAÇÃO",memberIds:[]});
+ tasks.push({...task,id:"t-mobile-selectors",title:"Seletor no celular",assigneeIds:["u1","admin"],
+  commissionIds:["videos","cards","imaginacao"],archivedAt:null,userDone:{},commissionDone:{}});
+ await page.goto(origin+"/#/demandas");
+ const mobileCard=page.locator(".demand-activity-card").filter({hasText:"Seletor no celular"});
+ await mobileCard.waitFor();
+ assert.equal(await mobileCard.locator(".demand-card-picker").count(),2);
+ await mobileCard.locator(".demand-card-committee>summary").click();
+ assert.equal(await mobileCard.locator(".demand-card-committee").evaluate(el=>el.open),true);
+ const menuRect=await mobileCard.locator(".demand-card-committee .demand-card-picker-popover").boundingBox();
+ assert.ok(menuRect?.width>=200,"Lista de comissões legível no celular");
+ assert.ok(menuRect.x>=-2&&menuRect.x+menuRect.width<=392,"Lista de comissões dentro da tela");
+ await page.keyboard.press("Escape");
+ assert.equal(await mobileCard.locator(".demand-card-committee").evaluate(el=>el.open),false,"Esc fecha a lista");
+ tasks=tasks.filter(x=>x.id!=="t-mobile-selectors");committees.splice(1);
  await page.goto(origin+"/#/inicio");
  await page.locator(".dashboard-grid .demand-card-cover-link").first().click();
  await page.waitForURL(/#\/atividade\/t1/,{timeout:6000});
