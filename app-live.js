@@ -677,6 +677,18 @@ function stageResponsibleNames(stage,t){
 }
 function deadlineFacts(t){
  const ordered=stages(t);
+ if(t.assignmentScope==="usuarios"&&(t.assigneeIds||[]).length===1&&!(t.commissionIds||[]).length&&
+    ordered.some(x=>x.label==="Atividade")){
+   const day=ordered.find(x=>x.label==="Atividade")?.dueAt;
+   const responsible=nameFor(t.assigneeIds[0])||"Pessoa responsável";
+   return '<section class="card card-pad details-facts detail-accent-card">'+
+    '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("calendar")+'</span>Data da atividade</h2>'+
+    '<div class="collective-event-detail">'+
+      '<span class="collective-event-day">'+ico("calendar")+' <strong>'+textDate(day)+'</strong></span>'+
+      '<p>'+ico("user")+' Responsável: '+esc(responsible)+'</p>'+
+      '<p>'+ico("check")+' '+(t.archivedAt?"Atividade concluída.":"A pessoa responsável marca a conclusão quando terminar a atividade.")+'</p>'+
+    '</div></section>';
+ }
  if(isEveryoneAssigned(t)){
    const day=ordered.filter(x=>x.dueAt).map(x=>x.dueAt).sort().at(-1);
    return '<section class="card card-pad details-facts detail-accent-card">'+
