@@ -128,3 +128,4 @@ submit("#mail-form");await wait();await wait();
 if(!lastMail)console.log("Mail diagnostic:",document.querySelector("#notice-dialog")?.textContent,document.querySelector("#mail-form")?.outerHTML.slice(0,450));
 assert.ok(lastMail?.message?.includes("✨"),"Emojis no envio manual");
 console.log("TESTES DE INTERFACE SIMULADA: navegação, Atas (editar e excluir), cores, filtros, conclusão conjunta, arquivamento e e-mails — OK.");
+window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
