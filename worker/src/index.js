@@ -17,7 +17,7 @@
   const fail=(message,status=400)=>{const e=new Error(message);e.status=status;throw e};
   const str=(v,max=1000)=>String(v??"").trim().slice(0,max);
   const email=v=>str(v,254).toLowerCase();
-  const validEmail=s=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  const validEmail=s=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)&&!/@example\.invalid$/i.test(s);
   const isArr=v=>Array.isArray(v)?v:[];
   const unique=v=>[...new Set(isArr(v).map(String).filter(Boolean))];
   const idName=row=>({id:row.id,name:row.name,role:row.role_override||row.role});
@@ -286,6 +286,8 @@
     const clock=new Date(),today=reminderDateKey(clock),todayUTC=Date.parse(today+"T00:00:00Z");
     let registered=0;
     for(const task of tasks){
+      // Os cenários fictícios usam e-mails próprios de teste e não entram em lembretes regulares.
+      if(String(task.title||"").startsWith("[TESTE]"))continue;
       // Avisos de prazo valem para tarefas com etapas, não para eventos coletivos.
       if(task.assignment_scope==="todos")continue;
       const stages=asJson(task.deadlines,[]);
