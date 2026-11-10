@@ -127,10 +127,13 @@ tap('.assignment-modes [data-value="usuarios"]');await wait();
 assert.equal(document.querySelector('.live-stage select[data-stage="assignee"]')?.value,"u1","Ao voltar a Pessoas, recupera seleção individual anterior");
 tap('.assignment-modes [data-value="todos"]');await wait();
 tap('button[data-do="add-stage"]');await wait();
-assert.equal(document.querySelectorAll('.live-stage input[data-stage="assignee"][disabled]').length,2,"Novas etapas criadas com Todos(as) fixo");
-const nextStage=document.querySelectorAll('.live-stage')[1];
-nextStage.querySelector('[data-stage="day"]').value="2026-11-29";
-nextStage.querySelector('[data-stage="label"]').value="Postagem";
+const allStages=[...document.querySelectorAll(".live-stage")];
+assert.ok(allStages.length>=2,"Uma ou mais etapas novas podem ser adicionadas");
+assert.equal(document.querySelectorAll('.live-stage input[data-stage="assignee"][disabled]').length,allStages.length,"Todas as etapas mostram Todos(as) fixo");
+allStages.slice(1).forEach(row=>{
+ row.querySelector('[data-stage="day"]').value="2026-11-29";
+ row.querySelector('[data-stage="label"]').value="Postagem";
+});
 submit("#task-form");await wait();await wait();
 assert.equal(tasks.find(t=>t.id==="t-all").assignmentScope,"todos","Salvar preserva modo Todos(as)");
 assert.ok(tasks.find(t=>t.id==="t-all").deadlines.every(d=>d.assigneeIds.length===0),"Salvar Todos(as) não grava pessoa individual na etapa");
