@@ -495,6 +495,8 @@ function syncStageAssigneePlaceholder(){
   if(!label)return;
   // O nome escolhido permanece no formulário caso a pessoa volte de Todos(as) para Pessoas.
   if(field.tagName==="SELECT")label.dataset.previousOwner=field.value;
+  // Trocar o rótulo sem alterar os demais controles da etapa.
+  label.firstChild.textContent=state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)";
   const selectedOwner=label.dataset.previousOwner||"";
   field.outerHTML=stageAssigneeField(selectedOwner);
  });
@@ -504,7 +506,7 @@ function stageRow(stage={},i=0){
  return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
  '<label>Data<input type="date" data-stage="day" value="'+esc((stage.dueAt||"").slice(0,10))+'" min="'+current.getFullYear()+'-01-01"></label>'+
  '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
- '<label>Responsável (opcional)'+stageAssigneeField(selectedOwner)+'</label>'+
+ '<label>'+(state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)")+stageAssigneeField(selectedOwner)+'</label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function renderTaskForm(routeId){
