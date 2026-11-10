@@ -51,7 +51,11 @@ window.fetch=async (url,options={})=>{
  }
  if(/^\/tasks\/[^/]+$/.test(path)&&method==="PUT"){const t=tasks.find(x=>x.id===path.split("/")[2]);Object.assign(t,body);return reply({ok:true});}
  if(path==="/tasks"&&method==="POST"){tasks.push({id:"t"+(++idNum),...body,commissionDone:{},userDone:{},registeredAt:"2026-11-10",archivedAt:null});return reply({ok:true});}
- if(path==="/admin/notification-template"&&method==="PUT"){mailTemplateSaved=true;settings.notificationTemplate={subject:body.subject,body:body.message};return reply({ok:true});}
+ if(path==="/admin/notification-template"&&method==="PUT"){
+ mailTemplateSaved=true;
+ settings.notificationTemplates={...settings.notificationTemplates,[body.kind]:{subject:body.subject,body:body.message}};
+ return reply({ok:true});
+}
  if(path==="/mail"&&method==="POST"){lastMail=body;return reply({ok:true,status:"pendente"});}
  if(path==="/mail"&&method==="GET")return reply({items:[]});
  if(path==="/mail/status")return reply({connected:true,message:"Simulação"});
@@ -111,6 +115,13 @@ await move("#/reunioes");
 tap('button[data-do="delete-meeting"]');await wait();
 tap('button[data-do="notice-confirm"]');await wait();await wait();
 assert.equal(meetings.length,0,"Exclusão de ata funciona");
+tasks.push({...tasks[0],id:"t-all",title:"Todos(as) na edição",assigneeIds:["u1","u2"],commissionIds:[],assignmentScope:"todos",overviewVisible:true});
+await move("#/registrar/t-all");
+assert.ok(document.querySelector('.assignment-modes [data-value="todos"].active'),"Editar mantém Todos(as) selecionado");
+assert.equal(document.querySelectorAll('#assignment-container [data-assign]').length,0,"Todos(as) não mostra seletor de pessoas/comissões");
+submit("#task-form");await wait();await wait();
+assert.equal(tasks.find(t=>t.id==="t-all").assignmentScope,"todos","Salvar preserva modo Todos(as)");
+tasks=tasks.filter(t=>t.id!=="t-all");
 await move("#/atividade/t1");
 assert.ok(document.querySelector(".details-facts"),"Etapas em detalhes");
 assert.equal(document.querySelector('a[data-route="demandas"]').classList.contains("active"),true,"A seção Demandas é destacada nos detalhes");
@@ -138,10 +149,21 @@ assert.deepEqual(lastFinish.userIds.sort(),["u1","u2"].sort(),"Conclusão conjun
 assert.deepEqual(lastFinish.commissionIds,["videos"],"Conclusão conjunta de comissão");
 assert.ok(tasks[0].archivedAt,"Arquivamento automático");
 await move("#/admin/emails");
-assert.ok(document.querySelector("#notification-template-form"),"Modelo da tutoria disponível no Admin");
+assert.ok(document.querySelector("#notification-template-form"),"Modelos da tutoria disponíveis no Admin");
 assert.ok(document.querySelector("#mail-form [data-rich-input='message']"),"Editor WYSIWYG no e-mail");
+const select=document.querySelector("#notification-template-kind");
+assert.equal(select.options.length,2,"Tipos de mensagem: criar ou revisar demanda");
+document.querySelector("#notification-template-form input[name='subject']").value="Criação personalizada";
 submit("#notification-template-form");await wait();await wait();
-assert.ok(mailTemplateSaved,"Modelo da notificação salvo");
+assert.ok(mailTemplateSaved&&settings.notificationTemplates.create,"Modelo de Criação salvo");
+const selectReview=document.querySelector("#notification-template-kind");
+selectReview.value="review";
+selectReview.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.notEqual(document.querySelector("#notification-template-form input[name='subject']").value,"Criação personalizada","Revisão exibe modelo próprio");
+document.querySelector("#notification-template-form input[name='subject']").value="Revisão personalizada";
+submit("#notification-template-form");await wait();await wait();
+assert.equal(settings.notificationTemplates.create.subject,"Criação personalizada");
+assert.equal(settings.notificationTemplates.review.subject,"Revisão personalizada");
 document.querySelector("#mail-form [data-rich-input='message']").textContent="Olá ✨\n\n#PET";
 document.querySelector("#mail-form input[name='subject']").value="Aviso PET";
 submit("#mail-form");await wait();await wait();

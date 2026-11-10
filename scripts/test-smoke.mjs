@@ -136,6 +136,36 @@ await test("vagas zero impedem participar; limite configurado é respeitado",asy
 await test("editar comissão",async()=>{good(await api("/commissions/"+a,"PUT",{name:"Teste Renomeada",backgroundColor:"#123456"}));assert.equal(good(await api("/bootstrap")).committees.find(x=>x.id===a).backgroundColor,"#123456")});
 await test("mover comissões",async()=>{const ids=good(await api("/bootstrap")).committees.map(x=>x.id).reverse();good(await api("/admin/commission-order","PUT",{ids}));assert.equal(good(await api("/bootstrap")).committees[0].id,ids[0])});
 await test("configurações",async()=>{good(await api("/admin/settings","PUT",{autoWeek:false,autoMonth:false}));assert.equal(good(await api("/bootstrap")).settings.autoWeek,false)});
+await test("modelos de e-mail separados para criar e revisar, com edição independente",async()=>{
+ good(await api("/admin/notification-template","PUT",{kind:"create",subject:"Nova: {demanda}",message:"Uma demanda foi criada por {autor}."}));
+ good(await api("/admin/notification-template","PUT",{kind:"review",subject:"Revisão: {demanda}",message:"O texto para revisão foi atualizado por {autor}."}));
+ const models=good(await api("/bootstrap")).settings.notificationTemplates;
+ assert.equal(models.create.subject,"Nova: {demanda}");
+ assert.equal(models.review.subject,"Revisão: {demanda}");
+ good(await api("/admin/notification-template","PUT",{kind:"review",subject:"Texto corrigido",message:"Mudança da revisão."}));
+ const changed=good(await api("/bootstrap")).settings.notificationTemplates;
+ assert.equal(changed.create.subject,"Nova: {demanda}","Editar Revisão não deve modificar o modelo de Criação");
+ assert.equal(changed.review.subject,"Texto corrigido");
+ assert.equal((await api("/admin/notification-template","PUT",{kind:"desconhecido",subject:"Teste",message:"Teste"})).status,400);
+});
+await test("Todos(as) persiste sem seletores individuais e é validado na API",async()=>{
+ const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
+ assert.ok(eligible.length>=1,"A conta Admin é elegível para atribuição geral");
+ const stage={id:"prazo-todos",label:"Prazo",dueAt};
+ const payload={title:"Atividade para todos",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[stage]};
+ const tid=good(await api("/tasks","POST",payload),201).id;
+ try{
+  const item=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
+  assert.equal(item.assignmentScope,"todos","Modo Todos precisa ser persistido");
+  assert.deepEqual(item.assigneeIds.slice().sort(),eligible.slice().sort(),"Todos(as) recebe pessoas elegíveis");
+  good(await api("/tasks/"+tid,"PUT",{...payload,title:"Editada para todos"}));
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===tid).assignmentScope,"todos","Editar não perde a seleção");
+  assert.equal((await api("/tasks/"+tid,"PUT",{...payload,commissionIds:["videos"]})).status,400);
+  assert.equal((await api("/tasks/"+tid,"PUT",{...payload,assigneeIds:eligible.slice(1)})).status,400);
+  good(await api("/tasks/"+tid,"PUT",{...payload,assignmentScope:"usuarios",assigneeIds:[eligible[0]]}));
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===tid).assignmentScope,"usuarios","É possível mudar de Todos para Pessoa");
+ }finally{good(await api("/tasks/"+tid,"DELETE"))}
+});
 await test("criar demanda",async()=>{task=good(await api("/tasks","POST",{title:"Teste Demanda",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}),201).id});
 await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir",async()=>{
  const original=token;

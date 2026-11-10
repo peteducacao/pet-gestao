@@ -14,7 +14,7 @@ function saveSessionToken(key,value,remember){
 }
 function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
 let token=readSessionToken(tokenKey),adminToken=readSessionToken(adminTokenKey),data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",previousRoute:"#/inicio"};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",templateDrafts:{},previousRoute:"#/inicio"};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -504,7 +504,9 @@ function renderTaskForm(routeId){
    state.taskFormId=routeId;
    state.selectedUsers=new Set(t?.assigneeIds||[]);
    state.selectedCommissions=new Set(t?.commissionIds||(cid?[cid]:[]));
-   state.assignmentScope=cid||t?.commissionIds?.length&&!t?.assigneeIds?.length?"comissoes":"usuarios";
+   state.assignmentScope=cid?"comissoes":t?(t.assignmentScope||(
+      isEveryoneAssigned(t)?"todos":t.commissionIds?.length&&!t.assigneeIds?.length?"comissoes":"usuarios"
+    )):"usuarios";
  }
  return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",
  backButton()+
@@ -562,6 +564,8 @@ function historySymbol(action){
 // Apresentar o rótulo quando o conjunto corresponde a todos os usuários atuais,
 // evitando confundir uma comissão vinculada com uma atribuição individual.
 function isEveryoneAssigned(t){
+ if(t.assignmentScope==="todos")return true;
+ if(t.assignmentScope==="usuarios"||t.assignmentScope==="comissoes")return false;
  const everyone=(data.users||[]).filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>String(u.id));
  const assigned=(t.assigneeIds||[]).map(String);
  return !(t.commissionIds||[]).length&&everyone.length>1&&
@@ -715,6 +719,21 @@ function renderAccount(){
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
  '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div></section>';
 }
+const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"]];
+function notificationTemplateFor(kind){
+ const fallbacks={
+  create:{subject:"PET Gestão — Nova demanda: {demanda}",body:"Olá!\n\n{autor} cadastrou uma nova demanda: {demanda}.\n\nAcesse o PET Gestão para consultar os prazos e os responsáveis.\n\nPET Educação"},
+  review:{subject:"PET Gestão — Texto revisado: {demanda}",body:"Olá!\n\n{autor} atualizou o texto para revisão da demanda {demanda}.\n\nAcesse o PET Gestão para consultar as alterações.\n\nPET Educação"}
+ };
+ return state.templateDrafts?.[kind]||data.settings.notificationTemplates?.[kind]||
+  data.settings.notificationTemplate||fallbacks[kind]||fallbacks.create;
+}
+function notificationTemplateFields(kind){
+ const config=notificationTemplateFor(kind);
+ return '<label>Assunto<input type="text" name="subject" maxlength="200" required value="'+esc(config.subject||"")+'"></label>'+
+  '<label class="rich-label">Mensagem</label>'+
+  richEditor("message",config.body||"");
+}
 function renderAdmin(){
  const adminPart=routeParts().parts;
  if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
@@ -730,9 +749,9 @@ function renderAdmin(){
  data.committees.map((c,i)=>'<div class="admin-commission-item"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div><button class="button primary admin-save-button" data-do="save-vagas" data-id="'+esc(c.id)+'">Salvar</button></div></div>').join("")+'</div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática das demandas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<label><input type="checkbox" id="mail-scheduled"> Agendar envio</label><div id="mail-scheduling"></div><div id="mail-attachments"></div><button class="button primary" type="submit">Registrar envio</button></form></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelo da notificação da tutoria</h2><p class="field-hint">Edite o aviso enviado aos responsáveis. Campos automáticos: {autor}, {acao}, {demanda}, {tipo}.</p>'+
- '<form id="notification-template-form" class="register-form"><label>Assunto<input type="text" name="subject" maxlength="200" required value="'+esc(data.settings.notificationTemplate?.subject||"PET Gestão — {tipo}")+'"></label>'+
- '<label class="rich-label">Mensagem</label>'+richEditor("message",data.settings.notificationTemplate?.body||"Olá!\n\n{autor} {acao} na demanda \"{demanda}\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação")+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelos de notificação da tutoria</h2><p class="field-hint">Escolha quando a mensagem será enviada e edite o assunto e o texto de cada situação. Campos automáticos: {autor}, {acao}, {demanda}, {tipo}.</p>'+
+ '<form id="notification-template-form" class="register-form"><label>Tipo de mensagem<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
+ '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
  '<button class="button primary" type="submit">Salvar modelo</button></form></section>'+
  '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
@@ -825,7 +844,7 @@ async function saveTask(form){
  const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?await askNotification():false;
  const overviewVisible=f.overviewVisibility!=="comissao";
  if(!overviewVisible&&!commissions.length)return setToast("Selecione uma comissão para exibir somente nela.");
- const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,overviewVisible,notify};
+ const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,assignmentScope:state.assignmentScope,overviewVisible,notify};
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
    state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
@@ -1134,7 +1153,8 @@ async function handleSubmit(e){
  if(form.id==="notification-template-form"){
    const f=collectRich(form,userFields(form));
    if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
-   await saveAndReload(()=>request("/admin/notification-template","PUT",{subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
+   const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",{kind:f.kind,subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
+   if(ok)delete state.templateDrafts[f.kind];
    return;
  }
  if(form.id==="mail-form"){await sendMail(form);return}
@@ -1193,7 +1213,18 @@ async function handleChange(e){
    }
    return;
  }
- if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
+ if(t.id==="notification-template-kind"){
+   const form=t.closest("#notification-template-form");
+   if(form){
+     const previous=state.templateKind;
+     state.templateDrafts[previous]={subject:form.elements.subject.value,body:safeRich(form.querySelector('[data-rich-input="message"]')?.innerHTML||"")};
+     state.templateKind=t.value;
+     const fields=form.querySelector("#notification-template-fields");
+     if(fields)fields.innerHTML=notificationTemplateFields(state.templateKind);
+   }
+   return;
+  }
+  if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
  if(t.id==="mail-scheduled"){state.mailScheduled=t.checked;state.mailFiles=[];renderMailScheduling();return}
  if(t.id==="mail-file-input"){for(const file of t.files){if(file.size>10*1024*1024){setToast("O arquivo "+file.name+" excede 10 MB.");continue}state.mailFiles.push(file)}renderMailScheduling();return}

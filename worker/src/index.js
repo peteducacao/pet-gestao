@@ -89,7 +89,7 @@
   }
   const privateTask=t=>{
     const o={...t,commissionIds:asJson(t.commission_ids,[]),assigneeIds:asJson(t.assignee_ids,[]),commissionDone:asJson(t.commission_done,{}),userDone:asJson(t.user_done,{}),deadlines:asJson(t.deadlines,[])};
-    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
+    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,assignmentScope:o.assignment_scope||null,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
   };
   const publicTask=t=>({id:t.id,title:t.title,registeredAt:t.registered_at,commissionIds:asJson(t.commission_ids,[]),commissionDone:asJson(t.commission_done,{}),status:t.status,overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at,deadlines:asJson(t.deadlines,[]).map(d=>({label:d.label,dueAt:d.dueAt,completedAt:d.completedAt||null}))});
   async function bootstrap(db,user){
@@ -216,8 +216,10 @@
     }
     const recipients=await recipientEmails(db,{userIds:[...ids]});
     if(!recipients.length)return;
-    const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplate'").first();
-    const config=asJson(saved?.value,{});
+    const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
+    const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
+    const kind=title==="Nova demanda"?"create":"review";
+    const config=configs.notificationTemplates?.[kind]||configs.notificationTemplate||{};
     const subjectTemplate=str(config.subject||"PET Gestão — {tipo}",200);
     const bodyTemplate=String(config.body||"Olá!\n\n{autor} {acao} na demanda \"{demanda}\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação").slice(0,10000);
     const values={autor:user.name,acao:action,demanda:task.title,tipo:title};
@@ -229,6 +231,9 @@
     const title=str(payload.title,180);
     if(!title)fail("Informe o título da demanda.");
     const assigneeIds=unique(payload.assigneeIds),commissionIds=unique(payload.commissionIds);
+    const assignmentScope=payload.assignmentScope===undefined?(old?.assignmentScope||null):String(payload.assignmentScope||"");
+    if(assignmentScope!==null&&!["usuarios","comissoes","todos"].includes(assignmentScope))fail("Seleção de responsáveis inválida.");
+    if(assignmentScope==="todos"&&commissionIds.length)fail("Todos(as) não permite comissões selecionadas.");
     if(!assigneeIds.length&&!commissionIds.length)fail("Selecione responsáveis ou uma comissão.");
     if(payload.overviewVisible!==undefined&&typeof payload.overviewVisible!=="boolean")fail("Opção de exibição inválida.");
     const overviewVisible=payload.overviewVisible===undefined?old?.overviewVisible!==false:payload.overviewVisible;
@@ -240,7 +245,13 @@
     const limits=["Prazo","Correção","Postagem"].map(s=>stages.filter(d=>d.label===s).map(x=>x.dueAt).sort());
     if(limits[0].length&&limits[1].length&&limits[1][0]<limits[0][limits[0].length-1])fail("A correção não pode acontecer antes do prazo.");
     if(limits[2].length&&((limits[1].length&&limits[2][0]<limits[1][limits[1].length-1])||(!limits[1].length&&limits[2][0]<limits[0][limits[0].length-1])))fail("A postagem não pode acontecer antes da etapa anterior.");
-    return {title,description:str(payload.description,12000),captionText:String(payload.captionText??old?.captionText??"").slice(0,30000),assigneeIds,commissionIds,deadlines:stages,overviewVisible};
+    return {title,description:str(payload.description,12000),captionText:String(payload.captionText??old?.captionText??"").slice(0,30000),assigneeIds,commissionIds,assignmentScope,deadlines:stages,overviewVisible};
+  }
+  async function verifyEveryoneScope(db,t){
+    if(t.assignmentScope!=="todos")return;
+    const eligible=(await db.prepare("SELECT id FROM users WHERE role IN ('petiano','tutor','admin') AND COALESCE(role_override,'')!='usuario'").all()).results.map(x=>x.id);
+    if(!eligible.length||eligible.length!==t.assigneeIds.length||eligible.some(id=>!t.assigneeIds.includes(id)))
+      fail("Para Todos(as), a demanda deve incluir todas as pessoas elegíveis.");
   }
   function fullAfter(t,patch){return {...t,...patch}};
   async function readTask(db,id){const t=await db.prepare("SELECT * FROM tasks WHERE id=?").bind(id).first();if(!t)fail("Demanda não encontrada.",404);return privateTask(t)}
@@ -377,7 +388,16 @@
         ensure(user,true);const b=await body(req);
         const subject=str(b.subject,200),message=String(b.message??"").trim().slice(0,10000);
         if(!subject||!message)fail("Informe assunto e mensagem do modelo.");
-        await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
+        if(b.kind===undefined){
+          // Compatibilidade com o modelo único anterior.
+          await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
+        }else{
+          if(!["create","review"].includes(b.kind))fail("Tipo de notificação inválido.");
+          const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
+          const models=asJson(saved?.value,{});
+          models[b.kind]={subject,body:message};
+          await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplates',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(models)).run();
+        }
         return answer({ok:true});
       }
       if(path==="/api/v1/admin/settings"&&method==="PUT"){
@@ -438,7 +458,8 @@
         ensure(user);const b=await body(req),t=validateTask(b),id=uid(),stamp=now(),start=stamp.slice(0,10);
         const allC=(await db.prepare("SELECT id FROM commissions").all()).results.map(c=>c.id),allU=(await db.prepare("SELECT id FROM users").all()).results.map(c=>c.id);
         if(t.commissionIds.some(x=>!allC.includes(x))||t.assigneeIds.some(x=>!allU.includes(x)))fail("Responsáveis ou comissões não encontrados.");
-        await db.prepare("INSERT INTO tasks(id,title,description,caption_text,registered_at,assignee_ids,commission_ids,commission_done,deadlines,status,created_by,updated_by,created_at,updated_at,overview_visible) VALUES(?,?,?,?,?,?,?,'{}',?,'pendente',?,?,?,?,?)").bind(id,t.title,t.description,t.captionText,start,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),user.id,user.id,stamp,stamp,t.overviewVisible?1:0).run();
+        await verifyEveryoneScope(db,t);
+        await db.prepare("INSERT INTO tasks(id,title,description,caption_text,registered_at,assignee_ids,commission_ids,commission_done,deadlines,status,created_by,updated_by,created_at,updated_at,overview_visible,assignment_scope) VALUES(?,?,?,?,?,?,?,'{}',?,'pendente',?,?,?,?,?,?)").bind(id,t.title,t.description,t.captionText,start,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),user.id,user.id,stamp,stamp,t.overviewVisible?1:0,t.assignmentScope).run();
         await audit(db,id,user,"Cadastrou a demanda");
         await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Nova demanda","cadastrou");
         return answer({ok:true,id},201);
@@ -451,12 +472,13 @@
         const validC=(await db.prepare("SELECT id FROM commissions").all()).results.map(x=>x.id);
         const validU=(await db.prepare("SELECT id FROM users").all()).results.map(x=>x.id);
         if(t.commissionIds.some(x=>!validC.includes(x))||t.assigneeIds.some(x=>!validU.includes(x)))fail("Comissão ou responsável inválido.");
+        await verifyEveryoneScope(db,t);
         const gone=Object.keys(old.commissionDone||{}).some(id=>!t.commissionIds.includes(id));
         if(gone)fail("Não remova comissões que já concluíram a demanda.");
         if(Object.keys(old.userDone||{}).some(id=>!t.assigneeIds.includes(id)))fail("Não remova pessoas que já concluíram sua participação.");
         const oldStages=new Map(old.deadlines.map(d=>[d.id,d]));
         t.deadlines=t.deadlines.map(d=>{const previous=oldStages.get(d.id);return previous&&previous.label===d.label&&previous.dueAt===d.dueAt?{...d,completedAt:previous.completedAt||null,commissionCompleted:previous.commissionCompleted||{}}:{...d,completedAt:null,commissionCompleted:{}}});
-        const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,user.id,stamp,old.id,old.version).run();
+        const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,assignment_scope=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,t.assignmentScope,user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
         await audit(db,old.id,user,"Atualizou dados, prazos ou responsáveis");
         if(t.captionText!==old.captionText)await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
