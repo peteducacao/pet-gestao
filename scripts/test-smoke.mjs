@@ -795,13 +795,13 @@ await test("cards exibem comissões e pessoas separadamente, sem misturar integr
  assert.ok(css.includes('.demand-card-picker-popover'),"Lista expansível organizada");
  assert.ok(css.includes('grid-template-columns:minmax(260px,1fr) auto minmax(118px,.25fr) auto!important'),'Cards com quatro colunas sem vácuo extra');
 });
-await test("seção SISTEMA e Administração só aparecem na sessão administrativa",async()=>{
+await test("seção SISTEMA aparece somente para quem possui permissão administrativa",async()=>{
  const {readFileSync}=await import("node:fs");
  const index=readFileSync("index.html","utf8"),src=readFileSync("app-live.js","utf8");
  assert.match(index,/<p class="nav-caption separated" id="admin-nav-caption" hidden>SISTEMA<\/p>/);
  assert.match(index,/<nav class="nav-group" id="admin-nav-group" aria-label="Administração" hidden>/);
  assert.match(index,/<a class="nav-link" id="admin-link" href="#\/admin" hidden>/);
- assert.ok(src.includes('const adminVisible=routeParts().page==="admin"&&isAdmin();'));
+ assert.ok(src.includes('const adminVisible=adminRole(me)&&!me.mustChangePassword;'),"Admin tem botão exclusivo mesmo fora do painel");
  assert.ok(src.includes('if(adminCaption)adminCaption.hidden=!adminVisible'));
  assert.ok(src.includes('if(adminGroup)adminGroup.hidden=!adminVisible'));
 });
