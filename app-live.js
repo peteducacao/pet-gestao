@@ -87,9 +87,12 @@ const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notifica
 // Demandas ativas: qualquer integrante com cargo de edição pode excluir,
 // mesmo quando cadastradas pela Administração ou por outra pessoa.
 // Arquivadas: exclusão exclusiva da sessão administrativa.
-const canDeleteTask=t=>Boolean(me&&t&&
-  (adminRole(me)||(!t.archivedAt&&["petiano","tutor"].includes(me.role)))
-);
+// Uma demanda arquivada só pode ser apagada usando a sessão própria do Admin.
+// Essa sessão pode continuar ativa quando o detalhe é aberto pela listagem comum.
+const canDeleteTask=t=>Boolean(me&&t&&(
+  t.archivedAt ? (adminRole(me)||Boolean(adminToken)) :
+  (adminRole(me)||["petiano","tutor"].includes(me.role))
+));
 const stageDueAt=value=>{
  const raw=String(value||"");
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
@@ -675,7 +678,7 @@ function renderDetail(taskId,contextCid){
  const status=taskStatus(t,contextCid);
  const actions=(t.archivedAt?"":button("Editar demanda","registrar/"+id(t.id)))+
  detailStatusSelector(t,status)+
- (canDeleteTask(t)?'<button type="button" class="button danger-outline" data-do="delete-task" data-id="'+esc(t.id)+'">'+ico("close")+' Excluir</button>':"");
+ (canDeleteTask(t)?'<button type="button" class="button danger-outline" data-do="delete-task" data-id="'+esc(t.id)+'">'+ico("close")+(t.archivedAt?' Excluir definitivamente':' Excluir')+'</button>':"");
  return '<div class="activity-detail-page">'+header("Atividade",t.title,"",actions)+detailVisualization()+activitySections(t,false)+'</div>';
 }
 
@@ -1160,7 +1163,7 @@ async function handleClick(e){
    const task=data.tasks.find(x=>x.id===tid);
    if(!canDeleteTask(task))return setToast("Você não tem permissão para excluir esta demanda.");
    if(!await askConfirm('Excluir definitivamente a demanda "'+task.title+'"? Esta ação apagará a demanda, os prazos, as participações e o histórico, sem possibilidade de recuperação.',{danger:true,title:"Excluir demanda?"}))return;
-   const deleteScope=me?.role==="admin"&&adminToken?"admin":undefined;
+   const deleteScope=task.archivedAt?"admin":(me?.role==="admin"&&adminToken?"admin":undefined);
    const ok=await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE",undefined,deleteScope),"Demanda excluída definitivamente.");
    if(ok)location.hash=workspaceHash("demandas");
    return;
