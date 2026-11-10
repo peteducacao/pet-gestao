@@ -318,8 +318,8 @@ function renderDemandas(){
  else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const filter=state.mode==="arquivo"?"":'<label class="status-filter-label">Status<select class="select" data-filter="status">'+[["todas","Todas"],["pendente","Pendentes"],["atrasada","Atrasadas"]].map(([v,l])=>opt(v,l,state.statusFilter)).join("")+'</select></label>';
- return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
- '<section class="card card-pad"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div>'+
+ return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.")+
+ '<section class="card card-pad"><div class="section-head"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div>'+actions+'</div>'+
  '<div class="list-toolbar">'+period()+filter+'</div><hr class="divider">'+
  (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
@@ -713,6 +713,7 @@ async function loadMailHistory(){
 const fileData=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]);reader.onerror=reject;reader.readAsDataURL(file)});
 async function sendMail(form){
  const f=collectRich(form,userFields(form)),ids=$('input[name="mail-target"]:checked').map(el=>el.value),userIds=state.mailAudience==="usuarios"?ids:[],committeeIds=state.mailAudience==="comissoes"?ids:[];
+ if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva a mensagem.");
  if(state.mailScheduled&&!f.sendAt)return setToast("Informe a data de envio.");
  const when=state.mailScheduled?new Date(f.sendAt):null;
  if(when&&Number.isNaN(when.getTime()))return setToast("Informe uma data e horário válidos.");
@@ -929,6 +930,7 @@ async function handleSubmit(e){
  if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(form.id==="notification-template-form"){
    const f=collectRich(form,userFields(form));
+   if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
    await saveAndReload(()=>request("/admin/notification-template","PUT",{subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
    return;
  }
