@@ -791,9 +791,11 @@
         const b=await body(req);
         if(!Array.isArray(b.taskIds)||!b.taskIds.length||b.taskIds.length>100)
           fail("Selecione de 1 a 100 demandas concluídas para excluir.",400);
+        if(b.taskIds.some(id=>typeof id!=="string"||!id||id.length>100))
+          fail("Os identificadores das demandas devem ser textos válidos.",400);
         const ids=unique(b.taskIds);
-        if(ids.length!==b.taskIds.length||ids.some(id=>typeof id!=="string"||!id||id.length>100))
-          fail("Seleção de demandas inválida ou repetida.",400);
+        if(ids.length!==b.taskIds.length)
+          fail("A seleção contém demandas repetidas.",400);
         const placeholders=ids.map(()=>"?").join(",");
         // Nenhuma remoção ocorre caso haja demandas pendentes, inexistentes ou alteradas.
         const rows=(await db.prepare("SELECT id,archived_at FROM tasks WHERE id IN ("+placeholders+")")
