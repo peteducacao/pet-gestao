@@ -71,19 +71,8 @@ const stages=t=>Array.isArray(t.deadlines)?t.deadlines:[];
 const active=t=>!t.archivedAt;
 const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
-const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name||"Comissão").join(", ");
-// Quem responde pela demanda pode ser uma pessoa, uma comissão ou ambos.
- // Associação à comissão não cria participação individual nem altera regras de conclusão.
-function who(t){
- const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
- const teams=(t.commissionIds||[]).map(committee).filter(Boolean);
- const members=teams.flatMap(c=>(c.memberIds||[]).map(nameFor).filter(Boolean));
- const names=[...new Set([...assigned,...members])];
- if(names.length)return names.join(", ");
- if(teams.length)return teams.map(c=>c.name).join(", ");
- if((t.assigneeIds||[]).length)return "Responsáveis vinculados";
- return "Não definido";
-}
+// Comissões e atribuições individuais são participações distintas; nunca inferir
+// responsáveis individuais a partir da lista de integrantes de uma comissão.
 // Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
 const hasAdminRole=u=>Boolean(u&&u.role==="admin");
@@ -326,27 +315,60 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
 // Card único para Visão geral, Demandas, Comissões, Cronograma e Minhas pendências.
 // Prioriza a imagem específica da comissão onde a tarefa está sendo consultada.
 
+
+function cardPeoplePicker(values,kind){
+ const names=[...new Set(values.filter(Boolean))];
+ if(!names.length)return "";
+ const group=kind==="comissoes";
+ const icon=group?"users":"user";
+ const category=group?"Comissões vinculadas":"Responsáveis individuais";
+ const cls=group?"committee":"person";
+ if(names.length===1){
+  return '<span class="demand-card-single demand-card-'+cls+'" title="'+esc(category)+': '+esc(names[0])+'">'+
+  ico(icon)+'<span>'+esc(names[0])+'</span></span>';
+ }
+ return '<details class="demand-card-picker demand-card-'+cls+'">'+
+ '<summary aria-label="'+esc(category)+': '+names.length+' nomes. Abrir lista">'+
+ ico(icon)+'<span class="demand-picker-first">'+esc(names[0])+'</span>'+
+ '<span class="demand-picker-count">+'+(names.length-1)+'</span>'+
+ '<span class="demand-picker-arrow" aria-hidden="true">⌄</span></summary>'+
+ '<div class="demand-card-picker-popover"><strong>'+category+'</strong>'+
+ '<ul>'+names.map(name=>'<li>'+esc(name)+'</li>').join("")+'</ul></div></details>';
+}
 function taskCard(t,commissionId,withFinishAction=false){
  const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean);
  const status=taskStatus(t,commissionId),progress=taskProgress(t),mine=myPendingParts(t);
  const taskHref=workspaceHash("atividade/"+id(t.id)+(commissionId?"/"+id(commissionId):""));
  const photo=selected?.imageData?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="" loading="lazy">':selected?commissionDefaultArt(selected.name):ico("checklist");
- const tag=ids.length?'<span class="demand-activity-commission">'+ico("users")+' '+esc(selectedCommitteeNames(t))+'</span>':"";
+ const commissionNames=ids.map(cid=>committee(cid)?.name||"Comissão");
+ const individualNames=me?(t.assigneeIds||[]).map(uid=>nameFor(uid)||"Responsável vinculado"):[];
+ const selectors=cardPeoplePicker(commissionNames,"comissoes")+cardPeoplePicker(individualNames,"pessoas");
  return '<article class="placeholder-row task-list-row demand-activity-card status-'+status+'">'+
  (me?'<a class="demand-card-cover-link" href="'+taskHref+'" aria-label="Abrir demanda: '+esc(t.title)+'"></a>':"")+
  '<div class="demand-activity-identity"><span class="demand-activity-art" aria-hidden="true">'+photo+'</span>'+
- '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+tag+'</div></div>'+
+ '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+
+ (selectors?'<div class="demand-card-people-rows">'+selectors+'</div>':"")+
+ (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+
+ '</div></div>'+
  '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
  '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
  '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
- (me?'<div class="demand-activity-fact demand-activity-owners"><span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
- '<div><span class="demand-activity-label">Responsáveis</span><strong>'+esc(who(t))+'</strong>'+
- (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+'</div></div>':"")+
  (me?'<div class="demand-card-actions"><a class="activity-details-link demand-activity-action" href="'+taskHref+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>'+
  (withFinishAction&&(mine.personal||mine.committees.length)?'<button type="button" class="button demand-finish-action" data-do="finish-mine" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+'</div>':"")+
  '</article>';
 }
 
+document.addEventListener("click",e=>{
+ const inside=e.target.closest?.(".demand-card-picker");
+ for(const el of document.querySelectorAll(".demand-card-picker[open]")){
+  if(el!==inside)el.open=false;
+ }
+});
+document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"){
+  for(const el of document.querySelectorAll(".demand-card-picker[open]"))el.open=false;
+ }
+});
 function renderHome(){
  const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
