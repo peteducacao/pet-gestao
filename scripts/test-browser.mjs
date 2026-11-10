@@ -343,6 +343,12 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  await page.locator("#notification-template-kind").selectOption("review");
  assert.notEqual(await page.locator("#notification-template-form input[name=subject]").inputValue(),"Nova demanda personalizada","Revisão possui texto próprio");
+ // Uma gravação pode atualizar o formulário e abrir a confirmação após o retorno da API.
+ // Fechar o aviso antes de retomar a edição no segundo tipo de mensagem.
+ await page.waitForTimeout(350);
+ if(await page.locator("#notice-dialog").isVisible())
+   await page.locator('#notice-dialog [data-do="notice-cancel"]').click();
+ await page.locator("#notice-dialog").waitFor({state:"hidden"});
  await page.locator("#notification-template-form input[name=subject]").fill("Revisão personalizada");
  await page.locator("#notification-template-form button[type=submit]").click();
  await page.waitForTimeout(180);
