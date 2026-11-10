@@ -198,6 +198,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await personalOnly.locator('button[data-do="finish-mine"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
  await page.waitForTimeout(250);
+ if(!(await page.locator("#notice-dialog").isHidden())){
+   console.log("NOTICE DEBUG:",(await page.locator("#notice-dialog").innerText()).slice(0,500),JSON.stringify(calls.slice(-8)));
+ }
  assert.equal(await page.locator("#notice-dialog").isHidden(),true,"Conclusão de tutoria não pede outro aviso de e-mail");
  const finishCall=calls.find(x=>x.p==="/tasks/t3/finish"&&x.method==="PATCH");
  assert.equal(finishCall?.body.notify,false,"Concluir jamais notifica automaticamente");
