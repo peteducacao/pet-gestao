@@ -27,7 +27,7 @@ await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
  if(method==="OPTIONS")return route.fulfill({status:204,headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PUT,PATCH,DELETE","access-control-allow-headers":"Authorization,Content-Type"}});
  let result={ok:true},status=200;let body={};try{body=req.postDataJSON()||{}}catch{}
- calls.push({method,p,body});
+ calls.push({method,p,body,authorization:req.headers()["authorization"]||""});
  if(p==="/auth/me")result={user};
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/mail")result={items:[]};
@@ -39,7 +39,11 @@ await page.route("**/api/v1/**",async route=>{
  }
  else if(p==="/tasks"&&method==="POST"){tasks.push({id:"t"+(tasks.length+1),...body,commissionDone:{},userDone:{},registeredAt:"2026-11-10",archivedAt:null});status=201;result={ok:true,id:"t"+tasks.length};}
  else if(/^\/tasks\/[^/]+$/.test(p)&&method==="PUT"){const current=tasks.find(t=>t.id===p.split("/")[2]);if(current)Object.assign(current,body);result={ok:true};}
- else if(/^\/tasks\/[^/]+$/.test(p)&&method==="DELETE"){tasks=tasks.filter(x=>x.id!==p.split("/")[2]);result={ok:true};}
+ else if(/^\/tasks\/[^/]+$/.test(p)&&method==="DELETE"){
+   const target=tasks.find(x=>x.id===p.split("/")[2]);
+   if(target?.archivedAt&&!adminMode){status=403;result={error:"Somente a Administração pode excluir demandas arquivadas."};}
+   else {tasks=tasks.filter(x=>x.id!==p.split("/")[2]);result={ok:true};}
+ }
  else if(p==="/meetings"&&method==="POST"){meetings.push({id:"m"+(meetings.length+1),...body});result={ok:true};}
  else if(/^\/tasks\/[^/]+\/finish$/.test(p)&&method==="PATCH"){
    const current=tasks.find(t=>t.id===p.split("/")[2]);
@@ -477,6 +481,25 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(!messageAfterFinish.toLowerCase().includes("notificar"),"Conclusão não pede notificação por e-mail");
  const finishCall=calls.find(x=>x.p==="/tasks/t3/finish"&&x.method==="PATCH");
  assert.equal(finishCall?.body.notify,false,"Concluir jamais notifica automaticamente");
+ // Na tela de detalhes de uma concluída, a sessão Admin também é reconhecida fora da rota /admin.
+ tasks.push({...task,id:"t-archived",title:"Demanda concluída de teste",
+   archivedAt:"2026-11-10T18:00:00.000Z",status:"concluida",
+   commissionDone:{videos:{at:"2026-11-10T18:00:00.000Z",by:"u1"}},
+   userDone:{u1:{at:"2026-11-10T18:00:00.000Z",by:"u1"}}});
+ await page.goto(origin+"/#/atividade/t-archived");
+ const deleteArchived=page.locator('button[data-do="delete-task"]');
+ assert.equal(await deleteArchived.count(),1,"Detalhe da concluída exibe exclusão definitiva para sessão Admin");
+ assert.ok((await deleteArchived.innerText()).includes("Excluir definitivamente"));
+ await deleteArchived.click();
+ assert.ok((await page.locator("#notice-dialog").innerText()).includes("sem possibilidade de recuperação"),"Exclusão de arquivada exige confirmação");
+ await page.locator('#notice-dialog [data-do="notice-cancel"]').click();
+ assert.ok(tasks.some(x=>x.id==="t-archived"),"Cancelar mantém demanda concluída");
+ await deleteArchived.click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await page.waitForTimeout(180);
+ const deletedArchived=calls.find(x=>x.p==="/tasks/t-archived"&&x.method==="DELETE");
+ assert.ok(deletedArchived?.authorization?.includes("admin-token"),"Worker recebe sessão Admin para excluir concluída");
+ assert.equal(tasks.some(x=>x.id==="t-archived"),false,"Exclusão definitiva remove a arquivada");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator('button[data-do="delete-task"]').click();
  assert.ok((await page.locator("#notice-dialog").innerText()).includes("sem possibilidade de recuperação"));
