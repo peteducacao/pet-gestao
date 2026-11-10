@@ -250,33 +250,26 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
 }
 // Card único para Visão geral, Demandas, Comissões, Cronograma e Minhas pendências.
 // Prioriza a imagem específica da comissão onde a tarefa está sendo consultada.
+
 function taskCard(t,commissionId,withFinishAction=false){
  const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean);
- const progress=taskProgress(t);
- const photo=selected?.imageData
-  ?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="Imagem da comissão '+esc(selected.name)+'" loading="lazy">'
-  :selected?commissionDefaultArt(selected.name):ico("checklist");
- const groupLabel=ids.length?selectedCommitteeNames(t):"Demanda geral";
- const date=textDate(taskDate(t));
- return '<article class="placeholder-row task-list-row demand-activity-card">'+
-  '<div class="demand-activity-identity">'+
-   '<span class="demand-activity-art" aria-hidden="true">'+photo+'</span>'+
-   '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+
-    '<span class="demand-activity-commission">'+ico("users")+'<span>'+(ids.length?(ids.length===1?"Comissão: ":"Comissões: "):"")+esc(groupLabel)+'</span></span>'+
-   '</div></div>'+
-  '<div class="demand-activity-fact demand-activity-date">'+
-    '<span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
-    '<div><span class="demand-activity-label">Data</span><strong>'+esc(date)+'</strong></div></div>'+
-  (me?'<div class="demand-activity-fact demand-activity-owners">'+
-    '<span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
-    '<div><span class="demand-activity-label">Responsáveis</span><strong class="'+((t.assigneeIds||[]).length?"":"demand-activity-undesignated")+'">'+esc(who(t))+'</strong>'+
-    (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+
-    (t.archivedAt?'<small class="demand-activity-progress demand-activity-complete">Concluída</small>':"")+
-    '</div></div>':"")+
-  (me?'<a class="activity-details-link demand-activity-action" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'" aria-label="Ver detalhes de '+esc(t.title)+'">'+ico("search")+'<span>Ver detalhes</span>'+ico("arrow")+'</a>':"")+
- (withFinishAction?'<button type="button" class="button demand-finish-action" data-do="finish-personal" data-id="'+esc(t.id)+'">'+ico("check")+'<span>Marcar como concluída</span></button>':"")+
+ const status=taskStatus(t,commissionId),progress=taskProgress(t);
+ const photo=selected?.imageData?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="" loading="lazy">':selected?commissionDefaultArt(selected.name):ico("checklist");
+ const tag=ids.length?'<span class="demand-activity-commission">'+ico("users")+' '+esc(selectedCommitteeNames(t))+'</span>':"";
+ return '<article class="placeholder-row task-list-row demand-activity-card status-'+status+'">'+
+ '<div class="demand-activity-identity"><span class="demand-activity-art" aria-hidden="true">'+photo+'</span>'+
+ '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+tag+'</div></div>'+
+ '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
+ '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
+ '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
+ (me?'<div class="demand-activity-fact demand-activity-owners"><span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
+ '<div><span class="demand-activity-label">Responsáveis</span><strong>'+esc(who(t))+'</strong>'+
+ (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+'</div></div>':"")+
+ (me?'<a class="activity-details-link demand-activity-action" href="#/atividade/'+id(t.id)+(commissionId?"/"+id(commissionId):"")+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>':"")+
+ (withFinishAction?'<button type="button" class="button demand-finish-action" data-do="finish-personal" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+
  '</article>';
 }
+
 function renderHome(){
  const all=data.tasks.filter(active),next=[...all].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=all.filter(isLate).length;
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
@@ -284,20 +277,21 @@ function renderHome(){
  '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
+
 function renderDemandas(){
  const options=[["mensal","Mensal"],["semanal","Semanal"],["arquivo","Concluídas"]];
  const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
  let list=data.tasks.filter(t=>filtered(t));
- if(state.mode==="arquivo"){
-   list=list.filter(t=>{const d=dt(t.archivedAt);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&(!state.week||weekFor(d)===state.week)});
- }
+ if(state.mode==="arquivo")list=list.filter(t=>{const d=dt(t.archivedAt);return d&&d.getFullYear()===state.year&&d.getMonth()===state.month&&(!state.week||weekFor(d)===state.week)});
+ else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
+ const filter=state.mode==="arquivo"?"":'<label class="status-filter-label">Status<select class="select" data-filter="status">'+[["todas","Todas"],["pendente","Pendentes"],["atrasada","Atrasadas"]].map(([v,l])=>opt(v,l,state.statusFilter)).join("")+'</select></label>';
  return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
- '<section class="card card-pad"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div><div class="list-toolbar">'+((["mensal","semanal","arquivo"].includes(state.mode))?period():"")+'</div><hr class="divider">'+
- (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>'+
- '<section class="card card-pad demand-memories"><div class="section-head"><div><h2>Memórias dos encontros</h2><p>Registros das reuniões da equipe</p></div>'+(canWrite()?button("+ Nova memória","reunioes/nova"):"")+'</div>'+
- (data.meetings?.length?data.meetings.map(m=>'<div class="placeholder-row"><div><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small></div>'+(canWrite()?button("Ver memória","reunioes/"+id(m.id)):"")+'</div>').join(""):empty("Nenhuma memória registrada"))+'</section>';
+ '<section class="card card-pad"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div>'+
+ '<div class="list-toolbar">'+period()+filter+'</div><hr class="divider">'+
+ (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
+
 function renderCronograma(){
  const all=data.tasks.filter(t=>active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
  const groups=new Map();for(const t of all){const w=weekFor(taskDate(t));if(!groups.has(w))groups.set(w,[]);groups.get(w).push(t)}
@@ -324,23 +318,15 @@ function renderComissoes(){
  (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>'
  }).join("")+'</div></section>';
 }
+
 function renderCommittee(cid){
  const c=committee(cid);if(!c)return empty("Comissão não encontrada");
- // A vinculação à comissão não depende da data: o filtro do período só organiza
- // as atividades em duas áreas, sem ocultar uma demanda atribuída à equipe.
- const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))
-   .sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
- const inPeriod=all.filter(t=>filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
- const otherDates=all.filter(t=>!inPeriod.includes(t));
- const actions=canWrite()?button("Editar comissão","comissoes/editar/"+id(cid))+button("+ Nova demanda","registrar/novo/"+id(cid),true):"";
- return header("Comissões",c.name,c.description||"",actions)+
- '<section class="card card-pad"><div class="section-head"><div><h2>Atividades da comissão</h2><p>As demandas desta equipe continuam visíveis mesmo fora do período selecionado.</p></div><span class="pill soft">'+all.length+' em aberto</span></div>'+
- (all.length?period()+
- (inPeriod.length?'<div class="commission-period-group"><h3>Neste período</h3>'+inPeriod.map(t=>taskCard(t,cid)).join("")+'</div>':"")+
- (otherDates.length?'<div class="commission-period-group commission-other-dates"><h3>Em outras datas</h3><p>Estas atividades também pertencem à comissão, mas têm prazo fora do mês ou semana selecionado.</p>'+otherDates.map(t=>taskCard(t,cid)).join("")+'</div>':""):
- empty("Nenhuma demanda ativa nesta comissão","Ao escolher esta comissão como responsável, a demanda aparecerá aqui."))+
- '</section>';
+ const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid)).sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
+ return header("Comissões",c.name,c.description||"","")+
+ '<section class="card card-pad"><div class="section-head"><div><h2>Pendências da comissão</h2><p>Atividades vinculadas a esta equipe em Demandas.</p></div><span class="pill soft">'+all.length+' pendente(s)</span></div>'+
+ (all.length?all.map(t=>taskCard(t,cid)).join(""):empty("Nenhuma pendência nesta comissão","As atividades atribuídas à comissão aparecerão aqui."))+'</section>';
 }
+
 function renderCommitteeEdit(cid){
  if(!canWrite())return authRequired();
  const c=cid?committee(cid):null;if(cid&&!c)return empty("Comissão não encontrada");
