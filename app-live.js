@@ -528,7 +528,7 @@ function renderTaskForm(routeId){
       isEveryoneAssigned(t)?"todos":t.commissionIds?.length&&!t.assigneeIds?.length?"comissoes":"usuarios"
     )):"usuarios";
  }
- return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina o prazo obrigatório e os responsáveis.",
+ return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina os responsáveis e, se precisar, os prazos da demanda.",
  backButton()+
  (t?'<button type="submit" form="task-form" class="button primary task-form-header-save">'+ico("check")+' Salvar demanda</button>':""))+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
@@ -537,7 +537,7 @@ function renderTaskForm(routeId){
  '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">A demanda continua disponível em Demandas e nas pendências dos responsáveis.</p>'+
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral e comissões</strong><small>Visível na Visão geral e nas comissões vinculadas.</small></span></label>'+
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
- '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Defina até quando os(as) PETianos(as) deverão concluir cada etapa da demanda. A etapa <strong>Prazo</strong> é obrigatória e indica a data de entrega. Se precisar, acrescente etapas para organizar a <strong>Correção</strong> pela tutoria ou a <strong>Postagem</strong>. Você pode escolher um responsável para cada etapa.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?.deadlines?.length?t.deadlines:[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
+ '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Defina até quando os(as) PETianos(as) deverão concluir cada etapa da demanda. As etapas são <strong>opcionais</strong>: você pode salvar a demanda sem prazo. Se precisar, adicione <strong>Prazo</strong>, <strong>Correção</strong> pela tutoria ou <strong>Postagem</strong>. Cada etapa adicionada deve ter data, e você pode escolher um responsável.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?(t.deadlines||[]):[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
  '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+richEditor("captionText",t?.captionText||"")+
  (t?"":'<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div>')+'</form></section>';
 }
@@ -690,12 +690,23 @@ function openFinishDialog(task){
  const make=(items,type)=>items.map(key=>'<label class="joint-pick"><input type="checkbox" name="joint-target" value="'+esc(key)+'" data-kind="'+type+'" '+(key===me.id||users.length+groups.length===1?"checked":"")+'><span>'+esc(type==="user"?nameFor(key):committee(key)?.name||"Comissão")+'</span></label>').join("");
  layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Concluir participações">'+
  '<h2>Concluir participações</h2><p>Selecione as pessoas e comissões que concluíram esta atividade.</p>'+
+ '<label class="joint-select-all"><input type="checkbox" id="finish-select-all"><span><strong>Marcar todos</strong><small>Selecionar ou desmarcar todas as participações pendentes</small></span></label>'+
  (users.length?'<h3>Pessoas</h3>'+make(users,"user"):"")+
  (groups.length?'<h3>Comissões</h3>'+make(groups,"commission"):"")+
  '<div class="finish-actions"><button type="button" class="button ghost" data-do="finish-close">Cancelar</button>'+
  '<button type="button" class="button primary" data-do="finish-joint-confirm" data-id="'+esc(task.id)+'">Concluir selecionados</button></div></section>';
  layer.hidden=false;
+ syncFinishSelectAll();
  layer.querySelector("input:checked, input")?.focus();
+}
+function syncFinishSelectAll(){
+ const layer=$("#finish-dialog");
+ const all=layer?[...layer.querySelectorAll('input[name="joint-target"]')]:[];
+ const control=layer?.querySelector("#finish-select-all");
+ if(!control)return;
+ const count=all.filter(x=>x.checked).length;
+ control.checked=all.length>0&&count===all.length;
+ control.indeterminate=count>0&&count<all.length;
 }
 async function completeJoint(task,layer){
  const picked=[...layer.querySelectorAll('input[name="joint-target"]:checked')];
@@ -922,7 +933,6 @@ async function saveTask(form){
  return{id:row.dataset.stageId,label,dueAt:day?day+"T"+(time||"23:59")+":00":"",assigneeIds:person?[person]:[]}
  });
  if(!f.title.trim())return setToast("Informe o título.");
- if(!stages.some(x=>x.label==="Prazo"&&x.dueAt))return setToast("Uma etapa Prazo com data é obrigatória.");
  if(stages.some(x=>!x.dueAt))return setToast("Informe a data de todas as etapas inseridas.");
  if(stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores.");
  const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
@@ -1265,6 +1275,11 @@ async function handleSubmit(e){
 }
 async function handleChange(e){
  const t=e.target;if(!t)return;
+ if(t.id==="finish-select-all"){
+   $('#finish-dialog input[name="joint-target"]').forEach(input=>{input.checked=t.checked});
+   syncFinishSelectAll();return;
+ }
+ if(t.name==="joint-target"){syncFinishSelectAll();return;}
  // A etapa de Correção não deve atribuir tutor automaticamente sem confirmação explícita.
  if(t.dataset.stage==="label")return;
  if(t.dataset.assign){
