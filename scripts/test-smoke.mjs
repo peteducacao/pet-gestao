@@ -482,7 +482,9 @@ await test("login opcional persiste somente token e recuperação abre popup leg
 await test("responsáveis humanos não se confundem com nome da comissão",async()=>{
  const {readFileSync}=await import("node:fs");
  const js=readFileSync("app-live.js","utf8");
- assert.ok(js.includes('const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido"'));
+ assert.ok(js.includes('function who(t){'),"Responsáveis devem incluir comissões e participantes");
+ assert.ok(js.includes('teams.flatMap(c=>(c.memberIds||[]).map(nameFor)'),"Integrantes da comissão aparecem quando disponíveis");
+ assert.ok(js.includes('if(teams.length)return teams.map(c=>c.name).join(", ")'),"Sem pessoas visíveis, mostrar comissão, não Não definido");
  assert.ok(!js.includes('||selectedCommitteeNames(t)||"A definir"'));
  assert.ok(js.includes('const tag=ids.length?'),"Comissões devem aparecer apenas quando vinculadas.");
  assert.ok(js.includes('function renderAssignees(t)'),"Detalhes devem mostrar responsáveis reais");
