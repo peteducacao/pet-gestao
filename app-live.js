@@ -600,10 +600,15 @@ function refreshDeadlineMode(previousScope=null){
    return;
  }
  if(previousScope!=="todos"&&state.assignmentScope==="todos"){
+   // Uma etapa de prazo comum não vira a data de um evento ao marcar Todos(as).
    state.standardStageDraft=currentRows;
+   const oldTask=data.tasks.find(t=>t.id===state.taskFormId);
+   const savedEvent=oldTask?.assignmentScope==="todos"?
+     (oldTask.deadlines||[]).find(x=>x.label==="Evento"):null;
+   host.innerHTML=renderDeadlineSettings(savedEvent?[savedEvent]:[]);
+   return;
  }
- const list=currentRows.length?currentRows:
-   eventDay?[{label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:[];
+ const list=eventDay?[{label:"Evento",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:[];
  host.innerHTML=renderDeadlineSettings(list);
 }
 function renderTaskForm(routeId){
