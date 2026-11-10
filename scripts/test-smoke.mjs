@@ -11,20 +11,26 @@ const dueAt=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
 await test("saúde",async()=>{assert.equal(good(await api("/health")).database,true)});
 await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,10);assert.equal(r.session,null)});
 await test("controle de acesso",async()=>{assert.equal((await api("/admin/users")).status,401)});
-await test("login Admin separado",async()=>{const r=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:process.env.TEST_ADMIN_PASSWORD}));token=r.token;assert.equal(r.user.role,"admin")});
-await test("Admin não acessa pela sessão comum",async()=>{
- const r=await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD,role:"admin",adminScope:true});
- assert.equal(r.status,403);
+await test("login único da Administração",async()=>{
+ const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD}));
+ token=r.token;
+ assert.equal(r.user.role,"admin");
+ assert.equal(r.user.adminSession,true,"Admin autenticado pela entrada comum recebe escopo legítimo");
+ assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
-await test("sessões do Admin têm escopo exclusivo e validade configurada",async()=>{
- const password=process.env.TEST_ADMIN_PASSWORD;
- const regular=good(await api("/auth/admin-login","POST",{identifier:"Admin",password,rememberMe:false}));
- const persistent=good(await api("/auth/admin-login","POST",{identifier:"Admin",password,rememberMe:true}));
+await test("carga enviada pelo navegador não define o escopo administrativo",async()=>{
+ const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD,role:"usuario",adminScope:false}));
+ assert.equal(r.user.adminSession,true,"O escopo é decidido apenas pelo cargo real no servidor");
+});
+await test("sessões temporárias e permanentes da Administração",async()=>{
+ const password=process.env.TEST_ADMIN_PASSWORD,email=process.env.TEST_ADMIN_EMAIL;
+ const regular=good(await api("/auth/login","POST",{email,password,rememberMe:false}));
+ const persistent=good(await api("/auth/login","POST",{email,password,rememberMe:true}));
  const legacy=good(await api("/auth/admin-login","POST",{identifier:"Admin",password}));
  const days=r=>(Date.parse(r.expiresAt)-Date.now())/86400000;
- assert.ok(days(regular)>6.95&&days(regular)<7.02,"Sessão Admin comum: 7 dias");
- assert.ok(days(legacy)>6.95&&days(legacy)<7.02,"Sessão Admin padrão: 7 dias");
- assert.ok(days(persistent)>29.95&&days(persistent)<30.02,"Admin mantido: 30 dias");
+ assert.ok(days(regular)>6.95&&days(regular)<7.02,"Sem marcar: sessão de 7 dias");
+ assert.ok(days(legacy)>6.95&&days(legacy)<7.02,"Endpoint antigo mantém sessão de 7 dias se não marcada");
+ assert.equal(persistent.expiresAt,"9999-12-31T23:59:59.999Z","Marcado: sessão até logout ou revogação");
  for(const r of [regular,persistent,legacy])assert.equal(r.user.adminSession,true);
  assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
