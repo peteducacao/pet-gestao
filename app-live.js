@@ -31,9 +31,10 @@ const selectedCommitteeNames=t=>(t.commissionIds||[]).map(k=>committee(k)?.name|
 const who=t=>(t.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido";
 // Somente PETianos e tutores usam as ferramentas da área comum; Admin tem login exclusivo.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
-const hasAdminRole=u=>Boolean(u&&["tutor","admin"].includes(u.role));
-const adminRole=u=>Boolean(hasAdminRole(u)&&!u.mustChangePassword);
-const isAdmin=()=>Boolean(routeParts().page==="admin"&&hasAdminRole(me));
+const hasAdminRole=u=>Boolean(u&&u.role==="admin");
+// O Worker valida o cargo e a origem da sessão; a interface apenas apresenta permissões.
+const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
+const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 const isLate=t=>active(t)&&stages(t).some(s=>!s.completedAt&&dt(s.dueAt)&&dt(s.dueAt)<new Date(new Date().setHours(0,0,0,0)));
@@ -181,7 +182,7 @@ async function request(path,method="GET",payload,scope){
  if(!API)throw Error("URL da API ainda não publicada.");
  const headers={"Accept":"application/json"};
  const inAdmin=scope==="admin"||(!scope&&routeParts().page==="admin");
- const activeToken=scope==="guest"?"":inAdmin?adminRole(regularMe)&&token?token:adminToken:token;
+ const activeToken=scope==="guest"?"":inAdmin?adminToken:token;
  if(activeToken)headers.Authorization="Bearer "+activeToken;
  if(payload!==undefined)headers["Content-Type"]="application/json";
  const res=await fetch(API+"/api/v1"+path,{method,headers,body:payload===undefined?undefined:JSON.stringify(payload),cache:"no-store"});
@@ -192,15 +193,15 @@ async function request(path,method="GET",payload,scope){
 async function reload(){
  try{
    const inAdmin=routeParts().page==="admin";
-   // Uma conta Tutor(a) ou Administração utiliza sua sessão pessoal, sem outro login.
+   // Tutoria usa a sessão pessoal; a Administração possui uma sessão separada.
    const personal=token?await request("/auth/me","GET",undefined,"user").catch(()=>null):null;
    regularMe=personal?.user||null;
    if(token&&!regularMe){token="";forgetSessionToken(tokenKey)}
-   const scope=inAdmin&&!adminRole(regularMe)?"admin":"user";
+   const scope=inAdmin?(adminToken?"admin":"guest"):"user";
    const b=await request("/bootstrap","GET",undefined,scope);
    data=b;
-   me=inAdmin&&adminRole(regularMe)?regularMe:b.session?.user||null;
-   if(inAdmin&&adminToken&&!hasAdminRole(me)){adminToken="";forgetSessionToken(adminTokenKey)}
+   me=b.session?.user||null;
+   if(inAdmin&&adminToken&&!adminRole(me)){adminToken="";forgetSessionToken(adminTokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
    $("#connection-dot")?.classList.add("online");
    $("#connection-label").textContent="Conectado";
@@ -223,7 +224,7 @@ function nav(){
    account.title=logged?"Conectado como "+person.name+" — "+roleLabel(person.role):"Entrar";
  }
  const admin=$("#admin-link"),adminCaption=$("#admin-nav-caption"),adminGroup=$("#admin-nav-group");
- const adminVisible=adminRole(regularMe);
+ const adminVisible=routeParts().page==="admin"&&isAdmin();
  if(adminCaption)adminCaption.hidden=!adminVisible;
  if(adminGroup)adminGroup.hidden=!adminVisible;
  if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
@@ -291,7 +292,7 @@ function renderDemandas(){
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
  '<section class="card card-pad"><div class="segmented">'+options.map(([v,l])=>'<button type="button" data-do="mode" data-value="'+v+'" class="'+(state.mode===v?"active":"")+'">'+l+'</button>').join("")+'</div><div class="list-toolbar">'+((["mensal","semanal","arquivo"].includes(state.mode))?period():"")+'</div><hr class="divider">'+
- (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&canWrite()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>'+
+ (list.length?list.map(t=>'<div class="live-task-card">'+taskCard(t)+(state.mode==="arquivo"&&isAdmin()?'<button class="button subtle-danger small-action" data-do="delete-task" data-id="'+esc(t.id)+'">Excluir definitivamente</button>':"")+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>'+
  '<section class="card card-pad demand-memories"><div class="section-head"><div><h2>Memórias dos encontros</h2><p>Registros das reuniões da equipe</p></div>'+(canWrite()?button("+ Nova memória","reunioes/nova"):"")+'</div>'+
  (data.meetings?.length?data.meetings.map(m=>'<div class="placeholder-row"><div><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small></div>'+(canWrite()?button("Ver memória","reunioes/"+id(m.id)):"")+'</div>').join(""):empty("Nenhuma memória registrada"))+'</section>';
 }
@@ -440,7 +441,7 @@ function renderMemory(routeId){
 }
 function authRequired(){return header("Acesso","Entre na sua conta","Esta funcionalidade exige autenticação.")+'<section class="card card-pad">'+button("Entrar","login",true)+'</section>'}
 function renderLogin(){
- return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p></section>';
+ return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="email" name="email" required autocomplete="email"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p><p class="admin-entry-link">'+button("Entrar na Administração","admin")+'</p></section>';
 }
 function renderRegisterAccount(){return header("Conta","Criar conta","Nome, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Nome<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<span class="password-control"><input name="password" type="password" required minlength="10" autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
 function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos um link para o e-mail cadastrado.")+'<section class="card card-pad live-auth"><form id="forgot-form" class="register-form"><label>E-mail<input type="email" name="email" required></label><button type="submit" class="button primary">Enviar link</button></form></section>'}
@@ -454,7 +455,7 @@ function renderAccount(){
 }
 function renderAdmin(){
  if(!isAdmin())return header("Sistema","Administração","Acesso administrativo independente.")+
- '<section class="card card-pad live-auth admin-signin"><h2>Entrar como Admin</h2><p>Use o acesso administrativo do PET Gestão. Sua conta de usuário continuará conectada.</p>'+
+ '<section class="card card-pad live-auth admin-signin"><h2>Entrar como Admin</h2><p>Use as credenciais exclusivas da conta Administração. O acesso da Tutoria é separado.</p>'+
  '<form id="admin-login-form" class="register-form"><label>Admin ou e-mail<input name="identifier" type="text" value="Admin" required autocomplete="username" autocapitalize="none"></label><label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button type="submit" class="button primary">Entrar na Administração</button></form>'+
  '<p>'+button("Voltar ao PET Gestão","inicio")+'</p></section>';
  if(me?.mustChangePassword)return header("Administração","Alterar senha temporária","Essa alteração é obrigatória antes de usar o painel.")+
@@ -732,15 +733,12 @@ async function handleClick(e){
  }
  if(action==="delete-meeting"){if(!await askConfirm("Excluir esta memória? As demandas vinculadas não serão apagadas.",{danger:true}))return;await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Memória excluída.");location.hash=workspaceHash("demandas");return}
  if(action==="delete-task"){
+   if(!isAdmin())return;
    const t=data.tasks.find(x=>x.id===tid);
    if(!t?.archivedAt||!await askConfirm('Excluir definitivamente a demanda "'+t.title+'", incluindo etapas, observações e histórico? Essa ação não pode ser desfeita.',{danger:true}))return;
    await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE"),"Demanda removida definitivamente.");return;
  }
  if(action==="admin-signout"){
-   if(adminRole(regularMe)){
-     state.adminTab="painel";state.adminMenuOpen=false;
-     location.hash="#/inicio";setToast("Você voltou ao PET Gestão.");return;
-   }
    try{await request("/auth/logout","POST",{},"admin")}catch{}
    adminToken="";forgetSessionToken(adminTokenKey);
    state.adminTab="painel";state.adminMenuOpen=false;
@@ -789,7 +787,7 @@ async function handleSubmit(e){
  if(form.id==="admin-login-form"){
    const f=userFields(form),rememberMe=form.elements.rememberMe?.checked===true;
    const r=await request("/auth/admin-login","POST",{...f,rememberMe},"guest");
-   if(!["tutor","admin"].includes(r.user.role))throw Error("Esta conta não tem permissão administrativa.");
+   if(r.user.role!=="admin"||r.user.adminSession!==true)throw Error("Esta conta não tem permissão administrativa.");
    adminToken=r.token;saveSessionToken(adminTokenKey,adminToken,rememberMe);
    await reload();setToast("Administração desbloqueada.");return;
  }
@@ -798,7 +796,7 @@ async function handleSubmit(e){
    const r=await request("/auth/login","POST",{...f,rememberMe},"guest");
    token=r.token;saveSessionToken(tokenKey,token,rememberMe);
    adminToken="";forgetSessionToken(adminTokenKey);
-   const destination=r.user.mustChangePassword?"#/conta":r.user.role==="admin"?"#/admin":"#/inicio";
+   const destination=r.user.mustChangePassword?"#/conta":"#/inicio";
    state.authTransition=true;
    location.hash=destination;
    try{await reload();}finally{state.authTransition=false;}
