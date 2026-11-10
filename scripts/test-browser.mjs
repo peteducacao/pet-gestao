@@ -182,6 +182,18 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/admin/emails");
  await page.locator("#notification-template-form").waitFor({timeout:10000});
  assert.equal(await page.locator('#mail-form [data-rich-input="message"]').count(),1);
+ user.notificationEnabled=true;
+ tasks.push({...task,id:"t3",title:"Concluir sem e-mail da tutoria",assigneeIds:["u1"],commissionIds:[],createdBy:"u1",
+   deadlines:[{id:"p3",label:"Prazo",dueAt:new Date(Date.now()-60000).toISOString(),assigneeIds:["u1"]}],
+   userDone:{},commissionDone:{},archivedAt:null,status:"pendente"});
+ await page.goto(origin+"/#/minhas-pendencias");
+ const personalOnly=page.locator(".mine-task-item").filter({hasText:"Concluir sem e-mail da tutoria"});
+ await personalOnly.locator('button[data-do="finish-mine"]').click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await page.waitForTimeout(250);
+ assert.equal(await page.locator("#notice-dialog").isHidden(),true,"Conclusão de tutoria não pede outro aviso de e-mail");
+ const finishCall=calls.find(x=>x.p==="/tasks/t3/finish"&&x.method==="PATCH");
+ assert.equal(finishCall?.body.notify,false,"Concluir jamais notifica automaticamente");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator('button[data-do="delete-task"]').click();
  assert.ok((await page.locator("#notice-dialog").innerText()).includes("sem possibilidade de recuperação"));
