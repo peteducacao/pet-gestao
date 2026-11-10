@@ -89,7 +89,7 @@
   }
   const privateTask=t=>{
     const o={...t,commissionIds:asJson(t.commission_ids,[]),assigneeIds:asJson(t.assignee_ids,[]),commissionDone:asJson(t.commission_done,{}),userDone:asJson(t.user_done,{}),deadlines:asJson(t.deadlines,[])};
-    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
+    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
   };
   const publicTask=t=>({id:t.id,title:t.title,registeredAt:t.registered_at,commissionIds:asJson(t.commission_ids,[]),commissionDone:asJson(t.commission_done,{}),status:t.status,overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at,deadlines:asJson(t.deadlines,[]).map(d=>({label:d.label,dueAt:d.dueAt,completedAt:d.completedAt||null}))});
   async function bootstrap(db,user){
@@ -463,8 +463,13 @@
         return answer({ok:true});
       }
       if(match&&method==="DELETE"){
-        ensure(user,true);const old=await readTask(db,match[1]);
-        if(!old.archivedAt)fail("Somente demandas arquivadas podem ser excluídas definitivamente.");
+        ensure(user);const old=await readTask(db,match[1]);
+        if(old.archivedAt)ensure(user,true);
+        else {
+          const allowed=user.role==="tutor"||(user.role==="petiano"&&old.createdBy===user.id)||
+            (user.role==="admin"&&user.session_admin_scope===1);
+          if(!allowed)fail("Somente quem criou a demanda, a tutoria ou a Administração pode excluir demandas ativas.",403);
+        }
         await db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id).run();
         return answer({ok:true});
       }

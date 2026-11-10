@@ -1101,3 +1101,87 @@ body.notice-open{overflow:hidden}
  .rich-toolbar-group{padding:2px;gap:1px}
  .rich-toolbar .rich-format-button{min-width:32px;height:32px}
 }
+
+/* Ajustes finais: ações proporcionais e seletor sem espaço interno exagerado. */
+#screen .activity-detail-page .page-header{align-items:flex-start;gap:24px}
+#screen .activity-detail-page .page-actions{gap:13px;align-items:center;flex:0 0 auto}
+#screen .activity-detail-page .page-actions>.button{
+  min-height:50px!important;padding:13px 20px!important;
+  border-radius:13px;font-size:14px!important;
+  font-weight:800;letter-spacing:0;
+}
+#screen .activity-detail-page .page-actions>.danger-outline{
+ border-color:#f0c8ce!important;background:#fff7f8!important;
+ color:#bc3b49!important;box-shadow:none!important;
+}
+#screen .activity-detail-page .page-actions>.danger-outline:hover{
+ border-color:#d95764!important;background:#fff0f1!important;
+}
+#screen .activity-detail-page .page-actions>.danger-outline svg{
+ width:17px;height:17px;
+}
+#screen .activity-detail-page .detail-status-control{
+ display:inline-flex;flex:0 0 auto!important;align-items:center;gap:6px;
+ justify-content:flex-start!important;min-height:50px;padding:0 11px 0 16px;
+ width:auto!important;min-width:0!important;max-width:max-content!important;
+ box-shadow:0 3px 12px rgba(64,36,110,.06);
+}
+#screen .activity-detail-page .detail-status-caption{
+ font-size:14px;font-weight:750;white-space:nowrap
+}
+#screen .activity-detail-page .detail-status-select{
+ flex:0 0 120px!important;width:120px!important;max-width:120px!important;min-width:0!important;
+ height:49px;padding:0 23px 0 0!important;font-size:14px!important;font-weight:850;
+ appearance:none;-webkit-appearance:none;
+}
+#screen .activity-detail-page .detail-status-chevron{right:9px;width:17px;height:17px}
+#screen .activity-detail-page .detail-status-control.detail-status-pendente{
+ background:#f1eaff;border-color:#d9c9f7;color:#683eb5;
+}
+#screen .activity-detail-page .detail-status-control.detail-status-concluida{
+ background:#e7f8ee;border-color:#b9e9cd;color:#238453;
+}
+/* Ícones vetoriais limpos, legíveis e consistentes, sem emojis com aparência de aplicativo. */
+#screen .activity-history .revision-symbol{
+ flex:0 0 48px;width:48px;height:48px;
+ display:grid;place-items:center;
+ border-radius:14px;background:#eee9fa;color:#6b45ac;
+}
+#screen .activity-history .revision-symbol svg{
+ display:block;width:25px;height:25px;stroke:currentColor;fill:none;
+ stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+}
+#screen .activity-history .revision-symbol-complete{background:#e1f6e9;color:#23865a}
+#screen .activity-history .revision-symbol-remove{background:#ffeded;color:#c13f4c}
+#screen .activity-history .revision-symbol-review{background:#fff1df;color:#a46d26}
+#screen .activity-history .revision-symbol-message{background:#e8f0ff;color:#4771be}
+#screen .activity-history .revision-symbol-create{background:#f1e8ff;color:#7949c1}
+#screen .activity-history .revision-entry{align-items:center;gap:14px;padding:15px 0!important}
+#screen .activity-history .revision-copy strong{font-size:13.5px}
+#screen .activity-history .revision-copy span{font-size:12.5px}
+#screen .activity-history .revision-copy small{font-size:12px}
+/* Quadro de responsáveis junto dos prazos para não deixar uma coluna vazia. */
+#screen .activity-detail-page .activity-detail-grid>.stack{
+ display:flex;flex-direction:column;gap:19px;min-width:0;
+}
+#screen .activity-detail-page .assignee-card{min-height:0!important}
+@media(max-width:1024px){
+ #screen .activity-detail-page .page-header{flex-wrap:wrap;gap:15px}
+ #screen .activity-detail-page .page-actions{width:auto;max-width:100%;justify-content:flex-start}
+}
+@media(max-width:580px){
+ #screen .activity-detail-page .page-actions{display:flex;flex-wrap:wrap;gap:9px;width:100%}
+ #screen .activity-detail-page .page-actions>.button{
+  min-height:44px!important;padding:10px 13px!important;font-size:13px!important;flex:0 1 auto;
+ }
+ #screen .activity-detail-page .detail-status-control{
+  min-height:44px!important;flex:0 0 auto!important;
+  padding:0 10px 0 12px;
+ }
+ #screen .activity-detail-page .detail-status-caption{font-size:13px}
+ #screen .activity-detail-page .detail-status-select{
+  height:43px;font-size:13px!important;width:104px!important;flex-basis:104px!important;max-width:104px!important;
+ }
+ #screen .activity-history .revision-symbol{flex-basis:43px;width:43px;height:43px}
+ #screen .activity-history .revision-symbol svg{width:22px;height:22px}
+}

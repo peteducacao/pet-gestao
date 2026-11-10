@@ -177,6 +177,32 @@ await test("exibição na Visão geral preserva registros e exige comissão para
  const invalidType=await api("/tasks/"+task,"PUT",{...payload,overviewVisible:"nao"});
  assert.equal(invalidType.status,400,"O servidor deve validar o formato booleano.");
 });
+await test("excluir demandas ativas com autorização de tutoria e autoria",async()=>{
+ const adminToken=token;
+ const admin=good(await api("/auth/me")).user;
+ const pet=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+ const payload=title=>({title,commissionIds:[a],assigneeIds:[],deadlines:[{id:"prazo-apagar",label:"Prazo",dueAt}]});
+ const foreign=good(await api("/tasks","POST",payload("Exclusão negada a outra pessoa")),201).id;
+ try{
+   good(await api("/admin/users/"+pet.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+   assert.equal((await api("/tasks/"+foreign,"DELETE")).status,403,"PETiano não apaga demanda criada por outra pessoa");
+   const own=good(await api("/tasks","POST",payload("Demanda criada pelo PETiano")),201).id;
+   const created=good(await api("/bootstrap")).tasks.find(x=>x.id===own);
+   assert.equal(created.createdBy,pet.id,"Autoria precisa ser recuperável");
+   good(await api("/tasks/"+own,"DELETE"));
+   assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===own),"PETiano pode excluir demanda ativa criada por si");
+   token=adminToken;
+   good(await api("/admin/users/"+pet.id,"PATCH",{role:"tutor",notificationEnabled:false}));
+   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+   good(await api("/tasks/"+foreign,"DELETE"));
+   assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===foreign),"Tutoria pode excluir demanda ativa");
+ }finally{
+   token=adminToken;
+   good(await api("/admin/users/"+pet.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+   if(good(await api("/bootstrap")).tasks.some(x=>x.id===foreign))good(await api("/tasks/"+foreign,"DELETE"));
+ }
+});
 await test("observações e sem status antigos",async()=>{
  good(await api("/tasks/"+task+"/notes","PATCH",{captionText:"Observação"}));
  assert.equal((await api("/tasks/"+task+"/status","PATCH",{status:"aprovada"})).status,410);
