@@ -78,6 +78,11 @@ const completedCount=t=>Object.keys(t.commissionDone||{}).length;
 const isUserDone=(task,uid)=>Boolean(task.userDone?.[uid]);
 const isTaskAssignedToMe=task=>Boolean(me&&(task.assigneeIds||[]).includes(me.id));
 const canCompleteCommission=cid=>Boolean(me&&(committee(cid)?.memberIds||[]).includes(me.id));
+const myPendingParts=t=>({
+ personal:Boolean(me&&(t.assigneeIds||[]).includes(me.id)&&!isUserDone(t,me.id)),
+ committees:me?(t.commissionIds||[]).filter(cid=>canCompleteCommission(cid)&&!commissionFinished(t,cid)):[]
+});
+const isMyPending=t=>Boolean(me&&active(t)&&(myPendingParts(t).personal||myPendingParts(t).committees.length));
 const taskProgress=task=>({done:Object.keys(task.commissionDone||{}).length+Object.keys(task.userDone||{}).length,total:(task.commissionIds||[]).length+(task.assigneeIds||[]).length});
 const commissionFinished=(t,cid)=>Boolean(t.commissionDone?.[cid]);
 function setConnecting(show,label="Conectando ao PET Gestão..."){
@@ -286,10 +291,12 @@ function period(){const years=Array.from({length:9},(_,i)=>current.getFullYear()
 
 function taskCard(t,commissionId,withFinishAction=false){
  const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean);
- const status=taskStatus(t,commissionId),progress=taskProgress(t);
+ const status=taskStatus(t,commissionId),progress=taskProgress(t),mine=myPendingParts(t);
+ const taskHref=workspaceHash("atividade/"+id(t.id)+(commissionId?"/"+id(commissionId):""));
  const photo=selected?.imageData?'<img class="demand-activity-photo" src="'+esc(selected.imageData)+'" alt="" loading="lazy">':selected?commissionDefaultArt(selected.name):ico("checklist");
  const tag=ids.length?'<span class="demand-activity-commission">'+ico("users")+' '+esc(selectedCommitteeNames(t))+'</span>':"";
  return '<article class="placeholder-row task-list-row demand-activity-card status-'+status+'">'+
+ (me?'<a class="demand-card-cover-link" href="'+taskHref+'" aria-label="Abrir demanda: '+esc(t.title)+'"></a>':"")+
  '<div class="demand-activity-identity"><span class="demand-activity-art" aria-hidden="true">'+photo+'</span>'+
  '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong>'+tag+'</div></div>'+
  '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
@@ -298,15 +305,15 @@ function taskCard(t,commissionId,withFinishAction=false){
  (me?'<div class="demand-activity-fact demand-activity-owners"><span class="demand-activity-fact-icon">'+ico("users")+'</span>'+
  '<div><span class="demand-activity-label">Responsáveis</span><strong>'+esc(who(t))+'</strong>'+
  (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+'</div></div>':"")+
- (me?'<a class="activity-details-link demand-activity-action" href="'+workspaceHash("atividade/"+id(t.id)+(commissionId?"/"+id(commissionId):""))+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>':"")+
- (withFinishAction?'<button type="button" class="button demand-finish-action" data-do="finish-personal" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+
+ (me?'<a class="activity-details-link demand-activity-action" href="'+taskHref+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>':"")+
+ (withFinishAction&&(mine.personal||mine.committees.length)?'<button type="button" class="button demand-finish-action" data-do="finish-mine" data-id="'+esc(t.id)+'">'+ico("check")+' Concluir</button>':"")+
  '</article>';
 }
 
 function renderHome(){
- const all=data.tasks.filter(active),next=[...all].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=all.filter(isLate).length;
+ const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[all.filter(t=>me&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id)).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
  '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
@@ -373,8 +380,8 @@ function renderCommitteeEdit(cid){
 }
 function renderMine(){
  if(!canWrite())return authRequired();
- const a=data.tasks.filter(t=>active(t)&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id));
- return header("Pessoal","Minhas pendências","Demandas atribuídas à sua conta.")+'<section class="card card-pad mine-list">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t,null,true)+'</div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
+ const a=data.tasks.filter(isMyPending).sort((x,y)=>String(taskDate(x)).localeCompare(String(taskDate(y))));
+ return header("Pessoal","Minhas pendências","Suas atividades individuais e das comissões das quais participa.")+'<section class="card card-pad mine-list">'+(a.length?a.map(t=>'<div class="mine-task-item">'+taskCard(t,null,true)+'</div>').join(""):empty("Nenhuma atividade atribuída à sua conta"))+'</section>';
 }
 function assignmentView(){
  const opts=[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Pessoas"]];
@@ -383,11 +390,19 @@ function assignmentView(){
  const currentSelection=state.assignmentScope==="comissoes"?state.selectedCommissions:state.selectedUsers;
  return '<div class="register-assignment"><div class="task-form-help">'+
  '<span class="task-form-help-icon">'+ico("users")+'</span><div><h3>Responsáveis pela demanda <span class="task-form-required">*</span></h3>'+
- '<p>Escolha quem ficará responsável por realizar esta atividade. Ao selecionar uma <strong>comissão</strong>, a demanda aparece na página dessa equipe. Ao escolher <strong>pessoas</strong>, ela aparece em Minhas pendências de cada responsável. Em <strong>Todos(as)</strong>, todos os integrantes com permissão de concluir recebem a demanda. Em qualquer opção, a atividade também aparece na Visão geral.</p></div></div><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
+ '<p>Escolha quem ficará responsável por realizar esta atividade. Ao selecionar uma <strong>comissão</strong>, a demanda aparece na página dessa equipe. Ao escolher <strong>pessoas</strong>, ela aparece em Minhas pendências de cada responsável. Em <strong>Todos(as)</strong>, todos os integrantes com permissão de concluir recebem a demanda. A exibição na Visão geral pode ser escolhida abaixo.</p></div></div><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
  (state.assignmentScope==="todos"?'<p class="assignment-all">Todas as pessoas com permissão de concluir recebem a demanda em Minhas pendências.</p>':choices.map(x=>'<label class="assignment-option"><input type="checkbox" data-assign="'+state.assignmentScope+'" value="'+esc(x.key)+'" '+(currentSelection.has(x.key)?"checked":"")+'><span>'+esc(x.name)+'</span></label>').join(""))+
  '<p class="notice-line">Responsáveis individuais: '+(state.assignmentScope==="todos"?users.length:state.selectedUsers.size)+' · Comissões: '+state.selectedCommissions.size+'</p></div>';
 }
 // Sem pessoa cadastrada, a comissão NÃO é automaticamente tratada como responsável individual.
+function syncVisibilityOptions(){
+ const only=document.querySelector('input[name="overviewVisibility"][value="comissao"]');
+ const general=document.querySelector('input[name="overviewVisibility"][value="geral"]');
+ if(!only||!general)return;
+ const allowed=state.assignmentScope!=="todos"&&state.selectedCommissions.size>0;
+ only.disabled=!allowed;
+ if(!allowed&&only.checked)general.checked=true;
+}
 function inheritedAssigneeLabel(){return "Não definido"}
 function syncStageAssigneePlaceholder(){
  $$('.live-stage select[data-stage="assignee"] option[value=""]').forEach(o=>{o.textContent=inheritedAssigneeLabel()});
@@ -416,6 +431,9 @@ function renderTaskForm(routeId){
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
  '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
  '<div id="assignment-container">'+assignmentView()+'</div>'+
+ '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">A demanda continua disponível em Demandas e nas pendências dos responsáveis.</p>'+
+ '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral e comissões</strong><small>Visível na Visão geral e nas comissões vinculadas.</small></span></label>'+
+ '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
  '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Defina até quando os(as) PETianos(as) deverão concluir cada etapa da demanda. A etapa <strong>Prazo</strong> é obrigatória e indica a data de entrega. Se precisar, acrescente etapas para organizar a <strong>Correção</strong> pela tutoria ou a <strong>Postagem</strong>. Você pode escolher um responsável para cada etapa.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div><div id="stage-rows">'+(t?.deadlines?.length?t.deadlines:[{label:"Prazo",dueAt:""}]).map(stageRow).join("")+'</div></div>'+
  '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+richEditor("captionText",t?.captionText||"")+
  '<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div></form></section>';
@@ -632,7 +650,9 @@ async function saveTask(form){
  const taskId=form.dataset.id;
  const previous=taskId?data.tasks.find(t=>t.id===taskId):null;
  const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?await askNotification():false;
- const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,notify};
+ const overviewVisible=f.overviewVisibility!=="comissao";
+ if(!overviewVisible&&!commissions.length)return setToast("Selecione uma comissão para exibir somente nela.");
+ const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,overviewVisible,notify};
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
    state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
@@ -785,7 +805,7 @@ async function handleClick(e){
  if(action==="assignment-scope"){
   if(b.dataset.value==="todos"){state.selectedUsers.clear();state.selectedCommissions.clear()}
   state.assignmentScope=b.dataset.value;
-  $("#assignment-container").innerHTML=assignmentView();syncStageAssigneePlaceholder();return;
+  $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();syncStageAssigneePlaceholder();return;
  }
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
@@ -796,7 +816,15 @@ async function handleClick(e){
    const t=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(t&&layer)await completeJoint(t,layer);
    return;
  }
- if(action==="finish-personal"){const t=data.tasks.find(x=>x.id===tid);if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id))await finishTask(t,"");return}
+ if(action==="finish-mine"){
+   const t=data.tasks.find(x=>x.id===tid);if(!t||!isMyPending(t))return;
+   const pending=myPendingParts(t),total=Number(pending.personal)+pending.committees.length;
+   if(total===1&&pending.personal)await finishTask(t,"");
+   else if(total===1)await finishTask(t,pending.committees[0]);
+   else openFinishDialog(t);
+   return;
+  }
+  if(action==="finish-personal"){const t=data.tasks.find(x=>x.id===tid);if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id))await finishTask(t,"");return}
  if(action==="finish-commission"){const t=data.tasks.find(x=>x.id===tid);if(t)await finishTask(t,b.dataset.commission||"");return}
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
  if(action==="save-notes"){const content=$("#notes-content").value;const notify=await askNotification();await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:content,notify}),"Observações salvas.");return}
@@ -945,7 +973,7 @@ async function handleChange(e){
  if(t.dataset.stage==="label")return;
  if(t.dataset.assign){
    const set=t.dataset.assign==="comissoes"?state.selectedCommissions:state.selectedUsers;
-   if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncStageAssigneePlaceholder();return;
+   if(t.checked)set.add(t.value);else set.delete(t.value);const el=$("#assignment-container");if(el)el.innerHTML=assignmentView();syncVisibilityOptions();syncStageAssigneePlaceholder();return;
  }
  if(t.dataset.filter){
    if(t.dataset.filter==="status"){state.statusFilter=t.value;render();return;}

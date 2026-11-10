@@ -48,3 +48,11 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 ## Testes e proteção
 - Não apagar nem modificar dados de produção para teste. Usar banco local isolado para criar, editar e excluir registros fictícios; depois rodar smoke tests de interface.
 - Revisar links e abertura em nova guia, responsividade PC/celular, fluxo de conclusão, arquivamento, histórico, tratamento de erros, preferência de avisos e integração de e-mail.
+
+## Exibição dos cards e Minhas pendências — 10/11/2026
+- No formulário de demanda, escolher **Visão geral e comissões** (padrão; mantém registros anteriores visíveis) ou **Somente nas comissões** (apenas quando houver comissão vinculada). A escolha determina apenas o posicionamento do card, **não torna a demanda privada**.
+- Todas as demandas continuam em **Demandas**; todas as comissões vinculadas mostram a atividade em sua área. A Visão geral apresenta somente as marcadas para exibição geral, com os mesmos cards horizontais de Demandas, tanto no PC quanto no celular.
+- **Minhas pendências** mostra atividades individuais e todas as atividades de comissões das quais a pessoa participa. Se ela estiver marcada individualmente e também na comissão, mostrar **um único card**. Não copiar nem duplicar registros no banco.
+- A conclusão individual continua independente da conclusão da comissão. Quando houver só uma participação pendente do usuário, **Concluir** realiza aquela participação; quando houver mais de uma, abre o seletor para escolher. O botão **Concluir** deve ser pequeno e alinhado, nunca esticado ocupando a largura inteira.
+- O card inteiro deve abrir os detalhes da demanda, permitindo também abrir em outra guia. Conclusão da comissão faz a pendência desaparecer para os integrantes daquela comissão; conclusão pessoal remove apenas a pendência individual, e o arquivamento depende de todas as participações.
+- Migração segura: `overview_visible` adicionado com padrão verdadeiro (`1`) para não ocultar atividades já cadastradas.

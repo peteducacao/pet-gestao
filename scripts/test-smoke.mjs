@@ -159,6 +159,24 @@ await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir
  }finally{token=original}
 });
 await test("editar demanda",async()=>{good(await api("/tasks/"+task,"PUT",{title:"Teste Editado",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}));assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===task).title,"Teste Editado")});
+await test("exibição na Visão geral preserva registros e exige comissão para ocultar",async()=>{
+ const deadline={id:"prazo1",label:"Prazo",dueAt};
+ const payload={title:"Teste Editado",commissionIds:[a,b],assigneeIds:[],deadlines:[deadline]};
+ const before=good(await api("/bootstrap")).tasks.find(x=>x.id===task);
+ assert.equal(before.overviewVisible,true,"Demanda antiga deve permanecer pública na Visão geral.");
+ good(await api("/tasks/"+task,"PUT",{...payload,overviewVisible:false}));
+ const hidden=good(await api("/bootstrap")).tasks.find(x=>x.id===task);
+ assert.equal(hidden.overviewVisible,false,"A opção somente comissões deve ser persistida.");
+ good(await api("/tasks/"+task,"PUT",{...payload}));
+ assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===task).overviewVisible,false,"Editar outros campos não altera a opção.");
+ good(await api("/tasks/"+task,"PUT",{...payload,overviewVisible:true}));
+ assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===task).overviewVisible,true,"A Visão geral pode ser reativada.");
+ const userId=good(await api("/auth/me")).user.id;
+ const forbidden=await api("/tasks","POST",{title:"Visibilidade inválida",commissionIds:[],assigneeIds:[userId],deadlines:[deadline],overviewVisible:false});
+ assert.equal(forbidden.status,400,"Somente nas comissões exige comissão vinculada.");
+ const invalidType=await api("/tasks/"+task,"PUT",{...payload,overviewVisible:"nao"});
+ assert.equal(invalidType.status,400,"O servidor deve validar o formato booleano.");
+});
 await test("observações e sem status antigos",async()=>{
  good(await api("/tasks/"+task+"/notes","PATCH",{captionText:"Observação"}));
  assert.equal((await api("/tasks/"+task+"/status","PATCH",{status:"aprovada"})).status,410);
