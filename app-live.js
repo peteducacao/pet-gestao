@@ -18,7 +18,7 @@ const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-const richTags=new Set(["B","STRONG","I","EM","U","P","DIV","BR","UL","OL","LI","SPAN"]);
+const richTags=new Set(["B","STRONG","I","EM","U","P","DIV","BR","UL","OL","LI","SPAN","FONT"]);
 function safeRich(value){
  const raw=String(value??"");
  if(!/<\/?[a-z][a-z0-9]*\b/i.test(raw))return esc(raw).replace(/\r?\n/g,"<br>");
@@ -31,8 +31,8 @@ function safeRich(value){
   const inside=[...node.childNodes].map(walk).join("");
   if(!richTags.has(tag))return inside;
   if(tag==="BR")return "<br>";
-  if(tag==="SPAN"){
-    const c=node.style?.color||"";
+  if(tag==="SPAN"||tag==="FONT"){
+    const c=node.style?.color||node.getAttribute("color")||"";
     const color=/^(#[a-f0-9]{3,8}|rgb\([\d\s,.%]+\))$/i.test(c)?' style="color:'+esc(c)+'"':"";
     return "<span"+color+">"+inside+"</span>";
   }
@@ -528,6 +528,8 @@ function renderAccount(){
  '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div></section>';
 }
 function renderAdmin(){
+ const adminPart=routeParts().parts;
+ if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
  if(!isAdmin())return header("Sistema","Administração","Acesso administrativo independente.")+
  '<section class="card card-pad live-auth admin-signin"><h2>Entrar como Admin</h2><p>Use as credenciais exclusivas da conta Administração. O acesso da Tutoria é separado.</p>'+
  '<form id="admin-login-form" class="register-form"><label>Admin ou e-mail<input name="identifier" type="text" value="Admin" required autocomplete="username" autocapitalize="none"></label><label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo por até 30 dias.</small></span></label><button type="submit" class="button primary">Entrar na Administração</button></form>'+
@@ -569,7 +571,7 @@ function renderAdmin(){
  '<nav class="admin-navigation">'+nav(tabs[0])+'<a href="#/admin/demandas" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade"].includes(subroute[0])?"active":"")+'">'+ico("list")+'<span>Demandas</span></a><a href="#/admin/reunioes" class="admin-menu-link '+(subroute[0]==="reunioes"?"active":"")+'">'+ico("calendar")+'<span>Atas de Reunião</span></a>'+tabs.slice(1).map(nav).join("")+'</nav>'+
  '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("close")+' Sair do modo Admin</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
- '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>'+esc(me.name)+'</strong><small>'+esc(roleLabel(me.role))+'</small></span></div></div>'+
+ '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>Administração</strong></span></div></div>'+
  '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
  dashboard+adminPanels)+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
 }
@@ -604,7 +606,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
- if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&!parts.length){
+ if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();loadMailHistory();}
    if(state.adminTab==="painel")loadMailHistory();
