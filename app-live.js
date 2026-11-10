@@ -457,6 +457,36 @@ function renderDetail(taskId,contextCid){
  return header("Atividade",t.title,"",actions)+activitySections(t,false);
 }
 
+
+function closeFinishDialog(){
+ const layer=$("#finish-dialog");if(layer){layer.hidden=true;layer.innerHTML="";}
+}
+function openFinishDialog(task){
+ const layer=$("#finish-dialog");if(!layer||!task)return;
+ const users=(task.assigneeIds||[]).filter(id=>!task.userDone?.[id]);
+ const groups=(task.commissionIds||[]).filter(id=>!task.commissionDone?.[id]);
+ if(!users.length&&!groups.length){setToast("Todas as participações já foram concluídas.");return;}
+ const make=(items,type)=>items.map(key=>'<label class="joint-pick"><input type="checkbox" name="joint-target" value="'+esc(key)+'" data-kind="'+type+'" '+(key===me.id||users.length+groups.length===1?"checked":"")+'><span>'+esc(type==="user"?nameFor(key):committee(key)?.name||"Comissão")+'</span></label>').join("");
+ layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Registrar conclusão conjunta">'+
+ '<h2>Registrar conclusão</h2><p>Selecione as pessoas e comissões que concluíram esta atividade.</p>'+
+ (users.length?'<h3>Pessoas</h3>'+make(users,"user"):"")+
+ (groups.length?'<h3>Comissões</h3>'+make(groups,"commission"):"")+
+ '<div class="finish-actions"><button type="button" class="button ghost" data-do="finish-close">Cancelar</button>'+
+ '<button type="button" class="button primary" data-do="finish-joint-confirm" data-id="'+esc(task.id)+'">Registrar conclusão</button></div></section>';
+ layer.hidden=false;
+ layer.querySelector("input:checked, input")?.focus();
+}
+async function completeJoint(task,layer){
+ const picked=[...layer.querySelectorAll('input[name="joint-target"]:checked')];
+ if(!picked.length){setToast("Selecione ao menos uma participação.");return;}
+ const userIds=picked.filter(el=>el.dataset.kind==="user").map(el=>el.value);
+ const commissionIds=picked.filter(el=>el.dataset.kind==="commission").map(el=>el.value);
+ const future=stages(task).some(stage=>dt(stage.dueAt)>new Date());
+ if(!await askConfirm(future?"Esta atividade possui prazos futuros. Confirmar conclusão antecipada?":"Registrar a conclusão das participações selecionadas?",{title:future?"Conclusão antecipada":"Confirmar conclusão"}))return;
+ const ok=await saveAndReload(()=>request("/tasks/"+id(task.id)+"/finish","PATCH",{userIds,commissionIds,early:future,notify:false}),"Conclusão registrada.");
+ if(ok)closeFinishDialog();
+}
+
 function renderMeetings(){
  if(!me)return authRequired();
  const items=[...(data.meetings||[])].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
@@ -747,6 +777,12 @@ async function handleClick(e){
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
  if(action==="reset-color"){$('input[name="backgroundColor"]').value="#f7f3ff";return}
+ if(action==="finish-joint-open"){openFinishDialog(data.tasks.find(t=>t.id===tid));return;}
+ if(action==="finish-close"){closeFinishDialog();return;}
+ if(action==="finish-joint-confirm"){
+   const t=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(t&&layer)await completeJoint(t,layer);
+   return;
+ }
  if(action==="finish-personal"){const t=data.tasks.find(x=>x.id===tid);if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id))await finishTask(t,"");return}
  if(action==="finish-commission"){const t=data.tasks.find(x=>x.id===tid);if(t)await finishTask(t,b.dataset.commission||"");return}
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
@@ -929,11 +965,12 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false)});
+ window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog()});
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
    if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
    else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
+    else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
  }});
 
  document.addEventListener("pointerdown",e=>{
