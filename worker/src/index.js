@@ -206,6 +206,105 @@
     // Recuperar registros de processamentos interrompidos; a entrega pode ter sido realizada
     // antes da queda. Exigem verificação manual para evitar duplicidade.
   }
+
+  // Lembretes automáticos: opção desativada até a Administração habilitar.
+  // Usa a data civil de Sergipe (UTC-3) e uma chave única por etapa/prazo/tipo.
+  const defaultReminderSettings={dueSoonEnabled:false,daysBefore:3,overdueEnabled:false};
+  const deadlineMailTemplates={
+    due_soon:{
+      subject:"PET Gestão — Prazo vencendo: {demanda}",
+      body:"Olá!\n\nA etapa {etapa} da demanda {demanda} vence em {dias} dia(s), em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"
+    },
+    overdue:{
+      subject:"PET Gestão — Prazo vencido: {demanda}",
+      body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"
+    }
+  };
+  const reminderDateKey=date=>{
+    const bits=Object.fromEntries(new Intl.DateTimeFormat("en-US",{
+      timeZone:"America/Maceio",year:"numeric",month:"2-digit",day:"2-digit"
+    }).formatToParts(date).filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));
+    return bits.year+"-"+bits.month+"-"+bits.day;
+  };
+  async function queueDeadlineReminders(env){
+    const db=env.DB;
+    const stored=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
+    const config={...defaultReminderSettings,...asJson(stored?.value,{})};
+    const daysBefore=Number(config.daysBefore);
+    if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)return;
+    if(!config.dueSoonEnabled&&!config.overdueEnabled)return;
+    const savedModels=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
+    const models=asJson(savedModels?.value,{});
+    const people=(await db.prepare("SELECT id,email,role,role_override FROM users").all()).results;
+    const peopleById=new Map(people.filter(p=>p.role_override!=="usuario"&&["petiano","tutor","admin"].includes(p.role)).map(p=>[p.id,p]));
+    const commissionMembers=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
+    const membersByCommission=new Map();
+    for(const member of commissionMembers){
+      if(!membersByCommission.has(member.commission_id))membersByCommission.set(member.commission_id,[]);
+      membersByCommission.get(member.commission_id).push(member.user_id);
+    }
+    const tasks=(await db.prepare("SELECT id,title,assignee_ids,commission_ids,commission_done,user_done,deadlines,archived_at FROM tasks WHERE archived_at IS NULL").all()).results;
+    const clock=new Date(),today=reminderDateKey(clock),todayUTC=Date.parse(today+"T00:00:00Z");
+    let registered=0;
+    for(const task of tasks){
+      const stages=asJson(task.deadlines,[]);
+      const donePeople=asJson(task.user_done,{}),doneCommissions=asJson(task.commission_done,{});
+      const allTaskAssignees=asJson(task.assignee_ids,[]);
+      const activePeople=new Set(allTaskAssignees.filter(userId=>!donePeople[userId]));
+      for(const commissionId of asJson(task.commission_ids,[])){
+        if(doneCommissions[commissionId])continue;
+        for(const memberId of membersByCommission.get(commissionId)||[]){
+          if(!donePeople[memberId])activePeople.add(memberId);
+        }
+      }
+      for(let stageIndex=0;stageIndex<stages.length;stageIndex++){
+        const stage=stages[stageIndex];
+        if(!stage||stage.completedAt||!stage.dueAt)continue;
+        const rawDue=String(stage.dueAt);
+        if(!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(rawDue))continue;
+        const isoDue=rawDue.length===10?rawDue+"T23:59:00":rawDue.length===16?rawDue+":00":rawDue;
+        const dueMs=Date.parse(isoDue+"-03:00");
+        if(!Number.isFinite(dueMs))continue;
+        const diffDays=Math.round((Date.parse(rawDue.slice(0,10)+"T00:00:00Z")-todayUTC)/86400000);
+        let kind=null;
+        if(config.dueSoonEnabled&&diffDays===daysBefore&&clock.getTime()<dueMs)kind="due_soon";
+        // Avisar ao vencer, sem enviar uma enxurrada de alertas antigos ao habilitar.
+        else if(config.overdueEnabled&&diffDays<=0&&diffDays>=-1&&clock.getTime()>dueMs)kind="overdue";
+        if(!kind)continue;
+        const stageOwners=unique(stage.assigneeIds);
+        const recipientIds=stageOwners.length?stageOwners.filter(id=>!donePeople[id]):[...activePeople];
+        const recipients=unique(recipientIds.map(id=>peopleById.get(id)?.email).filter(validEmail));
+        if(!recipients.length)continue;
+        const template=models?.[kind]||deadlineMailTemplates[kind];
+        const deadlineText=new Intl.DateTimeFormat("pt-BR",{
+          timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"
+        }).format(new Date(dueMs));
+        const values={
+          autor:"PET Gestão",acao:kind==="due_soon"?"avisa que o prazo está vencendo":"avisa que o prazo venceu",
+          tipo:kind==="due_soon"?"Prazo vencendo":"Prazo vencido",
+          demanda:task.title,etapa:String(stage.label||"Prazo"),prazo:deadlineText,
+          dias:String(daysBefore),
+          link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)
+        };
+        const substitute=(txt,html=false)=>String(txt||"").replace(/\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
+        const subject=substitute(template.subject||deadlineMailTemplates[kind].subject).slice(0,200);
+        const bodyTemplate=String(template.body||deadlineMailTemplates[kind].body).slice(0,10000);
+        const text=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
+        const stageId=String(stage.id||stage.label+"-"+stageIndex);
+        const dedupeKey=[task.id,stageId,rawDue,kind].join("|");
+        const queueId=uid(),stamp=now();
+        await db.batch([
+          db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)")
+            .bind(dedupeKey,task.id,stageId,kind,rawDue,queueId,stamp),
+          db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at) SELECT ?,NULL,?,?,?,?,?,'pendente',? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)")
+            .bind(queueId,kind,JSON.stringify(recipients),subject,text,stamp,stamp,dedupeKey,queueId)
+        ]);
+        registered++;
+        if(registered>=30)return;
+      }
+    }
+  }
+
   async function askNotify(db,env,ctx,user,payload,task,title,action){
     if(user.role!=="tutor"&&user.role!=="admin")return;
     if(!user.notification_enabled||payload.notify!==true)return;
@@ -392,13 +491,24 @@
           // Compatibilidade com o modelo único anterior.
           await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
         }else{
-          if(!["create","review"].includes(b.kind))fail("Tipo de notificação inválido.");
+          if(!["create","review","due_soon","overdue"].includes(b.kind))fail("Tipo de notificação inválido.");
           const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
           const models=asJson(saved?.value,{});
           models[b.kind]={subject,body:message};
           await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplates',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(models)).run();
         }
         return answer({ok:true});
+      }
+      if(path==="/api/v1/admin/reminder-settings"&&method==="PUT"){
+        ensure(user,true);
+        const b=await body(req);
+        const daysBefore=Number(b.daysBefore);
+        if(typeof b.dueSoonEnabled!=="boolean"||typeof b.overdueEnabled!=="boolean"||
+           !Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)
+          fail("Configure os avisos e a antecedência entre 1 e 30 dias.");
+        const config={dueSoonEnabled:b.dueSoonEnabled,daysBefore,overdueEnabled:b.overdueEnabled};
+        await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
+        return answer({ok:true,reminderSettings:config});
       }
       if(path==="/api/v1/admin/settings"&&method==="PUT"){
         ensure(user,true);const b=await body(req);
@@ -492,7 +602,14 @@
             (user.role==="admin"&&user.session_admin_scope===1);
           if(!allowed)fail("Somente quem criou a demanda, a tutoria ou a Administração pode excluir demandas ativas.",403);
         }
-        await db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id).run();
+        // Apagar de forma atômica, inclusive os avisos de prazo pendentes e o histórico.
+        // A permissão é validada acima pelo Worker para Admin/Tutoria/autor da demanda.
+        await db.batch([
+          db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id=?)").bind(old.id),
+          db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id),
+          db.prepare("DELETE FROM task_history WHERE task_id=?").bind(old.id),
+          db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id)
+        ]);
         return answer({ok:true});
       }
       match=path.match(/^\/api\/v1\/tasks\/([^/]+)\/(status|notes|finish)$/);
@@ -610,4 +727,4 @@
       return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
-export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil(processQueue(env,15))};
+export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await queueDeadlineReminders(env);await processQueue(env,15)})())};
