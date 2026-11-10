@@ -17,6 +17,38 @@ const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissi
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const richTags=new Set(["B","STRONG","I","EM","U","P","DIV","BR","UL","OL","LI","SPAN"]);
+function safeRich(value){
+ const raw=String(value??"");
+ if(!/<\/?[a-z][a-z0-9]*\b/i.test(raw))return esc(raw).replace(/\r?\n/g,"<br>");
+ const fragment=document.createElement("template");fragment.innerHTML=raw;
+ const walk=node=>{
+  if(node.nodeType===3)return esc(node.textContent);
+  if(node.nodeType!==1)return "";
+  const tag=node.tagName;
+  if(["SCRIPT","STYLE","IFRAME","OBJECT","SVG","MATH"].includes(tag))return "";
+  const inside=[...node.childNodes].map(walk).join("");
+  if(!richTags.has(tag))return inside;
+  if(tag==="BR")return "<br>";
+  if(tag==="SPAN"){
+    const c=node.style?.color||"";
+    const color=/^(#[a-f0-9]{3,8}|rgb\([\d\s,.%]+\))$/i.test(c)?' style="color:'+esc(c)+'"':"";
+    return "<span"+color+">"+inside+"</span>";
+  }
+  const name=tag.toLowerCase();
+  return "<"+name+">"+inside+"</"+name+">";
+ };
+ return [...fragment.content.childNodes].map(walk).join("");
+}
+function richEditor(name,value,placeholder="Escreva aqui..."){
+ return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" aria-label="Formatação do texto">'+
+ [["bold","Negrito"],["italic","Itálico"],["underline","Sublinhar"],["insertUnorderedList","• Lista"],["insertOrderedList","1. Lista"]].map(([cmd,label])=>'<button type="button" data-do="rich-format" data-format="'+cmd+'" title="'+esc(label)+'">'+(cmd==="bold"?"B":cmd==="italic"?"I":cmd==="underline"?"U":label)+'</button>').join("")+
+ '<label class="rich-color-label" title="Cor do texto">Cor <input type="color" data-rich-color value="#5b3bb5" aria-label="Cor do texto"></label></div>'+
+ '<div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
+}
+const collectRich=(form,fields)=>{for(const e of form.querySelectorAll("[data-rich-input]"))fields[e.dataset.richInput]=safeRich(e.innerHTML);return fields};
+
 const id=v=>encodeURIComponent(String(v));
 const ico=(name)=>'<svg aria-hidden="true"><use href="#i-'+name+'"></use></svg>';
 const opt=(value,label,selected)=>'<option value="'+esc(value)+'" '+(value===selected?"selected":"")+'>'+esc(label)+'</option>';
