@@ -476,13 +476,18 @@
       }
       if(path==="/api/v1/auth/login"&&method==="POST"){
         const b=await body(req),mail=email(b.email),pw=String(b.password||"");
-        const attempts=await db.prepare("SELECT * FROM auth_attempts WHERE email=?").bind(mail).first();
+        // "Admin" é um identificador opcional da primeira conta administrativa.
+        const loginKey=mail==="admin"?"admin":mail;
+        const attempts=await db.prepare("SELECT * FROM auth_attempts WHERE email=?").bind(loginKey).first();
         if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
-        const u=await db.prepare("SELECT * FROM users WHERE email=?").bind(mail).first();
-        if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,mail);fail("Credenciais inválidas.",401)}
-        await resetRate(db,mail);
-        if((u.role_override||u.role)==="admin")fail("A conta Administração entra exclusivamente pela entrada administrativa.",403);
-        return answer(await createSession(db,u,b.rememberMe===true));
+        const u=loginKey==="admin"
+          ?await db.prepare("SELECT * FROM users WHERE role=\'admin\' ORDER BY created_at ASC LIMIT 1").first()
+          :await db.prepare("SELECT * FROM users WHERE email=?").bind(loginKey).first();
+        if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,loginKey);fail("Credenciais inválidas.",401)}
+        await resetRate(db,loginKey);
+        // O login normal também autentica Admin, sem exigir uma segunda entrada.
+        // O servidor só concede privilégios administrativos a cargo Admin validado.
+        return answer(await createSession(db,u,b.rememberMe===true,(u.role_override||u.role)==="admin"));
       }
       if(path==="/api/v1/auth/admin-login"&&method==="POST"){
         const b=await body(req),identifier=String(b.identifier||b.email||"").trim().toLowerCase(),pw=String(b.password||"");
