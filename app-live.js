@@ -42,12 +42,23 @@ function safeRich(value){
  };
  return [...fragment.content.childNodes].map(walk).join("");
 }
+
+const formatIcon={
+ bold:"<strong>B</strong>",italic:"<em>I</em>",underline:"<u>U</u>",
+ insertUnorderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h11M9 12h11M9 18h11"/></svg>',
+ insertOrderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 4h2v6M3 10h4M3 15c0-2 4-2 4 0s-4 2-4 5h4M11 6h10M11 12h10M11 18h10"/></svg>'
+};
 function richEditor(name,value,placeholder="Escreva aqui..."){
- return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" aria-label="Formatação do texto">'+
- [["bold","Negrito"],["italic","Itálico"],["underline","Sublinhar"],["insertUnorderedList","• Lista"],["insertOrderedList","1. Lista"]].map(([cmd,label])=>'<button type="button" data-do="rich-format" data-format="'+cmd+'" title="'+esc(label)+'">'+(cmd==="bold"?"B":cmd==="italic"?"I":cmd==="underline"?"U":label)+'</button>').join("")+
- '<label class="rich-color-label" title="Cor do texto">Cor <input type="color" data-rich-color value="#5b3bb5" aria-label="Cor do texto"></label></div>'+
- '<div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
+ const action=(cmd,label)=>'<button type="button" class="rich-format-button" data-do="rich-format" data-format="'+cmd+'" aria-label="'+esc(label)+'" title="'+esc(label)+'" aria-pressed="false">'+formatIcon[cmd]+'</button>';
+ return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" role="toolbar" aria-label="Formatação do texto">'+
+ '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+action("italic","Itálico")+action("underline","Sublinhado")+'</div>'+
+ '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
+ '<div class="rich-toolbar-group" aria-label="Listas">'+action("insertUnorderedList","Lista com marcadores")+action("insertOrderedList","Lista numerada")+'</div>'+
+ '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
+ '<label class="rich-color-label" title="Cor do texto" aria-label="Cor do texto"><span class="rich-color-symbol" aria-hidden="true">A</span><input type="color" data-rich-color value="#5b3bb5" aria-label="Escolher cor do texto"></label>'+
+ '</div><div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
 }
+
 const collectRich=(form,fields)=>{for(const e of form.querySelectorAll("[data-rich-input]"))fields[e.dataset.richInput]=safeRich(e.innerHTML);return fields};
 
 const id=v=>encodeURIComponent(String(v));
@@ -1056,6 +1067,8 @@ async function handleChange(e){
        selection.removeAllRanges();selection.addRange(lastRichRange);
      }
      document.execCommand("foreColor",false,t.value);
+     const symbol=t.closest(".rich-color-label")?.querySelector(".rich-color-symbol");
+     if(symbol)symbol.style.setProperty("--selected-text-color",t.value);
    }
    return;
  }
