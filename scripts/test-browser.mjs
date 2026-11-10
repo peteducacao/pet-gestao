@@ -116,6 +116,7 @@ try{
  for(const width of [1420,390]){
    await page.setViewportSize({width,height:850});
    await page.goto(origin+"/#/atividade/t-selectors");
+   await page.reload(); // Atualiza os dados simulados alterados após o bootstrap anterior.
    const assignees=page.locator("details.assignee-card");
    const progress=page.locator("details.commission-progress-card");
    assert.equal(await assignees.count(),1,"Responsáveis recolhível no viewport "+width);
