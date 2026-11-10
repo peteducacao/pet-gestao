@@ -487,7 +487,8 @@ await test("cards exibem comissões e pessoas separadamente, sem misturar integr
  assert.ok(js.includes("if(names.length===1)"),"Com um nome não há seletor");
  assert.ok(js.includes('names.length-1'),"Com vários nomes, mostrar primeiro e +N");
  assert.ok(js.includes('const commissionNames=ids.map('),"Apenas comissões vinculadas compõem a lista de comissões");
- assert.ok(js.includes('const individualNames=me?(t.assigneeIds||[])'),"Pessoas vêm somente de assigneeIds, jamais de integrantes da comissão");
+ assert.ok(js.includes('const individualNames=me?(isEveryoneAssigned(t)?["Todos"]:(t.assigneeIds||[]).map('),"Pessoas vêm de assigneeIds, com Todos para atribuição geral, nunca da comissão");
+  assert.ok(js.includes('function isEveryoneAssigned(t)'),"Todos deve ser mostrado quando todos os usuários elegíveis são responsáveis");
  assert.ok(!js.includes('teams.flatMap(c=>(c.memberIds||[]).map(nameFor)'),"Não misturar integrantes e responsáveis individuais");
  assert.ok(js.includes('function renderAssignees(t)'),"Detalhes preservam seções de pessoas e comissões");
  assert.ok(js.includes('Integrantes: '),"Detalhes preservam integrantes de comissões");
