@@ -185,84 +185,41 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:false,daysBefore:5,overdueEnabled:false}));
  assert.equal(good(await api("/bootstrap")).settings.reminderSettings.overdueAudience,"all","Desativar os alertas preserva o público selecionado.");
 });
-await test("Todos(as) persiste sem seletores individuais e é validado na API",async()=>{
+await test("Todos(as) exige data única de evento e bloqueia conclusão manual",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
- assert.ok(eligible.length>=1,"A conta Admin é elegível para atribuição geral");
- const stage={id:"evento-todos",label:"Evento",dueAt,assigneeIds:[eligible[0]]};
- const payload={title:"Atividade para todos",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[stage]};
+ const event={id:"evento-data",label:"Evento",dueAt:dueAt+"T23:59:59",assigneeIds:[]};
+ const payload={title:"Evento para Todos(as)",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[event]};
+ assert.equal((await api("/tasks","POST",{...payload,deadlines:[]})).status,400,"Evento coletivo exige data");
+ assert.equal((await api("/tasks","POST",{...payload,deadlines:[{...event,label:"Prazo"}]})).status,400,"Evento não aceita Prazo");
  const tid=good(await api("/tasks","POST",payload),201).id;
  try{
   const item=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
-  assert.equal(item.assignmentScope,"todos","Modo Todos precisa ser persistido");
-  assert.deepEqual(item.assigneeIds.slice().sort(),eligible.slice().sort(),"Todos(as) recebe pessoas elegíveis");
-  assert.deepEqual(item.deadlines[0].assigneeIds,[],"Mesmo que cliente envie pessoa específica, etapa de Todos(as) não armazena vínculo individual");
-  good(await api("/tasks/"+tid,"PUT",{...payload,title:"Editada para todos"}));
-  const updatedAll=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
-  assert.equal(updatedAll.assignmentScope,"todos","Editar não perde a seleção");
-  assert.deepEqual(updatedAll.deadlines[0].assigneeIds,[],"Editar Todos(as) continua sem pessoa específica por etapa");
+  assert.equal(item.assignmentScope,"todos");
+  assert.deepEqual(item.deadlines.map(x=>x.label),["Evento"]);
+  assert.deepEqual(item.deadlines[0].assigneeIds,[]);
+  assert.equal((await api("/tasks/"+tid+"/finish","PATCH",{userIds:eligible})).status,409,"Evento não admite conclusão manual");
+  good(await api("/tasks/"+tid,"PUT",{...payload,title:"Evento editado"}));
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===tid).title,"Evento editado");
   assert.equal((await api("/tasks/"+tid,"PUT",{...payload,commissionIds:["videos"]})).status,400);
   assert.equal((await api("/tasks/"+tid,"PUT",{...payload,assigneeIds:eligible.slice(1)})).status,400);
-  good(await api("/tasks/"+tid,"PUT",{...payload,assignmentScope:"usuarios",assigneeIds:[eligible[0]],
-    deadlines:[{id:"pessoa-prazo",label:"Prazo",dueAt,assigneeIds:[eligible[0]]}]}));
-  const updatedPerson=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
-  assert.equal(updatedPerson.assignmentScope,"usuarios","É possível mudar de Todos para Pessoa");
-  assert.deepEqual(updatedPerson.deadlines[0].assigneeIds,[eligible[0]],"Em Pessoas, seleção individual por etapa continua funcionando");
+  good(await api("/tasks/"+tid,"PUT",{...payload,assignmentScope:"usuarios",assigneeIds:[eligible[0]],deadlines:[]}));
+  const person=good(await api("/bootstrap")).tasks.find(t=>t.id===tid);
+  assert.equal(person.assignmentScope,"usuarios");
+  assert.deepEqual(person.deadlines,[],"Ao voltar para Pessoas, etapas continuam opcionais");
+  good(await api("/tasks/"+tid,"PUT",{...payload,assignmentScope:"usuarios",assigneeIds:[eligible[0]],deadlines:[{id:"correcao",label:"Correção",dueAt}]}));
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===tid).deadlines.length,1);
  }finally{good(await api("/tasks/"+tid,"DELETE"))}
 });
-await test("eventos coletivos têm data única, impedem conclusão manual e demandas comuns aceitam zero etapas",async()=>{
- const adminToken=token;
- const pet=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
- let taskId="",correctionId="",noStepsId="";
+await test("etapas opcionais nas demandas comuns",async()=>{
+ const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
+ const id=good(await api("/tasks","POST",{title:"Demanda sem etapas",assigneeIds:[eligible[0]],commissionIds:[],assignmentScope:"usuarios",deadlines:[]}),201).id;
  try{
-   good(await api("/admin/users/"+pet.id,"PATCH",{role:"petiano",notificationEnabled:false}));
-   const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
-   assert.ok(eligible.includes(pet.id),"PETiano promovido participa dos eventos coletivos");
-   const event={id:"evento-data",label:"Evento",dueAt,assigneeIds:[]};
-   taskId=good(await api("/tasks","POST",{
-     title:"Evento para Todos(as)",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[event]
-   }),201).id;
-   const eventTask=good(await api("/bootstrap")).tasks.find(x=>x.id===taskId);
-   assert.deepEqual(eventTask.deadlines.map(s=>s.label),["Evento"]);
-   assert.ok(eventTask.deadlines[0].dueAt.startsWith(dueAt));
-   assert.equal((await api("/tasks","POST",{
-     title:"Todos com prazo",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",
-     deadlines:[{id:"x",label:"Prazo",dueAt}]
-   })).status,400,"Todos(as) não admite Prazo/Correção/Postagem");
-   assert.equal((await api("/tasks","POST",{
-     title:"Todos com duas datas",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",
-     deadlines:[event,event]
-   })).status,400,"O evento coletivo exige uma única data");
-   good(await api("/tasks/"+taskId,"PUT",{
-     title:"Evento editado",assigneeIds:eligible,commissionIds:[],assignmentScope:"todos",deadlines:[event]
-   }));
-   assert.equal((await api("/tasks/"+taskId+"/finish","PATCH",{userIds:eligible})).status,409,"Evento coletivo não admite conclusão manual");
-   noStepsId=good(await api("/tasks","POST",{
-     title:"Demanda normal sem prazos",assigneeIds:[pet.id],commissionIds:[],assignmentScope:"usuarios",deadlines:[]
-   }),201).id;
-   assert.deepEqual(good(await api("/bootstrap")).tasks.find(x=>x.id===noStepsId).deadlines,[]);
-   good(await api("/tasks/"+noStepsId,"PUT",{
-     title:"Etapa adicionada depois",assigneeIds:[pet.id],commissionIds:[],assignmentScope:"usuarios",
-     deadlines:[{id:"prazo-depois",label:"Prazo",dueAt}]
-   }));
-   assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===noStepsId).deadlines.length,1,"Etapa pode ser adicionada após salvar sem prazo");
-   correctionId=good(await api("/tasks","POST",{
-     title:"Só correção",assigneeIds:[pet.id],commissionIds:[],assignmentScope:"usuarios",
-     deadlines:[{id:"correcao",label:"Correção",dueAt}]
-   }),201).id;
-   assert.equal(good(await api("/bootstrap")).tasks.find(x=>x.id===correctionId).deadlines.length,1);
-   const invalid=await api("/tasks","POST",{
-     title:"Etapa sem data",assigneeIds:[pet.id],commissionIds:[],
-     deadlines:[{id:"sem-data",label:"Prazo",dueAt:""}]
-   });
-   assert.equal(invalid.status,400);
-   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
-   assert.equal((await api("/tasks/"+taskId+"/finish","PATCH",{userIds:eligible,commissionIds:[]})).status,409,"PETiano não conclui evento coletivo manualmente");
- }finally{
-   token=adminToken;
-   for(const task of [taskId,correctionId,noStepsId])if(task&&good(await api("/bootstrap")).tasks.some(x=>x.id===task))
-     good(await api("/tasks/"+task,"DELETE"));
-   good(await api("/admin/users/"+pet.id,"PATCH",{role:"usuario",notificationEnabled:false}));
- }
+  assert.deepEqual(good(await api("/bootstrap")).tasks.find(t=>t.id===id).deadlines,[]);
+  good(await api("/tasks/"+id,"PUT",{title:"Adicionar etapa",assigneeIds:[eligible[0]],commissionIds:[],assignmentScope:"usuarios",deadlines:[{id:"c",label:"Correção",dueAt}]}));
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===id).deadlines.length,1);
+  good(await api("/tasks/"+id,"PUT",{title:"Remover etapa",assigneeIds:[eligible[0]],commissionIds:[],assignmentScope:"usuarios",deadlines:[]}));
+  assert.deepEqual(good(await api("/bootstrap")).tasks.find(t=>t.id===id).deadlines,[]);
+ }finally{good(await api("/tasks/"+id,"DELETE"))}
 });
 await test("criar demanda",async()=>{task=good(await api("/tasks","POST",{title:"Teste Demanda",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}),201).id});
 await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir",async()=>{
