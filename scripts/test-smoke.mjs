@@ -72,6 +72,7 @@ await test("ataques simulados: Tutoria não entra no Admin nem modifica credenci
    ["/admin/settings","PUT",{autoWeek:false,autoMonth:false}],
    ["/admin/reminder-settings","PUT",{dueSoonEnabled:true,overdueEnabled:true,daysBefore:3,overdueAudience:"all"}],
    ["/admin/commission-order","PUT",{ids:[]}],
+   ["/admin/commissions-batch","PUT",{commissions:[]}],
    ["/mail/status","GET"],
    ["/mail","GET"],
    ["/mail","POST",{all:true,subject:"Ataque",message:"Envio não autorizado"}],
@@ -136,6 +137,22 @@ await test("vagas zero impedem participar; limite configurado é respeitado",asy
 });
 await test("editar comissão",async()=>{good(await api("/commissions/"+a,"PUT",{name:"Teste Renomeada",backgroundColor:"#123456"}));assert.equal(good(await api("/bootstrap")).committees.find(x=>x.id===a).backgroundColor,"#123456")});
 await test("mover comissões",async()=>{const ids=good(await api("/bootstrap")).committees.map(x=>x.id).reverse();good(await api("/admin/commission-order","PUT",{ids}));assert.equal(good(await api("/bootstrap")).committees[0].id,ids[0])});
+await test("Salvar todas: ordem e vagas em lote atômico",async()=>{
+ const before=good(await api("/bootstrap")).committees;
+ const updates=before.slice().reverse().map(c=>({id:c.id,maxMembers:Math.max(c.memberCount||0,c.maxMembers||0)+2}));
+ assert.equal((await api("/admin/commissions-batch","PUT",{commissions:updates.slice(1)})).status,409,"Lista incompleta é rejeitada");
+ const invalid=updates.map(x=>({...x}));
+ invalid[0].maxMembers=-1;
+ assert.equal((await api("/admin/commissions-batch","PUT",{commissions:invalid})).status,400,"Um erro não grava nenhuma comissão");
+ assert.deepEqual(good(await api("/bootstrap")).committees.map(c=>c.id),before.map(c=>c.id));
+ const saved=good(await api("/admin/commissions-batch","PUT",{commissions:updates}));
+ assert.equal(saved.updated,updates.length);
+ const after=good(await api("/bootstrap")).committees;
+ assert.deepEqual(after.map(c=>c.id),updates.map(x=>x.id),"Ordem salva em bloco");
+ for(const c of after)assert.equal(c.maxMembers,updates.find(x=>x.id===c.id).maxMembers);
+ // Restabelecer vagas e ordem para não interferir nos demais testes.
+ good(await api("/admin/commissions-batch","PUT",{commissions:before.map(c=>({id:c.id,maxMembers:c.maxMembers}))}));
+});
 await test("configurações",async()=>{good(await api("/admin/settings","PUT",{autoWeek:false,autoMonth:false}));assert.equal(good(await api("/bootstrap")).settings.autoWeek,false)});
 await test("modelos de e-mail separados para criar e revisar, com edição independente",async()=>{
  good(await api("/admin/notification-template","PUT",{kind:"create",subject:"Nova: {demanda}",message:"Uma demanda foi criada por {autor}."}));
