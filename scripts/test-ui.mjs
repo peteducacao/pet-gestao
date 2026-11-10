@@ -165,18 +165,18 @@ await move("#/atividade/t-all");
 assert.ok(document.querySelector(".details-facts")?.textContent.includes("Data do evento"));
 assert.equal(document.querySelector('[data-detail-status]'),null,"Evento coletivo não exige conclusão manual");
 tasks=tasks.filter(t=>t.id!=="t-all");
-// Uma correção do(a) Tutor(a) desaparece APENAS da própria lista pessoal.
-tasks.push({...tasks[1],id:"t-reviewed",title:"Revisão concluída pela tutoria",
-  assigneeIds:[],commissionIds:["videos"],userDone:{},commissionDone:{},
-  tutorReviewedByMe:true,archivedAt:null,status:"pendente"});
+// Marcar somente a correção pessoal de uma demanda já presente no bootstrap.
+const pendingReviewTask=tasks.find(t=>t.id==="t2");
+assert.ok(pendingReviewTask,"Demanda de comissão atribuída à Tutoria permanece cadastrada");
+pendingReviewTask.tutorReviewedByMe=true;
 await move("#/demandas");
-assert.ok(document.querySelector("#screen")?.textContent.includes("Revisão concluída pela tutoria"),
-  "Após correção, a demanda continua visível no geral");
+assert.ok(document.querySelector("#screen")?.textContent.includes("V InterPET"),
+  "Após correção, a demanda continua visível na lista geral");
 await move("#/minhas-pendencias");
-assert.equal(document.querySelector("#screen")?.textContent.includes("Revisão concluída pela tutoria"),false,
-  "A revisão some apenas das pendências do Tutor");
+assert.equal(document.querySelector("#screen")?.textContent.includes("V InterPET"),false,
+  "A correção some só das pendências daquele Tutor, sem concluir a comissão");
 await move("#/demandas");
-tasks=tasks.filter(t=>t.id!=="t-reviewed");
+pendingReviewTask.tutorReviewedByMe=false;
 await move("#/atividade/t1");
 assert.ok(document.querySelector(".details-facts"),"Etapas em detalhes");
 assert.equal(document.querySelector('a[data-route="demandas"]').classList.contains("active"),true,"A seção Demandas é destacada nos detalhes");
