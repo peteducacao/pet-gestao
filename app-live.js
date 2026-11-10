@@ -421,34 +421,40 @@ function renderTaskForm(routeId){
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
 
-function renderDetailReadOnly(t){
- const history=historyFor(t.id);
 
- return header("Atividade",t.title,"Visualização somente leitura",backButton())+
- '<section class="card card-pad"><h2>Vínculos</h2>'+(t.archivedAt?'<span class="pill mint">Concluída</span>':"")+'<p><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Demanda geral")+'</p><p><strong>Responsáveis:</strong> '+esc(who(t))+'</p></section>'+
- '<section class="card card-pad"><h2>Prazos e etapas</h2>'+
- (stages(t).length?stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+(s.completedAt?'<span class="pill mint">Concluída</span>':"")+'</div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>'+
- '<section class="card card-pad"><h2>Observações</h2><p class="saved-activity-text">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p></section>'+
- '<details class="card card-pad"><summary><strong>Histórico</strong> ('+history.length+')</summary><div class="revision-list">'+(history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+'</small></div>').join(""):'<p>Sem alterações registradas.</p>')+'</div></details>';
+function deadlineFacts(t){
+ return '<section class="card card-pad details-facts"><h2>Prazos e etapas</h2>'+
+ (stages(t).length?stages(t).map(stage=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(stage.label)+'</strong></div>'+
+ '<div class="deadline-field"><small>Responsável</small><strong>'+esc((stage.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div>'+
+ '<div class="deadline-field"><small>Data</small><strong>'+textDate(stage.dueAt)+'</strong></div></div>').join(""):'<p>Sem etapas cadastradas.</p>')+'</section>';
+}
+function activitySections(t,readOnly=false){
+ const ids=t.commissionIds||[],history=historyFor(t.id),names=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
+ const body='<div class="activity-detail-grid"><div class="stack">'+deadlineFacts(t)+
+ '<section class="card card-pad"><h2>Anotações da comissão</h2><div class="saved-activity-text">'+safeRich(t.description||"Nenhuma anotação registrada.")+'</div></section>'+
+ '<section class="card card-pad"><div class="section-head"><h2>Texto para revisão</h2>'+
+ (!readOnly&&!t.archivedAt?button("Editar demanda","registrar/"+id(t.id)):"")+'</div><div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div></section></div>'+
+ '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(names.join(", ")||"Não definido")+'</p></section>'+
+ (ids.length>=2?'<section class="card card-pad"><h2>Andamento das comissões</h2>'+
+ ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
+ '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</section>':"")+
+ '<details class="card card-pad activity-history"><summary><strong>Histórico de alterações</strong> ('+history.length+')</summary><div class="revision-list">'+
+ (history.length?history.map(h=>'<div><strong>'+esc(h.action)+'</strong><span>'+esc(h.actor_name)+'</span><small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+
+ '</div></details></div></div>';
+ return body;
+}
+function renderDetailReadOnly(t){
+ return header("Atividade",t.title,"Visualização da demanda",backButton())+activitySections(t,true);
 }
 function renderDetail(taskId,contextCid){
  if(!me)return authRequired();
  const t=data.tasks.find(t=>t.id===taskId);if(!t)return empty("Demanda não encontrada");
  if(!canWrite())return renderDetailReadOnly(t);
-
- const assigned=(t.assigneeIds||[]).map(nameFor).filter(Boolean);
- const details=historyFor(taskId);
- return header("Atividade",t.title,"",button("Editar demanda","registrar/"+id(t.id))+backButton())+
- '<section class="card card-pad activity-status-panel">'+(t.archivedAt?'<span class="pill mint">Concluída</span>':isTaskAssignedToMe(t)?(isUserDone(t,me.id)?'<span class="pill mint">Sua participação foi concluída</span>':'<button class="button primary" type="button" data-do="finish-personal" data-id="'+esc(t.id)+'">Marcar minha participação como concluída</button>'):'<p class="assignment-help">Somente pessoas atribuídas e integrantes das comissões vinculadas podem concluir suas participações.</p>')+'</section>'+
- '<div class="activity-detail-grid"><div class="stack"><section class="card card-pad"><h2>Prazos e etapas</h2>'+
- stages(t).map(s=>'<div class="deadline-record"><div class="deadline-step">'+ico("clock")+' <strong>'+esc(s.label)+'</strong></div><div class="deadline-field"><small>Responsável</small><strong>'+esc((s.assigneeIds||[]).map(nameFor).filter(Boolean).join(", ")||"Não definido")+'</strong></div><div class="deadline-field"><small>Data</small><strong>'+textDate(s.dueAt)+'</strong></div>'+ (s.completedAt||contextCid&&s.commissionCompleted?.[contextCid]?'<span class="pill mint">Concluído</span>':Object.keys(s.commissionCompleted||{}).length?'<span class="pill soft">'+Object.keys(s.commissionCompleted||{}).length+' comissão(ões) concluída(s)</span>':"")+'</div>').join("")+
- '</section><section class="card card-pad"><div class="section-head"><h2>Observações</h2><button class="button ghost" data-do="edit-notes" type="button" title="Editar observações">✏️ Editar</button></div><p class="saved-activity-text" id="notes-preview">'+esc(t.captionText||"Nenhuma observação registrada.")+'</p><div id="notes-editor" hidden><textarea id="notes-content" rows="6">'+esc(t.captionText||"")+'</textarea><button class="button primary" type="button" data-do="save-notes" data-id="'+esc(t.id)+'">Salvar observações</button></div></section></div>'+
- '<div class="stack"><section class="card card-pad"><h2>Responsáveis</h2><p>'+esc(assigned.join(", ")||"Não definido")+'</p><p class="assignment-help"><strong>Comissões:</strong> '+esc(selectedCommitteeNames(t)||"Nenhuma")+'</p></section>'+
- '<section class="card card-pad"><h2>Conclusão por comissão</h2>'+
- ((t.commissionIds||[]).length?(t.commissionIds||[]).map(cid=>{
- const done=t.commissionDone?.[cid];return'<div class="live-commission-finish"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+(done?'<span class="pill mint">Concluída por '+esc(done.byName||"integrante")+'</span>':!t.archivedAt&&canCompleteCommission(cid)?'<button type="button" class="button ghost" data-do="finish-commission" data-id="'+esc(t.id)+'" data-commission="'+esc(cid)+'">Marcar concluída</button>':"")+'</div>';
- }).join(""):'<p class="assignment-help">Nenhuma comissão vinculada.</p>')+'</section>'+
- '<details class="card card-pad"><summary><strong>Histórico de alterações</strong> ('+details.length+')</summary><div class="revision-list">'+(details.length?details.map(h=>'<div><strong>'+esc(h.action)+'</strong> — '+esc(h.actor_name)+'<small>'+textDate(h.created_at)+' '+esc(new Date(h.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}))+'</small></div>').join(""):'<p>Nenhum registro anterior.</p>')+'</div></details></div></div>';
+ const status=taskStatus(t,contextCid);
+ const actions=button("Editar demanda","registrar/"+id(t.id))+
+ (t.archivedAt?'<span class="task-status task-status-concluida">Concluída</span>':
+ '<button class="button primary small-action" type="button" data-do="finish-joint-open" data-id="'+esc(t.id)+'">Status: '+(status==="atrasada"?"Atrasada":status==="concluida"?"Concluída":"Pendente")+' · Concluir</button>')+backButton();
+ return header("Atividade",t.title,"",actions)+activitySections(t,false);
 }
 
 function renderMeetings(){
