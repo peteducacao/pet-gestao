@@ -82,10 +82,16 @@ assert.equal(document.querySelector('a[data-route="cronograma"]'),null,"Cronogra
 await move("#/demandas");
 assert.ok(document.querySelector('.task-status-atrasada'),"Situação atrasada visível");
 assert.ok(document.querySelector('select[data-filter="status"]'),"Seletor de status");
+assert.equal(document.querySelectorAll('button[data-do="mode"]').length,0,"Período mensal/semanal usa seletor");
+assert.ok(document.querySelector('select[data-filter="periodMode"]'),"Seletor de período disponível");
+assert.equal(document.querySelector('select[data-filter="status"]').options.length,4,"Todas, Pendentes, Atrasadas, Concluídas");
+
 assert.equal(document.querySelector('input[placeholder*="Buscar demanda"]'),null,"Sem pesquisa textual duplicada");
 await move("#/reunioes");
 assert.equal(document.querySelectorAll(".meeting-card").length,1,"Atas listadas");
-tap('button[data-do="meetings-view"][data-value="recentes"]');
+const meetingView=document.querySelector('select[data-filter="meetings"]');
+assert.ok(meetingView,"Atas usam um seletor, sem botões de filtros duplicados");
+meetingView.value="recentes";meetingView.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 assert.ok(document.querySelector('.meeting-card-link').getAttribute("href").includes("reunioes/editar/m1"));
 await move("#/reunioes/editar/m1");
 const memo=document.querySelector('#meeting-form textarea[name="rawNotes"]');
@@ -102,6 +108,11 @@ assert.equal(document.querySelector('a[data-route="demandas"]').classList.contai
 assert.equal(document.querySelector(".activity-detail-page")?.textContent.includes("Anotações da comissão"),false,"Anotações somente no formulário");
 assert.ok(document.querySelector(".saved-activity-text")?.textContent.includes("Olá!"),"Texto para revisão visível");
 assert.ok(document.querySelector(".assignee-team")?.textContent.includes("Vídeos"),"Comissão reconhecida como responsável");
+assert.ok(document.querySelector(".stage-compact"),"Etapas organizadas no mesmo painel");
+assert.equal(document.querySelector(".assignee-group-heading")?.textContent?.includes("Comissões"),false,"Sem legenda roxa redundante");
+assert.ok(document.querySelector(".detail-visualization select[data-filter='navigateDemands']"),"Filtro no detalhe");
+assert.ok(document.querySelector(".detail-review-full"),"Texto para revisão na última seção, em toda largura");
+
 assert.ok(document.querySelector(".activity-history .history-chevron"),"Histórico tem seta de expansão");
 assert.equal(document.querySelector(".activity-history").hasAttribute("open"),false,"Histórico começa recolhido");
 const statusSelect=document.querySelector('select[data-detail-status]');
