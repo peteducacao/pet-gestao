@@ -221,6 +221,51 @@ await test("etapas opcionais nas demandas comuns",async()=>{
   assert.deepEqual(good(await api("/bootstrap")).tasks.find(t=>t.id===id).deadlines,[]);
  }finally{good(await api("/tasks/"+id,"DELETE"))}
 });
+await test("correção da Tutoria remove só a sua pendência, sem concluir demanda (com e sem e-mail)",async()=>{
+ const adminToken=token,admin=good(await api("/auth/me")).user;
+ const person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
+ const created=[],commissionName="Revisão Tutor Individual "+Date.now();
+ let commissionId="";
+ try{
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:true}));
+  const c=good(await api("/commissions","POST",{name:commissionName,description:"Comissão de teste isolada",maxMembers:2}),201);
+  commissionId=c.id;
+  const body={title:"Correção pendente da Tutoria",assignmentScope:"comissoes",
+    assigneeIds:[admin.id],commissionIds:[commissionId],deadlines:[],captionText:"Texto antes"};
+  const task1=good(await api("/tasks","POST",body),201).id;
+  created.push(task1);
+  token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+  good(await api("/commissions/"+commissionId+"/join","POST",{}));
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===task1).tutorReviewedByMe,false);
+  good(await api("/tasks/"+task1+"/notes","PATCH",{captionText:"Texto corrigido pelo Tutor, sem e-mail",notify:false}));
+  const done=good(await api("/bootstrap")).tasks.find(t=>t.id===task1);
+  assert.equal(done.tutorReviewedByMe,true,"O Tutor deixa de ter a correção pessoal pendente");
+  assert.equal(done.archivedAt,null,"Demanda continua ativa no geral");
+  assert.deepEqual(done.commissionDone,{},"A comissão inteira não é concluída");
+  assert.deepEqual(done.userDone,{},"Os demais não são concluídos");
+  assert.equal(done.captionText,"Texto corrigido pelo Tutor, sem e-mail");
+  token=adminToken;
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===task1).tutorReviewedByMe,false,
+    "O registro da Tutoria não afeta pendências do Admin");
+  const task2=good(await api("/tasks","POST",{title:"Revisão do Tutor com notificação",assignmentScope:"usuarios",
+    assigneeIds:[admin.id,person.id],commissionIds:[],captionText:"Versão inicial",deadlines:[]}),201).id;
+  created.push(task2);
+  token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+  good(await api("/tasks/"+task2,"PUT",{title:"Revisão do Tutor com notificação",assignmentScope:"usuarios",
+    assigneeIds:[admin.id,person.id],commissionIds:[],captionText:"Versão corrigida e revisada",deadlines:[],notify:true}));
+  const second=good(await api("/bootstrap")).tasks.find(t=>t.id===task2);
+  assert.equal(second.tutorReviewedByMe,true,"Também registra correção feita no Editar demanda");
+  assert.deepEqual(second.userDone,{},"Não confunde revisão com conclusão individual");
+  assert.equal(second.archivedAt,null,"Escolher notificar não arquiva a demanda");
+ }finally{
+  token=adminToken;
+  for(const tid of created){
+   if(good(await api("/bootstrap")).tasks.some(t=>t.id===tid))good(await api("/tasks/"+tid,"DELETE"));
+  }
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  if(commissionId)good(await api("/commissions/"+commissionId,"DELETE"));
+ }
+});
 await test("criar demanda",async()=>{task=good(await api("/tasks","POST",{title:"Teste Demanda",commissionIds:[a,b],assigneeIds:[],deadlines:[{id:"prazo1",label:"Prazo",dueAt}]}),201).id});
 await test("Usuário consegue visualizar, mas não pode criar, editar ou excluir",async()=>{
  const original=token;
