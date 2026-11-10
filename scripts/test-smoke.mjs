@@ -253,7 +253,8 @@ await test("exclusão em lote de demandas concluídas é restrita ao Admin e exi
   const activeId=good(await api("/tasks","POST",task("Ativa não excluir")),201).id;
   ids.push(activeId);
   assert.equal((await api("/tasks/bulk-delete","POST",{ids})).status,409,"Seleção mista não pode apagar nenhuma demanda");
-  assert.ok(ids.every(id=>good(await api("/bootstrap")).tasks.some(t=>t.id===id)),"Validação ocorre antes da exclusão");
+  const beforeDeletion=good(await api("/bootstrap")).tasks;
+  assert.ok(ids.every(id=>beforeDeletion.some(t=>t.id===id)),"Validação ocorre antes da exclusão");
   const person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
   good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:false}));
   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
