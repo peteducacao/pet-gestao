@@ -93,6 +93,8 @@ async function loginAs(person){
  await form.locator('button[type="submit"]').click();
  await page.waitForURL("**/#/inicio");
  await page.locator("#screen .page-title").waitFor({state:"visible",timeout:10000});
+ const notice=page.locator("#notice-dialog");
+ if(await notice.isVisible())await notice.locator('button[data-do="notice-cancel"]').click();
 }
 try{
  await page.goto(origin+"/#/demandas",{waitUntil:"domcontentloaded"});
