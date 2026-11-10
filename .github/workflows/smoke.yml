@@ -1,5 +1,14 @@
 name: Testes do PET Gestão
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'app-live.js'
+      - 'live.css'
+      - 'scripts/test-ui.mjs'
+      - 'scripts/test-browser.mjs'
+      - '.github/workflows/smoke.yml'
   pull_request:
     branches: [main]
   workflow_dispatch:
