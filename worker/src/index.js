@@ -75,9 +75,11 @@
     await db.prepare("INSERT INTO task_history (id,task_id,actor_id,actor_name,action,details,created_at) VALUES (?,?,?,?,?,?,?)").bind(uid(),taskId,user.id,user.name,action,details,now()).run();
   }
   async function createSession(db,user,rememberMe=false,adminScope=false){
-    // A sessão comum dura 7 dias; a opção explícita permite até 30 dias.
+    // Sem "Manter-me conectado": sessão temporária de 7 dias no navegador.
+    // Com a opção: permanece válida até logout, revogação, troca de senha
+    // ou exclusão da conta. A data máxima é sentinela, não prazo de 30 dias.
     const token=randomToken(),digest=await sha(token);
-    const expiresAt=isoAfter((rememberMe===true?30:7)*24*60);
+    const expiresAt=rememberMe===true?"9999-12-31T23:59:59.999Z":isoAfter(7*24*60);
     await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,admin_scope) VALUES(?,?,?,?,?)").bind(digest,user.id,expiresAt,now(),adminScope&&user.role==="admin"?1:0).run();
     return {token,user:{...userPublic(user),adminSession:adminScope===true&&user.role==="admin"},expiresAt};
   }
