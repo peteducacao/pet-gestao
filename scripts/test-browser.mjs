@@ -32,6 +32,15 @@ await page.route("**/api/v1/**",async route=>{
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/mail")result={items:[]};
  else if(p==="/mail/status")result={connected:true,message:"Teste isolado"};
+ else if(p==="/admin/commissions-batch"&&method==="PUT"){
+   const newOrder=body.commissions.map((row,i)=>{
+     const item=committees.find(c=>c.id===row.id);
+     Object.assign(item,{maxMembers:row.maxMembers,sortOrder:i+1});
+     return item;
+   });
+   committees.splice(0,committees.length,...newOrder);
+   result={ok:true};
+ }
  else if(p==="/admin/reminder-settings"&&method==="PUT"){settings.reminderSettings=body;result={ok:true};}
  else if(p==="/admin/notification-template"&&method==="PUT"){
    settings.notificationTemplates[body.kind]={subject:body.subject,body:body.message};
@@ -161,65 +170,59 @@ try{
  tasks=tasks.filter(x=>x.id!=="t-selectors");
  committees.splice(1);
  await page.reload();
- // No modo Todos, a interface apresenta o rótulo sem despejar cada nome.
- tasks.push({...task,id:"t-everyone",title:"Demanda para Todos",assigneeIds:["u1","admin"],
-  commissionIds:[],userDone:{},commissionDone:{},archivedAt:null});
+ // Eventos coletivos: uma data, sem etapas e sem conclusão manual.
+ tasks.push({...task,id:"t-everyone",title:"Evento para Todos(as)",assignmentScope:"todos",
+   assigneeIds:["u1","admin"],commissionIds:[],userDone:{},commissionDone:{},archivedAt:null,
+   deadlines:[{id:"evento-data",label:"Evento",dueAt:"2026-11-29T23:59:59",assigneeIds:[]}]});
  await page.reload();
- const allCard=page.locator(".demand-activity-card").filter({hasText:"Demanda para Todos"});
+ const allCard=page.locator(".demand-activity-card").filter({hasText:"Evento para Todos(as)"});
  await allCard.waitFor();
  assert.equal(await allCard.locator(".demand-card-person").innerText(),"Todos","Card mostra Todos como grupo");
  await page.goto(origin+"/#/atividade/t-everyone");
- assert.equal(await page.locator(".assignee-everyone").innerText(),"Todos","Detalhes exibem Todos sem nomes individuais");
- assert.equal(await page.locator(".assignee-commissions-panel").count(),0,"Sem comissão não aparece coluna vazia");
- // Uma demanda geral pode ser concluída por qualquer PETiano(a), mesmo se criada no Admin.
+ assert.equal(await page.locator(".assignee-everyone").innerText(),"Todos");
+ assert.ok((await page.locator(".details-facts").innerText()).includes("Data do evento"));
+ assert.equal(await page.locator("[data-detail-status]").count(),0,"Evento coletivo não possui seletor de conclusão");
  user.role="petiano";
  await page.reload();
  await page.goto(origin+"/#/atividade/t-everyone");
  await page.locator('button[data-do="delete-task"]').waitFor({state:"visible",timeout:10000});
- assert.equal(await page.locator('button[data-do="delete-task"]').count(),1,"PETiano pode excluir demanda ativa de outra pessoa");
- await page.locator('[data-detail-status]').selectOption("concluir");
- const allToggle=page.locator("#finish-select-all");
- await allToggle.waitFor();
- await allToggle.check();
- assert.equal(await page.locator('#finish-dialog input[name="joint-target"]:not(:checked)').count(),0,"Marcar todos seleciona a equipe");
- await page.locator('#finish-dialog input[name="joint-target"]').first().uncheck();
- assert.equal(await allToggle.evaluate(x=>x.indeterminate),true,"Checkbox principal indica seleção parcial");
- await allToggle.check();
- await page.locator('#finish-dialog [data-do="finish-close"]').last().click();
+ assert.equal(await page.locator('button[data-do="delete-task"]').count(),1,"PETiano pode excluir evento ativo");
+ assert.equal(await page.locator("[data-detail-status]").count(),0,"PETiano não conclui evento manualmente");
  user.role="tutor";
  await page.reload();
  await page.goto(origin+"/#/registrar/t-everyone");
- await page.locator('.assignment-modes [data-value="todos"].active').waitFor();
- assert.equal(await page.locator("#assignment-container [data-assign]").count(),0,"Editar Todos(as) não mostra seleção individual");
- assert.equal(await page.locator('.live-stage select[data-stage="assignee"]').count(),0,"Em Todos(as), nenhuma etapa mostra seletor de pessoas");
- const allStage=page.locator('.live-stage input[data-stage="assignee"]');
- assert.equal(await allStage.inputValue(),"Todos(as)","Responsável da etapa é automaticamente Todos(as)");
- assert.equal(await allStage.isDisabled(),true,"Campo fixo, sem escolha individual");
- await page.locator('.assignment-modes [data-value="usuarios"]').click();
- assert.equal(await page.locator('.live-stage select[data-stage="assignee"]').inputValue(),"u1","Ao trocar para Pessoas, responsável anterior pode ser recuperado");
- await page.locator('.assignment-modes [data-value="todos"]').click();
- assert.equal(await page.locator('.live-stage input[data-stage="assignee"][disabled]').count(),1);
- await page.locator('button[data-do="add-stage"]').click();
- assert.equal(await page.locator('.live-stage input[data-stage="assignee"][disabled]').count(),2,"Nova etapa também usa Todos(as) fixo");
- const second=page.locator('.live-stage').nth(1);
- await second.locator('[data-stage="label"]').selectOption("Postagem");
- await second.locator('[data-stage="day"]').fill("2026-12-01");
- await page.locator('.task-form-header-save').click();
+ await page.locator("#collective-event-day").waitFor();
+ assert.equal(await page.locator(".live-stage").count(),0,"Todos(as) não usa etapas");
+ assert.equal(await page.locator('[data-do="add-stage"]').count(),0,"Todos(as) só solicita a data");
+ await page.locator("#collective-event-day").fill("2026-12-01");
+ await page.locator(".task-form-header-save").click();
  await page.waitForTimeout(180);
  const savedAll=calls.filter(x=>x.p==="/tasks/t-everyone"&&x.method==="PUT").at(-1)?.body;
- assert.equal(savedAll?.assignmentScope,"todos","Salvar mantém a seleção Todos(as)");
- assert.ok(savedAll?.deadlines.every(stage=>stage.assigneeIds.length===0),"Nenhuma etapa grava uma pessoa específica em Todos(as)");
+ assert.deepEqual(savedAll?.deadlines.map(x=>x.label),["Evento"]);
+ assert.ok(savedAll.deadlines[0].dueAt.startsWith("2026-12-01"));
  await page.goto(origin+"/#/atividade/t-everyone");
- assert.ok((await page.locator(".stage-responsible").first().innerText()).includes("Todos(as)"),"Detalhes das etapas informam Todos(as)");
- await page.goto(origin+"/#/registrar/t-everyone");
- while(await page.locator('#stage-rows [data-do="remove-stage"]').count())await page.locator('#stage-rows [data-do="remove-stage"]').first().click();
- assert.equal(await page.locator(".live-stage").count(),0,"Todas as etapas podem ser retiradas");
+ assert.ok((await page.locator(".details-facts").innerText()).includes("Data do evento"));
+ // Demanda individual: remover todos os prazos, salvar e voltar para adicionar.
+ tasks.push({...task,id:"t-step-empty",title:"Demanda sem etapas",
+   assignmentScope:"usuarios",assigneeIds:["u1"],commissionIds:[],
+   userDone:{},commissionDone:{},archivedAt:null,deadlines:[]});
+ await page.goto(origin+"/#/registrar/t-step-empty");
+ assert.equal(await page.locator(".live-stage").count(),0);
+ await page.locator('[data-do="add-stage"]').click();
+ await page.locator('.live-stage [data-stage="day"]').fill("2026-12-03");
  await page.locator(".task-form-header-save").click();
- await page.waitForTimeout(200);
- assert.deepEqual(tasks.find(x=>x.id==="t-everyone").deadlines,[],"Salvar sem prazos é aceito");
- await page.goto(origin+"/#/registrar/t-everyone");
- assert.equal(await page.locator(".live-stage").count(),0,"Reabertura da demanda não recria prazo");
- tasks=tasks.filter(x=>x.id!=="t-everyone");
+ await page.waitForTimeout(180);
+ assert.equal(tasks.find(x=>x.id==="t-step-empty").deadlines.length,1,"Adicionar etapa após zerar prazos");
+ await page.goto(origin+"/#/registrar/t-step-empty");
+ await page.locator('#stage-rows [data-do="remove-stage"]').click();
+ await page.locator(".task-form-header-save").click();
+ await page.waitForTimeout(180);
+ assert.deepEqual(tasks.find(x=>x.id==="t-step-empty").deadlines,[],"Demanda comum aceita remover prazos");
+ await page.goto(origin+"/#/registrar/t-step-empty");
+ assert.equal(await page.locator(".live-stage").count(),0,"Edição não recria prazo removido");
+ await page.locator('[data-do="add-stage"]').click();
+ assert.equal(await page.locator(".live-stage").count(),1,"Botão Adicionar etapa continua disponível");
+ tasks=tasks.filter(x=>!["t-everyone","t-step-empty"].includes(x.id));
  await page.goto(origin+"/#/demandas");
  await page.reload(); // Recarrega o bootstrap após retirar a demanda fictícia.
 
