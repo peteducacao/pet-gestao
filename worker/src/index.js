@@ -209,7 +209,7 @@
 
   // Lembretes automáticos: opção desativada até a Administração habilitar.
   // Usa a data civil de Sergipe (UTC-3) e uma chave única por etapa/prazo/tipo.
-  const defaultReminderSettings={dueSoonEnabled:false,daysBefore:3,overdueEnabled:false};
+  const defaultReminderSettings={dueSoonEnabled:false,daysBefore:3,overdueEnabled:false,overdueAudience:"pending"};
   const deadlineMailTemplates={
     due_soon:{
       subject:"PET Gestão — Prazo vencendo: {demanda}",
@@ -250,11 +250,11 @@
       const stages=asJson(task.deadlines,[]);
       const donePeople=asJson(task.user_done,{}),doneCommissions=asJson(task.commission_done,{});
       const allTaskAssignees=asJson(task.assignee_ids,[]);
-      const activePeople=new Set(allTaskAssignees.filter(userId=>!donePeople[userId]));
+      const allPeople=new Set(allTaskAssignees),activePeople=new Set(allTaskAssignees.filter(userId=>!donePeople[userId]));
       for(const commissionId of asJson(task.commission_ids,[])){
-        if(doneCommissions[commissionId])continue;
         for(const memberId of membersByCommission.get(commissionId)||[]){
-          if(!donePeople[memberId])activePeople.add(memberId);
+          allPeople.add(memberId);
+          if(!doneCommissions[commissionId]&&!donePeople[memberId])activePeople.add(memberId);
         }
       }
       for(let stageIndex=0;stageIndex<stages.length;stageIndex++){
@@ -272,7 +272,12 @@
         else if(config.overdueEnabled&&diffDays<=0&&diffDays>=-1&&clock.getTime()>dueMs)kind="overdue";
         if(!kind)continue;
         const stageOwners=unique(stage.assigneeIds);
-        const recipientIds=stageOwners.length?stageOwners.filter(id=>!donePeople[id]):[...activePeople];
+        // O Admin pode enviar o aviso de prazo vencido para TODOS os participantes
+        // (incluindo integrantes de comissões concluídas), sem duplicar e-mails.
+        // Os demais avisos preservam o comportamento de apenas pendências.
+        const notifyEveryone=kind==="overdue"&&config.overdueAudience==="all";
+        const recipientIds=notifyEveryone?[...new Set([...allPeople,...stageOwners])]:
+          stageOwners.length?stageOwners.filter(id=>!donePeople[id]):[...activePeople];
         const recipients=unique(recipientIds.map(id=>peopleById.get(id)?.email).filter(validEmail));
         if(!recipients.length)continue;
         const template=models?.[kind]||deadlineMailTemplates[kind];
@@ -506,7 +511,11 @@
         if(typeof b.dueSoonEnabled!=="boolean"||typeof b.overdueEnabled!=="boolean"||
            !Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)
           fail("Configure os avisos e a antecedência entre 1 e 30 dias.");
-        const config={dueSoonEnabled:b.dueSoonEnabled,daysBefore,overdueEnabled:b.overdueEnabled};
+        const existing=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
+        const previously=asJson(existing?.value,{});
+        const overdueAudience=b.overdueAudience??previously.overdueAudience??"pending";
+        if(!["pending","all"].includes(overdueAudience))fail("Escolha destinatários válidos para os avisos de prazo vencido.");
+        const config={dueSoonEnabled:b.dueSoonEnabled,daysBefore,overdueEnabled:b.overdueEnabled,overdueAudience};
         await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
         return answer({ok:true,reminderSettings:config});
       }
