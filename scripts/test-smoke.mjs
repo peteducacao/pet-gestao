@@ -36,9 +36,10 @@ await test("login administrativo independente",async()=>{
  assert.equal(r.user.role,"admin");assert.ok(r.token);
 });
 await test("cadastro começa como Usuário",async()=>{
- good(await api("/auth/register","POST",{name:"Pessoa Teste",email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}),201);
+ good(await api("/auth/register","POST",{name:"Pessoa Teste",email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!",role:"admin",adminSession:true}),201);
  const r=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
  assert.equal(r.user.role,"usuario");
+ assert.equal(r.user.adminSession,false,"Campos enviados pelo navegador não criam permissão Admin.");
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
 });
@@ -173,7 +174,47 @@ await test("conclusão independente",async()=>{
  assert.equal(r.remainingCommissions.length,1);
 });
 await test("arquivamento",async()=>{const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:b,early:true}));assert.equal(r.archived,true)});
-await test("exclusão definitiva",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
+await test("ataque simulado: PETiano(a) e Tutor(a) não apagam demandas arquivadas",async()=>{
+ const original=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+ try{
+  for(const role of ["petiano","tutor"]){
+   good(await api("/admin/users/"+person.id,"PATCH",{role,notificationEnabled:false}));
+   const login=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
+   token=login.token;
+   assert.equal((await api("/tasks/"+task,"DELETE")).status,403,"Exclusão liberada a "+role);
+   assert.ok(good(await api("/bootstrap")).tasks.some(x=>x.id===task),"Registro arquivado não foi apagado.");
+   token=original;
+  }
+ }finally{
+  token=original;
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+ }
+});
+await test("ataques simulados: injeção SQL e sessão falsa não revelam dados ou tabelas",async()=>{
+ const original=token;
+ const malicious="'); DROP TABLE users; --";
+ const userListBefore=good(await api("/admin/users")).users.length;
+ const created=good(await api("/commissions","POST",{name:malicious}),200);
+ assert.equal(created.ok,true,"SQL deve entrar como valor, não comando.");
+ const live=good(await api("/bootstrap"));
+ assert.ok(live.committees.some(x=>x.name===malicious));
+ assert.equal(good(await api("/admin/users")).users.length,userListBefore,"A tabela de usuários deve continuar íntegra.");
+ const injectedId=encodeURIComponent("' OR 1=1 --");
+ assert.equal((await api("/admin/users/"+injectedId,"PATCH",{role:"admin"})).status,404);
+ const c=live.committees.find(x=>x.name===malicious);
+ good(await api("/commissions/"+c.id,"DELETE"));
+ token="x".repeat(50);
+ assert.equal((await api("/admin/users")).status,401,"Token falso não autoriza acesso.");
+ assert.equal((await api("/bootstrap")).session,null);
+ token="";
+ const preview=good(await api("/bootstrap"));
+ assert.ok(preview.tasks.every(t=>!Object.hasOwn(t,"captionText")&&!Object.hasOwn(t,"assigneeIds")),"Detalhes privados não saem na API pública.");
+ assert.deepEqual(preview.history,[],"Histórico privado não deve sair na API pública.");
+ token=original;
+ const cross=await fetch(base+"/admin/users",{headers:{Origin:"https://site-externo.example",Authorization:"Bearer "+original}});
+ assert.equal(cross.status,403,"Origem não permitida");
+});
+await test("exclusão definitiva somente pela sessão Admin",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
 await test("cada pessoa conclui apenas sua própria tarefa e a última conclusão arquiva",async()=>{
  const adminToken=token,admin=good(await api("/auth/me")).user;
  const other=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
