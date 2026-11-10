@@ -30,6 +30,7 @@ await page.route("**/api/v1/**",async route=>{
  calls.push({method,p,body,authorization:req.headers()["authorization"]||""});
  if(p==="/auth/me")result={user};
  else if(p==="/bootstrap")result=bootstrap(adminMode);
+ else if(p==="/auth/login"&&method==="POST")result={token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user};
  else if(p==="/mail")result={items:[]};
  else if(p==="/mail/status")result={connected:true,message:"Teste isolado"};
  else if(p==="/admin/commissions-batch"&&method==="PUT"){
@@ -80,7 +81,7 @@ await page.route("**/api/v1/**",async route=>{
 });
 await context.addInitScript(()=>{
  localStorage.setItem("pet-gestao:session-token","user-token");
- localStorage.setItem("pet-gestao:admin-session-token","admin-token");
+ // Administração obtém sessão pelo login comum, não por uma segunda sessão.
 });
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 try{
@@ -510,6 +511,16 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/minhas-pendencias");
  await page.locator('select[data-filter="mineStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="mineStatus"] option').count(),3);
+ // Administração: autenticar pelo mesmo formulário de qualquer integrante.
+ await page.goto(origin+"/#/login");
+ const loginForm=page.locator("#login-form");
+ await loginForm.locator('input[name="email"]').fill(admin.email);
+ await loginForm.locator('input[name="password"]').fill("SenhaDeTeste");
+ await loginForm.locator('input[name="rememberMe"]').check();
+ await loginForm.locator('button[type="submit"]').click();
+ await page.waitForURL("**/#/inicio");
+ assert.equal(await page.evaluate(()=>localStorage.getItem("pet-gestao:session-token")),"admin-token","Admin usa o mesmo token do login comum");
+ assert.equal(await page.locator("#admin-link").isVisible(),true,"Somente a Administração visualiza Painel Admin");
  // Administração: mudanças de vagas e de ordem somente após Salvar todas.
  committees.push({id:"cards",name:"Cards",memberIds:[],memberCount:0,maxMembers:0,backgroundColor:"#f7f3ff"});
  await page.goto(origin+"/#/admin/comissoes");
