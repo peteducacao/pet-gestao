@@ -2438,6 +2438,7 @@ body.commission-image-editor-open{overflow:hidden}
 @media(max-width:480px){#screen .account-app-install{padding:15px 13px}}
 
 
+.commission-default-art>.commission-card-svg{display:block;width:96%;height:96%;max-width:100%;max-height:100%;flex:none}
 /* Comissões 2026: cards editoriais, imagem à direita e ondas guiadas pelo RGB.
    A cor original continua salva sem alterações; só o visual deriva dela. */
 #screen .commission-cards-grid{gap:16px;margin-top:20px}
