@@ -59,7 +59,7 @@ let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
 const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let taskFormDraft=null;
 const taskFormRoute=hash=>/^#\/(?:registrar(?:\/|$)|admin\/registrar(?:\/|$))/.test(String(hash||""));
@@ -349,7 +349,7 @@ async function reload(){
  }
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
 }
-function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","atividade","reunioes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
+function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","atividade","reunioes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
@@ -533,8 +533,7 @@ function renderComissoes(){
  return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="'+esc(c.name)+'">':commissionDefaultArt(c.name))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes'+(!cmax?' · Vagas a definir':"")+'</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
  (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
  (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>'
- }).join("")+'</div></section>'+
- commissionHelp();
+ }).join("")+'</div></section>';
 }
 function commissionHelp(){
  const topics=[
@@ -551,6 +550,39 @@ function commissionHelp(){
   '<div class="commission-help-list">'+topics.map(([q,a])=>
    '<details class="commission-help-item"><summary>'+esc(q)+'<span aria-hidden="true">⌄</span></summary>'+
    '<p>'+esc(a)+'</p></details>').join("")+'</div></section>';
+}
+
+// Ajuda geral no menu Organização; mantém Comissões sem um bloco de ajuda repetido.
+function renderHelp(){
+ const sections=[
+ ["Primeiros passos",[
+  ["O que encontro em Visão geral, Demandas e Minhas pendências?","Visão geral resume as próximas atividades. Demandas reúne todos os registros e seus filtros. Minhas pendências lista apenas as participações que ainda dependem de você."],
+  ["Quem pode cadastrar ou editar demandas?","PETianos(as), Tutoria e Administração têm acesso às operações permitidas aos seus cargos. A conta somente de leitura acompanha as informações públicas."]
+ ]],
+ ["Demandas e conclusão",[
+  ["Como criar uma demanda?","Abra Demandas > Registrar demanda, informe o título, escolha os responsáveis (Pessoas, Comissões ou Todos(as)) e defina datas ou etapas quando necessário."],
+  ["O que significam Pendente, Atrasada e Concluída?","Pendente é a atividade que ainda aguarda finalização; atrasada tem prazo vencido; concluída não tem participações pendentes."],
+  ["Como funciona Marcar todos?","Na confirmação de conclusão, Marcar todos seleciona todas as pessoas e comissões ainda pendentes. Você pode desmarcar qualquer uma antes de concluir."],
+  ["Concluir minha participação conclui toda a demanda?","Somente se ninguém mais estiver pendente. Pessoas e comissões podem concluir separadamente."],
+  ["Posso sair de uma edição sem salvar?","Se você modificou algum campo, o sistema pergunta se deseja continuar editando ou sair sem salvar."],
+  ["Posso excluir demandas concluídas?","Perfis autorizados podem selecionar as demandas na visualização Concluídas, conferir a seleção e confirmar a exclusão definitiva."]
+ ]],
+ ["Atas e revisão",[
+  ["Onde ficam as atas de reunião?","Acesse Atas de Reunião no menu Organização para consultar, criar e editar registros conforme suas permissões."],
+  ["Como saber quem corrigiu o texto para revisão?","Perto da área de revisão aparece a última alteração registrada, com nome, cargo, data e horário."]
+ ]],
+ ["E-mails e conta",[
+  ["Quando uma alteração dispara e-mail?","A Tutoria e a Administração podem escolher Salvar e enviar ou Salvar sem enviar. O remetente não recebe uma cópia para si mesmo."],
+  ["E se a demanda for excluída ou seu prazo for alterado?","Mensagens pendentes vinculadas à demanda são verificadas e canceladas quando deixam de ser válidas; mensagens já enviadas não podem ser recolhidas."],
+  ["O que faz Manter-me conectado?","Permite continuar usando sua conta no navegador até sair ou ter a sessão revogada. Abas do mesmo navegador compartilham a mesma identidade."],
+  ["O que faz Limpar tudo?","Esconde suas últimas atualizações sem apagar o histórico de trabalho da equipe."]
+ ]]
+ ];
+ const group=([heading,entries])=>'<section class="card card-pad help-section"><h2>'+esc(heading)+'</h2><div class="commission-help-list">'+
+  entries.map(([q,a])=>'<details class="commission-help-item"><summary>'+esc(q)+'<span aria-hidden="true">⌄</span></summary><p>'+esc(a)+'</p></details>').join("")+'</div></section>';
+ return header("Orientações","Ajuda","Encontre respostas sobre as funcionalidades do PET Gestão.")+
+  '<div class="help-page">'+sections.map(group).join("")+commissionHelp()+
+  (isAdmin()?'<section class="card card-pad help-section"><h2>Administração</h2><p>O Painel Admin é reservado à gestão de usuários, vagas das comissões, configurações e e-mails. Demandas e atas ficam na área Organização.</p></section>':"")+'</div>';
 }
 
 // O painel contabiliza a participação DESTA comissão, independentemente
@@ -1230,6 +1262,7 @@ function render(){
  else if(page==="demandas")html=renderDemandas();
  else if(page==="cronograma")html=renderDemandas();
  else if(page==="comissoes")html=!parts.length?renderComissoes():parts[0]==="nova"?renderCommitteeEdit(""):parts[0]==="editar"?renderCommitteeEdit(parts.slice(1).join("/")):renderCommittee(parts.join("/"));
+ else if(page==="ajuda")html=renderHelp();
  else if(page==="registrar")html=renderTaskForm(parts.join("/"));
  else if(page==="atividade")html=renderDetail(parts[0],parts[1]||"");
  else if(page==="reunioes")html=renderMemory(parts.join("/"));
