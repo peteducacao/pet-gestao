@@ -37,7 +37,7 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - Ao editar **Texto para revisão**, a Tutoria/Admin pode escolher se deseja notificar os responsáveis. Evitar pergunta para pequenas alterações não relacionadas a essa revisão.
 - Preferência “Perguntar se desejo notificar” desligada implica salvar sem pergunta e sem envio.
 - Administração possui **modelo editável** da notificação automática (assunto + texto rico), com variáveis automáticas de autor, ação, demanda e tipo.
-- Administração também envia e-mails manuais/agendados com editor WYSIWYG, seleção de destinatários, monitor de fila e histórico. Envio imediato aceita anexos transitórios; envio agendado não aceita anexos. Nenhuma demanda aceita anexos de arquivos.
+- Administração também envia e-mails manuais/agendados com editor WYSIWYG, seleção de destinatários, monitor de fila e histórico. E-mail imediato aceita anexos transitórios; e-mail agendado não aceita anexos. **Demandas possuem armazenamento próprio de arquivos**, independente do envio por e-mail.
 - Apenas ações da tutoria/Admin oferecem notificações automáticas; PETiano(a) não dispara por editar sua própria demanda.
 
 ## Comissões e permissões
@@ -195,3 +195,13 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - Ao **excluir uma demanda**, cancelar as notificações vinculadas que ainda não saíram da fila; ao **alterar os prazos ou a demanda**, cancelar os avisos antigos e somente produzir os novos de acordo com os prazos vigentes. Alterações no texto de revisão cancelam avisos antigos ainda não entregues.
 - Avisos já enviados não podem ser recolhidos. Uma mensagem que já iniciou entrega externa pode ter saído antes da atualização; o sistema não deve alegar que consegue desfazer um envio externo em andamento. E-mails manuais não associados a uma demanda não são afetados por sua exclusão.
 - O Painel Admin reúne apenas **Painel, Usuários, Comissões, E-mails e Configurações**; Demandas e Atas permanecem na área comum. Formulários não repetem botão textual Voltar quando já existe seta de navegação.
+
+## Anexos persistentes de demandas — 11/11/2026
+- Ao **registrar ou editar uma demanda**, perfis autorizados podem escolher arquivos em **Arquivos da demanda**. Esses arquivos **não são enviados automaticamente por e-mail**: são armazenados na demanda, permanecendo disponíveis após atualizar a página e após conclusão.
+- Em **Detalhes da demanda**, disponibilizar os arquivos com nome, tamanho e opção **Baixar**. Permitir **Excluir** com confirmação explícita. Não incluir os dados binários no `bootstrap`: mostrar somente metadados aos PETianos(as), Tutoria e Administração logados.
+- **Limites iniciais:** até 10 MiB por arquivo, 8 arquivos por demanda e 30 MiB acumulados por demanda. O sistema não aceita arquivos vazios. A interface informa quando ultrapassa o limite.
+- **Armazenamento:** D1 (tabelas `task_attachments` e `task_attachment_chunks`, migração `0015_anexos_demandas.sql`), com cada arquivo separado em blocos de 256 KiB. A divisão evita o limite de 2 MB por registro do D1 e mantém o conteúdo fora do GitHub, do HTML e dos e-mails.
+- **Privacidade:** endpoints de criação, escrita, download, listagem e exclusão exigem autenticação e perfil de edição. Download usa `Content-Disposition: attachment`, `application/octet-stream` e `Cache-Control: no-store`, sem link público para os bytes.
+- O backend só marca o arquivo como pronto quando todas as partes foram recebidas e o total confere. Em caso de falha durante o upload, a interface informa quais arquivos não foram armazenados, sem afirmar que todos foram salvos. Uploads incompletos há mais de 48 horas são limpos pelo agendador.
+- Excluir uma demanda exclui também seus arquivos e blocos associados pela integridade referencial (inclusive em exclusão múltipla de concluídas). Uma demanda arquivada mantém seus arquivos para consulta, mas não permite novos uploads.
+- **Teste obrigatório:** criar demanda, enviar arquivo maior que 256 KiB, validar todas as partes e download binariamente idêntico, negar acesso sem login, excluir arquivo e excluir demanda mantendo os outros registros inalterados.
