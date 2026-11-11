@@ -103,6 +103,11 @@
     const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
     const privateView=!!user&&user.role!=="usuario"&&!user.must_change_password;
     const rawTasks=(await db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 1000").all()).results;
+    const attachments=privateView?(await db.prepare(
+      "SELECT id,task_id,filename,mime_type,size_bytes,created_at,created_by FROM task_attachments WHERE status='ready' ORDER BY created_at"
+    ).all()).results:[];
+    const attachmentsByTask=Object.create(null);
+    for(const file of attachments)(attachmentsByTask[file.task_id]??=[]).push(publicAttachment(file));
     const tutorReviewedIds=user?.role==="tutor"?new Set(
       (await db.prepare("SELECT task_id FROM task_tutor_reviews WHERE user_id=?").bind(user.id).all()).results.map(row=>row.task_id)
     ):new Set();
@@ -118,7 +123,7 @@
     const counts=Object.create(null);
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
     return {session:user?{user:userPublic(user)}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
-      tasks:rawTasks.map(t=>privateView?{...privateTask(t),tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings};
+      tasks:rawTasks.map(t=>privateView?{...privateTask(t),attachments:attachmentsByTask[t.id]||[],tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings};
   }
   const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
   const bridgePost=async(env,payload)=>{
@@ -478,6 +483,25 @@
     await db.prepare("INSERT INTO task_tutor_reviews(task_id,user_id,reviewed_at) VALUES(?,?,?) ON CONFLICT(task_id,user_id) DO UPDATE SET reviewed_at=excluded.reviewed_at")
       .bind(task.id,user.id,stamp).run();
   }
+  // Binários privados no D1, em blocos de 256 KiB para respeitar 2 MB/linha.
+  const ATTACH_CHUNK=262144,ATTACH_MAX_FILE=10*1024*1024;
+  const ATTACH_MAX_FILES=8,ATTACH_MAX_TASK_TOTAL=30*1024*1024;
+  const publicAttachment=a=>({
+    id:a.id,name:a.filename,mimeType:a.mime_type,size:a.size_bytes,
+    createdAt:a.created_at,createdBy:a.created_by
+  });
+  async function attachmentMetadata(db,taskId){
+    return (await db.prepare("SELECT id,filename,mime_type,size_bytes,created_at,created_by FROM task_attachments WHERE task_id=? AND status='ready' ORDER BY created_at,id")
+      .bind(taskId).all()).results.map(publicAttachment);
+  }
+  async function attachmentRow(db,taskId,attachmentId){
+    const file=await db.prepare("SELECT * FROM task_attachments WHERE id=? AND task_id=?").bind(attachmentId,taskId).first();
+    if(!file)fail("Arquivo não encontrado nesta demanda.",404);
+    return file;
+  }
+  async function purgeIncompleteAttachments(db){
+    await db.prepare("DELETE FROM task_attachments WHERE status='uploading' AND created_at<?").bind(isoAfter(-48*60)).run();
+  }
   async function readTask(db,id){const t=await db.prepare("SELECT * FROM tasks WHERE id=?").bind(id).first();if(!t)fail("Demanda não encontrada.",404);return privateTask(t)}
   async function fetchApi(req,env,ctx){
     const url=new URL(req.url),path=url.pathname.replace(/\/+$/,""),method=req.method,db=env.DB,origin=req.headers.get("Origin")||"";
@@ -822,6 +846,85 @@
         if(!result.meta.changes)fail("Esta comissão está com todas as vagas preenchidas.",409);
         return answer({ok:true});
       }
+      // Anexos de demandas: sem rota pública, autenticação exigida inclusive para download.
+      const attachPath=path.match(/^\/api\/v1\/tasks\/([^/]+)\/attachments(?:\/([^/]+)(?:\/(chunks\/([0-9]+)|complete|download))?)?$/);
+      if(attachPath){
+        ensure(user);
+        const taskId=attachPath[1],fileId=attachPath[2],action=attachPath[3]||"";
+        const task=await readTask(db,taskId);
+        if(!fileId&&method==="GET")return answer({attachments:await attachmentMetadata(db,taskId)});
+        if(!fileId&&method==="POST"){
+          if(task.archivedAt)fail("Demandas concluídas não podem receber novos arquivos.",409);
+          const b=await body(req);
+          const name=String(b.name||"").trim();
+          const size=Number(b.size),mime=String(b.mimeType||"application/octet-stream").trim();
+          if(!name||name.length>160||/[\\/\x00-\x1f<>]/.test(name))
+            fail("Informe um nome válido para o arquivo (até 160 caracteres).");
+          if(!Number.isInteger(size)||size<1||size>ATTACH_MAX_FILE)
+            fail("O arquivo deve ter até 10 MB e não pode estar vazio.",413);
+          if(mime.length>100||/[\r\n]/.test(mime))fail("Tipo de arquivo inválido.");
+          const quota=await db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(size_bytes),0) AS total FROM task_attachments WHERE task_id=?")
+            .bind(taskId).first();
+          if(quota.n>=ATTACH_MAX_FILES||quota.total+size>ATTACH_MAX_TASK_TOTAL)
+            fail("Limite de 8 arquivos ou 30 MB por demanda atingido.",413);
+          const attachmentId=uid(),stamp=now(),count=Math.ceil(size/ATTACH_CHUNK);
+          await db.prepare("INSERT INTO task_attachments(id,task_id,filename,mime_type,size_bytes,chunk_count,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
+            .bind(attachmentId,taskId,name,mime||"application/octet-stream",size,count,user.id,stamp,stamp).run();
+          return answer({id:attachmentId,chunkSize:ATTACH_CHUNK,chunkCount:count},201);
+        }
+        if(!fileId)fail("Operação de arquivo inválida.",405);
+        const file=await attachmentRow(db,taskId,fileId);
+        if(action==="download"&&method==="GET"){
+          if(file.status!=="ready")fail("Arquivo ainda não está disponível.",409);
+          const rows=(await db.prepare("SELECT chunk_index,data,size_bytes FROM task_attachment_chunks WHERE attachment_id=? ORDER BY chunk_index")
+            .bind(file.id).all()).results;
+          if(rows.length!==file.chunk_count||rows.reduce((n,r)=>n+r.size_bytes,0)!==file.size_bytes)
+            fail("Arquivo incompleto. Solicite novo envio.",409);
+          const chunks=rows.map(row=>new Uint8Array(row.data));
+          const safeName=file.filename.replace(/[\\/"\r\n]/g,"_");
+          return new Response(new Blob(chunks,{type:"application/octet-stream"}),{
+            status:200,headers:{
+              "Content-Type":"application/octet-stream",
+              "Content-Disposition":"attachment; filename=\"arquivo\"; filename*=UTF-8''"+encodeURIComponent(safeName),
+              "Cache-Control":"private, no-store",
+              "X-Content-Type-Options":"nosniff",
+              "Content-Security-Policy":"default-src 'none'",
+              "Access-Control-Allow-Origin":origin,
+              "Vary":"Origin"
+            }
+          });
+        }
+        if(!action&&method==="DELETE"){
+          await db.prepare("DELETE FROM task_attachments WHERE id=? AND task_id=?").bind(file.id,taskId).run();
+          await audit(db,taskId,user,"Excluiu anexo",file.filename);
+          return answer({ok:true});
+        }
+        if(file.status!=="uploading")fail("Este arquivo já foi finalizado.",409);
+        if(task.archivedAt)fail("Demanda concluída: não é possível terminar o envio.",409);
+        if(action.startsWith("chunks/")&&method==="PUT"){
+          const index=Number(attachPath[4]),expected=file.chunk_count-1===index?
+            file.size_bytes-index*ATTACH_CHUNK:ATTACH_CHUNK;
+          if(!Number.isInteger(index)||index<0||index>=file.chunk_count)fail("Parte inválida.",400);
+          const declared=Number(req.headers.get("content-length")||0);
+          if(declared>ATTACH_CHUNK)fail("Parte do arquivo excede 256 KiB.",413);
+          const raw=await req.arrayBuffer();
+          if(raw.byteLength!==expected)fail("Esta parte do arquivo tem tamanho incorreto.",400);
+          await db.prepare("INSERT INTO task_attachment_chunks(attachment_id,chunk_index,data,size_bytes) VALUES(?,?,?,?) ON CONFLICT(attachment_id,chunk_index) DO UPDATE SET data=excluded.data,size_bytes=excluded.size_bytes")
+            .bind(file.id,index,new Uint8Array(raw),raw.byteLength).run();
+          return answer({ok:true,received:index+1,total:file.chunk_count});
+        }
+        if(action==="complete"&&method==="POST"){
+          const received=await db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(size_bytes),0) AS size FROM task_attachment_chunks WHERE attachment_id=?")
+            .bind(file.id).first();
+          if(received.n!==file.chunk_count||received.size!==file.size_bytes)
+            fail("Envio incompleto. Aguarde todas as partes do arquivo.",409);
+          await db.prepare("UPDATE task_attachments SET status='ready',updated_at=? WHERE id=? AND status='uploading'")
+            .bind(now(),file.id).run();
+          await audit(db,taskId,user,"Adicionou anexo",file.filename);
+          return answer({ok:true,attachment:publicAttachment(file)});
+        }
+        fail("Operação de anexo não permitida.",405);
+      }
       if((path==="/api/v1/tasks/bulk-delete"||path==="/api/v1/admin/tasks/bulk-delete")&&method==="POST"){
         // Disponível a todas as funções que podem editar demandas.
         // Endpoint legado mantido para quem ainda está com o site antigo em cache.
@@ -1027,4 +1130,4 @@
       return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
-export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await processQueue(env,15)})())};
+export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await processQueue(env,15)})())};
