@@ -51,6 +51,15 @@ const storageContext={
 vm.createContext(storageContext);
 vm.runInContext(match[0]+"\nthis.saved=readSessionToken('pet-gestao:session-token');",storageContext);
 assert.equal(storageContext.saved,"persistente");
+// Sem permanência, a aba nova lê a mesma sessão temporária do navegador.
+const temporaryTab={
+ localStorage:{getItem:()=>null},
+ sessionStorage:{getItem:()=>null},
+ readSessionCookie:()=>"token-temporario-compartilhado"
+};
+vm.createContext(temporaryTab);
+vm.runInContext(match[0]+"\nthis.saved=readSessionToken('pet-gestao:session-token');",temporaryTab);
+assert.equal(temporaryTab.saved,"token-temporario-compartilhado");
 
 // A tela pública não anuncia a existência da Administração.
 const login=front.slice(front.indexOf("function renderLogin(){"),front.indexOf("function renderRegisterAccount()"));
