@@ -1514,11 +1514,36 @@ function notificationTemplateFor(kind){
  return state.templateDrafts?.[kind]||data.settings.notificationTemplates?.[kind]||
   (["create","review"].includes(kind)?data.settings.notificationTemplate:null)||fallbacks[kind]||fallbacks.create;
 }
+
+const templateVariableInfo={
+ autor:"Nome de quem cadastrou ou revisou a demanda. Nos avisos de prazo, aparece PET Gestão.",
+ acao:"Ação que gerou o e-mail, como cadastrou ou atualizou o texto.",
+ demanda:"Título da demanda relacionada à notificação.",
+ tipo:"Tipo da mensagem: Nova demanda, Texto para revisão ou Prazo vencendo.",
+ etapa:"Nome da etapa ou prazo vinculado à demanda.",
+ prazo:"Data e horário do vencimento da etapa.",
+ dias:"Dias configurados para o aviso antecipado. Em Prazo vencido, não corresponde aos dias em atraso.",
+ link:"Endereço para abrir a demanda no PET Gestão."
+};
+const templateVariables={
+ create:["autor","acao","demanda","tipo"],review:["autor","acao","demanda","tipo"],
+ due_soon:["autor","acao","tipo","demanda","etapa","prazo","dias","link"],
+ overdue:["autor","acao","tipo","demanda","etapa","prazo","dias","link"]
+};
+function notificationVariableGuide(kind){
+ const keys=templateVariables[kind]||templateVariables.create;
+ return '<section class="mail-template-guide" aria-label="Chaves automáticas disponíveis">'+
+  '<div class="mail-template-guide-heading"><span class="mail-template-guide-icon">'+ico("info")+'</span><div>'+
+  '<h3>Chaves automáticas disponíveis</h3><p>Use estas chaves no assunto ou na mensagem, incluindo { e }. O PET Gestão as substitui automaticamente ao enviar.</p></div></div>'+
+  '<div class="mail-template-guide-list">'+keys.map(key=>'<div class="mail-template-guide-item"><code>{'+key+'}</code><span>'+esc(templateVariableInfo[key])+'</span></div>').join("")+'</div>'+
+  '<p class="mail-template-guide-example"><strong>Exemplo:</strong> <code>{autor}</code> cadastrou <code>{demanda}</code> → o e-mail mostrará o nome da pessoa e o título da demanda.'+
+  (kind==="overdue"?' <strong>Atenção:</strong> <code>{dias}</code> não indica há quantos dias venceu.':'')+'</p></section>';
+}
 function notificationTemplateFields(kind){
  const config=notificationTemplateFor(kind);
  return '<label>Assunto<input type="text" name="subject" maxlength="200" required value="'+esc(config.subject||"")+'"></label>'+
   '<label class="rich-label">Mensagem</label>'+
-  richEditor("message",config.body||"");
+  richEditor("message",config.body||"")+notificationVariableGuide(kind);
 }
 function closeAdminMenu(){
  if(!state.adminMenuOpen)return;
@@ -1545,7 +1570,7 @@ function renderAdmin(){
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<div class="mail-schedule-choice"><button type="button" class="button ghost mail-schedule-toggle" data-do="mail-toggle-schedule" aria-pressed="false">'+ico("calendar")+' Agendar envio</button><small>Escolha um horário somente se quiser enviar depois.</small></div><div id="mail-scheduling"></div><div id="mail-attachments"></div><div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-manual">Pré-visualizar e-mail</button><button class="button primary" type="submit">Enviar</button></div></form></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Avisos automáticos de prazo</h2><p class="field-hint">Defina quando os responsáveis receberão avisos sobre etapas pendentes. Cada etapa recebe um aviso de cada tipo; demandas arquivadas não recebem alertas. Os avisos iniciam desativados para evitar envios inesperados.</p>'+
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-soon" '+(reminderConfig.dueSoonEnabled?"checked":"")+'> E-mail de prazo vencendo</label><label class="deadline-days">Enviar faltando <input type="number" id="reminder-days" min="1" max="30" step="1" value="'+esc(reminderConfig.daysBefore??3)+'"> dia(s) para o prazo</label><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> E-mail de prazo vencido</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas. Cada endereço recebe um único e-mail por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-settings">Salvar avisos de prazo</button></div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de e-mails de prazo</h2><p class="field-hint">Edite e pré-visualize separadamente as mensagens automáticas de prazo vencendo e vencido. Campos disponíveis: {demanda}, {etapa}, {prazo}, {dias}, {link}.</p>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de e-mails de prazo</h2><p class="field-hint">Edite e pré-visualize separadamente as mensagens automáticas de prazo vencendo e vencido. Confira as chaves disponíveis e seus significados abaixo do editor.</p>'+
  '<form id="deadline-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="deadline-template-kind" class="select">'+notificationKinds.filter(([kind])=>["due_soon","overdue"].includes(kind)).map(([kind,label])=>opt(kind,label,state.deadlineTemplateKind)).join("")+'</select></label>'+
  '<div id="deadline-template-fields">'+notificationTemplateFields(state.deadlineTemplateKind)+'</div>'+
  '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-deadline">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo de prazo</button></div></form></section>'+

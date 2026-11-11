@@ -372,6 +372,7 @@ tap('[data-do="save-all-commissions"]');await wait();await wait();
 assert.equal(committees[0].maxMembers,5,"Salvamento em lote aplica as vagas");
 await move("#/admin/emails");
 assert.ok(document.querySelector("#notification-template-form"),"Modelos de criação e revisão disponíveis em E-mails");
+assert.equal(document.querySelectorAll("#notification-template-form .mail-template-guide-item").length,4,"Criação explica 4 chaves");
 assert.ok(document.querySelector("#mail-form [data-rich-input='message']"),"Editor WYSIWYG no e-mail");
 const select=document.querySelector("#notification-template-kind");
 assert.equal(select.options.length,2,"Em E-mails permanecem só os modelos de criação e revisão");
@@ -395,6 +396,7 @@ assert.equal(settings.notificationTemplates.review.subject,"Revisão personaliza
 await move("#/admin/configuracoes");
 assert.equal(document.querySelector("#reminder-days")?.closest(".admin-panel").hidden,false,"Avisos agora estão em Configurações");
 assert.equal(document.querySelector("#deadline-template-kind")?.options.length,2,"Modelos de prazo possuem seletor próprio");
+assert.equal(document.querySelectorAll("#deadline-template-form .mail-template-guide-item").length,8,"Avisos de prazo explicam 8 chaves");
 const kindDue=document.querySelector("#deadline-template-kind");
 kindDue.value="due_soon";kindDue.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 tap('[data-do="mail-preview-deadline"]');

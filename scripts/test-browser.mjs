@@ -665,6 +665,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#mail-scheduling input[name="sendAt"]').count(),0);
  const kindSelector=page.locator("#notification-template-kind");
  assert.equal(await kindSelector.locator("option").count(),2,"E-mails só possui modelos criação e revisão");
+ assert.equal(await page.locator("#notification-template-form .mail-template-guide-item").count(),4,"Modelo explica as chaves");
  assert.equal(await page.locator("#reminder-days").evaluate(el=>el.closest(".admin-panel").hidden),true,"Avisos fora de E-mails");
  await page.locator('[data-do="mail-preview-template"]').click();
  assert.equal(await page.locator("#mail-preview-dialog").isVisible(),true,"Prévia do modelo abre");
