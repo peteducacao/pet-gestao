@@ -24,6 +24,26 @@ forgetSessionToken(adminTokenKey);
 const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
+let taskFormDraft=null;
+const taskFormRoute=hash=>/^#\/(?:registrar(?:\/|$)|admin\/registrar(?:\/|$))/.test(String(hash||""));
+function taskDraftSnapshot(){
+ const form=$("#task-form");if(!form)return null;
+ const controls=[...form.querySelectorAll("input,textarea,select,[contenteditable]")].map(el=>{
+  if(el.tagName==="BUTTON"||el.type==="submit"||el.type==="button")return null;
+  const key=el.name||el.dataset.stage||el.id||el.outerHTML.slice(0,55);
+  const value=el.matches("[contenteditable]")?el.innerHTML:
+    (el.type==="checkbox"||el.type==="radio")?el.checked:el.value;
+  return [key,value,Boolean(el.disabled)];
+ }).filter(Boolean);
+ return JSON.stringify({controls,scope:state.assignmentScope,
+  users:[...state.selectedUsers].sort(),commissions:[...state.selectedCommissions].sort()});
+}
+function hasUnsavedTaskChanges(){
+ return Boolean(taskFormDraft&&taskFormRoute(lastHash)&&
+  taskFormDraft.route===lastHash&&$("#task-form")&&taskDraftSnapshot()!==taskFormDraft.snapshot);
+}
+function resetTaskDraft(){taskFormDraft=null}
+
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 const richTags=new Set(["B","STRONG","I","EM","U","P","DIV","BR","UL","OL","LI","SPAN","FONT"]);
@@ -219,7 +239,7 @@ function closeNotice(confirmed=false){
  if(noticeReturnFocus?.isConnected)noticeReturnFocus.focus();
  noticeReturnFocus=null;
 }
-function showNotice(message,{title="",kind="info",confirm=false,danger=false,secret="",focusAfter=null}={}){
+function showNotice(message,{title="",kind="info",confirm=false,danger=false,secret="",focusAfter=null,cancelLabel="Cancelar",confirmLabel=""}={}){
  const layer=$("#notice-dialog");if(!layer)return confirm?Promise.resolve(false):undefined;
  if(!layer.hidden)closeNotice(false);
  noticeReturnFocus=focusAfter||document.activeElement;
@@ -232,7 +252,7 @@ function showNotice(message,{title="",kind="info",confirm=false,danger=false,sec
  '<p id="notice-description">'+esc(message)+'</p>'+
  (secret?'<div class="notice-secret"><input id="notice-secret-value" type="text" readonly aria-label="Senha temporária" value="'+esc(secret)+'"><button type="button" class="button ghost" data-do="notice-copy">'+ico("copy")+' Copiar senha</button></div>':"")+
  '<div class="notice-dialog-actions">'+
- (confirm?'<button class="button ghost" type="button" data-do="notice-cancel">Cancelar</button><button class="button primary'+(danger?" notice-dialog-danger":"")+'" type="button" data-do="notice-confirm">'+(danger?"Excluir definitivamente":"Confirmar")+'</button>':
+ (confirm?'<button class="button ghost" type="button" data-do="notice-cancel">'+esc(cancelLabel)+'</button><button class="button primary'+(danger?" notice-dialog-danger":"")+'" type="button" data-do="notice-confirm">'+esc(confirmLabel||(danger?"Excluir definitivamente":"Confirmar"))+'</button>':
  '<button class="button primary" type="button" data-do="notice-cancel">Fechar</button>')+
  '</div></section>';
  layer.hidden=false;document.body.classList.add("notice-open");
@@ -1110,6 +1130,9 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
+ if(taskFormRoute(location.hash)&&$("#task-form")&&taskFormDraft?.route!==location.hash)
+  taskFormDraft={route:location.hash,snapshot:taskDraftSnapshot()};
+ else if(!taskFormRoute(location.hash))resetTaskDraft();
  lastStatusSnapshot=statusSnapshot();
  if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
@@ -1149,7 +1172,7 @@ async function saveTask(form){
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,assignmentScope:state.assignmentScope,overviewVisible,notify};
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
-   state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
+   resetTaskDraft();state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
  },"Demanda salva com sucesso.");
 }
 async function finishTask(t,cid){
@@ -1699,7 +1722,28 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- window.addEventListener("hashchange",()=>{onNavigation();$("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog();closeMailPreview()});
+ window.addEventListener("hashchange",()=>{
+   $("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;
+   closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog();closeMailPreview();
+   const destination=location.hash;
+   if(destination!==lastHash&&hasUnsavedTaskChanges()){
+     // Restaura a URL sem apagar os campos; confirmação só prossegue se aceita.
+     history.replaceState(history.state,"",lastHash);
+     askConfirm("Deseja sair sem salvar as alterações? As informações não salvas serão perdidas.",{
+       title:"Alterações não salvas",kind:"warning",
+       cancelLabel:"Continuar editando",confirmLabel:"Sair sem salvar"
+     }).then(proceed=>{
+       if(!proceed)return;
+       resetTaskDraft();state.taskFormId=null;
+       location.hash=destination;
+     });
+     return;
+   }
+   onNavigation();
+ });
+ window.addEventListener("beforeunload",e=>{
+   if(hasUnsavedTaskChanges()){e.preventDefault();e.returnValue="";}
+ });
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
    if(!$("#mail-preview-dialog")?.hidden){e.preventDefault();closeMailPreview()}
    else if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
