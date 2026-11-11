@@ -2030,3 +2030,40 @@ body.mail-preview-open{overflow:hidden}
  #screen .collective-date-parts input{padding:10px 8px;font-size:15px}
  #screen .collective-calendar-button{width:42px}
 }
+
+
+/* Resumo geral de cada comissão: quatro métricas e leitura rápida em mobile. */
+.commission-overview{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:14px;margin:0 0 20px;min-width:0;
+}
+.commission-overview-card{
+ display:flex;align-items:center;gap:13px;min-width:0;min-height:102px;
+ padding:17px 18px;border:1px solid #eae6f2;border-radius:18px;
+}
+.commission-overview-icon{
+ display:grid;place-items:center;flex:0 0 43px;width:43px;height:43px;
+ border-radius:13px;background:#f1ebff;color:#724bc7;
+}
+.commission-overview-icon svg{width:21px;height:21px}
+.commission-overview-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.commission-overview-label{font-size:12px;font-weight:750;line-height:1.35;color:#747188}
+.commission-overview-value{font-size:27px;line-height:1.15;font-weight:850;letter-spacing:-.8px;color:#2d2641;font-variant-numeric:tabular-nums}
+.commission-overview-complete .commission-overview-icon{background:#e8f7ef;color:#26936b}
+.commission-overview-late .commission-overview-icon{background:#fff0f0;color:#d34d57}
+.commission-overview-pending .commission-overview-icon{background:#fff3e2;color:#be8040}
+@media(max-width:1160px){
+ .commission-overview{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+ .commission-overview{gap:10px;margin-bottom:16px}
+ .commission-overview-card{min-height:92px;padding:13px 12px;gap:10px;border-radius:15px}
+ .commission-overview-icon{flex-basis:38px;width:38px;height:38px;border-radius:12px}
+ .commission-overview-icon svg{width:19px;height:19px}
+ .commission-overview-label{font-size:11px}
+ .commission-overview-value{font-size:24px}
+}
+@media(max-width:360px){
+ .commission-overview-card{gap:8px;padding:11px 9px}
+ .commission-overview-icon{flex-basis:33px;width:33px;height:33px}
+}
