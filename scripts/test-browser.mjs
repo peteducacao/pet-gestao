@@ -368,7 +368,7 @@ try{
  await page.goto(origin+"/#/registrar/t1");
  await page.locator('input[name="overviewVisibility"][value="comissao"]').check();
  assert.equal(await page.locator('#task-form button[type="submit"]').count(),0,"Nenhum Salvar demanda duplicado abaixo do formulário de edição");
- assert.equal(await page.locator('.page-actions button[form="task-form"].task-form-header-save').count(),1,"Salvar demanda junto de Voltar no cabeçalho");
+ assert.equal(await page.locator('.page-actions button[form="task-form"].task-form-header-save').count(),1,"Salvar demanda permanece no cabeçalho");
  const formButtons=await page.locator('.page-actions').evaluate(el=>{
   const buttons=[...el.querySelectorAll('button')],save=buttons.find(b=>b.classList.contains("task-form-header-save")),back=buttons.find(b=>b.dataset.do==="back");
   return {save:!!save,back:!!back,near:Math.abs(save.getBoundingClientRect().top-back.getBoundingClientRect().top)<8};
