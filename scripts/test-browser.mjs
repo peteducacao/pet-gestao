@@ -371,14 +371,23 @@ try{
  // Seleção múltipla de arquivos locais para guardar na demanda.
  await page.locator("#task-file-input").waitFor({state:"attached",timeout:10000});
  assert.equal(await page.locator("#task-file-input").getAttribute("multiple"),"");
+ assert.equal(await page.locator("#task-file-input").getAttribute("accept"),"image/*",
+  "Seleção somente de imagens");
+ const png=await page.evaluate(()=>{
+  const canvas=document.createElement("canvas");canvas.width=32;canvas.height=32;
+  const ctx=canvas.getContext("2d");ctx.fillStyle="#6525bc";ctx.fillRect(0,0,32,32);
+  return canvas.toDataURL("image/png").split(",")[1];
+ });
+ const photoBytes=Buffer.from(png,"base64");
  await page.locator("#task-file-input").setInputFiles([
-  {name:"planejamento-oficina.pdf",mimeType:"application/pdf",buffer:Buffer.from("conteudo A")},
-  {name:"orientacoes.txt",mimeType:"text/plain",buffer:Buffer.from("conteudo B")}
+  {name:"foto-1.png",mimeType:"image/png",buffer:photoBytes},
+  {name:"foto-2.png",mimeType:"image/png",buffer:photoBytes}
  ]);
+ await page.waitForFunction(()=>document.querySelectorAll("#task-file-selection .task-attachment-item").length===2);
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),2,
-  "Duas seleções aparecem na mesma demanda");
- assert.ok((await page.locator("#task-file-selection").innerText()).includes("planejamento-oficina.pdf"));
- assert.ok((await page.locator("#task-file-selection").innerText()).includes("orientacoes.txt"));
+  "Duas fotos podem ser escolhidas para a mesma demanda");
+ assert.ok((await page.locator("#task-file-selection").innerText()).includes("foto-1.jpg"));
+ assert.ok((await page.locator("#task-file-selection").innerText()).includes("foto-2.jpg"));
  await page.locator('[data-do="task-file-unselect"]').first().click();
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),1,
   "Retirar um arquivo mantém os demais");
