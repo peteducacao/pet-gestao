@@ -578,6 +578,14 @@ await page.locator('a[data-route="reunioes"]').click();
  // Recarregar confirma que a sessão persistida mantém a conta Admin conectada.
  await page.reload({waitUntil:"domcontentloaded"});
  await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
+ // Voltar ao PET Gestão usa uma transição e preserva a identidade Admin.
+ await page.goto(origin+"/#/admin/painel");
+ await page.locator('[data-do="admin-signout"]').evaluate(el=>el.click());
+ await page.locator("#connecting-popup.returning-to-gestao").waitFor({state:"visible",timeout:2500});
+ assert.ok((await page.locator(".connecting-message").innerText()).includes("Voltando ao PET Gestão"));
+ await page.waitForURL("**/#/inicio");
+ await page.locator("#connecting-popup").waitFor({state:"hidden",timeout:10000});
+ await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  // Administração: mudanças de vagas e de ordem somente após Salvar todas.
  committees.push({id:"cards",name:"Cards",memberIds:[],memberCount:0,maxMembers:0,backgroundColor:"#f7f3ff"});
  await page.goto(origin+"/#/admin/comissoes");
