@@ -28,11 +28,18 @@ const petiano={id:"member-test",role:"petiano"};
 const permanent=await context.makeSession(mockDb,admin,true,true);
 assert.equal(permanent.expiresAt,"9999-12-31T23:59:59.999Z");
 assert.equal(permanent.user.adminSession,true);
-assert.equal(commands.at(-1).params.at(-1),1);
+assert.equal(commands.at(-1).params.at(-2),1);
 const temporary=await context.makeSession(mockDb,petiano,false,false);
 assert.equal(temporary.expiresAt,"expira-em-10080-minutos");
 assert.equal(temporary.user.adminSession,false);
-assert.equal(commands.at(-1).params.at(-1),0);
+assert.equal(commands.at(-1).params.at(-2),0);
+const sharedBrowser="b31a4111-9999-4333-8aaa-123456789abc";
+const priorOps=commands.length;
+await context.makeSession(mockDb,admin,true,true,sharedBrowser);
+assert.equal(commands.length,priorOps+2,"Substituir login no mesmo navegador revoga sessão anterior");
+assert.ok(commands.at(-2).sql.includes("DELETE FROM sessions WHERE browser_id"));
+assert.equal(commands.at(-1).params.at(-1),sharedBrowser);
+
 
 // Ao reabrir, o token persistido tem prioridade sobre uma sessão temporária antiga.
 const match=front.match(/^const readSessionToken=.*;$/m);
