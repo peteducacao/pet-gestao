@@ -97,7 +97,20 @@
     const o={...t,commissionIds:asJson(t.commission_ids,[]),assigneeIds:asJson(t.assignee_ids,[]),commissionDone:asJson(t.commission_done,{}),userDone:asJson(t.user_done,{}),deadlines:asJson(t.deadlines,[])};
     return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,assignmentScope:o.assignment_scope||null,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
   };
-  const publicTask=t=>({id:t.id,title:t.title,registeredAt:t.registered_at,commissionIds:asJson(t.commission_ids,[]),commissionDone:asJson(t.commission_done,{}),status:t.status,overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at,deadlines:asJson(t.deadlines,[]).map(d=>({label:d.label,dueAt:d.dueAt,completedAt:d.completedAt||null}))});
+  // Endpoints públicos nunca enviam campos internos das tarefas.
+  const publicTask=t=>{
+    const dates=asJson(t.deadlines,[]);
+    const displayDate=t.assignment_scope==="todos"
+      ?dates.filter(d=>d?.dueAt).map(d=>d.dueAt).sort().at(-1)||t.registered_at
+      :dates.filter(d=>!d?.completedAt&&d?.dueAt).map(d=>d.dueAt).sort()[0]||t.registered_at;
+    const late=t.assignment_scope!=="todos"&&dates.some(d=>{
+      if(!d?.dueAt||d.completedAt)return false;
+      const raw=String(d.dueAt);
+      const parsed=new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59":raw);
+      return Number.isFinite(parsed.getTime())&&parsed.getTime()<Date.now();
+    });
+    return {id:t.id,title:t.title,registeredAt:t.registered_at,displayDate,publicStatus:t.archived_at?"concluida":late?"atrasada":"pendente",overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at};
+  };
   async function bootstrap(db,user){
     const committees=(await db.prepare("SELECT c.*, (SELECT COUNT(*) FROM commission_members m WHERE m.commission_id=c.id) AS member_count FROM commissions c ORDER BY sort_order,name").all()).results;
     const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
@@ -117,14 +130,13 @@
       meetings=(await db.prepare("SELECT * FROM meetings ORDER BY meeting_date DESC LIMIT 250").all()).results.map(m=>({id:m.id,title:m.title,date:m.meeting_date,rawNotes:m.raw_notes,theme:m.theme,colorA:m.color_a,colorB:m.color_b,updatedAt:m.updated_at}));
       users=(await db.prepare("SELECT id,name,role,role_override FROM users ORDER BY name").all()).results.map(idName);
       history=(await db.prepare("SELECT h.task_id,h.actor_name,h.action,h.details,h.created_at,u.role AS actor_role FROM task_history h LEFT JOIN users u ON u.id=h.actor_id ORDER BY h.created_at DESC LIMIT 800").all()).results;
-    }else{
-      meetings=(await db.prepare("SELECT id,title,meeting_date AS date FROM meetings ORDER BY meeting_date DESC LIMIT 100").all()).results;
     }
     const counts=Object.create(null);
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
     const pendingEmailChange=user?await db.prepare("SELECT new_email,expires_at FROM email_change_requests WHERE user_id=? AND expires_at>?").bind(user.id,now()).first():null;
+    const visibleSettings=privateView?settings:{autoMonth:settings.autoMonth,autoWeek:settings.autoWeek};
     return {session:user?{user:{...userPublic(user),pendingEmailChange:pendingEmailChange?{newEmail:pendingEmailChange.new_email,expiresAt:pendingEmailChange.expires_at}:null}}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
-      tasks:rawTasks.map(t=>privateView?{...privateTask(t),attachments:attachmentsByTask[t.id]||[],tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings};
+      tasks:rawTasks.map(t=>privateView?{...privateTask(t),attachments:attachmentsByTask[t.id]||[],tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings:visibleSettings};
   }
   const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
   const bridgePost=async(env,payload)=>{

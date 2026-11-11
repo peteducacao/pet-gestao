@@ -79,6 +79,47 @@ await test("troca de e-mail exige senha e rejeita endereço ocupado",async()=>{
   good(await api("/account/email-change","DELETE"));
  }finally{token=adminToken;}
 });
+
+await test("Usuário só recebe resumo das demandas, sem conteúdo de Atas",async()=>{
+ const adminToken=token,stamp=Date.now();
+ const title="Teste visualização "+stamp,meetingTitle="Ata privada "+stamp;
+ const taskId=good(await api("/tasks","POST",{
+   title,description:"ANOTACAO_PRIVADA",captionText:"TEXTO_PRIVADO",
+   assignmentScope:"comissoes",commissionIds:["videos"],assigneeIds:[],
+   deadlines:[{id:"priv-"+stamp,label:"Prazo",dueAt:new Date(Date.now()+86400000).toISOString().slice(0,16)}]
+ }),201).id;
+ good(await api("/meetings","POST",{title:meetingTitle,date:new Date().toISOString().slice(0,10),rawNotes:"CONTEUDO_PRIVADO_DA_ATA"}));
+ const meeting=good(await api("/bootstrap")).meetings.find(m=>m.title===meetingTitle);
+ assert.ok(meeting?.id);
+ try{
+  token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+  const preview=good(await api("/bootstrap"));
+  assert.equal(preview.session.user.role,"usuario");
+  assert.equal(preview.meetings.length,0,"Usuários não recebem lista de atas");
+  assert.equal(preview.history.length,0,"Usuários não recebem histórico");
+  assert.equal(preview.events.length,0,"Usuários não recebem atualizações internas");
+  const t=preview.tasks.find(t=>t.id===taskId);
+  assert.ok(t&&t.title===title,"Demanda ainda aparece na lista");
+  assert.ok(t.displayDate&&t.publicStatus,"Lista mantém somente data e status");
+  for(const field of ["description","captionText","deadlines","commissionIds","commissionDone","assigneeIds","userDone","assignmentScope","createdBy","updatedBy"]){
+   assert.equal(Object.hasOwn(t,field),false,"Campo privado não deve ser enviado: "+field);
+  }
+  assert.ok(!JSON.stringify(preview).includes("ANOTACAO_PRIVADA"));
+  assert.ok(!JSON.stringify(preview).includes("TEXTO_PRIVADO"));
+  assert.ok(!JSON.stringify(preview).includes(meetingTitle));
+  assert.ok(!JSON.stringify(preview).includes("CONTEUDO_PRIVADO_DA_ATA"));
+  assert.equal((await api("/tasks/"+taskId)).status,404);
+  assert.equal((await api("/meetings/"+meeting.id)).status,404);
+  token="";
+  const anon=good(await api("/bootstrap"));
+  assert.equal(anon.meetings.length,0,"Sem login também não vê Atas");
+  assert.equal(Object.hasOwn(anon.tasks.find(t=>t.id===taskId),"deadlines"),false);
+ }finally{
+  token=adminToken;
+  good(await api("/tasks/"+taskId,"DELETE"));
+  good(await api("/meetings/"+meeting.id,"DELETE"));
+ }
+});
 await test("senha com quantidade livre de caracteres no cadastro e alteração",async()=>{
  const original=token,email="comprimento-senha-"+Date.now()+"@pet.local";
  let activePassword="7";

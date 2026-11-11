@@ -2340,3 +2340,9 @@ body.mail-preview-open{overflow:hidden}
 #screen .email-confirm-page p{font-size:14px;line-height:1.65;color:#756a83;margin:0 0 22px}
 #screen .email-confirm-page .button{min-height:47px}
 @media(max-width:480px){#screen .account-email-management{padding:14px 12px}#screen .account-email-top .button{width:100%;justify-content:center}}
+
+/* Cards para Usuários: somente informações, nenhuma ação ou link. */
+#screen .demand-activity-card-readonly{cursor:default}
+#screen .demand-activity-card-readonly:hover{transform:none;box-shadow:none}
+#screen .demand-activity-card-readonly .demand-activity-identity{cursor:default}
+#screen .viewer-dashboard{grid-template-columns:minmax(0,1fr)}

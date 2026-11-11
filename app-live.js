@@ -154,12 +154,12 @@ const stageDueAt=value=>{
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
  return parsed&&Number.isFinite(parsed.getTime())?parsed:null;
 };
-const isLate=t=>active(t)&&t.assignmentScope!=="todos"&&stages(t).some(s=>{
+const isLate=t=>t.publicStatus?active(t)&&t.publicStatus==="atrasada":active(t)&&t.assignmentScope!=="todos"&&stages(t).some(s=>{
  if(s.completedAt)return false;
  const due=stageDueAt(s.dueAt);
  return !!due&&due.getTime()<Date.now();
 });
-const taskStatus=(t,cid="")=>t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente";
+const taskStatus=(t,cid="")=>t.publicStatus||(t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente");
 const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída"};
 const stateBadge=t=>'<span class="task-status task-status-'+taskStatus(t)+'">'+statusLabel[taskStatus(t)]+'</span>';
 const completedCount=t=>Object.keys(t.commissionDone||{}).length;
@@ -350,7 +350,7 @@ async function reload(){
  }
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
 }
-function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","atividade","reunioes","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
+function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
@@ -365,7 +365,7 @@ function nav(){
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
    el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
-   if(el.dataset.route==="minhas-pendencias")el.hidden=!canWrite();
+   if(el.dataset.route==="minhas-pendencias"||el.dataset.route==="reunioes")el.hidden=!canWrite();
    if(profile){
      el.hidden=false;el.href=regularMe?"#/conta":"#/login";
      const label=el.querySelector("span");if(label)label.textContent=regularMe?"Meu perfil":"Entrar";
@@ -377,6 +377,7 @@ function nav(){
 function weeks(y,m){const days=new Date(y,m+1,0).getDate(),firstDay=new Date(y,m,1).getDay(),firstMonday=1+((8-firstDay)%7),arr=[];let start=1,end=Math.min(days,firstMonday+6);while(start<=days){arr.push({n:arr.length+1,start,end});start=end+1;end=Math.min(days,start+6)}return arr}
 function weekFor(d){const x=dt(d);return x?weeks(x.getFullYear(),x.getMonth()).find(w=>x.getDate()>=w.start&&x.getDate()<=w.end)?.n||0:0}
 function taskDate(t){
+ if(t.displayDate)return t.displayDate;
  if(t.assignmentScope==="todos")return stages(t).filter(x=>x.dueAt).map(x=>x.dueAt).sort().at(-1)||t.registeredAt;
  return stages(t).filter(x=>!x.completedAt&&x.dueAt).map(x=>x.dueAt).sort()[0]||t.registeredAt;
 }
@@ -414,7 +415,19 @@ function cardPeoplePicker(values,kind){
  '<div class="demand-card-picker-popover"><strong>'+category+'</strong>'+
  '<ul>'+names.map(name=>'<li>'+esc(name)+'</li>').join("")+'</ul></div></details>';
 }
+// Perfil Usuário recebe somente uma visualização estática da demanda.
+function publicTaskCard(t){
+ const status=taskStatus(t);
+ return '<article class="placeholder-row task-list-row demand-activity-card demand-activity-card-readonly status-'+status+'" aria-label="Demanda: '+esc(t.title)+'">'+
+  '<div class="demand-activity-identity"><span class="demand-activity-art" aria-hidden="true">'+ico("checklist")+'</span>'+
+  '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong></div></div>'+
+  '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
+  '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
+  '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
+ '</article>';
+}
 function taskCard(t,commissionId,withFinishAction=false){
+ if(!canWrite())return publicTaskCard(t);
  const ids=t.commissionIds||[],selected=committee(commissionId)||ids.map(committee).find(Boolean);
  const status=taskStatus(t,commissionId),progress=taskProgress(t),mine=myPendingParts(t);
  const taskHref=workspaceHash("atividade/"+id(t.id)+(commissionId?"/"+id(commissionId):""));
@@ -448,7 +461,18 @@ document.addEventListener("keydown",e=>{
   for(const el of document.querySelectorAll(".demand-card-picker[open]"))el.open=false;
  }
 });
+function renderViewerHome(){
+ const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false);
+ const next=[...visible].sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b)))).slice(0,6);
+ const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length;
+ return header("Organização","Visão geral","Acompanhe as demandas da equipe em modo de visualização.")+
+  '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[visible.length,"Em acompanhamento","checklist"],[late,"Prazos vencidos","alert"],[complete,"Concluídas","check"]].map(x=>
+   '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+  '<div class="dashboard-grid viewer-dashboard"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>Próximas atividades cadastradas para acompanhamento.</p></div></div>'+
+  (next.length?next.map(publicTaskCard).join(""):empty("Sem pendências neste momento"))+'</section></div>';
+}
 function renderHome(){
+ if(!canWrite())return renderViewerHome();
  const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
  const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4);
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
@@ -1087,10 +1111,9 @@ function activitySections(t,readOnly=false){
 function detailVisualization(){
  return '<div class="detail-visualization">'+visualizationSelect("navigateDemands","todas")+'</div>';
 }
-function renderDetailReadOnly(t){
- return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda")+detailVisualization()+activitySections(t,true)+'</div>';
-}
+function renderDetailReadOnly(){return header("Acesso restrito","Detalhes indisponíveis","O perfil Usuário pode consultar somente a lista de demandas.");}
 function renderDetail(taskId,contextCid){
+ if(!canWrite())return renderDetailReadOnly();
  if(!me)return authRequired();
  const t=data.tasks.find(t=>t.id===taskId);if(!t)return empty("Demanda não encontrada");
  if(!canWrite())return renderDetailReadOnly(t);
@@ -1152,6 +1175,7 @@ async function completeJoint(task,layer){
 }
 
 function renderMeetings(){
+ if(!canWrite())return header("Acesso restrito","Atas de Reunião","Área exclusiva de PETianos(as), Tutoria e Administração.");
  if(!me)return authRequired();
  const items=[...(data.meetings||[])].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
  const showing=state.meetingView==="recentes"?items.slice(0,5):items;
@@ -1162,6 +1186,7 @@ function renderMeetings(){
  '</section>';
 }
 function renderMemory(routeId){
+ if(!canWrite())return header("Acesso restrito","Atas de Reunião","Área exclusiva de PETianos(as), Tutoria e Administração.");
  if(!routeId)return renderMeetings();
  if(!me)return authRequired();
  const editor=routeId==="nova"||routeId.startsWith("editar/");
