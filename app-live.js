@@ -124,6 +124,8 @@ const myPendingParts=t=>{
 };
 const isMyPending=t=>Boolean(me&&active(t)&&(myPendingParts(t).personal||myPendingParts(t).committees.length));
 const taskProgress=task=>({done:Object.keys(task.commissionDone||{}).length+Object.keys(task.userDone||{}).length,total:(task.commissionIds||[]).length+(task.assigneeIds||[]).length});
+const pendingParticipationCount=task=>(task.assigneeIds||[]).filter(uid=>!task.userDone?.[uid]).length+
+ (task.commissionIds||[]).filter(cid=>!task.commissionDone?.[cid]).length;
 const commissionFinished=(t,cid)=>Boolean(t.commissionDone?.[cid]);
 function setConnecting(show,label="Conectando ao PET Gestão..."){
  const modal=$("#connecting-popup");
@@ -389,7 +391,7 @@ function renderHome(){
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 
-const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
+const VISUALIZATIONS=[["todas","Todas as demandas"],["geral","Geral"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
 function visualizationSelect(filter,value,options=VISUALIZATIONS){
  return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
  '<span class="visualization-select-wrap"><span class="visualization-symbol" aria-hidden="true">'+ico("list")+'</span>'+
@@ -400,12 +402,20 @@ function renderDemandas(){
  const done=state.statusFilter==="concluida"||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
  const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
- let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
+ // Geral é a visão exclusiva do coletivo Todos(as), inclusive eventos já concluídos.
+ // As demais visualizações preservam o comportamento existente.
+ let list=state.statusFilter==="geral"
+  ?data.tasks.filter(t=>t.assignmentScope==="todos").filter(t=>{
+    const date=dt(taskDate(t));
+    return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&
+      (displayMode!=="semanal"||!state.week||weekFor(date)===state.week);
+   })
+  :data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
   return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&(!state.week||displayMode!=="semanal"||weekFor(date)===state.week);
  });
- else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
+ else if(!["todas","geral"].includes(state.statusFilter))list=list.filter(t=>taskStatus(t)===state.statusFilter);
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
  [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
@@ -1313,13 +1323,28 @@ async function handleClick(e){
  if(action==="finish-mine"){
    const t=data.tasks.find(x=>x.id===tid);if(!t||!isMyPending(t))return;
    const pending=myPendingParts(t),total=Number(pending.personal)+pending.committees.length;
+   // Considerar TODOS os vínculos da demanda, não somente os da pessoa logada.
+   // Ex.: Admin e Tutor(a) + Finanças -> escolha entre só a sua, todos ou seleção manual.
+   if(pendingParticipationCount(t)>1){openFinishDialog(t);return;}
    if(total===1&&pending.personal)await finishTask(t,"");
    else if(total===1)await finishTask(t,pending.committees[0]);
    else openFinishDialog(t);
    return;
   }
-  if(action==="finish-personal"){const t=data.tasks.find(x=>x.id===tid);if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id))await finishTask(t,"");return}
- if(action==="finish-commission"){const t=data.tasks.find(x=>x.id===tid);if(t)await finishTask(t,b.dataset.commission||"");return}
+  if(action==="finish-personal"){
+   const t=data.tasks.find(x=>x.id===tid);
+   if(t&&isTaskAssignedToMe(t)&&!isUserDone(t,me.id)){
+     if(pendingParticipationCount(t)>1)openFinishDialog(t);else await finishTask(t,"");
+   }
+   return;
+  }
+  if(action==="finish-commission"){
+   const t=data.tasks.find(x=>x.id===tid),cid=b.dataset.commission||"";
+   if(t){
+     if(pendingParticipationCount(t)>1)openFinishDialog(t);else await finishTask(t,cid);
+   }
+   return;
+  }
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
  if(action==="save-notes"){const content=$("#notes-content").value;const notify=await askNotification();await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:content,notify}),"Observações salvas.");return}
  if(action==="join-commission"||action==="leave-commission"){
