@@ -105,7 +105,7 @@ assert.equal(multiPersonCard.querySelectorAll(".demand-card-person li").length,2
 assert.ok(document.querySelector('select[data-filter="status"]'),"Seletor de status");
 assert.equal(document.querySelectorAll('button[data-do="mode"]').length,0,"Período mensal/semanal usa seletor");
 assert.ok(document.querySelector('select[data-filter="periodMode"]'),"Seletor de período disponível");
-assert.equal(document.querySelector('select[data-filter="status"]').options.length,4,"Todas, Pendentes, Atrasadas, Concluídas");
+assert.equal(document.querySelector('select[data-filter="status"]').options.length,5,"Todas as demandas, Geral, Pendentes, Atrasadas, Concluídas");
 
 assert.equal(document.querySelector('input[placeholder*="Buscar demanda"]'),null,"Sem pesquisa textual duplicada");
 await move("#/reunioes");
@@ -124,6 +124,17 @@ tap('button[data-do="delete-meeting"]');await wait();
 tap('button[data-do="notice-confirm"]');await wait();await wait();
 assert.equal(meetings.length,0,"Exclusão de ata funciona");
 tasks.push({...tasks[0],id:"t-all",title:"Todos(as) na edição",assigneeIds:["u1","u2"],commissionIds:[],assignmentScope:"todos",overviewVisible:true});
+await move("#/admin/painel");await move("#/demandas");
+const geralFilter=document.querySelector('select[data-filter="status"]');
+assert.ok([...geralFilter.options].some(option=>option.value==="todas"&&option.textContent==="Todas as demandas"),"Mantém Todas as demandas");
+assert.ok([...geralFilter.options].some(option=>option.value==="geral"&&option.textContent==="Geral"),"Acrescenta Geral");
+geralFilter.value="geral";geralFilter.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.ok(document.querySelector("#screen").textContent.includes("Todos(as) na edição"),"Geral exibe demandas do coletivo Todos(as)");
+assert.ok(!document.querySelector("#screen").textContent.includes("Poesia no PET"),"Geral não mistura atividades atribuídas a pessoas");
+assert.ok(!document.querySelector("#screen").textContent.includes("V InterPET"),"Geral não mistura demandas de comissão");
+const backToAll=document.querySelector('select[data-filter="status"]');
+backToAll.value="todas";backToAll.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.ok(document.querySelector("#screen").textContent.includes("Poesia no PET"),"Todas as demandas permanece disponível");
 await move("#/registrar/t-all");
 assert.ok(document.querySelector('.assignment-modes [data-value="todos"].active'),"Editar mantém Todos(as)");
 assert.ok(document.querySelector("#collective-event-day"),"Evento coletivo exibe somente a data");
@@ -367,4 +378,22 @@ assert.equal(document.querySelectorAll('[data-archive-select]:checked').length,0
 tap('[data-do="archive-selection-cancel"]');await wait();
 assert.equal(document.querySelectorAll('[data-archive-select]').length,0,"Cancelar encerra modo de seleção");
 tasks=tasks.filter(t=>!t.id.startsWith("t-archive-bulk-"));
-window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
+// Regressão: em Admin + Tutoria + Finanças, o Admin tem uma pendência pessoal,
+ // mas deve conseguir escolher todas as participações pendentes.
+ committees.push({id:"financas",name:"Finanças",memberIds:[],memberCount:0,maxMembers:0});
+ tasks.push({...tasks[0],id:"mixed-finance-test",title:"Admin e Tutoria mais Finanças",
+   assigneeIds:["admin","u1"],commissionIds:["financas"],userDone:{},commissionDone:{},archivedAt:null,
+   deadlines:[{id:"future",label:"Prazo",dueAt:"2026-12-15T18:00:00",assigneeIds:["admin"]}],status:"pendente"});
+ await move("#/admin/painel");await move("#/minhas-pendencias");
+ const mixedButton=[...document.querySelectorAll('.mine-task-item')].find(el=>el.textContent.includes("Admin e Tutoria mais Finanças"))?.querySelector('[data-do="finish-mine"]');
+ assert.ok(mixedButton,"Demanda mista aparece nas pendências do Admin");
+ mixedButton.click();await wait();
+ const mixedPicker=document.querySelector("#finish-dialog");
+ assert.equal(mixedPicker.hidden,false,"Ao concluir uma participação, demanda mista abre a seleção");
+ assert.equal(mixedPicker.querySelectorAll('input[name="joint-target"]').length,3,"Seletor mostra Admin, Tutoria e Finanças");
+ tap('#finish-dialog [data-do="finish-select-self"]');await wait();
+ assert.deepEqual([...mixedPicker.querySelectorAll('input[name="joint-target"]:checked')].map(el=>el.value),["admin"],"Só minha participação marca apenas Admin");
+ tap('#finish-dialog [data-do="finish-select-everyone"]');await wait();
+ assert.equal(mixedPicker.querySelectorAll('input[name="joint-target"]:checked').length,3,"Concluir para todos marca as três participações");
+ tap('#finish-dialog [data-do="finish-close"]');
+ window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
