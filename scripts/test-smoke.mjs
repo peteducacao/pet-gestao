@@ -81,8 +81,21 @@ await test("anexos da demanda no D1: autenticação, upload em partes, download 
   assert.equal(download.headers.get("content-type"),"application/octet-stream");
   assert.deepEqual(new Uint8Array(await download.arrayBuffer()),raw,"Binário baixado idêntico ao enviado");
   assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,1);
+  // Duas ou mais anexações podem coexistir na MESMA demanda.
+  const extra=good(await api(prefix,"POST",{
+   name:"imagem da oficina.png",size:4,mimeType:"image/png"
+  }),201);
+  const extraUpload=await fetch(base+prefix+"/"+extra.id+"/chunks/0",{
+   method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/octet-stream"},
+   body:new Uint8Array([137,80,78,71])
+  });
+  assert.equal(extraUpload.status,200);
+  good(await api(prefix+"/"+extra.id+"/complete","POST",{}));
+  assert.equal(good(await api(prefix)).attachments.length,2,
+   "Duas anexações ficam guardadas simultaneamente na demanda");
   good(await api(prefix+"/"+fileId,"DELETE",{}));
-  assert.equal(good(await api(prefix)).attachments.length,0);
+  assert.equal(good(await api(prefix)).attachments.length,1,
+   "Excluir um arquivo não remove os demais");
   const again=good(await api(prefix,"POST",{name:"apagar junto.txt",size:1,mimeType:"text/plain"}),201);
   res=await up(0,new Uint8Array([42]));
   assert.equal(res.status,404,"Arquivo excluído não aceita mais partes");
@@ -112,6 +125,57 @@ await test("cadastro começa como Usuário",async()=>{
  assert.equal(r.user.adminSession,false,"Campos enviados pelo navegador não criam permissão Admin.");
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
+});
+await test("anexos de demandas são exclusivos de PETianos(as), Tutoria e Administração",async()=>{
+ const adminToken=token,people=good(await api("/admin/users")).users;
+ const account=people.find(u=>u.email==="teste-usuario@pet.local");
+ assert.ok(account,"Conta somente leitura de teste cadastrada");
+ const id=good(await api("/tasks","POST",{
+   title:"Anexos privados para equipe",
+   assignmentScope:"usuarios",assigneeIds:[good(await api("/auth/me")).user.id],
+   commissionIds:[],deadlines:[]
+ }),201).id;
+ const path="/tasks/"+encodeURIComponent(id)+"/attachments";
+ try{
+  const file=good(await api(path,"POST",{name:"partilha-privada.txt",size:2,mimeType:"text/plain"}),201);
+  const write=await fetch(base+path+"/"+file.id+"/chunks/0",{
+   method:"PUT",headers:{Authorization:"Bearer "+adminToken,"Content-Type":"application/octet-stream"},
+   body:new Uint8Array([65,66])
+  });
+  assert.equal(write.status,200);
+  good(await api(path+"/"+file.id+"/complete","POST",{}));
+  token="";
+  assert.equal((await api(path)).status,401,"Sem login não vê nomes de arquivos");
+  assert.equal((await fetch(base+path+"/"+file.id+"/download")).status,401,"Sem login não baixa arquivos");
+  token=good(await api("/auth/login","POST",{
+   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+  })).token;
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===id).attachments,undefined,
+   "Perfil somente leitura não recebe nomes dos anexos no bootstrap");
+  assert.equal((await api(path)).status,403,"Perfil somente leitura não pode listar arquivos");
+  assert.equal((await api(path+"/"+file.id,"DELETE")).status,403,
+   "Perfil somente leitura não pode excluir arquivos");
+  assert.equal((await fetch(base+path+"/"+file.id+"/download",{
+   headers:{Authorization:"Bearer "+token}
+  })).status,403,"Perfil somente leitura não pode baixar arquivos");
+  for(const role of ["petiano","tutor"]){
+   token=adminToken;
+   good(await api("/admin/users/"+account.id,"PATCH",{role,notificationEnabled:false}));
+   token=good(await api("/auth/login","POST",{
+    email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+   })).token;
+   assert.equal(good(await api(path)).attachments.length,1,role+" pode listar anexos");
+   const dl=await fetch(base+path+"/"+file.id+"/download",{
+    headers:{Authorization:"Bearer "+token}
+   });
+   assert.equal(dl.status,200,role+" pode baixar anexos");
+   assert.deepEqual(new Uint8Array(await dl.arrayBuffer()),new Uint8Array([65,66]));
+  }
+ }finally{
+  token=adminToken;
+  good(await api("/admin/users/"+account.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  good(await api("/tasks/"+id,"DELETE"));
+ }
 });
 await test("duas contas no mesmo navegador revogam a sessão anterior no servidor",async()=>{
  const original=token,browserId="b31a4111-9999-4333-8aaa-123456789abc";
