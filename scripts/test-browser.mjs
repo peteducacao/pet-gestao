@@ -42,9 +42,9 @@ await page.route("**/api/v1/**",async route=>{
    committees.splice(0,committees.length,...newOrder);
    result={ok:true};
  }
- else if(p==="/admin/tasks/bulk-delete"&&method==="POST"){
+ else if(p==="/tasks/bulk-delete"&&method==="POST"){
    const chosen=body.taskIds||[];
-   if(!adminMode){status=403;result={error:"Somente Administração."};}
+   if(!adminMode&&!["petiano","tutor"].includes(user.role)){status=403;result={error:"Somente PETianos(as), Tutoria e Administração."};}
    else if(chosen.some(id=>!tasks.find(t=>t.id===id)?.archivedAt)){
      status=409;result={error:"Somente demandas concluídas."};
    }else{
@@ -61,7 +61,7 @@ await page.route("**/api/v1/**",async route=>{
  else if(/^\/tasks\/[^/]+$/.test(p)&&method==="PUT"){const current=tasks.find(t=>t.id===p.split("/")[2]);if(current)Object.assign(current,body);result={ok:true};}
  else if(/^\/tasks\/[^/]+$/.test(p)&&method==="DELETE"){
    const target=tasks.find(x=>x.id===p.split("/")[2]);
-   if(target?.archivedAt&&!adminMode){status=403;result={error:"Somente a Administração pode excluir demandas arquivadas."};}
+   if(target?.archivedAt&&!adminMode&&!["petiano","tutor"].includes(user.role)){status=403;result={error:"Sem permissão para excluir demandas concluídas."};}
    else {tasks=tasks.filter(x=>x.id!==p.split("/")[2]);result={ok:true};}
  }
  else if(p==="/meetings"&&method==="POST"){meetings.push({id:"m"+(meetings.length+1),...body});result={ok:true};}
@@ -534,6 +534,30 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/comissoes/videos");
  await page.locator('select[data-filter="commissionStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="commissionStatus"] option').count(),3);
+ // Com sessão de Tutoria e PETiano(a), o lote de Concluídas aparece sem Admin.
+ tasks.push({...task,id:"t-done-roles",title:"Concluída para validar perfis",
+  archivedAt:"2026-11-10T18:00:00.000Z",status:"concluida"});
+ await page.goto(origin+"/#/demandas");
+ await page.reload({waitUntil:"domcontentloaded"});
+ await page.locator('select[data-filter="status"]').selectOption("concluida");
+ await page.locator('[data-do="archive-selection-open"]').waitFor({state:"visible",timeout:10000});
+ assert.equal(user.role,"tutor","A Tutoria tem botão Excluir demandas");
+ await page.locator('[data-do="archive-selection-open"]').click();
+ assert.equal(await page.locator('[data-archive-select]').count()>=1,true,"Tutoria pode marcar concluídas");
+ await page.locator('[data-do="archive-selection-cancel"]').click();
+ user.role="petiano";
+ await page.reload({waitUntil:"domcontentloaded"});
+ await page.locator('select[data-filter="status"]').selectOption("concluida");
+ await page.locator('[data-do="archive-selection-open"]').waitFor({state:"visible",timeout:10000});
+ await page.locator('[data-do="archive-selection-open"]').click();
+ assert.equal(await page.locator('[data-archive-select]').count()>=1,true,"PETiano(a) pode marcar concluídas");
+ await page.locator('[data-do="archive-selection-cancel"]').click();
+ user.role="usuario";
+ await page.reload({waitUntil:"domcontentloaded"});
+ await page.locator('select[data-filter="status"]').selectOption("concluida");
+ assert.equal(await page.locator('[data-do="archive-selection-open"]').count(),0,"Somente leitura não pode excluir");
+ user.role="tutor";
+ tasks=tasks.filter(t=>t.id!=="t-done-roles");
  await page.goto(origin+"/#/minhas-pendencias");
  await page.locator('select[data-filter="mineStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="mineStatus"] option').count(),3);
@@ -657,7 +681,7 @@ await page.locator('a[data-route="reunioes"]').click();
  const deletedArchived=calls.find(x=>x.p==="/tasks/t-archived"&&x.method==="DELETE");
  assert.ok(deletedArchived?.authorization?.includes("admin-token"),"Worker recebe sessão Admin para excluir concluída");
  assert.equal(tasks.some(x=>x.id==="t-archived"),false,"Exclusão definitiva remove a arquivada");
- // Exclusão em lote na listagem de Concluídas, restrita ao Admin.
+ // Exclusão em lote de Concluídas para PETianos(as), Tutoria e Admin.
  const doneItems=[1,2,3].map(n=>({...task,id:"t-done-"+n,title:"Concluída "+n,
    archivedAt:"2026-11-10T18:00:00.000Z",status:"concluida",
    commissionDone:{videos:{at:"2026-11-10T18:00:00.000Z",by:"u1"}},
@@ -690,9 +714,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('[data-do="archive-delete-selected"]').click();
  await page.locator('#notice-dialog button[data-do="notice-confirm"]').click();
  await page.waitForTimeout(250);
- const callBulk=calls.find(x=>x.p==="/admin/tasks/bulk-delete"&&x.method==="POST");
+ const callBulk=calls.find(x=>x.p==="/tasks/bulk-delete"&&x.method==="POST");
  assert.equal(callBulk?.body.taskIds.length,availableToDelete,"O lote contém todas as concluídas visíveis");
- assert.ok(callBulk?.authorization.includes("admin-token"),"Exclusão em lote exige sessão administrativa");
+ assert.ok(callBulk?.authorization,"Exclusão em lote usa a sessão autenticada do usuário");
  assert.equal(tasks.some(t=>t.id.startsWith("t-done-")),false,"As três concluídas foram removidas");
  assert.ok(tasks.some(t=>t.id==="t1"),"Demanda ativa permanece intacta");
  await page.goto(origin+"/#/atividade/t1");
