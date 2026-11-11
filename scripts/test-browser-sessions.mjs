@@ -53,7 +53,9 @@ try{
    await page.locator("#screen .page-title").waitFor();
    await page.waitForURL("**/#/inicio");
   }
-  await login(first,petiano.email,true);
+  await login(first,petiano.email,false);
+  assert.equal(await first.evaluate(()=>localStorage.getItem("pet-gestao:session-token")),null,
+   "Sem Manter-me conectado, token não persiste no localStorage");
   const firstBrowserId=await first.evaluate(()=>localStorage.getItem("pet-gestao:browser-id"));
   assert.match(firstBrowserId,/^[a-f0-9-]{36}$/i);
   assert.equal(await first.locator("#admin-link").isVisible(),false);
@@ -61,6 +63,10 @@ try{
   await second.goto(origin+"/#/inicio");
   const secondBrowserId=await second.evaluate(()=>localStorage.getItem("pet-gestao:browser-id"));
   assert.equal(secondBrowserId,firstBrowserId,"Abas do mesmo navegador compartilham identificador");
+  await second.goto(origin+"/#/conta");
+  await second.locator(".account-profile-info").waitFor({state:"visible",timeout:7000});
+  assert.ok((await second.locator(".account-profile-info").innerText()).includes(petiano.email),
+   "Nova aba deve reconhecer a conta mesmo sem Manter-me conectado");
   await login(second,admin.email,true);
   await second.locator("#admin-link").waitFor({state:"visible",timeout:7000});
   await first.locator("#admin-link").waitFor({state:"visible",timeout:7000});
@@ -73,7 +79,13 @@ try{
   await login(second,petiano.email,false);
   await first.locator("#admin-link").waitFor({state:"hidden",timeout:7000});
   assert.equal(await first.evaluate(()=>sessionStorage.getItem("pet-gestao:session-token")),null,
-    "A aba antiga é desconectada quando a nova sessão não é persistente");
+    "Token anterior não fica guardado em outra aba");
+  const third=await context.newPage();
+  await third.goto(origin+"/#/conta");
+  await third.locator(".account-profile-info").waitFor({state:"visible",timeout:7000});
+  assert.ok((await third.locator(".account-profile-info").innerText()).includes(petiano.email),
+   "Outra aba herda a identidade da sessão temporária atual");
+  assert.equal(await third.evaluate(()=>localStorage.getItem("pet-gestao:session-token")),null);
   await context.close();
   console.log("Duas abas e duas contas: identidade sincronizada e sessões antigas revogadas.");
  }finally{await browser.close()}
