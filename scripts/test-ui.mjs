@@ -322,14 +322,11 @@ await wait();
 assert.ok(document.querySelector("#finish-dialog input[data-kind='commission']"),"Comissões selecionáveis");
 assert.ok(document.querySelector('#finish-dialog [data-do="finish-select-self"]'),
   "Mais de um responsável oferece conclusão só da própria participação");
-assert.ok(document.querySelector('#finish-dialog [data-do="finish-select-everyone"]'),
-  "Há opção explícita para concluir todos(as)");
+assert.equal(document.querySelector('#finish-dialog [data-do="finish-select-everyone"]'),null,"Comando redundante removido");
 tap('#finish-dialog [data-do="finish-select-self"]');await wait();
 assert.deepEqual([...document.querySelectorAll('#finish-dialog input[name="joint-target"]:checked')].map(x=>x.value),["u1"],
   "Só minha participação não marca outros responsáveis nem comissões");
-tap('#finish-dialog [data-do="finish-select-everyone"]');await wait();
-assert.equal(document.querySelectorAll('#finish-dialog input[name="joint-target"]:not(:checked)').length,0,
-  "Concluir para todos(as) seleciona todas as participações");
+
 const selectAll=document.querySelector('#finish-select-all');
 assert.ok(selectAll,"Opção Marcar todos aparece na conclusão");
 selectAll.checked=true;selectAll.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
@@ -467,7 +464,7 @@ tasks=tasks.filter(t=>!t.id.startsWith("t-archive-bulk-"));
  assert.equal(mixedPicker.querySelectorAll('input[name="joint-target"]').length,3,"Seletor mostra Admin, Tutoria e Finanças");
  tap('#finish-dialog [data-do="finish-select-self"]');await wait();
  assert.deepEqual([...mixedPicker.querySelectorAll('input[name="joint-target"]:checked')].map(el=>el.value),["admin"],"Só minha participação marca apenas Admin");
- tap('#finish-dialog [data-do="finish-select-everyone"]');await wait();
- assert.equal(mixedPicker.querySelectorAll('input[name="joint-target"]:checked').length,3,"Concluir para todos marca as três participações");
+ const allBox=mixedPicker.querySelector("#finish-select-all");allBox.checked=true;allBox.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+  assert.equal(mixedPicker.querySelectorAll('input[name="joint-target"]:checked').length,3,"Marcar todos marca as três participações");
  tap('#finish-dialog [data-do="finish-close"]');
  window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
