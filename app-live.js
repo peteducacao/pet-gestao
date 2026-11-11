@@ -754,10 +754,31 @@ function renderTaskForm(routeId){
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral e comissões</strong><small>Visível na Visão geral e nas comissões vinculadas.</small></span></label>'+
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
  '<div id="deadline-settings">'+renderDeadlineSettings(t?(t.deadlines||[]):state.assignmentScope==="todos"?[]:[{label:"Prazo",dueAt:""}])+'</div>'+ 
- '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+richEditor("captionText",t?.captionText||"")+
+ '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+
+  (t?lastReviewEdit(t):"")+richEditor("captionText",t?.captionText||"")+
  (t?"":'<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div>')+'</form></section>';
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
+function lastReviewEdit(t){
+ if(!t)return "";
+ const records=historyFor(t.id);
+ // O histórico específico do texto tem preferência. Em cadastros antigos,
+ // usa-se a última alteração registrada para manter a identificação.
+ const change=records.find(h=>/texto|revis|observa|corrig/i.test(String(h.action||"")))||records[0];
+ const stamp=change?.created_at||t.updatedAt||t.createdAt;
+ if(!stamp)return '<p class="review-last-edit">Última alteração: não registrada</p>';
+ const actor=change?.actor_name||nameFor(t.updatedBy)||nameFor(t.createdBy)||"Responsável não identificado";
+ const role=change?.actor_role||data.users.find(u=>u.name===actor)?.role||
+   data.users.find(u=>u.id===t.updatedBy)?.role||"";
+ const when=dt(stamp);
+ const dateLabel=when?new Intl.DateTimeFormat("pt-BR",{
+  day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",
+  timeZone:"America/Maceio"
+ }).format(when):textDate(stamp);
+ return '<p class="review-last-edit"><span>Última alteração:</span> <strong>'+esc(actor)+'</strong>'+
+  (role?' <span class="review-last-edit-role">('+esc(roleLabel(role))+')</span>':"")+
+  ' <time>'+esc(dateLabel)+'</time></p>';
+}
 
 
 function stageResponsibleNames(stage,t){
@@ -896,6 +917,7 @@ function activitySections(t,readOnly=false){
   '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+
   '<section class="card card-pad detail-accent-card detail-review-full">'+
    '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("list")+'</span>Texto para revisão</h2>'+
+   lastReviewEdit(t)+
    '<div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div>'+
   '</section></div>';
 }
