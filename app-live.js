@@ -1170,7 +1170,15 @@ function renderAccount(){
     '<span class="profile-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
     '</span><span>'+esc(c.name)+'</span>'+ico("chevron-right")+'</a>').join("")+'</div>':
    '<p class="field-hint">Você ainda não participa de nenhuma comissão.</p>')+'</section>';
- return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Status:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
+ const profilePhoto='<div class="account-photo-editor">'+
+  '<div class="account-photo-preview">'+(me.profilePhoto?
+    '<img src="'+esc(me.profilePhoto)+'" alt="Minha foto de perfil">':
+    '<span aria-label="Sem foto de perfil">'+esc((me.name||"P").trim().charAt(0).toUpperCase())+'</span>')+'</div>'+
+  '<div class="account-photo-controls"><label class="button ghost account-photo-choose">Alterar foto'+
+  '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
+  (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
+  '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
+ return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info">'+profilePhoto+'<h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Status:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
  '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
@@ -1841,6 +1849,11 @@ async function handleClick(e){
    if(form){form.hidden=!form.hidden;b.setAttribute("aria-expanded",String(!form.hidden));}
    return;
  }
+ if(action==="account-photo-delete"){
+   if(!await askConfirm("Remover sua foto de perfil?",{title:"Remover foto?"}))return;
+   await saveAndReload(()=>request("/account/photo","DELETE"),"Foto de perfil removida.");
+   return;
+ }
  if(action==="task-file-unselect"){
    state.taskFiles.splice(Number(b.dataset.index),1);
    const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
@@ -2011,6 +2024,20 @@ async function handleChange(e){
   }
   if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
+ if(t.id==="account-photo-input"){
+   const original=t.files?.[0];t.value="";
+   if(!original)return;
+   try{
+     const optimized=await shrinkPhoto(original,{edge:320,maxBytes:100*1024,square:true});
+     const photo=await new Promise((resolve,reject)=>{
+       const reader=new FileReader();
+       reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(Error("Não foi possível ler a foto."));
+       reader.readAsDataURL(optimized);
+     });
+     await saveAndReload(()=>request("/account/photo","PUT",{photo}),"Foto de perfil atualizada.");
+   }catch(e){setToast(e.message)}
+   return;
+ }
  if(t.id==="task-file-input"){
    if(!canSeeTaskPhotos())return setToast("Somente PETianos(as) podem anexar fotos.");
    const originalFiles=Array.from(t.files||[]);t.value="";
