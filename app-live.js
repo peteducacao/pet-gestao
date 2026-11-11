@@ -867,6 +867,28 @@ async function downloadTaskFile(taskId,fileId,name){
  link.href=url;link.download=name||"arquivo";document.body.append(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
+let taskPhotoObjectUrl=null;
+function closeTaskPhoto(){
+ const modal=$("#task-photo-modal");modal?.remove();
+ if(taskPhotoObjectUrl){URL.revokeObjectURL(taskPhotoObjectUrl);taskPhotoObjectUrl=null}
+}
+async function viewTaskPhoto(taskId,fileId,name){
+ if(!canSeeTaskPhotos())throw Error("Somente PETianos(as) podem visualizar fotos das demandas.");
+ if((localStorage.getItem(sessionRevisionKey)||"")!==localSessionRevision)throw Error("Sua sessão foi alterada em outra aba.");
+ const response=await fetch(API+"/api/v1/tasks/"+id(taskId)+"/attachments/"+id(fileId)+"/download",{
+  cache:"no-store",headers:{Authorization:"Bearer "+token}
+ });
+ if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||"Não foi possível abrir a foto.");
+ closeTaskPhoto();
+ taskPhotoObjectUrl=URL.createObjectURL(await response.blob());
+ const modal=document.createElement("div");modal.id="task-photo-modal";modal.className="task-photo-modal";
+ modal.innerHTML='<div class="task-photo-backdrop" data-do="task-photo-close"></div>'+
+  '<section class="task-photo-card" role="dialog" aria-modal="true" aria-label="Visualizar foto da demanda">'+
+  '<header><strong>'+esc(name||"Foto da demanda")+'</strong><button type="button" class="button ghost" data-do="task-photo-close">'+ico("close")+' Fechar</button></header>'+
+  '<img alt="'+esc(name||"Foto da demanda")+'" class="task-photo-expanded"></section>';
+ modal.querySelector("img").src=taskPhotoObjectUrl;document.body.append(modal);
+ modal.querySelector('[data-do="task-photo-close"]')?.focus();
+}
 function renderTaskForm(routeId){
  if(!canWrite())return authRequired();
  let t=null,cid=null;
@@ -1859,6 +1881,12 @@ async function handleClick(e){
    const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
    return;
  }
+ if(action==="task-photo-view"){
+   try{await viewTaskPhoto(tid,b.dataset.fileId,b.dataset.name)}
+   catch(e){setToast(e.message)}
+   return;
+ }
+ if(action==="task-photo-close"){closeTaskPhoto();return;}
  if(action==="task-file-download"){
    try{await downloadTaskFile(tid,b.dataset.fileId,b.dataset.name);}
    catch(e){setToast(e.message)}
@@ -2066,6 +2094,7 @@ async function handleChange(e){
  }
 }
 function onNavigation(){
+ closeTaskPhoto();
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash)state.adminMenuOpen=false;
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
@@ -2130,6 +2159,7 @@ function start(){
    if(hasUnsavedTaskChanges()){e.preventDefault();e.returnValue="";}
  });
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
+   if($("#task-photo-modal")){e.preventDefault();closeTaskPhoto();return}
    if(!$("#mail-preview-dialog")?.hidden){e.preventDefault();closeMailPreview()}
    else if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
    else if(!$("#account-delete-dialog")?.hidden){e.preventDefault();$("#account-delete-dialog").hidden=true}
