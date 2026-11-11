@@ -18,6 +18,7 @@ O código de integração com Cloudflare D1 e Google Apps Script está preparado
 | scripts/prepare-deploy.mjs | Descobre o banco D1 e prepara Worker e GitHub Pages |
 | .github/workflows/pages.yml | Testes, migração, deploy Worker e Pages |
 | docs/REGRAS-APROVADAS.md | Decisões de produto e comportamento |
+| docs/AUDITORIA-REDUNDANCIAS-2026-11-11.md | Auditoria de botões, filtros e atalhos com decisões para avaliação |
 | docs/IMPLEMENTACAO-2026-11-09.md | Guia técnico, segredos, publicação e checklist |
 
 **Nenhum usuário, demanda, prazo ou reunião fictícia é carregado na versão real.** Os dados locais do protótipo não são importados.
@@ -45,3 +46,19 @@ O front-end é estático, mas depende da URL da API preenchida no arquivo config
 
 ## Atenção
 O repositório é público; não armazene anexos privados, dados sensíveis, chaves, senhas ou tokens aqui. Para exclusões definitivas, recomenda-se rotina de backup D1.
+
+## Autenticação e experiências de navegação (novembro/2026)
+- O PET Gestão permite **uma única conta por navegador**. A identidade de uma sessão ativa é compartilhada entre suas abas; trocar de conta revoga a sessão anterior desse navegador.
+- **Manter-me conectado** utiliza apenas um token persistente; desmarcado, o token é compartilhado por um cookie temporário de sessão entre abas e não é guardado indefinidamente. Nunca colocar senha em localStorage, sessionStorage ou cookies.
+- Sair da conta pede confirmação. Voltar do painel Admin ao PET Gestão exibe uma transição animada **sem encerrar o login**.
+- Nos detalhes e na edição de demandas, **Texto para revisão** exibe quem fez a última alteração, o cargo e a data/hora, apoiado pelo histórico de auditoria.
+- A página **Comissões** oferece um bloco de Ajuda ao final. **Nenhuma das redundâncias apontadas no relatório foi removida sem avaliação**.
+
+## Testes relevantes
+- `node scripts/test-auth-sessions.mjs`: tokens, compartilhamento temporário e regras de segurança.
+- `node scripts/test-browser-sessions.mjs`: abre abas e troca contas no mesmo contexto Chromium (precisa de Playwright).
+- `node scripts/test-browser.mjs` e `node scripts/test-ui.mjs`: interface responsiva e fluxos visuais.
+- `node scripts/test-smoke.mjs`: API isolada, com Worker de desenvolvimento e banco D1 local.
+- Workflows `.github/workflows/pages.yml`, `.github/workflows/smoke.yml` e `.github/workflows/integration-tests.yml` executam verificações e publicações.
+
+**Importante:** não executar testes destrutivos no D1 de produção. A auditoria de redundâncias é consultiva; mudanças propostas precisam de autorização antes da remoção de elementos.
