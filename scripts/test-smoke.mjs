@@ -37,6 +37,20 @@ await test("sessões temporárias e permanentes da Administração",async()=>{
 let a,b,task,meeting;
 // Antes de modificar senhas de teste, conferir a fila de e-mails no D1 local.
 await import("./test-email-queue.mjs");
+await test("login administrativo independente",async()=>{
+ const bad=await api("/auth/admin-login","POST",{identifier:"Admin",password:"errada"});
+ assert.equal(bad.status,401);
+ const r=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:process.env.TEST_ADMIN_PASSWORD}));
+ assert.equal(r.user.role,"admin");assert.ok(r.token);
+});
+await test("cadastro começa como Usuário",async()=>{
+ good(await api("/auth/register","POST",{name:"Pessoa Teste",email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!",role:"admin",adminSession:true}),201);
+ const r=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
+ assert.equal(r.user.role,"usuario");
+ assert.equal(r.user.adminSession,false,"Campos enviados pelo navegador não criam permissão Admin.");
+ const users=good(await api("/admin/users")).users;
+ assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
+});
 await test("anexos da demanda no D1: autenticação, upload em partes, download e exclusão",async()=>{
  const adminToken=token,user=good(await api("/auth/me")).user;
  const created=good(await api("/tasks","POST",{
@@ -45,6 +59,11 @@ await test("anexos da demanda no D1: autenticação, upload em partes, download 
  }),201);
  const taskId=created.id;
  const prefix="/tasks/"+encodeURIComponent(taskId)+"/attachments";
+ const person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
+ good(await api("/admin/users/"+person.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+ const petToken=good(await api("/auth/login","POST",{
+  email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+ })).token;
  const raw=new Uint8Array(300003);
  for(let i=0;i<raw.length;i++)raw[i]=i%251;
  let fileId="";
@@ -112,69 +131,61 @@ await test("anexos da demanda no D1: autenticação, upload em partes, download 
   if(good(await api("/bootstrap")).tasks.some(t=>t.id===taskId))good(await api("/tasks/"+taskId,"DELETE"));
  }
 });
-await test("login administrativo independente",async()=>{
- const bad=await api("/auth/admin-login","POST",{identifier:"Admin",password:"errada"});
- assert.equal(bad.status,401);
- const r=good(await api("/auth/admin-login","POST",{identifier:"Admin",password:process.env.TEST_ADMIN_PASSWORD}));
- assert.equal(r.user.role,"admin");assert.ok(r.token);
-});
-await test("cadastro começa como Usuário",async()=>{
- good(await api("/auth/register","POST",{name:"Pessoa Teste",email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!",role:"admin",adminSession:true}),201);
- const r=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
- assert.equal(r.user.role,"usuario");
- assert.equal(r.user.adminSession,false,"Campos enviados pelo navegador não criam permissão Admin.");
- const users=good(await api("/admin/users")).users;
- assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
-});
-await test("anexos de demandas são exclusivos de PETianos(as), Tutoria e Administração",async()=>{
+await test("anexos são privados para PETianos(as), não para Tutoria/Admin/visitantes",async()=>{
  const adminToken=token,people=good(await api("/admin/users")).users;
  const account=people.find(u=>u.email==="teste-usuario@pet.local");
- assert.ok(account,"Conta somente leitura de teste cadastrada");
- const id=good(await api("/tasks","POST",{
-   title:"Anexos privados para equipe",
-   assignmentScope:"usuarios",assigneeIds:[good(await api("/auth/me")).user.id],
-   commissionIds:[],deadlines:[]
+ assert.ok(account);
+ const taskId=good(await api("/tasks","POST",{
+  title:"Anexos privados PETianos",
+  assignmentScope:"usuarios",assigneeIds:[good(await api("/auth/me")).user.id],
+  commissionIds:[],deadlines:[]
  }),201).id;
- const path="/tasks/"+encodeURIComponent(id)+"/attachments";
+ const path="/tasks/"+encodeURIComponent(taskId)+"/attachments";
  try{
-  const file=good(await api(path,"POST",{name:"partilha-privada.txt",size:2,mimeType:"text/plain"}),201);
-  const write=await fetch(base+path+"/"+file.id+"/chunks/0",{
-   method:"PUT",headers:{Authorization:"Bearer "+adminToken,"Content-Type":"application/octet-stream"},
-   body:new Uint8Array([65,66])
-  });
-  assert.equal(write.status,200);
-  good(await api(path+"/"+file.id+"/complete","POST",{}));
-  token="";
-  assert.equal((await api(path)).status,401,"Sem login não vê nomes de arquivos");
-  assert.equal((await fetch(base+path+"/"+file.id+"/download")).status,401,"Sem login não baixa arquivos");
+  assert.equal((await api(path)).status,403,"Admin não vê anexos");
+  assert.equal((await api(path,"POST",{name:"privado.txt",size:2})).status,403,"Admin não envia anexos");
+  const adminTasks=good(await api("/bootstrap")).tasks.find(t=>t.id===taskId);
+  assert.ok(!adminTasks.attachments?.length,"Bootstrap da Administração não lista anexos");
+  good(await api("/admin/users/"+account.id,"PATCH",{role:"petiano",notificationEnabled:false}));
   token=good(await api("/auth/login","POST",{
    email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
   })).token;
-  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===id).attachments,undefined,
-   "Perfil somente leitura não recebe nomes dos anexos no bootstrap");
-  assert.equal((await api(path)).status,403,"Perfil somente leitura não pode listar arquivos");
-  assert.equal((await api(path+"/"+file.id,"DELETE")).status,403,
-   "Perfil somente leitura não pode excluir arquivos");
-  assert.equal((await fetch(base+path+"/"+file.id+"/download",{
-   headers:{Authorization:"Bearer "+token}
-  })).status,403,"Perfil somente leitura não pode baixar arquivos");
-  for(const role of ["petiano","tutor"]){
-   token=adminToken;
-   good(await api("/admin/users/"+account.id,"PATCH",{role,notificationEnabled:false}));
-   token=good(await api("/auth/login","POST",{
-    email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
-   })).token;
-   assert.equal(good(await api(path)).attachments.length,1,role+" pode listar anexos");
-   const dl=await fetch(base+path+"/"+file.id+"/download",{
-    headers:{Authorization:"Bearer "+token}
-   });
-   assert.equal(dl.status,200,role+" pode baixar anexos");
-   assert.deepEqual(new Uint8Array(await dl.arrayBuffer()),new Uint8Array([65,66]));
-  }
+  const file=good(await api(path,"POST",{name:"privado.txt",size:2,mimeType:"text/plain"}),201);
+  const response=await fetch(base+path+"/"+file.id+"/chunks/0",{
+   method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/octet-stream"},
+   body:new Uint8Array([65,66])
+  });
+  assert.equal(response.status,200);
+  good(await api(path+"/"+file.id+"/complete","POST",{}));
+  assert.equal(good(await api(path)).attachments.length,1,"PETiano consegue listar arquivos");
+  const dl=await fetch(base+path+"/"+file.id+"/download",{headers:{Authorization:"Bearer "+token}});
+  assert.equal(dl.status,200,"PETiano consegue baixar arquivos");
+  assert.deepEqual(new Uint8Array(await dl.arrayBuffer()),new Uint8Array([65,66]));
+  token="";
+  assert.equal((await api(path)).status,401,"Visitante não vê nomes");
+  assert.equal((await fetch(base+path+"/"+file.id+"/download")).status,401,"Visitante não baixa");
+  token=adminToken;
+  good(await api("/admin/users/"+account.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  token=good(await api("/auth/login","POST",{
+   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+  })).token;
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments,undefined,
+   "Usuário somente leitura não recebe nomes de anexos");
+  assert.equal((await api(path)).status,403);
+  assert.equal((await fetch(base+path+"/"+file.id+"/download",{headers:{Authorization:"Bearer "+token}})).status,403);
+  token=adminToken;
+  good(await api("/admin/users/"+account.id,"PATCH",{role:"tutor",notificationEnabled:false}));
+  token=good(await api("/auth/login","POST",{
+   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+  })).token;
+  assert.equal((await api(path)).status,403,"Tutoria não vê arquivos exclusivos PETianos");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,0,
+   "Metadados da Tutoria estão vazios");
+  assert.equal((await fetch(base+path+"/"+file.id+"/download",{headers:{Authorization:"Bearer "+token}})).status,403);
  }finally{
   token=adminToken;
   good(await api("/admin/users/"+account.id,"PATCH",{role:"usuario",notificationEnabled:false}));
-  good(await api("/tasks/"+id,"DELETE"));
+  good(await api("/tasks/"+taskId,"DELETE"));
  }
 });
 await test("duas contas no mesmo navegador revogam a sessão anterior no servidor",async()=>{
