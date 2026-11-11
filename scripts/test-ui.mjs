@@ -11,7 +11,7 @@ let tasks=[
  {id:"t1",title:"Poesia no PET",description:"Anotar 📚\nIdeias",captionText:"Olá! 🥰\n\n#peteducacao",
   assigneeIds:["u1","u2"],commissionIds:["videos"],commissionDone:{},userDone:{},
   deadlines:[{id:"p1",label:"Prazo",dueAt:"2026-11-09T12:00:00",assigneeIds:["u1"],completedAt:null}],
-  registeredAt:"2026-11-09",archivedAt:null,status:"pendente",version:1},
+  registeredAt:"2026-11-09",archivedAt:null,status:"pendente",version:1,updatedBy:"u1",updatedAt:"2026-11-10T21:20:00Z"},
  {id:"t2",title:"V InterPET",description:"",captionText:"",assigneeIds:[],commissionIds:["videos"],commissionDone:{},userDone:{},
   deadlines:[{id:"p2",label:"Prazo",dueAt:"2026-11-23T12:00:00",assigneeIds:[],completedAt:null}],
   registeredAt:"2026-11-10",archivedAt:null,status:"pendente",version:1}
@@ -130,6 +130,10 @@ committees.push({id:"financas",name:"Finanças",memberIds:[],memberCount:0,maxMe
 tasks.push({...tasks[0],id:"indicador-videos-concluido",title:"Vídeos concluída e Finanças pendente",
  commissionIds:["videos","financas"],commissionDone:{videos:{at:"2026-11-10T13:00:00Z",by:"u1"}},
  archivedAt:null,userDone:{},status:"pendente",deadlines:[]});
+await move("#/comissoes");
+assert.equal(document.querySelectorAll(".commission-help-item").length,6,
+ "Ajuda em Comissões contém seis perguntas expansíveis");
+assert.ok(document.querySelector("#commission-help-title")?.textContent.includes("Ajuda"));
 await move("#/comissoes/videos");
 const readMetrics=()=>Object.fromEntries([...document.querySelectorAll(".commission-overview-card")].map(el=>[
  el.querySelector(".commission-overview-label").textContent,
@@ -290,6 +294,10 @@ assert.ok(document.querySelector(".details-facts"),"Etapas em detalhes");
 assert.equal(document.querySelector('a[data-route="demandas"]').classList.contains("active"),true,"A seção Demandas é destacada nos detalhes");
 assert.equal(document.querySelector(".activity-detail-page")?.textContent.includes("Anotações da comissão"),false,"Anotações somente no formulário");
 assert.ok(document.querySelector(".saved-activity-text")?.textContent.includes("Olá!"),"Texto para revisão visível");
+assert.ok(document.querySelector(".detail-review-full .review-last-edit")?.textContent.includes("PETiana Teste"),
+ "Revisão mostra quem fez a última alteração");
+assert.ok(document.querySelector(".review-last-edit")?.textContent.includes("10/11/2026"),
+ "Revisão mostra a data da última alteração");
 assert.ok(document.querySelector(".assignee-team")?.textContent.includes("Vídeos"),"Comissão reconhecida como responsável");
 assert.ok(document.querySelector(".stage-compact"),"Etapas organizadas no mesmo painel");
 const assigneeDetails=document.querySelector("details.assignee-card");
@@ -403,6 +411,13 @@ assert.ok(lastMail?.message?.includes("✨"),"Emojis no envio manual");
 console.log("TESTES DE INTERFACE SIMULADA: navegação, Atas (editar e excluir), cores, filtros, conclusão conjunta, arquivamento e e-mails — OK.");
 // Exclusão da conta é acessível por Meu perfil e exige confirmação e senha.
 await move("#/conta");
+tap('[data-do="logout"]');await wait();
+assert.equal(document.querySelector("#notice-title")?.textContent,"Sair da conta?",
+ "Logout exige confirmação");
+assert.ok(document.querySelector("#notice-dialog")?.textContent.includes("Continuar conectado"));
+tap('#notice-dialog [data-do="notice-cancel"]');await wait();
+assert.equal(document.querySelector(".account-profile-info")?.textContent.includes("PETiana Teste"),true,
+ "Cancelar logout preserva a identidade");
 const deleteAccountButton=document.querySelector('[data-do="account-delete-open"]');
 assert.ok(deleteAccountButton,"Meu perfil oferece Excluir minha conta");
 tap('[data-do="account-delete-open"]');
