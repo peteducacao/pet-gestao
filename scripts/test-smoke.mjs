@@ -35,6 +35,8 @@ await test("sessões temporárias e permanentes da Administração",async()=>{
  assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
 let a,b,task,meeting;
+// Antes de modificar senhas de teste, conferir a fila de e-mails no D1 local.
+await import("./test-email-queue.mjs");
 await test("login administrativo independente",async()=>{
  const bad=await api("/auth/admin-login","POST",{identifier:"Admin",password:"errada"});
  assert.equal(bad.status,401);
@@ -972,7 +974,3 @@ await test("avisos e confirmações usam popup central sem caixas nativas",async
  assert.ok(css.includes("backdrop-filter:blur(8px)"));
 });
 console.log(tests+" testes passaram no banco local isolado");
-
-// Teste adicional do D1 local: uma mudança de prazo ou exclusão não pode
-// deixar notificações antigas pendentes, mesmo se já tinham entrado na fila.
-await import("./test-email-queue.mjs");
