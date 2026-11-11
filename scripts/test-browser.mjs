@@ -263,8 +263,8 @@ try{
  await page.evaluate(()=>{location.hash="#/atividade/t-everyone"});
  await page.locator("#notice-dialog").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator("#notice-title").innerText()).includes("Alterações não salvas"));
- assert.equal(await page.locator("#notice-dialog [data-do='notice-cancel']").innerText(),"Continuar editando");
- await page.locator("#notice-dialog [data-do='notice-cancel']").click();
+ assert.equal(await page.locator("#notice-dialog button[data-do='notice-cancel']").innerText(),"Continuar editando");
+ await page.locator("#notice-dialog button[data-do='notice-cancel']").click();
  assert.equal(await page.locator('#task-form input[name="title"]').count(),1,"Cancelar mantém formulário aberto");
  await page.evaluate(()=>{location.hash="#/atividade/t-everyone"});
  await page.locator("#notice-dialog [data-do='notice-confirm']").click();
