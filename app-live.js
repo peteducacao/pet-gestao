@@ -9,6 +9,16 @@ const API_FALLBACK="https://pet-gestao.pet-educacao.workers.dev";
 const CONFIG=window.PET_GESTAO_CONFIG||{},API=String(CONFIG.apiBaseUrl||"").trim().replace(/\/+$/,"")||API_FALLBACK;
 const MONTHS=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const current=new Date(), tokenKey="pet-gestao:session-token",adminTokenKey="pet-gestao:admin-session-token";
+const browserKey="pet-gestao:browser-id",sessionRevisionKey="pet-gestao:session-revision";
+const freshClientId=()=>window.crypto?.randomUUID?.()||"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{
+ const r=window.crypto.getRandomValues(new Uint8Array(1))[0]&15;
+ return (c==="x"?r:(r&3|8)).toString(16);
+});
+let browserId=localStorage.getItem(browserKey);
+if(!/^[a-f0-9-]{36}$/i.test(browserId||"")){browserId=freshClientId();localStorage.setItem(browserKey,browserId)}
+let localSessionRevision=localStorage.getItem(sessionRevisionKey)||"";
+function publishSessionChange(){localSessionRevision=freshClientId();localStorage.setItem(sessionRevisionKey,localSessionRevision)}
+
 // "Manter-me conectado" guarda somente o token de sessão; nunca a senha.
 const readSessionToken=key=>localStorage.getItem(key)||sessionStorage.getItem(key)||"";
 function saveSessionToken(key,value,remember){
@@ -281,6 +291,9 @@ function backButton(){return'<button type="button" class="button ghost" data-do=
 function routeParts(){const raw=decodeURIComponent((location.hash||"#/inicio").slice(2));const parts=raw.split("/");return{page:parts[0]||"inicio",parts:parts.slice(1)}}
 async function request(path,method="GET",payload,scope){
  if(!API)throw Error("URL da API ainda não publicada.");
+ // Qualquer mudança de identidade em outra aba invalida o token antigo.
+ if(scope!=="guest"&&localStorage.getItem(sessionRevisionKey)!==localSessionRevision)
+  throw Error("A sessão foi alterada em outra aba. Atualize a página para continuar.");
  const headers={"Accept":"application/json"};
  const activeToken=scope==="guest"?"":token;
  if(activeToken)headers.Authorization="Bearer "+activeToken;
@@ -1493,7 +1506,7 @@ async function handleClick(e){
  if(action==="logout"){
   try{await request("/auth/logout","POST",{},"user")}catch{}
   token="";me=null;regularMe=null;
-  forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);
+  forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);publishSessionChange();
   await reload();location.hash="#/inicio";return;
  }
  if(action==="move-commission"){
@@ -1568,8 +1581,8 @@ async function handleSubmit(e){
  try{
  if(form.id==="login-form"){
    const f=userFields(form),rememberMe=form.elements.rememberMe?.checked===true;
-   const r=await request("/auth/login","POST",{...f,rememberMe},"guest");
-   token=r.token;saveSessionToken(tokenKey,token,rememberMe);
+   const r=await request("/auth/login","POST",{...f,rememberMe,browserId},"guest");
+   token=r.token;saveSessionToken(tokenKey,token,rememberMe);publishSessionChange();
    forgetSessionToken(adminTokenKey);
    const destination=r.user.mustChangePassword?"#/conta":"#/inicio";
    state.authTransition=true;
@@ -1591,7 +1604,7 @@ async function handleSubmit(e){
    return;
  }
  if(form.id==="reset-form"){await request("/auth/reset","POST",{token:form.dataset.token,password:userFields(form).password});location.hash="#/login";setToast("Senha redefinida.");return}
- if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
+ if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);publishSessionChange();await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="delete-account-form"){
    const fields=userFields(form);
    if(String(fields.confirmation||"").trim()!=="EXCLUIR MINHA CONTA")
@@ -1602,7 +1615,7 @@ async function handleSubmit(e){
    try{
      await request("/account","DELETE",{password:fields.password,confirmation:fields.confirmation},token?"user":"admin");
      token="";me=null;regularMe=null;
-     forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);
+     forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);publishSessionChange();
      location.hash="#/login";
      await reload();
      setToast("Sua conta foi excluída definitivamente.");
@@ -1727,6 +1740,17 @@ function onNavigation(){
  window.scrollTo({top:0});
 }
 let hasStarted=false;
+function syncBrowserSession(){
+ const latest=localStorage.getItem(sessionRevisionKey)||"";
+ if(latest===localSessionRevision)return;
+ localSessionRevision=latest;
+ sessionStorage.removeItem(tokenKey);
+ token=localStorage.getItem(tokenKey)||"";
+ me=null;regularMe=null;resetTaskDraft();
+ state.adminMenuOpen=false;state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
+ location.hash="#/inicio";
+ reload();
+}
 function start(){
  if(hasStarted)return;
  hasStarted=true;
@@ -1764,6 +1788,10 @@ function start(){
    }
    onNavigation();
  });
+ window.addEventListener("storage",e=>{
+  if(e.key===sessionRevisionKey||e.key===null)syncBrowserSession();
+ });
+ window.addEventListener("focus",syncBrowserSession);
  window.addEventListener("beforeunload",e=>{
    if(hasUnsavedTaskChanges()){e.preventDefault();e.returnValue="";}
  });
