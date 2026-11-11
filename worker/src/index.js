@@ -484,8 +484,8 @@
       .bind(task.id,user.id,stamp).run();
   }
   // Binários privados no D1, em blocos de 256 KiB para respeitar 2 MB/linha.
-  const ATTACH_CHUNK=262144,ATTACH_MAX_FILE=10*1024*1024;
-  const ATTACH_MAX_FILES=8,ATTACH_MAX_TASK_TOTAL=30*1024*1024;
+  const ATTACH_CHUNK=262144,ATTACH_MAX_FILE=350*1024;
+  const ATTACH_MAX_FILES=8,ATTACH_MAX_TASK_TOTAL=8*ATTACH_MAX_FILE;
   const publicAttachment=a=>({
     id:a.id,name:a.filename,mimeType:a.mime_type,size:a.size_bytes,
     createdAt:a.created_at,createdBy:a.created_by
@@ -879,13 +879,13 @@
           const size=Number(b.size),mime=String(b.mimeType||"application/octet-stream").trim();
           if(!name||name.length>160||/[\\/\x00-\x1f<>]/.test(name))
             fail("Informe um nome válido para o arquivo (até 160 caracteres).");
-          if(!Number.isInteger(size)||size<1||size>ATTACH_MAX_FILE)
-            fail("O arquivo deve ter até 10 MB e não pode estar vazio.",413);
-          if(mime.length>100||/[\r\n]/.test(mime))fail("Tipo de arquivo inválido.",400);
+          if(!Number.isInteger(size)||size<4||size>ATTACH_MAX_FILE)
+            fail("A foto deve ter até 350 KB após redução.",413);
+          if(mime!=="image/jpeg"||!/\.jpe?g$/i.test(name))fail("Somente fotos JPG são permitidas.",415);
           const quota=await db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(size_bytes),0) AS total FROM task_attachments WHERE task_id=?")
             .bind(taskId).first();
           if(quota.n>=ATTACH_MAX_FILES||quota.total+size>ATTACH_MAX_TASK_TOTAL)
-            fail("Limite de 8 arquivos ou 30 MB por demanda atingido.",413);
+            fail("Limite de 8 fotos ou 2,8 MB por demanda atingido.",413);
           const attachmentId=uid(),stamp=now(),count=Math.ceil(size/ATTACH_CHUNK);
           await db.prepare("INSERT INTO task_attachments(id,task_id,filename,mime_type,size_bytes,chunk_count,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
             .bind(attachmentId,taskId,name,mime||"application/octet-stream",size,count,user.id,stamp,stamp).run();
@@ -903,8 +903,8 @@
           const safeName=file.filename.replace(/[\\/"\r\n]/g,"_");
           return new Response(new Blob(chunks,{type:"application/octet-stream"}),{
             status:200,headers:{
-              "Content-Type":"application/octet-stream",
-              "Content-Disposition":"attachment; filename=\"arquivo\"; filename*=UTF-8''"+encodeURIComponent(safeName),
+              "Content-Type":"image/jpeg",
+              "Content-Disposition":"inline; filename=\"foto.jpg\"; filename*=UTF-8''"+encodeURIComponent(safeName),
               "Cache-Control":"private, no-store",
               "X-Content-Type-Options":"nosniff",
               "Content-Security-Policy":"default-src 'none'",
@@ -936,7 +936,11 @@
           const received=await db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(size_bytes),0) AS size FROM task_attachment_chunks WHERE attachment_id=?")
             .bind(file.id).first();
           if(received.n!==file.chunk_count||received.size!==file.size_bytes)
-            fail("Envio incompleto. Aguarde todas as partes do arquivo.",409);
+            fail("Envio incompleto. Aguarde todas as partes da foto.",409);
+          const first=await db.prepare("SELECT data FROM task_attachment_chunks WHERE attachment_id=? AND chunk_index=0").bind(file.id).first();
+          const bytes=new Uint8Array(first?.data||[]);
+          if(bytes.length<4||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)
+            fail("A foto enviada não possui assinatura JPEG válida.",415);
           await db.prepare("UPDATE task_attachments SET status='ready',updated_at=? WHERE id=? AND status='uploading'")
             .bind(now(),file.id).run();
           await audit(db,taskId,user,"Adicionou anexo",file.filename);
