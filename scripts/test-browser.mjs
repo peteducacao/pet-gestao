@@ -292,6 +292,8 @@ try{
  assert.deepEqual(singleSaved.deadlines.map(x=>x.label),["Atividade"],"Data da pessoa é salva sem etapas adicionais");
  assert.equal(singleSaved.archivedAt,null,"A data passada não conclui automaticamente uma tarefa individual");
  await page.goto(origin+"/#/atividade/t-one-person");
+ await page.reload({waitUntil:"domcontentloaded"}); // Recarrega bootstrap após edição e mudança de data.
+ await page.locator(".details-facts").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator(".details-facts").innerText()).includes("Data da atividade"));
  assert.equal(await page.locator("[data-detail-status]").count(),1,
    "A pessoa continua podendo concluir sua própria demanda");
