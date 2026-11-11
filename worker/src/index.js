@@ -21,7 +21,7 @@
   const isArr=v=>Array.isArray(v)?v:[];
   const unique=v=>[...new Set(isArr(v).map(String).filter(Boolean))];
   const idName=row=>({id:row.id,name:row.name,role:row.role_override||row.role});
-  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role_override||u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password,adminSession:u.session_admin_scope===1});
+  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role_override||u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password,adminSession:u.session_admin_scope===1,activityClearedAt:u.activity_cleared_at||null});
   const color=s=>/^#[0-9a-fA-F]{6}$/.test(String(s))?s:"#f7f3ff";
   const arrayToJson=v=>JSON.stringify(v);
   const standardTime=d=>/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(String(d||""))?String(d):"";
@@ -74,13 +74,17 @@
   async function audit(db,taskId,user,action,details=""){
     await db.prepare("INSERT INTO task_history (id,task_id,actor_id,actor_name,action,details,created_at) VALUES (?,?,?,?,?,?,?)").bind(uid(),taskId,user.id,user.name,action,details,now()).run();
   }
-  async function createSession(db,user,rememberMe=false,adminScope=false){
+  async function createSession(db,user,rememberMe=false,adminScope=false,browserId=""){
     // Sem "Manter-me conectado": sessão temporária de 7 dias no navegador.
     // Com a opção: permanece válida até logout, revogação, troca de senha
     // ou exclusão da conta. A data máxima é sentinela, não prazo de 30 dias.
     const token=randomToken(),digest=await sha(token);
     const expiresAt=rememberMe===true?"9999-12-31T23:59:59.999Z":isoAfter(7*24*60);
-    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,admin_scope) VALUES(?,?,?,?,?)").bind(digest,user.id,expiresAt,now(),adminScope&&user.role==="admin"?1:0).run();
+    // Uma sessão por navegador: autenticar outra conta revoga a anterior
+    // inclusive se ela estiver aberta em uma aba separada.
+    const browser=/^[a-f0-9-]{36}$/i.test(String(browserId||""))?String(browserId):null;
+    if(browser)await db.prepare("DELETE FROM sessions WHERE browser_id=?").bind(browser).run();
+    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,admin_scope,browser_id) VALUES(?,?,?,?,?,?)").bind(digest,user.id,expiresAt,now(),adminScope&&user.role==="admin"?1:0,browser).run();
     return {token,user:{...userPublic(user),adminSession:adminScope===true&&user.role==="admin"},expiresAt};
   }
   async function resetRate(db,mail){await db.prepare("DELETE FROM auth_attempts WHERE email=?").bind(mail).run()}
@@ -179,7 +183,7 @@
       if(response.servico!=="pet-gestao")throw new Error("Ponte de e-mail incompatível com o PET Gestão. Atualize o Apps Script antes de reenviar.");
     }
   }
-  async function recipientEmails(db,data){
+  async function recipientEmails(db,data,excludeEmail=""){
     const all=(await db.prepare("SELECT id,email FROM users").all()).results;
     const ids=new Set(unique(data.userIds));
     const targets=unique(data.committeeIds);
@@ -187,7 +191,7 @@
       const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
       for(const m of members)if(targets.includes(m.commission_id))ids.add(m.user_id);
     }
-    return unique((data.all?all:all.filter(x=>ids.has(x.id))).map(x=>x.email)).filter(validEmail);
+    return unique((data.all?all:all.filter(x=>ids.has(x.id))).map(x=>x.email)).filter(s=>validEmail(s)&&email(s)!==email(excludeEmail));
   }
   async function enqueue(db,creatorId,kind,emails,subject,message,when){
     const id=uid(),stamp=now();
@@ -364,7 +368,7 @@
       const members=(await db.prepare("SELECT user_id FROM commission_members WHERE commission_id=?").bind(cId).all()).results;
       members.forEach(m=>ids.add(m.user_id));
     }
-    const recipients=await recipientEmails(db,{userIds:[...ids]});
+    const recipients=await recipientEmails(db,{userIds:[...ids]},user.email);
     if(!recipients.length)return;
     const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
     const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
@@ -489,7 +493,7 @@
         await resetRate(db,loginKey);
         // O login normal também autentica Admin, sem exigir uma segunda entrada.
         // O servidor só concede privilégios administrativos a cargo Admin validado.
-        return answer(await createSession(db,u,b.rememberMe===true,(u.role_override||u.role)==="admin"));
+        return answer(await createSession(db,u,b.rememberMe===true,(u.role_override||u.role)==="admin",b.browserId));
       }
       if(path==="/api/v1/auth/admin-login"&&method==="POST"){
         const b=await body(req),identifier=String(b.identifier||b.email||"").trim().toLowerCase(),pw=String(b.password||"");
@@ -504,13 +508,18 @@
           await rateFail(db,key);fail("Credenciais administrativas inválidas.",401);
         }
         await resetRate(db,key);
-        return answer(await createSession(db,admin,b.rememberMe===true,true));
+        return answer(await createSession(db,admin,b.rememberMe===true,true,b.browserId));
       }
       if(path==="/api/v1/auth/logout"&&method==="POST"){
         if(user){const token=(req.headers.get("authorization")||"").slice(7);await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await sha(token)).run()}
         return answer({ok:true});
       }
       if(path==="/api/v1/auth/me"&&method==="GET"){requireLogin(user);return answer({user:userPublic(user)})}
+      if(path==="/api/v1/activity/clear"&&method==="POST"){
+        requireLogin(user);
+        await db.prepare("UPDATE users SET activity_cleared_at=? WHERE id=?").bind(now(),user.id).run();
+        return answer({ok:true});
+      }
       if(path==="/api/v1/auth/change-password"&&method==="POST"){
         requireLogin(user);
         const b=await body(req),pw=String(b.password||""),next=String(b.newPassword||"");
@@ -940,8 +949,8 @@
         const scheduled=when.getTime()>Date.now()+60000;
         const attachments=isArr(b.attachments);
         if(scheduled&&attachments.length)fail("E-mails agendados não aceitam anexos.");
-        const recipients=await recipientEmails(db,b);
-        if(!recipients.length)fail("Nenhum destinatário selecionado.");
+        const recipients=await recipientEmails(db,b,user.email);
+        if(!recipients.length)fail("Nenhum destinatário disponível: seu próprio e-mail não recebe cópia do envio.");
         // Evita registrar um envio imediato em uma fila que já sabemos que será recusada.
         // Um agendamento futuro permanece possível enquanto a integração é configurada.
         if(!scheduled){
