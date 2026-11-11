@@ -131,9 +131,12 @@ tasks.push({...tasks[0],id:"indicador-videos-concluido",title:"Vídeos concluíd
  commissionIds:["videos","financas"],commissionDone:{videos:{at:"2026-11-10T13:00:00Z",by:"u1"}},
  archivedAt:null,userDone:{},status:"pendente",deadlines:[]});
 await move("#/comissoes");
-assert.equal(document.querySelectorAll(".commission-help-item").length,6,
- "Ajuda em Comissões contém seis perguntas expansíveis");
-assert.ok(document.querySelector("#commission-help-title")?.textContent.includes("Ajuda"));
+assert.equal(document.querySelectorAll(".commission-help-item").length,0,"Ajuda não se repete em Comissões");
+const menuLinks=[...document.querySelectorAll("#primary-nav .nav-link")].map(a=>a.dataset.route);
+assert.equal(menuLinks.indexOf("ajuda"),menuLinks.indexOf("comissoes")+1,"Ajuda aparece logo abaixo de Comissões no menu Organização");
+await move("#/ajuda");
+assert.equal(document.querySelectorAll(".commission-help-item").length>=16,true,"Ajuda geral contém dúvidas sobre todas as áreas");
+assert.ok(document.querySelector("#commission-help-title")?.textContent.includes("Ajuda sobre comissões"));
 await move("#/comissoes/videos");
 const readMetrics=()=>Object.fromEntries([...document.querySelectorAll(".commission-overview-card")].map(el=>[
  el.querySelector(".commission-overview-label").textContent,
