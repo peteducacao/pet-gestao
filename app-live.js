@@ -472,12 +472,36 @@ function renderComissoes(){
  }).join("")+'</div></section>';
 }
 
+// O painel contabiliza a participação DESTA comissão, independentemente
+// de haver outras pessoas/comissões ainda com entregas pendentes.
+function commissionOverview(cid){
+ const linked=data.tasks.filter(t=>(t.commissionIds||[]).includes(cid));
+ const totals={demandas:linked.length,concluidas:0,atrasadas:0,pendentes:0};
+ for(const task of linked){
+  if(commissionFinished(task,cid)||Boolean(task.archivedAt))totals.concluidas++;
+  else if(isLate(task))totals.atrasadas++;
+  else totals.pendentes++;
+ }
+ const metrics=[
+  ["Demandas",totals.demandas,"list","total"],
+  ["Concluídas",totals.concluidas,"check","complete"],
+  ["Atrasadas",totals.atrasadas,"alert","late"],
+  ["Pendentes",totals.pendentes,"clock","pending"]
+ ];
+ return '<section class="commission-overview" aria-label="Resumo geral da comissão">'+
+  metrics.map(([label,value,iconName,kind])=>'<div class="card commission-overview-card commission-overview-'+kind+'">'+
+   '<span class="commission-overview-icon" aria-hidden="true">'+ico(iconName)+'</span>'+
+   '<span class="commission-overview-info"><span class="commission-overview-label">'+label+'</span>'+
+   '<strong class="commission-overview-value">'+value+'</strong></span></div>').join("")+
+ '</section>';
+}
 function renderCommittee(cid){
  const c=committee(cid);if(!c)return empty("Comissão não encontrada");
  const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))
  .filter(t=>state.commissionStatusFilter==="todas"||taskStatus(t,cid)===state.commissionStatusFilter)
  .sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  return header("Comissões",c.name,c.description||"","")+
+ commissionOverview(cid)+
  '<section class="card card-pad"><div class="section-head"><div><h2>Pendências da comissão</h2><p>Atividades vinculadas a esta equipe em Demandas.</p></div><span class="pill soft">'+all.length+' pendente(s)</span></div>'+
  visualizationSelect("commissionStatus",state.commissionStatusFilter,[["todas","Todas as pendências"],["pendente","Pendentes"],["atrasada","Atrasadas"]])+
  (all.length?all.map(t=>taskCard(t,cid)).join(""):empty("Nenhuma pendência nesta comissão","As atividades atribuídas à comissão aparecerão aqui."))+'</section>';
