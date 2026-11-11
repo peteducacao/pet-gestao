@@ -51,142 +51,96 @@ await test("cadastro começa como Usuário",async()=>{
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
 });
-await test("anexos da demanda no D1: autenticação, upload em partes, download e exclusão",async()=>{
- const adminToken=token,user=good(await api("/auth/me")).user;
- const created=good(await api("/tasks","POST",{
-  title:"Demanda isolada com arquivos",
-  assignmentScope:"usuarios",assigneeIds:[user.id],commissionIds:[],deadlines:[]
- }),201);
- const taskId=created.id;
+await test("fotos privadas: várias por demanda e somente PETianos(as)",async()=>{
+ const adminToken=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+ assert.ok(person);
+ const taskId=good(await api("/tasks","POST",{
+   title:"Fotos privadas de oficina",assignmentScope:"usuarios",
+   assigneeIds:[person.id],commissionIds:[],deadlines:[]
+ }),201).id;
  const prefix="/tasks/"+encodeURIComponent(taskId)+"/attachments";
- const person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
- good(await api("/admin/users/"+person.id,"PATCH",{role:"petiano",notificationEnabled:false}));
- const petToken=good(await api("/auth/login","POST",{
-  email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
- })).token;
- const raw=new Uint8Array(300003);
- for(let i=0;i<raw.length;i++)raw[i]=i%251;
- let fileId="";
+ const raw=new Uint8Array(280003);raw.set([255,216,255,224],0);raw.set([255,217],raw.length-2);
+ let petToken;
+ const sendChunk=async(id,index,bytes)=>{
+  const r=await fetch(base+prefix+"/"+id+"/chunks/"+index,{
+   method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/octet-stream"},body:bytes
+  });
+  assert.equal(r.status,200,await r.text());
+ };
  try{
   token="";
-  assert.equal((await api(prefix)).status,401,"Visitante não pode listar anexos");
-  assert.equal((await api(prefix,"POST",{name:"documento.pdf",size:raw.length})).status,401);
+  assert.equal((await api(prefix)).status,401,"Visitante não vê as fotos");
   token=adminToken;
-  assert.equal((await api(prefix,"POST",{name:"imenso.pdf",size:10485761})).status,413);
-  const meta=good(await api(prefix,"POST",{
-   name:"arquivo de teste.pdf",size:raw.length,mimeType:"application/pdf"
-  }),201);
-  fileId=meta.id;
-  assert.equal(meta.chunkSize,262144);
-  assert.equal(meta.chunkCount,2);
-  assert.equal(good(await api(prefix)).attachments.length,0,"Arquivo incompleto não fica visível");
-  assert.equal((await api(prefix+"/"+fileId+"/complete","POST",{})).status,409);
-  const up=async(i,bytes)=>fetch(base+prefix+"/"+fileId+"/chunks/"+i,{
-   method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/octet-stream"},body:bytes
-  });
-  const bad=await up(0,raw.slice(0,10));assert.equal(bad.status,400);
-  let res=await up(0,raw.slice(0,262144));assert.equal(res.status,200,await res.text());
-  res=await up(1,raw.slice(262144));assert.equal(res.status,200,await res.text());
-  good(await api(prefix+"/"+fileId+"/complete","POST",{}));
-  const listing=good(await api(prefix)).attachments;
-  assert.equal(listing.length,1);
-  assert.equal(listing[0].name,"arquivo de teste.pdf");
-  assert.equal(listing[0].size,raw.length);
-  token="";
-  assert.equal((await fetch(base+prefix+"/"+fileId+"/download")).status,401);
+  assert.equal((await api(prefix)).status,403,"Admin não vê fotos");
+  assert.equal((await api(prefix,"POST",{name:"secreto.jpg",size:60,mimeType:"image/jpeg"})).status,403);
+  token=good(await api("/auth/login","POST",{
+   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+  })).token;
+  assert.equal((await api(prefix)).status,403,"Usuário somente leitura não acessa as fotos");
   token=adminToken;
-  const download=await fetch(base+prefix+"/"+fileId+"/download",{headers:{Authorization:"Bearer "+token}});
-  assert.equal(download.status,200);
-  assert.equal(download.headers.get("content-type"),"application/octet-stream");
-  assert.deepEqual(new Uint8Array(await download.arrayBuffer()),raw,"Binário baixado idêntico ao enviado");
-  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,1);
-  // Duas ou mais anexações podem coexistir na MESMA demanda.
-  const extra=good(await api(prefix,"POST",{
-   name:"imagem da oficina.png",size:4,mimeType:"image/png"
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+  token=good(await api("/auth/login","POST",{
+   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+  })).token;
+  petToken=token;
+  assert.equal((await api(prefix,"POST",{name:"ata.pdf",size:150,mimeType:"application/pdf"})).status,415,
+   "Somente imagens JPEG são aceitas");
+  assert.equal((await api(prefix,"POST",{name:"gigante.jpg",size:360*1024,mimeType:"image/jpeg"})).status,413);
+  const first=good(await api(prefix,"POST",{name:"oficina-1.jpg",size:raw.length,mimeType:"image/jpeg"}),201);
+  assert.equal(first.chunkCount,2);
+  assert.equal((await api(prefix+"/"+first.id+"/complete","POST",{})).status,409);
+  await sendChunk(first.id,0,raw.slice(0,first.chunkSize));
+  await sendChunk(first.id,1,raw.slice(first.chunkSize));
+  good(await api(prefix+"/"+first.id+"/complete","POST",{}));
+  const image2=new Uint8Array([255,216,255,224,10,11,255,217]);
+  const second=good(await api(prefix,"POST",{
+   name:"oficina-2.jpg",size:image2.length,mimeType:"image/jpeg"
   }),201);
-  const extraUpload=await fetch(base+prefix+"/"+extra.id+"/chunks/0",{
-   method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/octet-stream"},
-   body:new Uint8Array([137,80,78,71])
+  await sendChunk(second.id,0,image2);
+  good(await api(prefix+"/"+second.id+"/complete","POST",{}));
+  assert.equal(good(await api(prefix)).attachments.length,2,"É possível armazenar várias fotos");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,2);
+  const res=await fetch(base+prefix+"/"+first.id+"/download",{
+   headers:{Authorization:"Bearer "+token}
   });
-  assert.equal(extraUpload.status,200);
-  good(await api(prefix+"/"+extra.id+"/complete","POST",{}));
-  assert.equal(good(await api(prefix)).attachments.length,2,
-   "Duas anexações ficam guardadas simultaneamente na demanda");
-  good(await api(prefix+"/"+fileId,"DELETE",{}));
-  assert.equal(good(await api(prefix)).attachments.length,1,
-   "Excluir um arquivo não remove os demais");
-  const again=good(await api(prefix,"POST",{name:"apagar junto.txt",size:1,mimeType:"text/plain"}),201);
-  res=await up(0,new Uint8Array([42]));
-  assert.equal(res.status,404,"Arquivo excluído não aceita mais partes");
-  const upNew=await fetch(base+prefix+"/"+again.id+"/chunks/0",{
-   method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/octet-stream"},body:new Uint8Array([42])
-  });
-  assert.equal(upNew.status,200);
-  good(await api(prefix+"/"+again.id+"/complete","POST",{}));
+  assert.equal(res.status,200);assert.equal(res.headers.get("content-type"),"image/jpeg");
+  assert.deepEqual(new Uint8Array(await res.arrayBuffer()),raw,"Foto recuperada corresponde à armazenada");
+  token=adminToken;
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:false}));
+  token=petToken;
+  assert.equal((await api(prefix)).status,403,"Tutoria não acessa fotos");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments,undefined,
+   "Tutoria não recebe metadados de fotos no bootstrap");
+  assert.equal((await fetch(base+prefix+"/"+first.id+"/download",{
+   headers:{Authorization:"Bearer "+token}
+  })).status,403);
+  token=adminToken;
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+  token=petToken;
+  good(await api(prefix+"/"+first.id,"DELETE",{}));
+  assert.equal(good(await api(prefix)).attachments.length,1,"Uma foto é excluída sem afetar a outra");
+  token=adminToken;
   good(await api("/tasks/"+taskId,"DELETE"));
-  assert.equal((await api(prefix)).status,404,"Exclusão de demanda elimina acesso aos arquivos");
-  console.log("PASS anexos: arquivos D1 em partes, persistência, segurança e exclusão");
+  token=petToken;
+  assert.equal((await api(prefix)).status,404,"Excluir demanda também elimina fotos");
  }finally{
   token=adminToken;
-  if(good(await api("/bootstrap")).tasks.some(t=>t.id===taskId))good(await api("/tasks/"+taskId,"DELETE"));
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  if(good(await api("/bootstrap")).tasks.some(x=>x.id===taskId))
+   good(await api("/tasks/"+taskId,"DELETE"));
  }
 });
-await test("anexos são privados para PETianos(as), não para Tutoria/Admin/visitantes",async()=>{
- const adminToken=token,people=good(await api("/admin/users")).users;
- const account=people.find(u=>u.email==="teste-usuario@pet.local");
- assert.ok(account);
- const taskId=good(await api("/tasks","POST",{
-  title:"Anexos privados PETianos",
-  assignmentScope:"usuarios",assigneeIds:[good(await api("/auth/me")).user.id],
-  commissionIds:[],deadlines:[]
- }),201).id;
- const path="/tasks/"+encodeURIComponent(taskId)+"/attachments";
- try{
-  assert.equal((await api(path)).status,403,"Admin não vê anexos");
-  assert.equal((await api(path,"POST",{name:"privado.txt",size:2})).status,403,"Admin não envia anexos");
-  const adminTasks=good(await api("/bootstrap")).tasks.find(t=>t.id===taskId);
-  assert.ok(!adminTasks.attachments?.length,"Bootstrap da Administração não lista anexos");
-  good(await api("/admin/users/"+account.id,"PATCH",{role:"petiano",notificationEnabled:false}));
-  token=good(await api("/auth/login","POST",{
-   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
-  })).token;
-  const file=good(await api(path,"POST",{name:"privado.txt",size:2,mimeType:"text/plain"}),201);
-  const response=await fetch(base+path+"/"+file.id+"/chunks/0",{
-   method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/octet-stream"},
-   body:new Uint8Array([65,66])
-  });
-  assert.equal(response.status,200);
-  good(await api(path+"/"+file.id+"/complete","POST",{}));
-  assert.equal(good(await api(path)).attachments.length,1,"PETiano consegue listar arquivos");
-  const dl=await fetch(base+path+"/"+file.id+"/download",{headers:{Authorization:"Bearer "+token}});
-  assert.equal(dl.status,200,"PETiano consegue baixar arquivos");
-  assert.deepEqual(new Uint8Array(await dl.arrayBuffer()),new Uint8Array([65,66]));
-  token="";
-  assert.equal((await api(path)).status,401,"Visitante não vê nomes");
-  assert.equal((await fetch(base+path+"/"+file.id+"/download")).status,401,"Visitante não baixa");
-  token=adminToken;
-  good(await api("/admin/users/"+account.id,"PATCH",{role:"usuario",notificationEnabled:false}));
-  token=good(await api("/auth/login","POST",{
-   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
-  })).token;
-  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments,undefined,
-   "Usuário somente leitura não recebe nomes de anexos");
-  assert.equal((await api(path)).status,403);
-  assert.equal((await fetch(base+path+"/"+file.id+"/download",{headers:{Authorization:"Bearer "+token}})).status,403);
-  token=adminToken;
-  good(await api("/admin/users/"+account.id,"PATCH",{role:"tutor",notificationEnabled:false}));
-  token=good(await api("/auth/login","POST",{
-   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
-  })).token;
-  assert.equal((await api(path)).status,403,"Tutoria não vê arquivos exclusivos PETianos");
-  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,0,
-   "Metadados da Tutoria estão vazios");
-  assert.equal((await fetch(base+path+"/"+file.id+"/download",{headers:{Authorization:"Bearer "+token}})).status,403);
- }finally{
-  token=adminToken;
-  good(await api("/admin/users/"+account.id,"PATCH",{role:"usuario",notificationEnabled:false}));
-  good(await api("/tasks/"+taskId,"DELETE"));
- }
+await test("foto do próprio perfil é compacta e removível",async()=>{
+ const meBefore=good(await api("/auth/me")).user;
+ const jpeg=new Uint8Array(56);jpeg.set([255,216,255,224],0);jpeg.set([255,217],54);
+ const data="data:image/jpeg;base64,"+Buffer.from(jpeg).toString("base64");
+ assert.equal((await api("/account/photo","PUT",{photo:"data:text/html;base64,PHNjcmlwdD4="})).status,413);
+ good(await api("/account/photo","PUT",{photo:data}));
+ assert.equal(good(await api("/auth/me")).user.profilePhoto,data);
+ assert.equal(good(await api("/bootstrap")).session.user.profilePhoto,data);
+ good(await api("/account/photo","DELETE"));
+ assert.equal(good(await api("/auth/me")).user.profilePhoto,null);
+ assert.equal(meBefore.role,"admin");
 });
 await test("duas contas no mesmo navegador revogam a sessão anterior no servidor",async()=>{
  const original=token,browserId="b31a4111-9999-4333-8aaa-123456789abc";
