@@ -3,11 +3,72 @@
 <head>
   <meta charset="UTF-8" />
   <style>
+    /* A arte de abertura é crítica: aparece antes dos scripts e da folha CSS. */
     html.pet-booting .app-shell{visibility:hidden!important}
     #startup-loading{display:none}
-    html.pet-booting #startup-loading{display:grid!important;position:fixed;inset:0;z-index:245;place-items:center;background:#f7f5fd;color:#39265b;font-family:system-ui,sans-serif}
-    html.pet-booting #startup-loading .startup-spinner{width:43px;height:43px;border:4px solid #ddd1f9;border-top-color:#724ac9;border-radius:50%;animation:startup-spin .85s linear infinite}
-    @keyframes startup-spin{to{transform:rotate(360deg)}}
+    html.pet-booting #startup-loading{
+      display:flex!important;position:fixed;inset:0;z-index:245;
+      overflow:hidden;align-items:center;justify-content:center;
+      background:radial-gradient(ellipse at 51% 48%,#fff 0%,#faf7ff 53%,#f5edff 100%);
+      color:#442080;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      text-align:center;padding:22px;box-sizing:border-box;
+    }
+    #startup-loading *{box-sizing:border-box}
+    #startup-loading .startup-splash-waves{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+    #startup-loading .startup-splash-body{
+      position:relative;z-index:1;display:flex;flex-direction:column;
+      align-items:center;width:100%;max-width:600px;
+      transform:translateY(-3.8vh);
+    }
+    #startup-loading .startup-splash-logo{
+      width:clamp(142px,38vw,238px);height:auto;display:block;
+      filter:drop-shadow(0 17px 18px rgba(110,31,181,.24));
+      margin-bottom:clamp(16px,3.8vh,37px);
+    }
+    #startup-loading .startup-splash-title{
+      font-size:clamp(30px,7.1vw,47px);line-height:1.16;letter-spacing:-.045em;
+      font-weight:850;color:#4d1d91;margin:0;white-space:nowrap;
+    }
+    #startup-loading .startup-splash-stroke{
+      display:block;width:clamp(58px,14vw,108px);height:5px;border-radius:9px;
+      background:#24e6b4;margin:clamp(11px,2.2vh,19px) auto clamp(18px,3.6vh,32px);
+    }
+    #startup-loading .startup-splash-subtitle{
+      color:#59338e;font-size:clamp(15px,3.65vw,22px);
+      font-weight:450;line-height:1.45;margin:0;max-width:96%;
+    }
+    #startup-loading .startup-splash-dots{
+      display:flex;align-items:center;justify-content:center;gap:13px;
+      margin-top:clamp(18px,2.8vh,30px);
+    }
+    #startup-loading .startup-splash-dots span{
+      display:block;width:10px;height:10px;border-radius:50%;
+      background:#c7a7ff;animation:pet-splash-pulse 1.45s ease-in-out infinite;
+    }
+    #startup-loading .startup-splash-dots span:nth-child(2){background:#26eab7;animation-delay:.2s}
+    #startup-loading .startup-splash-dots span:nth-child(3){animation-delay:.4s}
+    #startup-loading .startup-splash-foot{
+      position:absolute;z-index:1;bottom:max(26px,env(safe-area-inset-bottom));left:14px;right:14px;
+      display:flex;justify-content:center;align-items:center;gap:clamp(9px,2.2vw,20px);
+      font-size:clamp(10px,2.65vw,16px);font-weight:750;color:#4d2189;
+      letter-spacing:-.015em;white-space:nowrap;
+    }
+    #startup-loading .startup-splash-foot::before,
+    #startup-loading .startup-splash-foot::after{
+      content:"";width:clamp(20px,8vw,64px);height:2px;border-radius:6px;background:#37e5bd;
+    }
+    @keyframes pet-splash-pulse{0%,100%{opacity:.5;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+    @media(max-height:510px){
+      #startup-loading .startup-splash-body{transform:none}
+      #startup-loading .startup-splash-logo{width:88px;margin-bottom:7px}
+      #startup-loading .startup-splash-title{font-size:24px}
+      #startup-loading .startup-splash-stroke{margin:7px auto}
+      #startup-loading .startup-splash-dots{margin-top:9px}
+      #startup-loading .startup-splash-foot{bottom:8px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      #startup-loading .startup-splash-dots span{animation:none}
+    }
   </style>
   <script>document.documentElement.classList.add("pet-booting");</script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -110,8 +171,40 @@
       <footer class="footer">PET Educação <span>·</span> Universidade Federal de Sergipe</footer>
     </div>
   </div>
-  <div id="startup-loading" role="status" aria-live="polite">
-    <div class="startup-loading-card"><span class="startup-spinner" aria-hidden="true"></span><strong>Conectando ao PET Gestão...</strong><small>Preparando sua área de trabalho</small></div>
+  <div id="startup-loading" role="status" aria-live="polite" aria-label="PET Gestão. Preparando sua área de trabalho.">
+    <svg class="startup-splash-waves" viewBox="0 0 864 1384" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="pet-boot-top" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a64dff"/><stop offset=".64" stop-color="#d7b0fb"/><stop offset="1" stop-color="#eee1ff"/></linearGradient>
+        <linearGradient id="pet-boot-bottom" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ece0ff"/><stop offset=".62" stop-color="#d5b4fc"/><stop offset="1" stop-color="#b77df2"/></linearGradient>
+      </defs>
+      <path d="M0 0H400C261 67 216 184 0 270Z" fill="url(#pet-boot-top)" opacity=".57"/>
+      <path d="M0 0H268C153 61 111 130 0 145Z" fill="#ad67f0" opacity=".42"/>
+      <path d="M0 137C160 138 300 73 400 0" fill="none" stroke="#3debc1" stroke-opacity=".67" stroke-width="2.4"/>
+      <path d="M0 1304C162 1180 285 1166 430 1199C572 1230 692 1142 864 942V1384H0Z" fill="url(#pet-boot-bottom)" opacity=".62"/>
+      <path d="M0 1384C190 1224 345 1258 485 1218C627 1176 720 1030 864 1018V1384Z" fill="#cda8fc" opacity=".19"/>
+      <path d="M452 1235C592 1151 732 1079 864 1076" fill="none" stroke="#35e7bd" stroke-opacity=".85" stroke-width="2.5"/>
+    </svg>
+    <div class="startup-splash-body">
+      <svg class="startup-splash-logo" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="pet-boot-icon-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b84aff"/><stop offset=".52" stop-color="#7723cf"/><stop offset="1" stop-color="#3a087f"/></linearGradient>
+          <linearGradient id="pet-boot-icon-shine" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d795ff"/><stop offset="1" stop-color="#8b36e8" stop-opacity="0"/></linearGradient>
+        </defs>
+        <rect x="10" y="8" width="220" height="222" rx="43" fill="url(#pet-boot-icon-gradient)"/>
+        <path d="M12 78C73 16 112 46 226 11V54C124 81 68 72 12 128Z" fill="url(#pet-boot-icon-shine)" opacity=".45"/>
+        <path d="M12 198C71 155 158 182 230 153V190Q230 230 186 230H53Q10 230 10 189Z" fill="#4b0ca1" opacity=".31"/>
+        <path d="M93 67Q119 47 147 67" fill="none" stroke="#32ebbf" stroke-width="9" stroke-linecap="round"/>
+        <rect x="78" y="86" width="84" height="112" rx="11" fill="none" stroke="#fff" stroke-width="11"/>
+        <rect x="99" y="80" width="42" height="15" rx="7" fill="#fff"/>
+        <path d="m95 148 20 20 39-46" fill="none" stroke="#26eabc" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18 205Q28 219 49 220" stroke="#fff" stroke-opacity=".08" stroke-width="4" fill="none"/>
+      </svg>
+      <h1 class="startup-splash-title">PET Gestão</h1>
+      <span class="startup-splash-stroke" aria-hidden="true"></span>
+      <p class="startup-splash-subtitle">Preparando sua área de trabalho</p>
+      <div class="startup-splash-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
+    <div class="startup-splash-foot">PET Gestão | PET Educação UFS</div>
   </div>
   <div id="commission-dialog" class="commission-dialog" hidden></div>
   <div id="commission-image-editor" class="commission-image-editor" hidden></div>

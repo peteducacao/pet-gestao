@@ -51,6 +51,8 @@ jobs:
         run: node scripts/test-auth-sessions.mjs
       - name: Testar cards de comissões, imagens e tons RGB
         run: node scripts/test-commission-cards.mjs
+      - name: Testar a tela de abertura do aplicativo
+        run: node scripts/test-startup-splash.mjs
       - name: Validar migrações, limpeza dos testes e preservação dos dados reais
         run: |
           python3 - <<'PY'
