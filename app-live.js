@@ -108,14 +108,9 @@ const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
 const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
-// Demandas ativas: qualquer integrante com cargo de edição pode excluir,
-// mesmo quando cadastradas pela Administração ou por outra pessoa.
-// Arquivadas: exclusão exclusiva da sessão administrativa.
-// A exclusão de arquivadas continua restrita ao escopo Admin autenticado.
-const canDeleteTask=t=>Boolean(me&&t&&(
-  t.archivedAt ? adminRole(me) :
-  (adminRole(me)||["petiano","tutor"].includes(me.role))
-));
+// PETianos(as), tutores(as) e Administração podem excluir demandas
+// ativas ou concluídas; a API valida novamente a autorização.
+const canDeleteTask=t=>Boolean(t&&canWrite());
 const stageDueAt=value=>{
  const raw=String(value||"");
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
@@ -439,14 +434,14 @@ function renderDemandas(){
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
  [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
- const adminArchive=done&&adminRole(me);
- if(!adminArchive||!done){state.archiveDeleteMode=false;state.archiveSelectedIds.clear();}
+ const canBulkDelete=done&&canWrite();
+ if(!canBulkDelete){state.archiveDeleteMode=false;state.archiveSelectedIds.clear();}
  // Seleções só podem incluir as demandas concluídas visíveis no período atual.
  const visibleIds=new Set(list.map(t=>t.id));
  for(const selected of state.archiveSelectedIds)if(!visibleIds.has(selected))state.archiveSelectedIds.delete(selected);
  const selectedCount=state.archiveSelectedIds.size;
- const picking=adminArchive&&state.archiveDeleteMode;
- const toolbar=adminArchive?
+ const picking=canBulkDelete&&state.archiveDeleteMode;
+ const toolbar=canBulkDelete?
   '<div class="archive-bulk-toolbar" aria-label="Gerenciar exclusão das demandas concluídas">'+
    (picking?
     '<div class="archive-bulk-intro"><strong>Selecionar demandas para excluir</strong><small>Somente as demandas marcadas serão apagadas definitivamente.</small></div>'+
@@ -1421,21 +1416,21 @@ async function handleClick(e){
  }
  if(action==="delete-meeting"){if(!await askConfirm("Excluir esta ata? As demandas não serão apagadas.",{danger:true}))return;const ok=await saveAndReload(()=>request("/meetings/"+id(tid),"DELETE"),"Ata excluída.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(action==="archive-selection-open"){
-   if(!adminRole(me))return setToast("Entre na Administração para excluir demandas concluídas.");
+   if(!canWrite())return setToast("Entre como PETiano(a), Tutor(a) ou Administração para excluir demandas concluídas.");
    state.archiveDeleteMode=true;state.archiveSelectedIds.clear();render();return;
  }
  if(action==="archive-selection-cancel"){
    state.archiveDeleteMode=false;state.archiveSelectedIds.clear();render();return;
  }
  if(action==="archive-select-all"){
-   if(!adminRole(me)||!state.archiveDeleteMode)return;
+   if(!canWrite()||!state.archiveDeleteMode)return;
    const visible=$$('[data-archive-select]');
    const allChecked=visible.length>0&&visible.every(x=>x.checked);
    state.archiveSelectedIds=allChecked?new Set():new Set(visible.map(x=>x.value));
    render();return;
  }
  if(action==="archive-delete-selected"){
-   if(!adminRole(me)||!state.archiveDeleteMode)return setToast("Acesso exclusivo da Administração.");
+   if(!canWrite()||!state.archiveDeleteMode)return setToast("É necessário estar conectado como PETiano(a), Tutor(a) ou Administração.");
    const visible=new Set($$('[data-archive-select]').map(x=>x.value));
    const chosen=[...state.archiveSelectedIds].filter(x=>visible.has(x)&&data.tasks.some(t=>t.id===x&&t.archivedAt));
    if(!chosen.length)return setToast("Selecione pelo menos uma demanda concluída.");
@@ -1446,7 +1441,7 @@ async function handleClick(e){
    }))return;
    b.disabled=true;
    try{
-     const response=await request("/admin/tasks/bulk-delete","POST",{taskIds:chosen},"admin");
+     const response=await request("/tasks/bulk-delete","POST",{taskIds:chosen});
      state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
      await reload();
      setToast((response.deletedCount||chosen.length)+" demanda(s) excluída(s) definitivamente.");
@@ -1457,8 +1452,7 @@ async function handleClick(e){
    const task=data.tasks.find(x=>x.id===tid);
    if(!canDeleteTask(task))return setToast("Você não tem permissão para excluir esta demanda.");
    if(!await askConfirm('Excluir definitivamente a demanda "'+task.title+'"? Esta ação apagará a demanda, os prazos, as participações e o histórico, sem possibilidade de recuperação.',{danger:true,title:"Excluir demanda?"}))return;
-   const deleteScope=task.archivedAt?"admin":undefined;
-   const ok=await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE",undefined,deleteScope),"Demanda excluída definitivamente.");
+   const ok=await saveAndReload(()=>request("/tasks/"+id(tid),"DELETE"),"Demanda excluída definitivamente.");
    if(ok)location.hash=workspaceHash("demandas");
    return;
  }
@@ -1611,7 +1605,7 @@ async function handleSubmit(e){
 async function handleChange(e){
  const t=e.target;if(!t)return;
  if(t.matches?.("[data-archive-select]")){
-   if(!adminRole(me)||!state.archiveDeleteMode)return;
+   if(!canWrite()||!state.archiveDeleteMode)return;
    if(t.checked)state.archiveSelectedIds.add(t.value);
    else state.archiveSelectedIds.delete(t.value);
    render();return;
