@@ -645,15 +645,202 @@ function renderCommittee(cid){
  (all.length?all.map(t=>taskCard(t,cid)).join(""):empty("Nenhuma pendência nesta comissão","As atividades atribuídas à comissão aparecerão aqui."))+'</section>';
 }
 
+
+function commissionRgbParts(hex){
+ const safe=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex:"#f7f3ff";
+ return [1,3,5].map(i=>parseInt(safe.slice(i,i+2),16));
+}
+function setCommissionRgbColor(hex){
+ const form=$("#commission-form"),panel=$("#commission-rgb-panel");if(!form)return;
+ const safe=/^#[0-9a-f]{6}$/i.test(String(hex||""))?hex.toLowerCase():"#f7f3ff";
+ const hidden=form.elements.backgroundColor;if(hidden)hidden.value=safe;
+ form.querySelectorAll("[data-commission-color-swatch]").forEach(el=>el.style.backgroundColor=safe);
+ const text=form.querySelector("[data-commission-color-label]");if(text)text.textContent=safe.toUpperCase();
+ const hexInput=form.querySelector("[data-commission-color-hex]");if(hexInput){hexInput.value=safe.toUpperCase();hexInput.removeAttribute("aria-invalid")}
+ if(panel){
+  const parts=commissionRgbParts(safe);
+  for(const [i,key] of ["r","g","b"].entries()){
+   panel.querySelector('[data-commission-rgb-range="'+key+'"]').value=parts[i];
+   panel.querySelector('[data-commission-rgb-number="'+key+'"]').value=parts[i];
+  }
+ }
+}
+function setCommissionRgbFromChannel(input){
+ const panel=$("#commission-rgb-panel");if(!panel||!input)return;
+ const channel=input.dataset.commissionRgbRange||input.dataset.commissionRgbNumber;
+ const which=input.hasAttribute("data-commission-rgb-number")?"number":"range";
+ if(!["r","g","b"].includes(channel))return;
+ const val=Math.max(0,Math.min(255,Math.round(Number(input.value)||0)));
+ panel.querySelector('[data-commission-rgb-'+which+'="'+channel+'"]').value=val;
+ panel.querySelector('[data-commission-rgb-'+(which==="number"?"range":"number")+'="'+channel+'"]').value=val;
+ const vals=["r","g","b"].map(key=>Number(panel.querySelector('[data-commission-rgb-range="'+key+'"]').value));
+ setCommissionRgbColor("#"+vals.map(n=>n.toString(16).padStart(2,"0")).join(""));
+}
+
+/* Editor de imagem local: a foto original nunca é enviada ao servidor. */
+const COMMISSION_ORIGINAL_MAX=25*1024*1024,COMMISSION_FINAL_MAX=600*1024;
+let commissionImageEditor=null;
+function clampCommissionImagePosition(){
+ const m=commissionImageEditor;if(!m)return;
+ const side=360,rotW=m.rotation%2?m.bitmap.height:m.bitmap.width;
+ const rotH=m.rotation%2?m.bitmap.width:m.bitmap.height;
+ const scale=Math.max(side/rotW,side/rotH)*m.zoom;
+ m.offsetX=Math.max(-Math.max(0,(rotW*scale-side)/2),Math.min(Math.max(0,(rotW*scale-side)/2),m.offsetX));
+ m.offsetY=Math.max(-Math.max(0,(rotH*scale-side)/2),Math.min(Math.max(0,(rotH*scale-side)/2),m.offsetY));
+}
+function paintCommissionImage(canvas){
+ const m=commissionImageEditor;if(!m||!canvas)return;
+ const size=canvas.width,ctx=canvas.getContext("2d");
+ if(!ctx)throw Error("O navegador não conseguiu abrir o editor de imagens.");
+ const width=m.bitmap.width,height=m.bitmap.height;
+ const rotatedWidth=m.rotation%2?height:width,rotatedHeight=m.rotation%2?width:height;
+ const scale=Math.max(size/rotatedWidth,size/rotatedHeight)*m.zoom,relative=size/360;
+ ctx.clearRect(0,0,size,size);
+ ctx.save();
+ ctx.translate(size/2+m.offsetX*relative,size/2+m.offsetY*relative);
+ ctx.rotate(m.rotation*Math.PI/2);
+ ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+ ctx.drawImage(m.bitmap,-width*scale/2,-height*scale/2,width*scale,height*scale);
+ ctx.restore();
+}
+function redrawCommissionImage(){
+ if(!commissionImageEditor)return;
+ clampCommissionImagePosition();
+ paintCommissionImage($("#commission-editor-canvas"));
+ const zoom=$("#commission-image-zoom-value");
+ if(zoom)zoom.textContent=Math.round(commissionImageEditor.zoom*100)+"%";
+}
+function closeCommissionImageEditor(){
+ const host=$("#commission-image-editor");
+ if(host){host.hidden=true;host.innerHTML="";}
+ commissionImageEditor?.bitmap?.close?.();
+ commissionImageEditor=null;
+ document.body.classList.remove("commission-image-editor-open");
+}
+async function openCommissionImageEditor(file){
+ if(!file||!/^image\/(?:jpeg|png|webp)$/.test(file.type))throw Error("Escolha uma imagem JPG, PNG ou WebP.");
+ if(file.size>COMMISSION_ORIGINAL_MAX)throw Error("A imagem original deve ter no máximo 25 MB.");
+ if(!file.size)throw Error("A imagem está vazia.");
+ let bitmap;
+ try{
+  if(typeof createImageBitmap==="function")bitmap=await createImageBitmap(file);
+  else{
+   const url=URL.createObjectURL(file);
+   try{const img=new Image();img.src=url;await img.decode();bitmap=img;}
+   finally{URL.revokeObjectURL(url);}
+  }
+ }catch{throw Error("Não foi possível abrir a imagem. Experimente JPG, PNG ou WebP.");}
+ if(!bitmap.width||!bitmap.height){bitmap.close?.();throw Error("A imagem possui dimensões inválidas.");}
+ closeCommissionImageEditor();
+ const host=$("#commission-image-editor");
+ if(!host){bitmap.close?.();throw Error("Editor de imagem indisponível.");}
+ commissionImageEditor={bitmap,rotation:0,zoom:1,offsetX:0,offsetY:0,pointer:null};
+ host.innerHTML='<div class="commission-editor-backdrop" data-do="commission-image-cancel"></div>'+
+  '<section class="commission-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="commission-editor-heading">'+
+  '<div class="commission-editor-header"><div><h2 id="commission-editor-heading">Ajustar imagem da comissão</h2><p>Arraste para enquadrar. Use o zoom para cortar e as setas para girar.</p></div>'+
+  '<button type="button" class="commission-editor-close" data-do="commission-image-cancel" aria-label="Fechar editor">×</button></div>'+
+  '<div class="commission-editor-body"><div class="commission-editor-crop"><canvas id="commission-editor-canvas" width="360" height="360" aria-label="Prévia do recorte quadrado da comissão"></canvas><span class="commission-editor-grid" aria-hidden="true"></span></div>'+
+  '<div class="commission-editor-controls"><label class="commission-editor-zoom-label" for="commission-image-zoom">Zoom <strong id="commission-image-zoom-value">100%</strong></label>'+
+  '<input id="commission-image-zoom" type="range" min="1" max="3" step=".05" value="1">'+
+  '<div class="commission-editor-rotate"><button type="button" class="button ghost" data-do="commission-image-rotate" data-angle="-1">↶ Girar à esquerda</button>'+
+  '<button type="button" class="button ghost" data-do="commission-image-rotate" data-angle="1">↷ Girar à direita</button></div>'+
+  '<label for="commission-image-resolution">Resolução final</label><select id="commission-image-resolution" class="select"><option value="256">256 × 256</option><option value="512" selected>512 × 512</option><option value="768">768 × 768</option><option value="1024">1024 × 1024</option></select>'+
+  '<p>Imagem otimizada automaticamente para até 600 KB ao salvar, sem perder o enquadramento escolhido.</p></div></div>'+
+  '<div class="commission-editor-actions"><button type="button" class="button ghost" data-do="commission-image-cancel">Cancelar</button>'+
+  '<button type="button" class="button primary" data-do="commission-image-apply">Aplicar imagem</button></div></section>';
+ host.hidden=false;document.body.classList.add("commission-image-editor-open");
+ redrawCommissionImage();
+ host.querySelector('[data-do="commission-image-apply"]')?.focus();
+}
+function commissionImageDrag(e){
+ const m=commissionImageEditor,canvas=$("#commission-editor-canvas");
+ if(!m||!canvas||e.target!==canvas)return;
+ if(e.type==="pointerdown"){
+  if(e.button!==0)return;
+  e.preventDefault();m.pointer={id:e.pointerId,x:e.clientX,y:e.clientY};
+  canvas.setPointerCapture?.(e.pointerId);return;
+ }
+ if(e.type==="pointermove"&&m.pointer?.id===e.pointerId){
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect(),factor=360/(rect.width||360);
+  m.offsetX+=(e.clientX-m.pointer.x)*factor;m.offsetY+=(e.clientY-m.pointer.y)*factor;
+  m.pointer.x=e.clientX;m.pointer.y=e.clientY;redrawCommissionImage();
+ }else if(["pointerup","pointercancel"].includes(e.type)&&m.pointer?.id===e.pointerId)m.pointer=null;
+}
+async function encodeCommissionImage(){
+ const m=commissionImageEditor;if(!m)throw Error("Escolha uma imagem primeiro.");
+ let dimension=Number($("#commission-image-resolution")?.value)||512,quality=.88;
+ for(let attempt=0;attempt<16;attempt++){
+  const canvas=document.createElement("canvas");canvas.width=dimension;canvas.height=dimension;
+  paintCommissionImage(canvas);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/webp",quality));
+  if(!blob)throw Error("Não foi possível preparar a imagem.");
+  if(blob.type==="image/webp"&&blob.size<=COMMISSION_FINAL_MAX)return blob;
+  if(blob.type!=="image/webp"){
+   const ctx=canvas.getContext("2d");
+   ctx.save();ctx.globalCompositeOperation="destination-over";ctx.fillStyle="#ffffff";ctx.fillRect(0,0,dimension,dimension);ctx.restore();
+   const jpeg=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",quality));
+   if(jpeg&&jpeg.size<=COMMISSION_FINAL_MAX)return jpeg;
+  }
+  if(quality>.52)quality=Math.max(.52,quality-.08);
+  else dimension=Math.max(192,Math.round(dimension*.8));
+ }
+ throw Error("Não foi possível otimizar essa imagem. Reduza a resolução final e tente novamente.");
+}
+async function applyCommissionImage(button){
+ if(!commissionImageEditor)return;
+ if(button)button.disabled=true;
+ try{
+  const blob=await encodeCommissionImage();
+  const encoded=await new Promise((resolve,reject)=>{
+   const reader=new FileReader();
+   reader.onload=()=>resolve(String(reader.result||""));reader.onerror=()=>reject(Error("Não foi possível ler a imagem editada."));
+   reader.readAsDataURL(blob);
+  });
+  const hidden=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
+  if(!hidden||!preview)throw Error("O formulário de comissão não está mais aberto.");
+  hidden.value=encoded;
+  preview.innerHTML='<img src="'+esc(encoded)+'" alt="Imagem ajustada da comissão">';
+  const hint=$("#commission-image-hint");
+  if(hint)hint.textContent="Imagem editada ("+fileSize(blob.size)+"). Clique em Salvar comissão para concluir.";
+  closeCommissionImageEditor();
+ }catch(err){setToast(err.message)}
+ finally{if(button?.isConnected)button.disabled=false}
+}
 function renderCommitteeEdit(cid){
  if(!canWrite())return authRequired();
  const c=cid?committee(cid):null;if(cid&&!c)return empty("Comissão não encontrada");
+ const currentColor=/^#[0-9a-f]{6}$/i.test(c?.backgroundColor||"")?c.backgroundColor:"#f7f3ff";
+ const channels=[["r","Vermelho"],["g","Verde"],["b","Azul"]];
+ const palette=["#f7f3ff","#e8dffc","#fee3ea","#e0f3ef","#deedff","#fff0ca","#f4e0ff","#e8e9ee"];
+ const colorEditor='<div class="commission-color-field"><span class="commission-field-label">Fundo do card (opcional)</span>'+
+  '<input type="hidden" name="backgroundColor" value="'+esc(currentColor)+'">'+
+  '<div class="commission-color-top"><button type="button" class="commission-color-trigger" data-do="commission-color-toggle" aria-expanded="false" aria-controls="commission-rgb-panel">'+
+  '<span class="commission-color-swatch" data-commission-color-swatch style="background:'+esc(currentColor)+'"></span>'+
+  '<span class="commission-color-trigger-text"><strong>Escolher cor</strong><small data-commission-color-label>'+esc(currentColor.toUpperCase())+'</small></span>'+ico("chevron-down")+'</button>'+
+  '<button type="button" class="button ghost" data-do="reset-color">Restaurar padrão</button></div>'+
+  '<div class="commission-rgb-panel" id="commission-rgb-panel" hidden><div class="commission-rgb-heading"><strong>Personalizar cor RGB</strong><span class="commission-rgb-large-swatch" data-commission-color-swatch style="background:'+esc(currentColor)+'"></span></div>'+
+  channels.map(([key,label])=>'<div class="commission-rgb-channel"><label for="commission-channel-'+key+'">'+label+'</label>'+
+   '<input id="commission-channel-'+key+'" type="range" min="0" max="255" step="1" data-commission-rgb-range="'+key+'" aria-label="'+label+' de 0 a 255">'+
+   '<input type="number" min="0" max="255" step="1" data-commission-rgb-number="'+key+'" aria-label="Valor '+label+'"></div>').join("")+
+  '<label class="commission-hex-label">Código hexadecimal<input type="text" maxlength="7" data-commission-color-hex placeholder="#RRGGBB" inputmode="text" spellcheck="false" value="'+esc(currentColor.toUpperCase())+'"></label>'+
+  '<span class="commission-palette-label">Cores sugeridas</span><div class="commission-palette">'+palette.map(hex=>
+    '<button type="button" data-do="commission-color-preset" data-color="'+hex+'" class="commission-palette-option" style="--preset-color:'+hex+'" aria-label="Usar cor '+hex+'"></button>').join("")+'</div></div></div>';
+ const imagePreview=c?.imageData?
+  '<img src="'+esc(c.imageData)+'" alt="Imagem atual da comissão">':
+  '<span class="commission-image-placeholder">'+ico("image")+'<small>Sem imagem</small></span>';
+ const imagePicker='<div class="commission-image-field"><span class="commission-field-label">Imagem da comissão (opcional)</span>'+
+  '<div class="commission-image-picker-row"><div class="commission-image-preview" id="commission-image-preview">'+imagePreview+'</div>'+
+  '<div class="commission-image-actions"><label class="button ghost commission-image-choose">Escolher imagem<input type="file" id="commission-upload" accept="image/png,image/jpeg,image/webp" aria-label="Escolher imagem da comissão"></label>'+
+  '<button type="button" class="button ghost" data-do="commission-image-remove">Remover imagem</button>'+
+  '<small id="commission-image-hint">JPG, PNG ou WebP de até 25 MB. Edite, recorte e redimensione antes de salvar.</small></div></div>'+
+  '<input type="hidden" name="imageData" value="'+esc(c?.imageData||"")+'"></div>';
+
  return header("Comissões",c?"Editar comissão":"Nova comissão","")+
  '<section class="card card-pad register-page"><form id="commission-form" data-id="'+esc(cid||"")+'" class="register-form">'+
  '<label>Nome da comissão *<input name="name" required maxlength="90" value="'+esc(c?.name||"")+'"></label>'+
  '<label>Descrição (opcional)<textarea name="description" rows="3">'+esc(c?.description||"")+'</textarea></label>'+
- '<label>Fundo do card (opcional)<div class="live-color-row"><input type="color" name="backgroundColor" value="'+esc(c?.backgroundColor||"#f7f3ff")+'"><button type="button" class="button ghost" data-do="reset-color">Restaurar cor padrão</button></div></label>'+
- '<label>Imagem da comissão (opcional)<input type="file" id="commission-upload" accept="image/png,image/jpeg,image/webp"></label><input type="hidden" name="imageData" value="'+esc(c?.imageData||"")+'">'+
+ colorEditor+imagePicker+
  '<button class="button primary" type="submit">Salvar comissão</button></form></section>';
 }
 function renderMine(){
@@ -1762,7 +1949,30 @@ async function handleClick(e){
  }
  if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
- if(action==="reset-color"){$('input[name="backgroundColor"]').value="#f7f3ff";return}
+ if(action==="commission-color-toggle"){
+   const panel=$("#commission-rgb-panel");if(!panel)return;
+   panel.hidden=!panel.hidden;b.setAttribute("aria-expanded",String(!panel.hidden));
+   if(!panel.hidden)setCommissionRgbColor($("#commission-form")?.elements.backgroundColor?.value);
+   return;
+ }
+ if(action==="commission-color-preset"){setCommissionRgbColor(b.dataset.color);return}
+ if(action==="reset-color"){setCommissionRgbColor("#f7f3ff");return}
+ if(action==="commission-image-rotate"){
+   if(!commissionImageEditor)return;
+   commissionImageEditor.rotation=(commissionImageEditor.rotation+Number(b.dataset.angle)+4)%4;
+   commissionImageEditor.offsetX=0;commissionImageEditor.offsetY=0;
+   redrawCommissionImage();return;
+ }
+ if(action==="commission-image-cancel"){closeCommissionImageEditor();return}
+ if(action==="commission-image-apply"){await applyCommissionImage(b);return}
+ if(action==="commission-image-remove"){
+   const hidden=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
+   if(!hidden||!preview)return;
+   hidden.value="";
+   preview.innerHTML='<span class="commission-image-placeholder">'+ico("image")+'<small>Sem imagem</small></span>';
+   const hint=$("#commission-image-hint");if(hint)hint.textContent="Imagem removida. Clique em Salvar comissão para concluir.";
+   return;
+ }
  if(action==="finish-joint-open"){openFinishDialog(data.tasks.find(t=>t.id===tid));return;}
  if(action==="finish-select-self"){
    const task=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(!task||!layer)return;
@@ -2235,12 +2445,12 @@ async function handleChange(e){
  }
  if(t.id==="mail-file-input"){for(const file of t.files){if(file.size>10*1024*1024){setToast("O arquivo "+file.name+" excede 10 MB.");continue}state.mailFiles.push(file)}renderMailScheduling();return}
  if(t.id==="commission-upload"){
-   const file=t.files?.[0];if(!file)return;if(file.size>650000)return setToast("Imagem de comissão muito grande. Use até 650 KB.");
-   const reader=new FileReader();reader.onload=()=>{$('input[name="imageData"]').value=String(reader.result)};reader.readAsDataURL(file);return;
+   const file=t.files?.[0];t.value="";if(!file)return;
+   try{await openCommissionImageEditor(file)}catch(err){setToast(err.message)}return;
  }
 }
 function onNavigation(){
- closeTaskPhoto();
+ closeTaskPhoto();closeCommissionImageEditor();
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash)state.adminMenuOpen=false;
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
@@ -2309,6 +2519,7 @@ function start(){
    if(hasUnsavedTaskChanges()){e.preventDefault();e.returnValue="";}
  });
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
+   if(commissionImageEditor){e.preventDefault();closeCommissionImageEditor();return}
    if($("#task-photo-modal")){e.preventDefault();closeTaskPhoto();return}
    if(!$("#mail-preview-dialog")?.hidden){e.preventDefault();closeMailPreview()}
    else if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
@@ -2367,8 +2578,22 @@ function start(){
    e.preventDefault();
    if($("#notice-dialog")?.hidden)showNotice(invalidFieldMessage(field),{title:"Revise este campo",kind:"warning",focusAfter:field});
  },true);
+ document.addEventListener("pointerdown",commissionImageDrag);
+ document.addEventListener("pointermove",commissionImageDrag);
+ document.addEventListener("pointerup",commissionImageDrag);
+ document.addEventListener("pointercancel",commissionImageDrag);
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("input",e=>{
+   const el=e.target;
+   if(el?.matches?.("[data-commission-rgb-range],[data-commission-rgb-number]"))setCommissionRgbFromChannel(el);
+   if(el?.matches?.("[data-commission-color-hex]")){
+     const normalized=String(el.value||"").trim();
+     if(/^#[0-9a-f]{6}$/i.test(normalized))setCommissionRgbColor(normalized);
+     else el.setAttribute("aria-invalid","true");
+   }
+   if(el?.id==="commission-image-zoom"&&commissionImageEditor){
+     commissionImageEditor.zoom=Number(el.value)||1;redrawCommissionImage();
+   }
    if(e.target?.matches?.('#register-account-form input[name="password"]'))refreshPasswordStrength(e.target);
    if(["collective-date-day","collective-date-month","collective-date-year"].includes(e.target?.id)){
      const native=$("#collective-event-day");

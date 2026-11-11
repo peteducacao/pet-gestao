@@ -481,3 +481,22 @@ tasks=tasks.filter(t=>!t.id.startsWith("t-archive-bulk-"));
   assert.equal(mixedPicker.querySelectorAll('input[name="joint-target"]:checked').length,3,"Marcar todos marca as três participações");
  tap('#finish-dialog [data-do="finish-close"]');
  window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
+
+
+// Formulário de comissões usa editor RGB próprio (sem seletor nativo Android).
+user.role="petiano";
+await move("#/comissoes/nova");
+assert.ok(document.querySelector("[data-do='commission-color-toggle']"),"Campo RGB disponível");
+assert.equal(document.querySelector('#commission-form input[type="color"]'),null,"Sem seletor de cor nativo na comissão");
+tap('[data-do="commission-color-toggle"]');await wait();
+assert.equal(document.querySelector("#commission-rgb-panel").hidden,false);
+const redRGB=document.querySelector('[data-commission-rgb-range="r"]');
+redRGB.value="120";redRGB.dispatchEvent(new window.Event("input",{bubbles:true}));
+assert.equal(document.querySelector('#commission-form input[name="backgroundColor"]').value[0],"#");
+assert.equal(document.querySelector('#commission-form input[name="backgroundColor"]').value.slice(1,3),"78");
+tap('[data-do="commission-color-preset"][data-color="#deedff"]');await wait();
+assert.equal(document.querySelector('#commission-form input[name="backgroundColor"]').value,"#deedff");
+tap('[data-do="reset-color"]');await wait();
+assert.equal(document.querySelector('#commission-form input[name="backgroundColor"]').value,"#f7f3ff");
+assert.ok(document.querySelector("#commission-image-editor"),"Modal de imagem disponível");
+assert.ok(document.querySelector('#commission-upload[accept="image/png,image/jpeg,image/webp"]'));
