@@ -118,7 +118,7 @@ await move("#/comissoes/financas");
 assert.deepEqual(readMetrics(),{Demandas:1,"Concluídas":0,Atrasadas:0,Pendentes:1},
  "Finanças só contabiliza suas demandas e participações");
 tasks=tasks.filter(t=>t.id!=="indicador-videos-concluido");
-committees=committees.filter(c=>c.id!=="financas");
+committees.splice(committees.findIndex(c=>c.id==="financas"),1);
 await move("#/demandas");
 
 // Criar sem preencher não deve interromper; alterar e navegar exige confirmação.
