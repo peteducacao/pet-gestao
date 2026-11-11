@@ -2067,3 +2067,100 @@ body.mail-preview-open{overflow:hidden}
  .commission-overview-card{gap:8px;padding:11px 9px}
  .commission-overview-icon{flex-basis:33px;width:33px;height:33px}
 }
+
+
+/* Revisão final de usabilidade: ações de demandas lado a lado, seleção em lote e telas pequenas. */
+#screen .demand-header-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#screen .demand-header-actions>.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:11px 17px;border-radius:13px;font-size:13px;font-weight:800;text-align:center}
+#screen .demand-header-actions .demand-delete-trigger{
+ color:#9e3552;background:#fff1f5;border:1px solid #e8bac8;
+ box-shadow:0 5px 13px #842c4712;
+}
+#screen .demand-header-actions .demand-delete-trigger:hover{background:#ffe7ef;border-color:#d692ab}
+#screen .demand-header-actions .demand-delete-trigger svg{width:17px;height:17px;flex-shrink:0}
+#screen .archive-bulk-toolbar{
+ margin:12px 0 15px;padding:15px;gap:12px;border:1px solid #e0d4ee;
+ border-radius:17px;background:#faf7ff;box-shadow:0 5px 16px #46316a0a;
+}
+#screen .archive-bulk-buttons{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+#screen .archive-bulk-buttons .archive-bulk-delete{
+ background:#ad3b60;border:1px solid #ad3b60;color:white;
+}
+#screen .archive-bulk-buttons .archive-bulk-delete:hover{background:#922b4e}
+#screen .archive-bulk-buttons .archive-bulk-delete:disabled{opacity:.45}
+#screen .archive-select-row{
+ padding:9px;border:1px solid #e6dbef;border-radius:17px;
+ background:#fdfbff;transition:border-color .18s,background-color .18s,box-shadow .18s;
+}
+#screen .archive-select-row:has([data-archive-select]:checked){
+ border-color:#9c75df;background:#f2ebff;box-shadow:0 0 0 2px #c6abf34a;
+}
+#screen .archive-task-selector{
+ display:flex;align-items:center;gap:10px;min-height:46px;padding:9px 13px;
+ margin:0 0 9px;border-radius:11px;background:#f0eafb;color:#593692;
+ font-size:12.5px;font-weight:800;cursor:pointer;
+}
+#screen .archive-task-selector input{width:22px;height:22px;flex:0 0 22px;accent-color:#693bc2;cursor:pointer}
+#screen .archive-select-row:has([data-archive-select]:checked) .archive-task-selector{
+ background:#e5d7ff;color:#4b218f;
+}
+@media(max-width:690px){
+ #screen .page-header:has(.demand-header-actions) .page-actions{width:100%;margin-top:9px;min-width:0}
+ #screen .demand-header-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:9px}
+ #screen .demand-header-actions>.button{width:100%;min-width:0;max-width:100%;min-height:47px;padding:9px 7px;font-size:12px;line-height:1.28;white-space:normal}
+ #screen .demand-header-actions>.button svg{display:none}
+ #screen .archive-bulk-toolbar{align-items:stretch;padding:13px;margin:12px 0 15px}
+ #screen .archive-bulk-buttons{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.25fr);gap:8px;width:100%}
+ #screen .archive-bulk-buttons>.button{width:100%;min-width:0;min-height:47px;padding:9px 7px;font-size:12px;line-height:1.3;white-space:normal}
+ #screen .archive-bulk-buttons>.button svg{display:none}
+ #screen .archive-task-selector{min-height:48px;padding:10px 13px;margin-bottom:8px}
+ #screen .archive-select-row{padding:8px;margin-bottom:12px}
+}
+@media(max-width:360px){
+ #screen .demand-header-actions>.button{font-size:11.5px;padding-inline:4px}
+ #screen .archive-bulk-buttons>.button{font-size:11px}
+}
+
+/* Agendar envio é um botão de ação, não um checkbox ou seletor nativo. */
+#screen .mail-schedule-choice{
+ display:flex;align-items:center;flex-wrap:wrap;gap:9px 15px;margin:8px 0 6px;
+}
+#screen .mail-schedule-choice .mail-schedule-toggle{
+ display:inline-flex;align-items:center;justify-content:center;gap:8px;
+ background:#f3edff;border:1px solid #d7c3f5;color:#6234b7;
+ border-radius:12px;min-height:46px;padding:10px 16px;
+}
+#screen .mail-schedule-choice .mail-schedule-toggle[aria-pressed="true"]{
+ background:#fff3e7;border-color:#eccca4;color:#8d5524;
+}
+#screen .mail-schedule-choice small{font-size:12px;line-height:1.45;color:#81758d}
+#screen .mail-schedule-choice svg{width:18px;height:18px}
+#screen #mail-scheduling>label{margin-top:12px;display:block}
+@media(max-width:530px){
+ #screen .mail-schedule-choice{align-items:stretch}
+ #screen .mail-schedule-choice .mail-schedule-toggle{width:100%}
+}
+
+/* Meu perfil: comissões atuais sem alterar a composição das equipes. */
+#screen .profile-commissions{margin-top:22px;padding:19px 0;border-top:1px solid #eee7f6}
+#screen .profile-commissions h3{font-size:17px;margin:0 0 13px;color:#302545}
+#screen .profile-commission-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+#screen .profile-commission-chip{
+ display:flex;align-items:center;gap:11px;min-height:59px;padding:10px 12px;
+ border:1px solid #e6daf5;border-radius:14px;background:#fbf9ff;
+ color:#493478;font-weight:750;font-size:13px;text-decoration:none;
+}
+#screen .profile-commission-chip:hover{background:#f2ebff}
+#screen .profile-commission-chip>svg{width:17px;height:17px;margin-left:auto;flex-shrink:0}
+#screen .profile-commission-avatar{width:40px;height:40px;flex:none;display:grid;place-items:center;border-radius:12px;background:#eee7fc;overflow:hidden}
+#screen .profile-commission-avatar img{width:100%;height:100%;object-fit:cover}
+#screen .profile-commission-avatar svg{max-width:28px;max-height:28px}
+#screen .clear-updates-button{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;font-size:12px;min-height:35px;border-radius:10px}
+#screen .clear-updates-button svg{width:14px;height:14px}
+.admin-history-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px}
+.admin-history-head h2{margin-bottom:0}
+.admin-history-head .clear-updates-button{font-size:12px}
+
+/* No celular, fechar o menu administrativo desliza e apaga o fundo suavemente. */
+.admin-screen-overlay{opacity:1;transition:opacity .22s ease}
+.admin-screen-overlay.closing{opacity:0;pointer-events:none}
