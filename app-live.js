@@ -591,7 +591,7 @@ function renderCommittee(cid){
 function renderCommitteeEdit(cid){
  if(!canWrite())return authRequired();
  const c=cid?committee(cid):null;if(cid&&!c)return empty("Comissão não encontrada");
- return header("Comissões",c?"Editar comissão":"Nova comissão","",backButton())+
+ return header("Comissões",c?"Editar comissão":"Nova comissão","")+
  '<section class="card card-pad register-page"><form id="commission-form" data-id="'+esc(cid||"")+'" class="register-form">'+
  '<label>Nome da comissão *<input name="name" required maxlength="90" value="'+esc(c?.name||"")+'"></label>'+
  '<label>Descrição (opcional)<textarea name="description" rows="3">'+esc(c?.description||"")+'</textarea></label>'+
@@ -762,7 +762,7 @@ function renderTaskForm(routeId){
     )):"usuarios";
  }
  return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina os responsáveis e informe a data da atividade, ou etapas quando necessário.",
- backButton()+
+ ""+
  (t?'<button type="submit" form="task-form" class="button primary task-form-header-save">'+ico("check")+' Salvar demanda</button>':""))+
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
  '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
@@ -942,7 +942,7 @@ function detailVisualization(){
  return '<div class="detail-visualization">'+visualizationSelect("navigateDemands","todas")+'</div>';
 }
 function renderDetailReadOnly(t){
- return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda",backButton())+detailVisualization()+activitySections(t,true)+'</div>';
+ return '<div class="activity-detail-page">'+header("Atividade",t.title,"Visualização da demanda")+detailVisualization()+activitySections(t,true)+'</div>';
 }
 function renderDetail(taskId,contextCid){
  if(!me)return authRequired();
@@ -971,7 +971,7 @@ function openFinishDialog(task){
  const choices=moreThanOne?
   '<div class="finish-quick-actions">'+
     (canFinishSelf?'<button class="button ghost" type="button" data-do="finish-select-self" data-id="'+esc(task.id)+'">'+ico("user")+(users.includes(me.id)?" Só minha participação":" Só minha(s) comissão(ões)")+'</button>':"")+
-    '<button class="button ghost" type="button" data-do="finish-select-everyone" data-id="'+esc(task.id)+'">'+ico("users")+' Concluir para todos(as)</button>'+
+
    '</div>':"";
  layer.innerHTML='<div class="finish-backdrop" data-do="finish-close"></div><section class="finish-popup" role="dialog" aria-modal="true" aria-label="Concluir participações">'+
  '<h2>Concluir participações</h2><p>Se houver mais de um responsável, escolha concluir somente a sua participação ou todas as participações. Também é possível selecionar manualmente.</p>'+
@@ -1023,7 +1023,7 @@ function renderMemory(routeId){
  const mid=editor&&routeId.startsWith("editar/")?routeId.slice(7):routeId;
  const m=routeId==="nova"?null:data.meetings.find(x=>x.id===mid);
  if(!m&&routeId!=="nova")return empty("Ata não encontrada");
- return header("Atas de Reunião",m?"Editar ata":"Criar ata","",backButton())+
+ return header("Atas de Reunião",m?"Editar ata":"Criar ata","")+
  '<section class="card card-pad register-page meeting-editor"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form">'+
  (m?'<div class="meeting-metadata"><strong>'+esc(m.title)+'</strong><span>'+textDate(m.date)+'</span></div><input type="hidden" name="title" value="'+esc(m.title)+'"><input type="hidden" name="date" value="'+esc(m.date)+'">':
  '<label>Título da reunião *<input name="title" required maxlength="180"></label><label>Data *<input name="date" type="date" required value="'+dateKey(current)+'"></label>')+
@@ -1124,7 +1124,7 @@ function renderAdmin(){
  const recent=(data.history||[]).filter(x=>!me?.activityClearedAt||x.created_at>me.activityClearedAt).slice(0,4);
  const dashboard=state.adminTab==="painel"?'<div class="admin-metrics">'+stats.map(metric).join("")+'</div>'+
  '<section class="admin-box"><h2>Ações rápidas</h2><div class="admin-shortcuts">'+
- '<a href="#/admin/registrar">'+ico("plus")+'<span>Nova demanda</span></a>'+
+ 
  '<a href="#/admin/comissoes">'+ico("users")+'<span>Gerenciar comissões</span></a>'+
  '<a href="#/admin/usuarios">'+ico("user")+'<span>Gerenciar usuários</span></a>'+
  '<a href="#/admin/emails">'+ico("mail")+'<span>Enviar e-mail</span></a></div></section>'+
@@ -1139,7 +1139,7 @@ function renderAdmin(){
  return '<div class="admin-layout">'+
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
- '<nav class="admin-navigation">'+nav(tabs[0])+'<a href="#/admin/demandas" class="admin-menu-link '+(subroute[0]==="demandas"||["registrar","atividade"].includes(subroute[0])?"active":"")+'">'+ico("list")+'<span>Demandas</span></a><a href="#/admin/reunioes" class="admin-menu-link '+(subroute[0]==="reunioes"?"active":"")+'">'+ico("calendar")+'<span>Atas de Reunião</span></a>'+tabs.slice(1).map(nav).join("")+'</nav>'+
+ '<nav class="admin-navigation">'+tabs.map(nav).join("")+'</nav>'+
  '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("chevron-left")+' Voltar ao PET Gestão</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
  '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>Administração</strong></span></div></div>'+
@@ -1469,7 +1469,7 @@ async function handleClick(e){
    if(routeParts().page==="admin"){
      const previous=state.navStack?.at(-2);
      if(previous?.startsWith("#/admin")){state.navStack.pop();state.goingBack=true;location.hash=previous;}
-     else location.hash="#/admin/demandas";
+     else location.hash="#/admin/painel";
    }else if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}
    else location.hash="#/inicio";
    return;
@@ -1488,13 +1488,13 @@ async function handleClick(e){
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
  if(action==="reset-color"){$('input[name="backgroundColor"]').value="#f7f3ff";return}
  if(action==="finish-joint-open"){openFinishDialog(data.tasks.find(t=>t.id===tid));return;}
- if(action==="finish-select-self"||action==="finish-select-everyone"){
+ if(action==="finish-select-self"){
    const task=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(!task||!layer)return;
    const all=layer.querySelectorAll('input[name="joint-target"]');
    const myPersonal=(task.assigneeIds||[]).includes(me?.id)&&!task.userDone?.[me.id];
    const myCommissions=(task.commissionIds||[]).filter(cid=>canCompleteCommission(cid)&&!task.commissionDone?.[cid]);
    all.forEach(input=>{
-     input.checked=action==="finish-select-everyone"||
+     input.checked=
        (myPersonal?input.dataset.kind==="user"&&input.value===me.id:
         input.dataset.kind==="commission"&&myCommissions.includes(input.value));
    });
