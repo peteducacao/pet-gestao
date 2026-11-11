@@ -193,9 +193,9 @@
     }
     return unique((data.all?all:all.filter(x=>ids.has(x.id))).map(x=>x.email)).filter(s=>validEmail(s)&&email(s)!==email(excludeEmail));
   }
-  async function enqueue(db,creatorId,kind,emails,subject,message,when){
+  async function enqueue(db,creatorId,kind,emails,subject,message,when,taskId=null){
     const id=uid(),stamp=now();
-    await db.prepare("INSERT INTO email_queue (id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at) VALUES(?,?,?,?,?,?,?,'pendente',?)").bind(id,creatorId,kind,JSON.stringify(unique(emails)),subject,message,when||stamp,stamp).run();
+    await db.prepare("INSERT INTO email_queue (id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) VALUES(?,?,?,?,?,?,?,'pendente',?,?)").bind(id,creatorId,kind,JSON.stringify(unique(emails)),subject,message,when||stamp,stamp,taskId).run();
     return id;
   }
   async function processQueue(env,limit=10){
@@ -203,7 +203,19 @@
     await env.DB.prepare("UPDATE email_queue SET status='falhou',error_message='Processamento interrompido; verificar antes de reenviar' WHERE status='processando' AND scheduled_at<?").bind(isoAfter(-60)).run();
     const list=(await env.DB.prepare("SELECT * FROM email_queue WHERE status='pendente' AND scheduled_at<=? ORDER BY scheduled_at LIMIT ?").bind(now(),limit).all()).results;
     for(const item of list){
-      const claimed=await env.DB.prepare("UPDATE email_queue SET status='processando',attempts=attempts+1 WHERE id=? AND status='pendente'").bind(item.id).run();
+      if(item.task_id){
+         const task=await env.DB.prepare("SELECT archived_at,deadlines FROM tasks WHERE id=?").bind(item.task_id).first();
+         let valid=Boolean(task&&!task.archived_at);
+         if(valid&&["due_soon","overdue"].includes(item.kind)){
+           const notice=await env.DB.prepare("SELECT stage_id,stage_due_at FROM deadline_notice_log WHERE queue_id=? AND task_id=?").bind(item.id,item.task_id).first();
+           valid=Boolean(notice&&asJson(task.deadlines,[]).some(d=>String(d.id||"")===String(notice.stage_id)&&String(d.dueAt||"")===String(notice.stage_due_at)&&!d.completedAt));
+         }
+         if(!valid){
+           await env.DB.prepare("UPDATE email_queue SET status='cancelado',error_message='Aviso inválido: demanda excluída, concluída ou prazo alterado' WHERE id=? AND status='pendente'").bind(item.id).run();
+           continue;
+         }
+       }
+       const claimed=await env.DB.prepare("UPDATE email_queue SET status='processando',attempts=attempts+1 WHERE id=? AND status='pendente'").bind(item.id).run();
       if(!claimed.meta.changes)continue;
       try{
         await authorizedMail(env,asJson(item.recipient_emails,[]),item.subject,item.body);
@@ -351,8 +363,8 @@
         const noticeBatch=await db.batch([
           db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)")
             .bind(dedupeKey,task.id,stageId,kind,rawDue,queueId,stamp),
-          db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at) SELECT ?,NULL,?,?,?,?,?,'pendente',? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)")
-            .bind(queueId,kind,JSON.stringify(recipients),subject,text,stamp,stamp,dedupeKey,queueId)
+          db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) SELECT ?,NULL,?,?,?,?,?,'pendente',?,? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)")
+            .bind(queueId,kind,JSON.stringify(recipients),subject,text,stamp,stamp,task.id,dedupeKey,queueId)
         ]);
         if(noticeBatch[0]?.meta?.changes)registered++;
         if(registered>=30)return;
@@ -378,7 +390,7 @@
     const bodyTemplate=String(config.body||"Olá!\n\n{autor} {acao} na demanda \"{demanda}\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação").slice(0,10000);
     const values={autor:user.name,acao:action,demanda:task.title,tipo:title};
     const merge=(tpl,html=false)=>tpl.replace(/\{(autor|acao|demanda|tipo)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
-    await enqueue(db,user.id,"automatica",recipients,merge(subjectTemplate),merge(bodyTemplate,mailHasFormatting(bodyTemplate)),now());
+    await enqueue(db,user.id,"automatica",recipients,merge(subjectTemplate),merge(bodyTemplate,mailHasFormatting(bodyTemplate)),now(),task.id);
     ctx.waitUntil(processQueue(env,2));
   }
   function validateTask(payload,old=null){
@@ -812,7 +824,8 @@
         if(rows.length!==ids.length||rows.some(t=>!t.archived_at))
           fail("A seleção contém uma demanda que não está concluída. Atualize a listagem e tente novamente.",409);
         await db.batch([
-          db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id IN ("+placeholders+"))").bind(...ids),
+          db.prepare("UPDATE email_queue SET status=\'cancelado\',error_message=\'Demanda excluída\' WHERE task_id IN ("+placeholders+") AND status IN (\'pendente\',\'falhou\')").bind(...ids),
+           db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id IN ("+placeholders+"))").bind(...ids),
           db.prepare("DELETE FROM deadline_notice_log WHERE task_id IN ("+placeholders+")").bind(...ids),
           db.prepare("DELETE FROM task_history WHERE task_id IN ("+placeholders+")").bind(...ids),
           db.prepare("DELETE FROM tasks WHERE id IN ("+placeholders+") AND archived_at IS NOT NULL").bind(...ids)
@@ -846,7 +859,9 @@
         t.deadlines=t.deadlines.map(d=>{const previous=oldStages.get(d.id);return previous&&previous.label===d.label&&previous.dueAt===d.dueAt?{...d,completedAt:previous.completedAt||null,commissionCompleted:previous.commissionCompleted||{}}:{...d,completedAt:null,commissionCompleted:{}}});
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,assignment_scope=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,t.assignmentScope,user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
-        await audit(db,old.id,user,t.captionText!==old.captionText?"Atualizou texto para revisão":"Atualizou dados, prazos ou responsáveis");
+        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda atualizada' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','overdue')").bind(old.id).run();
+         await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
+         await audit(db,old.id,user,t.captionText!==old.captionText?"Atualizou texto para revisão":"Atualizou dados, prazos ou responsáveis");
         if(t.assignmentScope==="todos")await autoCompleteCollectiveEvents(env,old.id);
         if(t.captionText!==old.captionText){
           await markTutorReviewAfterCorrection(db,old,user,stamp);
@@ -862,7 +877,8 @@
         // Apagar de forma atômica, inclusive os avisos de prazo pendentes e o histórico.
         // A autorização é validada no Worker, não por campos enviados pelo navegador.
         await db.batch([
-          db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id=?)").bind(old.id),
+          db.prepare("UPDATE email_queue SET status=\'cancelado\',error_message=\'Demanda excluída\' WHERE task_id=? AND status IN (\'pendente\',\'falhou\')").bind(old.id),
+           db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id=?)").bind(old.id),
           db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id),
           db.prepare("DELETE FROM task_history WHERE task_id=?").bind(old.id),
           db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id)
@@ -907,7 +923,9 @@
           if(finished)copy.completedAt=stamp;
           return copy;
         });
-        const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
+        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','overdue')").bind(old.id).run();
+         await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
+         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
         const names=[];
         for(const id of changedUsers){const row=await db.prepare("SELECT name FROM users WHERE id=?").bind(id).first();names.push(row?.name||"Usuário");}
