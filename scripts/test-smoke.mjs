@@ -822,7 +822,9 @@ await test("login opcional persiste somente token e recuperação abre popup leg
  const src=readFileSync("app-live.js","utf8"),index=readFileSync("index.html","utf8"),css=readFileSync("live.css","utf8");
  assert.ok(src.includes('name="rememberMe"'));
  assert.ok(src.includes('function saveSessionToken(key,value,remember)'));
- assert.ok(src.includes('(remember?localStorage:sessionStorage).setItem(key,value)'));
+ assert.ok(src.includes("if(remember)localStorage.setItem(key,value)"),"Sessões permanentes ficam no localStorage");
+  assert.ok(src.includes("writeSessionCookie(value)"),"Sessões temporárias são compartilhadas por abas via cookie de sessão");
+  assert.ok(src.includes('if(key===tokenKey)clearSessionCookie()'),"Sair apaga cookie temporário");
  assert.ok(src.includes('function forgetSessionToken(key)'));
  assert.ok(src.includes('const r=await request("/auth/forgot","POST",userFields(form))'));
  assert.ok(src.includes('showAuthMessage("Solicitação recebida"'));
