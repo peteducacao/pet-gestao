@@ -1735,7 +1735,13 @@ function start(){
        title:"Alterações não salvas",kind:"warning",
        cancelLabel:"Continuar editando",confirmLabel:"Sair sem salvar"
      }).then(proceed=>{
-       if(!proceed)return;
+       if(!proceed){
+         // O botão Voltar pode ter alterado a pilha interna antes do popup.
+         // Ao cancelar, a edição continua sendo a página ativa.
+         if(state.navStack?.at(-1)!==lastHash)state.navStack.push(lastHash);
+         state.goingBack=false;
+         return;
+       }
        resetTaskDraft();state.taskFormId=null;
        location.hash=destination;
      });
