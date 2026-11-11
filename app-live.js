@@ -79,7 +79,7 @@ function hasUnsavedTaskChanges(){
  return Boolean(taskFormDraft&&taskFormRoute(lastHash)&&
   taskFormDraft.route===lastHash&&$("#task-form")&&taskDraftSnapshot()!==taskFormDraft.snapshot);
 }
-function resetTaskDraft(){taskFormDraft=null}
+function resetTaskDraft(){taskFormDraft=null;state.taskFiles=[]}
 
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -780,8 +780,9 @@ function refreshDeadlineMode(previousScope=null,previousSingle=null){
  host.innerHTML=renderDeadlineSettings(currentRows);
 }
 
-const TASK_FILE_MAX=350*1024,TASK_FILES_MAX=8,TASK_FILES_TOTAL_MAX=8*TASK_FILE_MAX;
-async function shrinkPhoto(file,{edge=1440,maxBytes=TASK_FILE_MAX,square=false}={}){
+const TASK_FILE_MAX=10*1024*1024,TASK_FILES_MAX=8,TASK_FILES_TOTAL_MAX=30*1024*1024;
+const TASK_PHOTO_TARGET=350*1024;
+async function shrinkPhoto(file,{edge=1440,maxBytes=TASK_PHOTO_TARGET,square=false}={}){
  if(!file||!file.type.startsWith("image/"))throw Error("Escolha somente fotos.");
  if(file.size>25*1024*1024)throw Error("Foto original muito grande: máximo de 25 MB.");
  let bitmap;
@@ -814,7 +815,7 @@ const fileSize=n=>n>=1048576?(n/1048576).toFixed(2).replace(".",",")+" MB":Math.
 function taskFileList(t,remove=false){
  return (t?.attachments||[]).map(f=>'<div class="task-attachment-item"><span class="task-file-art">'+ico("folder")+'</span>'+
  '<span class="task-file-info"><strong>'+esc(f.name)+'</strong><small>'+fileSize(f.size)+'</small></span>'+
- '<button type="button" class="button ghost" data-do="task-photo-view" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Ver foto</button>'+
+ (f.mimeType?.startsWith("image/")?'<button type="button" class="button ghost" data-do="task-photo-view" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Ver foto</button>':"")+
  '<button type="button" class="button ghost" data-do="task-file-download" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Baixar</button>'+
  (remove?'<button type="button" class="button subtle-danger" data-do="task-file-delete" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Excluir</button>':"")+
  '</div>').join("");
@@ -827,17 +828,17 @@ function taskFilePendingList(){
 }
 function taskFileForm(t){
  if(!canSeeTaskPhotos())return "";
- return '<section class="task-files-section"><h3>'+ico("folder")+' Fotos da demanda</h3>'+
- '<p class="field-hint">Anexe várias fotos: até 8 por demanda, reduzidas automaticamente para até 350 KB cada. Só PETianos(as) podem ver as fotos. Não são enviadas por e-mail.</p>'+
+ return '<section class="task-files-section"><h3>'+ico("folder")+' Arquivos da demanda</h3>'+
+ '<p class="field-hint">Anexe vários arquivos, como PDFs, documentos e imagens: até 10 MB por arquivo, 8 arquivos e 30 MB por demanda. Imagens são compactadas automaticamente. Só PETianos(as) podem ver os anexos; Tutoria, Administração e visitantes não têm acesso. Não são enviados por e-mail automaticamente.</p>'+
  ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Arquivos armazenados</h4>'+taskFileList(t)+'</div>':"")+
- '<label class="task-file-picker">Selecionar fotos<input id="task-file-input" type="file" accept="image/*" multiple></label>'+
+ '<label class="task-file-picker">Selecionar arquivos<input id="task-file-input" type="file" multiple></label>'+
  '<div id="task-file-selection">'+taskFilePendingList()+'</div>'+
  '<p class="field-hint task-file-progress" id="task-file-progress" role="status" aria-live="polite" hidden></p></section>';
 }
 function taskFileDetail(t){
  if(!canSeeTaskPhotos())return "";
  const count=(t.attachments||[]).length;
- return '<section class="card card-pad detail-accent-card task-detail-files"><h2 class="detail-card-heading">'+ico("folder")+' Fotos da demanda <span class="pill soft">'+count+'</span></h2>'+
+ return '<section class="card card-pad detail-accent-card task-detail-files"><h2 class="detail-card-heading">'+ico("folder")+' Arquivos da demanda <span class="pill soft">'+count+'</span></h2>'+
  (count?taskFileList(t,true):'<p class="field-hint">Ainda não há arquivos armazenados.</p>')+
  (!t.archivedAt?'<p class="field-hint">Para acrescentar arquivos, selecione Editar demanda.</p>':"")+'</section>';
 }
@@ -1444,10 +1445,10 @@ async function saveTask(form){
  if(!overviewVisible&&!commissions.length)return setToast("Selecione uma comissão para exibir somente nela.");
  const picked=canSeeTaskPhotos()?[...(state.taskFiles||[])]:[];
  const existing=previous?.attachments||[];
- if(picked.some(x=>!x.size||x.size>TASK_FILE_MAX||x.type!=="image/jpeg"))return setToast("Só são aceitas fotos JPG de até 350 KB após redução.");
+ if(picked.some(x=>!x.size||x.size>TASK_FILE_MAX))return setToast("Cada arquivo deve ter até 10 MB e não pode estar vazio.");
  if(existing.length+picked.length>TASK_FILES_MAX||
     picked.reduce((total,x)=>total+x.size,existing.reduce((total,x)=>total+x.size,0))>TASK_FILES_TOTAL_MAX)
-   return setToast("A demanda aceita até 8 fotos e 2,8 MB no total.");
+   return setToast("A demanda aceita até 8 arquivos e 30 MB no total.");
  const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?
   await askNotification({users,commissions}):false;
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,assignmentScope:state.assignmentScope,overviewVisible,notify};
@@ -2067,22 +2068,23 @@ async function handleChange(e){
    return;
  }
  if(t.id==="task-file-input"){
-   if(!canSeeTaskPhotos())return setToast("Somente PETianos(as) podem anexar fotos.");
-   const originalFiles=Array.from(t.files||[]);t.value="";
+   if(!canSeeTaskPhotos())return setToast("Somente PETianos(as) podem anexar arquivos às demandas.");
+   const originals=Array.from(t.files||[]);t.value="";
    const saved=data.tasks.find(task=>task.id===state.taskFormId)?.attachments||[];
-   for(const image of originalFiles){
+   for(const original of originals){
      if(saved.length+state.taskFiles.length>=TASK_FILES_MAX){
-       setToast("Uma demanda aceita até 8 fotos.");break;
+       setToast("Uma demanda aceita até 8 arquivos.");break;
      }
      try{
-       const photo=await shrinkPhoto(image);
+       if(!original.size||original.size>(original.type.startsWith("image/")?25:10)*1024*1024)
+         throw Error("Arquivo muito grande: máximo de 10 MB ou foto original de 25 MB para compactação.");
+       const file=original.type.startsWith("image/")?await shrinkPhoto(original):original;
+       if(file.size>TASK_FILE_MAX)throw Error("O arquivo deve ter até 10 MB.");
        const total=[...saved,...state.taskFiles].reduce((n,f)=>n+(f.size||0),0);
-       if(total+photo.size>TASK_FILES_TOTAL_MAX){
-         setToast("Limite de 2,8 MB em fotos por demanda.");break;
-       }
-       if(state.taskFiles.some(f=>f.name===photo.name&&f.size===photo.size&&f.lastModified===photo.lastModified))continue;
-       state.taskFiles.push(photo);
-     }catch(e){setToast(image.name+": "+e.message)}
+       if(total+file.size>TASK_FILES_TOTAL_MAX){setToast("Limite de 30 MB por demanda.");break;}
+       if(state.taskFiles.some(f=>f.name===file.name&&f.size===file.size&&f.lastModified===file.lastModified))continue;
+       state.taskFiles.push(file);
+     }catch(e){setToast(original.name+": "+e.message)}
    }
    const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
    return;
