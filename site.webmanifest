@@ -2,12 +2,38 @@
   "name": "PET Gestão | PET Educação UFS",
   "short_name": "PET Gestão",
   "description": "Organização de demandas, comissões e cronogramas do PET Educação UFS.",
-  "start_url": "/pet-gestao/",
+  "id": "/pet-gestao/",
+  "start_url": "/pet-gestao/#/inicio",
   "scope": "/pet-gestao/",
   "display": "standalone",
   "background_color": "#f7f7fb",
   "theme_color": "#592FAF",
+  "lang": "pt-BR",
   "icons": [
+    {
+      "src": "assets/pet-gestao-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/pet-gestao-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/pet-gestao-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/pet-gestao-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "assets/gestao-icon.svg",
       "sizes": "any",

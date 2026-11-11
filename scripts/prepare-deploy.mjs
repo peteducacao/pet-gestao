@@ -1,6 +1,7 @@
 // PET Gestão — preparação auditável do deploy. Nunca imprime credenciais.
 import fs from "node:fs";
 import path from "node:path";
+import {generatePwaIcons} from "./build-pwa-icons.mjs";
 const id=(process.env.CLOUDFLARE_ACCOUNT_ID||"").trim();
 const token=(process.env.CLOUDFLARE_API_TOKEN||"").trim();
 if(!id||!token)throw Error("Configure CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_API_TOKEN como GitHub Secrets.");
@@ -49,7 +50,9 @@ for(const file of ["index.html","styles.css","live.css","app-live.js"]){
  fs.copyFileSync(file,path.join(out,file));
 }
 fs.cpSync("assets",path.join(out,"assets"),{recursive:true});
+generatePwaIcons(path.join(out,"assets"));
 fs.copyFileSync("site.webmanifest",path.join(out,"site.webmanifest"));
+fs.copyFileSync("sw.js",path.join(out,"sw.js"));
 fs.writeFileSync(path.join(out,"config.js"),"window.PET_GESTAO_CONFIG=Object.freeze("+JSON.stringify({apiBaseUrl,appName:"PET Gestão",demoMode:false,locale:"pt-BR"})+");\n");
 fs.writeFileSync("api-url.txt",apiBaseUrl+"\n");
 console.log("D1 encontrado; Worker configurado; site preparado para "+new URL(apiBaseUrl).host);

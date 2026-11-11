@@ -2,6 +2,13 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
+// O aplicativo instalável precisa de ícones PNG e do seu script de atualização.
+const manifest=JSON.parse(fs.readFileSync("site.webmanifest","utf8"));
+assert.equal(manifest.display,"standalone","App abre em janela própria");
+assert.ok(manifest.icons.some(icon=>icon.sizes==="192x192"&&icon.type==="image/png"));
+assert.ok(manifest.icons.some(icon=>icon.sizes==="512x512"&&icon.type==="image/png"));
+assert.ok(fs.readFileSync("scripts/prepare-deploy.mjs","utf8").includes("generatePwaIcons"),"Publicação gera ícones PNG");
+assert.ok(fs.readFileSync("sw.js","utf8").includes("public-shell"),"Service Worker possui cache público");
 const html=fs.readFileSync("index.html","utf8");
 const js=fs.readFileSync("app-live.js","utf8");
 let idNum=0,mailTemplateSaved=false;
