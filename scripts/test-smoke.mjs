@@ -51,7 +51,7 @@ await test("cadastro começa como Usuário",async()=>{
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
 });
-await test("anexos privados: vários documentos e fotos somente PETianos(as)",async()=>{
+await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)",async()=>{
  const adminToken=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
  assert.ok(person);
  const taskId=good(await api("/tasks","POST",{
@@ -83,13 +83,9 @@ await test("anexos privados: vários documentos e fotos somente PETianos(as)",as
    email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
   })).token;
   petToken=token;
-  const pdf=good(await api(prefix,"POST",{name:"ata.pdf",size:150,mimeType:"application/pdf"}),201);
-  const pdfBytes=new Uint8Array(150);pdfBytes.set([37,80,68,70],0);
-  await sendChunk(pdf.id,0,pdfBytes);
-  good(await api(prefix+"/"+pdf.id+"/complete","POST",{}));
-  assert.equal(good(await api(prefix)).attachments.length,1,"Documentos PDF são aceitos");
-  good(await api(prefix+"/"+pdf.id,"DELETE",{}));
-  assert.equal((await api(prefix,"POST",{name:"gigante.jpg",size:10*1024*1024+1,mimeType:"image/jpeg"})).status,413);
+  assert.equal((await api(prefix,"POST",{name:"ata.pdf",size:150,mimeType:"application/pdf"})).status,415,
+   "Documentos PDF devem ser recusados nas demandas");
+  assert.equal((await api(prefix,"POST",{name:"gigante.jpg",size:360*1024,mimeType:"image/jpeg"})).status,413);
   const first=good(await api(prefix,"POST",{name:"oficina-1.jpg",size:raw.length,mimeType:"image/jpeg"}),201);
   assert.equal(first.chunkCount,2);
   assert.equal((await api(prefix+"/"+first.id+"/complete","POST",{})).status,409);
@@ -107,7 +103,7 @@ await test("anexos privados: vários documentos e fotos somente PETianos(as)",as
   const res=await fetch(base+prefix+"/"+first.id+"/download",{
    headers:{Authorization:"Bearer "+token}
   });
-  assert.equal(res.status,200);assert.equal(res.headers.get("content-type"),"application/octet-stream");
+  assert.equal(res.status,200);assert.equal(res.headers.get("content-type"),"image/jpeg");
   assert.deepEqual(new Uint8Array(await res.arrayBuffer()),raw,"Foto recuperada corresponde à armazenada");
   token=adminToken;
   good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:false}));
