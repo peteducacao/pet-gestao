@@ -59,7 +59,7 @@ let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
 const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let taskFormDraft=null;
 const taskFormRoute=hash=>/^#\/(?:registrar(?:\/|$)|admin\/registrar(?:\/|$))/.test(String(hash||""));
@@ -350,7 +350,7 @@ async function reload(){
  }
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
 }
-function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","atividade","reunioes","login","cadastro","esqueci","redefinir","conta","admin"].includes(p)}
+function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","atividade","reunioes","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
@@ -1234,6 +1234,17 @@ function renderRegisterAccount(){
 
 function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos um link para o e-mail cadastrado.")+'<section class="card card-pad live-auth"><form id="forgot-form" class="register-form"><label>E-mail<input type="email" name="email" required></label><button type="submit" class="button primary">Enviar link</button></form></section>'}
 function renderReset(tokenPart){return header("Conta","Redefinir senha","O link é válido por 30 minutos e pode ser usado uma única vez.")+'<section class="card card-pad live-auth"><form id="reset-form" data-token="'+esc(tokenPart)+'" class="register-form"><label>Nova senha<span class="password-control"><input type="password" name="password"  required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Alterar senha</button></form></section>'}
+
+function renderConfirmEmail(tokenPart){
+ const token=String(tokenPart||"");
+ const valid=/^[A-Za-z0-9_-]{43}$/.test(token);
+ return header("Conta","Confirmar novo e-mail","Conclua a alteração do e-mail de acesso.")+
+  '<section class="card card-pad live-auth email-confirm-page"><span class="email-confirm-art">'+ico("mail")+'</span>'+
+  '<h2>Confirmação de e-mail</h2>'+
+  '<p>'+(valid?"Clique no botão para confirmar que este novo endereço pertence a você. Por segurança, após a alteração você precisará entrar novamente.":"Este link parece incompleto ou inválido. Solicite outro em Meu perfil.")+'</p>'+
+  (valid?'<button type="button" class="button primary" data-do="confirm-account-email">Confirmar meu e-mail</button>':'<a href="#/login" class="button primary">Entrar</a>')+
+  '</section>';
+}
 function renderAccount(){
  if(!me)return authRequired();
  const myCommissions=(data.committees||[]).filter(c=>(c.memberIds||[]).includes(me.id));
@@ -1243,6 +1254,17 @@ function renderAccount(){
     '<span class="profile-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
     '</span><span>'+esc(c.name)+'</span>'+ico("chevron-right")+'</a>').join("")+'</div>':
    '<p class="field-hint">Você ainda não participa de nenhuma comissão.</p>')+'</section>';
+
+ const pendingEmail=me.pendingEmailChange;
+ const emailManagement='<section class="account-email-management"><div class="account-email-top"><div><h3>E-mail de acesso</h3>'+
+  '<p>Endereço atual: <strong>'+esc(me.email)+'</strong></p></div>'+
+  '<button type="button" class="button ghost" data-do="account-email-toggle" aria-controls="change-email-form" aria-expanded="false">Alterar e-mail</button></div>'+
+  (pendingEmail?'<div class="account-email-pending"><strong>Confirmação pendente</strong><p>Enviamos um link para <b>'+esc(pendingEmail.newEmail)+'</b>. O e-mail atual continua ativo até a confirmação. O link expira em 60 minutos após o envio.</p><button type="button" class="button ghost" data-do="account-email-cancel">Cancelar solicitação</button></div>':'')+
+  '<form id="change-email-form" class="register-form account-email-form" hidden>'+
+  '<p class="field-hint">O novo endereço só será atualizado quando você abrir o link que receber nele.</p>'+
+  '<label>Novo e-mail<input type="email" name="newEmail" required maxlength="254" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="seunovoemail@exemplo.com"></label>'+
+  '<label>Senha atual<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label>'+
+  '<button type="submit" class="button primary">Enviar link de confirmação</button></form></section>';
  const profilePhoto='<div class="account-photo-editor">'+
   '<div class="account-photo-preview">'+(me.profilePhoto?
     '<img src="'+esc(me.profilePhoto)+'" alt="Minha foto de perfil">':
@@ -1254,7 +1276,7 @@ function renderAccount(){
  return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info">'+profilePhoto+'<h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Status:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
- '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required ><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
+ emailManagement+'<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required ><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
  commissionsHtml+'<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
  '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section></section>'+
  '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
@@ -1428,7 +1450,7 @@ function render(){
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
  document.body.classList.toggle("admin-ui-active",page==="admin"&&isAdmin()&&!me?.mustChangePassword);
  if(!allowPage(page)){location.hash=me?"#/inicio":"#/login";if(me)setToast("Seu perfil possui acesso somente para visualização.");return}
- if(me?.mustChangePassword&&page!=="conta"){location.hash="#/conta";return}
+ if(me?.mustChangePassword&&page!=="conta"&&page!=="confirmar-email"){location.hash="#/conta";return}
  let html="";
  if(page==="inicio")html=renderHome();
  else if(page==="demandas")html=renderDemandas();
@@ -1443,6 +1465,7 @@ function render(){
  else if(page==="cadastro")html=renderRegisterAccount();
  else if(page==="esqueci")html=renderForgot();
  else if(page==="redefinir")html=renderReset(parts[0]||"");
+ else if(page==="confirmar-email")html=renderConfirmEmail(parts[0]||"");
  else if(page==="conta")html=renderAccount();
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
@@ -1917,6 +1940,31 @@ async function handleClick(e){
    if(editor){editor.focus();document.execCommand(b.dataset.format,false,null);}
    return;
  }
+
+ if(action==="account-email-toggle"){
+   const form=$("#change-email-form");
+   if(form){form.hidden=!form.hidden;b.setAttribute("aria-expanded",String(!form.hidden));if(!form.hidden)form.elements.newEmail?.focus();}
+   return;
+ }
+ if(action==="account-email-cancel"){
+   if(!await askConfirm("Deseja cancelar a solicitação de alteração de e-mail? O endereço atual permanecerá o mesmo.",{title:"Cancelar troca de e-mail?",confirmLabel:"Cancelar solicitação",cancelLabel:"Voltar"}))return;
+   await saveAndReload(()=>request("/account/email-change","DELETE",{}),"Solicitação cancelada. O e-mail atual continua ativo.");
+   return;
+ }
+ if(action==="confirm-account-email"){
+   const part=routeParts().parts[0]||"";
+   if(!/^[A-Za-z0-9_-]{43}$/.test(part))return showNotice("O link de confirmação está incompleto.",{kind:"warning"});
+   const submit=b;b.disabled=true;
+   try{
+     const response=await request("/auth/confirm-email-change","POST",{token:part},"guest");
+     token="";me=null;regularMe=null;forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);publishSessionChange();
+     location.hash="#/login";
+     await reload();
+     showNotice("Seu e-mail foi atualizado para "+response.newEmail+". Entre novamente usando o novo endereço.",{title:"E-mail confirmado!",kind:"success"});
+   }catch(err){showNotice(err.message,{title:"Não foi possível confirmar",kind:"warning"});}
+   finally{if(submit.isConnected)submit.disabled=false;}
+   return;
+ }
  if(action==="change-password-toggle"){
    const form=$("#change-password-form");
    if(form){form.hidden=!form.hidden;b.setAttribute("aria-expanded",String(!form.hidden));}
@@ -1994,6 +2042,20 @@ async function handleSubmit(e){
    return;
  }
  if(form.id==="reset-form"){await request("/auth/reset","POST",{token:form.dataset.token,password:userFields(form).password});location.hash="#/login";setToast("Senha redefinida.");return}
+
+ if(form.id==="change-email-form"){
+   const fields=userFields(form);
+   fields.newEmail=String(fields.newEmail||"").trim().toLowerCase();
+   const submit=form.querySelector('button[type="submit"]');
+   if(submit?.disabled)return;
+   if(submit)submit.disabled=true;
+   try{
+     const result=await request("/account/email-change","POST",fields);
+     await reload();
+     showNotice(result.message,{title:"Confirme seu novo e-mail",kind:"success"});
+   }finally{if(submit?.isConnected)submit.disabled=false;}
+   return;
+ }
  if(form.id==="change-password-form"){await request("/auth/change-password","POST",userFields(form));token="";forgetSessionToken(tokenKey);publishSessionChange();await reload();location.hash="#/login";setToast("Senha atualizada. Entre novamente.");return}
  if(form.id==="delete-account-form"){
    const fields=userFields(form);
@@ -2158,7 +2220,11 @@ function onNavigation(){
  if(lastHash!==location.hash)state.adminMenuOpen=false;
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
  if(state.authTransition){window.scrollTo({top:0});return}
- if(wasAdmin!==nowAdmin){state.adminMenuOpen=false;reload().finally(()=>setConnecting(false))}else render();
+ if(wasAdmin!==nowAdmin){
+   state.adminMenuOpen=false;
+   if(nowAdmin)setConnecting(true,"Carregando painel administrativo...");
+   reload().finally(()=>setConnecting(false));
+  }else render();
  window.scrollTo({top:0});
 }
 let hasStarted=false;
@@ -2237,6 +2303,8 @@ function start(){
    if(e.target.closest('[data-do="rich-format"]'))e.preventDefault();
  });
  document.addEventListener("click",e=>{
+   const adminLink=e.target.closest("#admin-link");
+   if(adminLink&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey)setConnecting(true,"Carregando painel administrativo...");
    const menuLink=e.target.closest(".admin-sidebar a[href^='#/']");
    if(menuLink&&state.adminMenuOpen&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
      e.preventDefault();

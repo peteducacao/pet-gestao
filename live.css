@@ -2318,3 +2318,25 @@ body.mail-preview-open{overflow:hidden}
 #screen .live-auth .password-strength[data-level="2"]{--strength-color:#5b61bc;--strength-width:75%}
 #screen .live-auth .password-strength[data-level="3"]{--strength-color:#187a58;--strength-width:100%}
 @media(prefers-reduced-motion:reduce){#screen .live-auth .password-strength-track>span{transition:none}}
+
+
+/* Troca de e-mail: apenas após confirmação no endereço novo. */
+#screen .account-email-management{margin:18px 0 16px;padding:16px 17px;border:1px solid #e7def2;background:#fbf9ff;border-radius:15px;display:grid;gap:10px}
+#screen .account-email-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#screen .account-email-top h3{font-size:15px;color:#3e315a;margin:0 0 6px}
+#screen .account-email-top p{font-size:12px;color:#6b607c;line-height:1.55;margin:0;overflow-wrap:anywhere}
+#screen .account-email-top .button{flex:0 0 auto;padding:9px 14px;min-height:39px;font-size:12px}
+#screen .account-email-form{margin-top:4px;padding-top:14px;border-top:1px solid #e9def4}
+#screen .account-email-form .field-hint{margin:0 0 5px;font-size:12px;line-height:1.55}
+#screen .account-email-form label{font-size:13px}
+#screen .account-email-pending{background:#f4ecff;padding:13px 14px;border-radius:12px;border:1px solid #ddd0f6;display:grid;gap:7px}
+#screen .account-email-pending strong{color:#4d3577;font-size:13px}
+#screen .account-email-pending p{margin:0;color:#655876;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+#screen .account-email-pending .button{justify-self:start;min-height:37px;padding:7px 12px;font-size:12px}
+#screen .email-confirm-page{max-width:600px;text-align:center;padding:33px 24px}
+#screen .email-confirm-page .email-confirm-art{display:grid;place-items:center;margin:0 auto 17px;width:68px;height:68px;border-radius:20px;background:#eee6fc;color:#7047ba}
+#screen .email-confirm-page .email-confirm-art svg{height:32px;width:32px}
+#screen .email-confirm-page h2{font-size:23px;margin:0 0 11px}
+#screen .email-confirm-page p{font-size:14px;line-height:1.65;color:#756a83;margin:0 0 22px}
+#screen .email-confirm-page .button{min-height:47px}
+@media(max-width:480px){#screen .account-email-management{padding:14px 12px}#screen .account-email-top .button{width:100%;justify-content:center}}

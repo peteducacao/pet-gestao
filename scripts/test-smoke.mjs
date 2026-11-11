@@ -61,6 +61,24 @@ await test("rejeitar cadastro com e-mail duplicado mesmo com maiúsculas e espa�
  const all=good(await api("/admin/users")).users;
  assert.equal(all.filter(u=>u.email==="teste-usuario@pet.local").length,1,"Apenas uma conta por e-mail");
 });
+
+await test("troca de e-mail exige senha e rejeita endereço ocupado",async()=>{
+ const adminToken=token;
+ const emailOriginal="teste-usuario@pet.local";
+ const candidate=good(await api("/auth/login","POST",{email:emailOriginal,password:"SenhaPessoaSegura123!"})).token;
+ token=candidate;
+ try{
+  assert.equal((await api("/account/email-change","POST",{newEmail:"novo-usuario@pet.local",password:"incorreta"})).status,401,
+    "Senha atual deve ser obrigatória para solicitar troca");
+  const duplicate=await api("/account/email-change","POST",{newEmail:"  TESTE-ADMIN@PET.LOCAL  ",password:"SenhaPessoaSegura123!"});
+  assert.equal(duplicate.status,409,"Não permite trocar para e-mail já usado pela Administração");
+  assert.equal((await api("/auth/confirm-email-change","POST",{token:"nao-e-um-token"})).status,400,
+    "Links inválidos não podem confirmar");
+  assert.equal(good(await api("/auth/me")).user.email,emailOriginal,
+    "Endereço original não muda sem confirmação");
+  good(await api("/account/email-change","DELETE"));
+ }finally{token=adminToken;}
+});
 await test("senha com quantidade livre de caracteres no cadastro e alteração",async()=>{
  const original=token,email="comprimento-senha-"+Date.now()+"@pet.local";
  let activePassword="7";

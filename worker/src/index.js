@@ -122,7 +122,8 @@
     }
     const counts=Object.create(null);
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
-    return {session:user?{user:userPublic(user)}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
+    const pendingEmailChange=user?await db.prepare("SELECT new_email,expires_at FROM email_change_requests WHERE user_id=? AND expires_at>?").bind(user.id,now()).first():null;
+    return {session:user?{user:{...userPublic(user),pendingEmailChange:pendingEmailChange?{newEmail:pendingEmailChange.new_email,expiresAt:pendingEmailChange.expires_at}:null}}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
       tasks:rawTasks.map(t=>privateView?{...privateTask(t),attachments:attachmentsByTask[t.id]||[],tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)),meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings};
   }
   const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
@@ -590,6 +591,91 @@
         await db.prepare("UPDATE users SET pass_hash=?,pass_salt=?,must_change_password=0,updated_at=? WHERE id=?").bind(await pwHash(next,salt),salt,now(),user.id).run();
         await db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id).run();
         return answer({ok:true,logout:true});
+      }
+
+      // A alteração de e-mail é solicitada somente pelo titular autenticado.
+      // O link enviado ao endereço novo deve ser confirmado antes de alterar users.email.
+      if(path==="/api/v1/account/email-change"&&method==="POST"){
+        requireLogin(user);
+        if(user.must_change_password)fail("Troque a senha temporária antes de solicitar a mudança de e-mail.",403);
+        const b=await body(req),password=String(b.password||""),nextEmail=email(b.newEmail);
+        if(!password||await pwHash(password,user.pass_salt)!==user.pass_hash)
+          fail("Senha atual incorreta.",401);
+        if(!validEmail(nextEmail))fail("Informe um novo e-mail válido.");
+        if(nextEmail===email(user.email))fail("O novo e-mail é igual ao atual.");
+        const collision=await db.prepare("SELECT id FROM users WHERE lower(trim(email))=? AND id<>? LIMIT 1").bind(nextEmail,user.id).first();
+        if(collision)fail("Este e-mail já está cadastrado em outra conta.",409);
+        const limit=await db.prepare("SELECT attempts,window_start FROM email_change_attempts WHERE user_id=?").bind(user.id).first();
+        const withinHour=limit&&Date.now()-Date.parse(limit.window_start)<60*60*1000;
+        if(withinHour&&limit.attempts>=5)fail("Você atingiu o limite de solicitações. Tente novamente após uma hora.",429);
+        const previous=await db.prepare("SELECT requested_at FROM email_change_requests WHERE user_id=?").bind(user.id).first();
+        if(previous&&Date.now()-Date.parse(previous.requested_at)<2*60*1000)
+          fail("Aguarde dois minutos antes de solicitar outro link. Confira sua caixa de entrada e o spam.",429);
+        const plainToken=randomToken(),digest=await sha(plainToken),stamp=now(),expiresAt=isoAfter(60);
+        await db.prepare("INSERT INTO email_change_requests(user_id,old_email,new_email,token_hash,expires_at,requested_at) VALUES(?,?,?,?,?,?) "+
+          "ON CONFLICT(user_id) DO UPDATE SET old_email=excluded.old_email,new_email=excluded.new_email,token_hash=excluded.token_hash,expires_at=excluded.expires_at,requested_at=excluded.requested_at")
+          .bind(user.id,email(user.email),nextEmail,digest,expiresAt,stamp).run();
+        const link=(env.PUBLIC_SITE_URL||"https://peteducacao.github.io/pet-gestao/")+"#/confirmar-email/"+encodeURIComponent(plainToken);
+        try{
+          await authorizedMail(env,[nextEmail],"PET Gestão — Confirme seu novo e-mail",
+            "Olá!\n\nRecebemos uma solicitação para alterar o e-mail de acesso à sua conta PET Gestão.\n\n"+
+            "Para confirmar que você tem acesso a este endereço, abra o link e escolha Confirmar meu e-mail:\n\n"+
+            link+"\n\nO link é válido por 60 minutos e pode ser utilizado uma única vez.\n\n"+
+            "Se você não solicitou a mudança, ignore esta mensagem. Seu e-mail atual continuará funcionando.\n\nPET Educação — UFS");
+        }catch(err){
+          console.error("Falha ao enviar confirmação de mudança de e-mail:",err.message);
+          await db.prepare("DELETE FROM email_change_requests WHERE user_id=? AND token_hash=?").bind(user.id,digest).run();
+          fail("Não foi possível enviar o link ao novo e-mail. Confira o endereço e tente novamente.",503);
+        }
+        await db.prepare("INSERT INTO email_change_attempts(user_id,window_start,attempts) VALUES(?,?,1) "+
+          "ON CONFLICT(user_id) DO UPDATE SET window_start=excluded.window_start,attempts=CASE WHEN email_change_attempts.window_start<? THEN 1 ELSE email_change_attempts.attempts+1 END")
+          .bind(user.id,withinHour?limit.window_start:stamp,isoAfter(-60)).run();
+        return answer({ok:true,message:"Link enviado ao novo e-mail. O endereço antigo permanece ativo até a confirmação.",expiresAt});
+      }
+      if(path==="/api/v1/account/email-change"&&method==="DELETE"){
+        requireLogin(user);
+        await db.prepare("DELETE FROM email_change_requests WHERE user_id=?").bind(user.id).run();
+        return answer({ok:true});
+      }
+      // A confirmação é pública: o token aleatório de uso único é a credencial.
+      // NÃO é suficiente abrir a URL; é necessário confirmar em um botão (POST).
+      if(path==="/api/v1/auth/confirm-email-change"&&method==="POST"){
+        const b=await body(req),plainToken=String(b.token||"");
+        if(!/^[A-Za-z0-9_-]{43}$/.test(plainToken))fail("Link de confirmação inválido ou expirado.",400);
+        const digest=await sha(plainToken);
+        const pending=await db.prepare("SELECT * FROM email_change_requests WHERE token_hash=? AND expires_at>?").bind(digest,now()).first();
+        if(!pending)fail("O link expirou, já foi usado ou foi cancelado.",400);
+        const account=await db.prepare("SELECT id,email FROM users WHERE id=?").bind(pending.user_id).first();
+        if(!account||email(account.email)!==email(pending.old_email))fail("Esta solicitação não é mais válida.",400);
+        const nextEmail=email(pending.new_email);
+        if(!validEmail(nextEmail))fail("O novo e-mail não é válido.",400);
+        if(await db.prepare("SELECT id FROM users WHERE lower(trim(email))=? AND id<>? LIMIT 1").bind(nextEmail,account.id).first())
+          fail("Este e-mail já está cadastrado em outra conta.",409);
+        let updated;
+        try{
+          updated=await db.prepare("UPDATE users SET email=?,updated_at=? WHERE id=? AND lower(trim(email))=? "+
+            "AND EXISTS(SELECT 1 FROM email_change_requests WHERE user_id=? AND token_hash=? AND expires_at>?) "+
+            "AND NOT EXISTS(SELECT 1 FROM users WHERE lower(trim(email))=? AND id<>?)")
+            .bind(nextEmail,now(),account.id,email(pending.old_email),account.id,digest,now(),nextEmail,account.id).run();
+        }catch(err){
+          if(/EMAIL_ALREADY_REGISTERED|UNIQUE constraint failed: users\.email/i.test(String(err.message||"")))
+            fail("Este e-mail já está cadastrado em outra conta.",409);
+          throw err;
+        }
+        if(!updated.meta.changes)fail("Esta solicitação não é mais válida. Peça um novo link.",409);
+        await db.batch([
+          db.prepare("DELETE FROM email_change_requests WHERE user_id=?").bind(account.id),
+          db.prepare("DELETE FROM sessions WHERE user_id=?").bind(account.id),
+          db.prepare("DELETE FROM password_resets WHERE user_id=?").bind(account.id),
+          db.prepare("DELETE FROM auth_attempts WHERE email IN (?,?)").bind(email(account.email),nextEmail)
+        ]);
+        // Notifica o endereço anterior, sem reverter a troca em caso de falha de aviso.
+        try{
+          await authorizedMail(env,[account.email],"PET Gestão — Seu e-mail foi alterado",
+            "Olá!\n\nO e-mail de acesso à sua conta PET Gestão foi alterado para "+nextEmail+
+            ".\n\nSe você não reconhece essa alteração, procure a Administração do PET Educação.\n\nPET Educação — UFS");
+        }catch(err){console.error("Falha ao avisar e-mail anterior:",err.message);}
+        return answer({ok:true,newEmail:nextEmail});
       }
       if(path==="/api/v1/auth/forgot"&&method==="POST"){
         const b=await body(req),mail=email(b.email),u=await db.prepare("SELECT id,email FROM users WHERE lower(trim(email))=? ORDER BY created_at LIMIT 1").bind(mail).first();

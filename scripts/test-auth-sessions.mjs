@@ -92,3 +92,10 @@ assert.equal(meterContext.passwordStrength("Vento!Correnteza76").level,3,"Senha 
 assert.ok(front.includes('confirmLabel:"Continuar mesmo assim"'),"Senha fraca permite continuar após confirmação");
 assert.ok(!/minlength=["']10/.test(front.slice(front.indexOf("function renderRegisterAccount()"),front.indexOf("function renderForgot()"))),"Cadastro não exige 10 caracteres");
 console.log("Força de senha e confirmação de senha fraca: OK.");
+
+// Confirmação no novo endereço: interface não muda o e-mail local antes da validação.
+assert.ok(front.includes('data-do="account-email-toggle"'),"O perfil oferece alteração de e-mail");
+assert.ok(front.includes('id="change-email-form"'),"Há formulário para novo endereço");
+assert.ok(front.includes('data-do="confirm-account-email"'),"O link pede confirmação por clique");
+assert.ok(front.includes('Carregando painel administrativo...'),"A entrada na Administração tem carregamento");
+console.log("Troca de e-mail e carregamento de Administração: estrutura presente.");
