@@ -220,3 +220,11 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - As dez comissões conhecidas têm desenhos vetoriais específicos (Vídeos, Cards, ImaginAÇÃO, CinePET, Salinha, Finanças, Legendas, Site, Comemorações e Impressora 3D). Comissões criadas posteriormente sem desenho específico recebem a ilustração universal de trabalho em equipe. Renomear uma comissão sem imagem pode trocar automaticamente a ilustração.
 - Os mesmos desenhos padrão são reutilizados nas miniaturas de comissões em outras telas. Cartões sem permissão de interação permanecem somente leitura, sem links ou menu; todos os controles administrativos existentes continuam com as mesmas permissões. O layout de 3/2/1 colunas se adapta a desktop, tablet e celular.
 - Testes isolados: `node scripts/test-commission-cards.mjs`; nenhum registro real de comissão é modificado para validar a interface.
+
+
+## Tela de abertura do aplicativo — 11/11/2026
+- Substituir o cartão antigo de **Conectando ao PET Gestão** pela arte de abertura aprovada: fundo claro, ondas roxas, traços verdes, símbolo do PET Gestão, título, mensagem **Preparando sua área de trabalho**, três pontos animados e assinatura **PET Gestão | PET Educação UFS** no rodapé.
+- Aplicar como tela interna inicial em toda abertura ou atualização do PWA, com desenho vetorial responsivo, sem incluir na arte as barras de status e de navegação do celular (essas pertencem ao sistema operacional).
+- Preservar as permissões, autenticação e carregamento de `/bootstrap`; a tela deve desaparecer automaticamente após o primeiro `render`, inclusive se a API falhar. Não impor espera artificial e respeitar `prefers-reduced-motion`.
+- A tela nativa inicial do Android é gerada pelo próprio sistema a partir do manifesto e do ícone do aplicativo; esta alteração substitui a tela HTML visível após a inicialização, não o splash nativo do Android.
+- Cache do PWA atualizado para entregar a versão nova. Teste de regressão: `node scripts/test-startup-splash.mjs`.
