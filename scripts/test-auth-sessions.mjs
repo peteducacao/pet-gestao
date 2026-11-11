@@ -45,6 +45,7 @@ assert.equal(commands.at(-1).params.at(-1),sharedBrowser);
 const match=front.match(/^const readSessionToken=.*;$/m);
 assert.ok(match,"Função de recuperação de sessão ausente");
 const storageContext={
+  tokenKey:"pet-gestao:session-token",
   localStorage:{getItem:()=>"persistente"},
   sessionStorage:{getItem:()=>"temporario"},
 };
@@ -53,6 +54,7 @@ vm.runInContext(match[0]+"\nthis.saved=readSessionToken('pet-gestao:session-toke
 assert.equal(storageContext.saved,"persistente");
 // Sem permanência, a aba nova lê a mesma sessão temporária do navegador.
 const temporaryTab={
+ tokenKey:"pet-gestao:session-token",
  localStorage:{getItem:()=>null},
  sessionStorage:{getItem:()=>null},
  readSessionCookie:()=>"token-temporario-compartilhado"
