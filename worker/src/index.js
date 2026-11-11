@@ -21,7 +21,7 @@
   const isArr=v=>Array.isArray(v)?v:[];
   const unique=v=>[...new Set(isArr(v).map(String).filter(Boolean))];
   const idName=row=>({id:row.id,name:row.name,role:row.role_override||row.role});
-  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role_override||u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password,adminSession:u.session_admin_scope===1,activityClearedAt:u.activity_cleared_at||null});
+  const userPublic=u=>({id:u.id,name:u.name,email:u.email,role:u.role_override||u.role,notificationEnabled:!!u.notification_enabled,mustChangePassword:!!u.must_change_password,adminSession:u.session_admin_scope===1,activityClearedAt:u.activity_cleared_at||null,profilePhoto:u.profile_photo||null});
   const color=s=>/^#[0-9a-fA-F]{6}$/.test(String(s))?s:"#f7f3ff";
   const arrayToJson=v=>JSON.stringify(v);
   const standardTime=d=>/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(String(d||""))?String(d):"";
@@ -103,7 +103,7 @@
     const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
     const privateView=!!user&&user.role!=="usuario"&&!user.must_change_password;
     const rawTasks=(await db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 1000").all()).results;
-    const attachments=privateView?(await db.prepare(
+    const attachments=privateView&&user.role==="petiano"?(await db.prepare(
       "SELECT id,task_id,filename,mime_type,size_bytes,created_at,created_by FROM task_attachments WHERE status='ready' ORDER BY created_at"
     ).all()).results:[];
     const attachmentsByTask=Object.create(null);
@@ -115,7 +115,7 @@
     let meetings=[],users=[],history=[];
     if(privateView){
       meetings=(await db.prepare("SELECT * FROM meetings ORDER BY meeting_date DESC LIMIT 250").all()).results.map(m=>({id:m.id,title:m.title,date:m.meeting_date,rawNotes:m.raw_notes,theme:m.theme,colorA:m.color_a,colorB:m.color_b,updatedAt:m.updated_at}));
-      users=(await db.prepare("SELECT id,name,role,role_override FROM users ORDER BY name").all()).results.map(idName);
+      users=(await db.prepare("SELECT id,name,role,role_override,profile_photo FROM users ORDER BY name").all()).results.map(u=>({...idName(u),profilePhoto:u.profile_photo||null}));
       history=(await db.prepare("SELECT h.task_id,h.actor_name,h.action,h.details,h.created_at,u.role AS actor_role FROM task_history h LEFT JOIN users u ON u.id=h.actor_id ORDER BY h.created_at DESC LIMIT 800").all()).results;
     }else{
       meetings=(await db.prepare("SELECT id,title,meeting_date AS date FROM meetings ORDER BY meeting_date DESC LIMIT 100").all()).results;
@@ -484,8 +484,8 @@
       .bind(task.id,user.id,stamp).run();
   }
   // Binários privados no D1, em blocos de 256 KiB para respeitar 2 MB/linha.
-  const ATTACH_CHUNK=262144,ATTACH_MAX_FILE=10*1024*1024;
-  const ATTACH_MAX_FILES=8,ATTACH_MAX_TASK_TOTAL=30*1024*1024;
+  const ATTACH_CHUNK=262144,ATTACH_MAX_FILE=350*1024;
+  const ATTACH_MAX_FILES=8,ATTACH_MAX_TASK_TOTAL=8*350*1024;
   const publicAttachment=a=>({
     id:a.id,name:a.filename,mimeType:a.mime_type,size:a.size_bytes,
     createdAt:a.created_at,createdBy:a.created_by
@@ -699,6 +699,22 @@
         await db.batch(updates);
         return answer({ok:true,deleted:true});
       }
+      if(path==="/api/v1/account/photo"&&method==="PUT"){
+        requireLogin(user);
+        const b=await body(req),photo=String(b.photo||"");
+        const match=photo.match(/^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/);
+        if(!match||match[1].length>180000||match[1].length<30)
+          fail("Envie uma foto de perfil JPG com até 130 KB.",413);
+        const prefix=match[1].slice(0,8);
+        if(!prefix.startsWith("/9j/"))fail("A foto de perfil não é um JPEG válido.",415);
+        await db.prepare("UPDATE users SET profile_photo=?,updated_at=? WHERE id=?").bind(photo,now(),user.id).run();
+        return answer({ok:true});
+      }
+      if(path==="/api/v1/account/photo"&&method==="DELETE"){
+        requireLogin(user);
+        await db.prepare("UPDATE users SET profile_photo=NULL,updated_at=? WHERE id=?").bind(now(),user.id).run();
+        return answer({ok:true});
+      }
       if(path==="/api/v1/account"&&method==="PATCH"){
         ensure(user);const b=await body(req);
         await db.prepare("UPDATE users SET notification_enabled=?,updated_at=? WHERE id=?").bind(b.notificationEnabled?1:0,now(),user.id).run();
@@ -850,6 +866,9 @@
       const attachPath=path.match(/^\/api\/v1\/tasks\/([^/]+)\/attachments(?:\/([^/]+)(?:\/(chunks\/([0-9]+)|complete|download))?)?$/);
       if(attachPath){
         ensure(user);
+        // Fotos das demandas são conteúdo exclusivo das contas PETianas.
+        // Nenhum dado, nem mesmo nomes dos arquivos, é devolvido à Tutoria/Admin.
+        if((user.role_override||user.role)!=="petiano")fail("As fotos das demandas são exclusivas dos(as) PETianos(as).",403);
         const taskId=attachPath[1],fileId=attachPath[2],action=attachPath[3]||"";
         const task=await readTask(db,taskId);
         if(!fileId&&method==="GET")return answer({attachments:await attachmentMetadata(db,taskId)});
@@ -860,13 +879,14 @@
           const size=Number(b.size),mime=String(b.mimeType||"application/octet-stream").trim();
           if(!name||name.length>160||/[\\/\x00-\x1f<>]/.test(name))
             fail("Informe um nome válido para o arquivo (até 160 caracteres).");
-          if(!Number.isInteger(size)||size<1||size>ATTACH_MAX_FILE)
-            fail("O arquivo deve ter até 10 MB e não pode estar vazio.",413);
-          if(mime.length>100||/[\r\n]/.test(mime))fail("Tipo de arquivo inválido.");
+          if(!Number.isInteger(size)||size<4||size>ATTACH_MAX_FILE)
+            fail("Cada foto deve ter até 350 KB após redução automática.",413);
+          if(mime!=="image/jpeg"||!/\.jpe?g$/i.test(name))
+            fail("Só são aceitas fotos JPG compactadas pelo site.",415);
           const quota=await db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(size_bytes),0) AS total FROM task_attachments WHERE task_id=?")
             .bind(taskId).first();
           if(quota.n>=ATTACH_MAX_FILES||quota.total+size>ATTACH_MAX_TASK_TOTAL)
-            fail("Limite de 8 arquivos ou 30 MB por demanda atingido.",413);
+            fail("Limite de 8 fotos ou 2,8 MB por demanda atingido.",413);
           const attachmentId=uid(),stamp=now(),count=Math.ceil(size/ATTACH_CHUNK);
           await db.prepare("INSERT INTO task_attachments(id,task_id,filename,mime_type,size_bytes,chunk_count,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
             .bind(attachmentId,taskId,name,mime||"application/octet-stream",size,count,user.id,stamp,stamp).run();
@@ -884,8 +904,8 @@
           const safeName=file.filename.replace(/[\\/"\r\n]/g,"_");
           return new Response(new Blob(chunks,{type:"application/octet-stream"}),{
             status:200,headers:{
-              "Content-Type":"application/octet-stream",
-              "Content-Disposition":"attachment; filename=\"arquivo\"; filename*=UTF-8''"+encodeURIComponent(safeName),
+              "Content-Type":"image/jpeg",
+              "Content-Disposition":"inline; filename=\"foto.jpg\"; filename*=UTF-8''"+encodeURIComponent(safeName),
               "Cache-Control":"private, no-store",
               "X-Content-Type-Options":"nosniff",
               "Content-Security-Policy":"default-src 'none'",
@@ -917,7 +937,12 @@
           const received=await db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(size_bytes),0) AS size FROM task_attachment_chunks WHERE attachment_id=?")
             .bind(file.id).first();
           if(received.n!==file.chunk_count||received.size!==file.size_bytes)
-            fail("Envio incompleto. Aguarde todas as partes do arquivo.",409);
+            fail("Envio incompleto. Aguarde todas as partes da foto.",409);
+          // Inspecionar assinatura real: MIME enviado pelo navegador não é prova de imagem.
+          const magic=await db.prepare("SELECT data FROM task_attachment_chunks WHERE attachment_id=? AND chunk_index=0").bind(file.id).first();
+          const bytes=new Uint8Array(magic?.data||[]);
+          if(bytes.length<4||bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)
+            fail("Conteúdo não é uma foto JPEG válida.",415);
           await db.prepare("UPDATE task_attachments SET status='ready',updated_at=? WHERE id=? AND status='uploading'")
             .bind(now(),file.id).run();
           await audit(db,taskId,user,"Adicionou anexo",file.filename);
