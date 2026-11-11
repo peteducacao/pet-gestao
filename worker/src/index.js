@@ -44,7 +44,7 @@
       const mail=email(env.ADMIN_EMAIL),pw=String(env.ADMIN_INITIAL_PASSWORD);
       if(!validEmail(mail)||pw.length<10||pw.length>200)throw new Error("Credenciais iniciais inválidas.");
       phase="check-email";
-      const collision=await db.prepare("SELECT id FROM users WHERE email=?").bind(mail).first();
+      const collision=await db.prepare("SELECT id FROM users WHERE lower(trim(email))=? LIMIT 1").bind(mail).first();
       if(collision)throw new Error("O endereço do administrador pertence a uma conta não administrativa.");
       phase="hash-password";
       const salt=randomToken(),hash=await pwHash(pw,salt),stamp=now();
@@ -527,10 +527,18 @@
       diagnosticStage="request";
       if(path==="/api/v1/auth/register"&&method==="POST"){
         const b=await body(req),name=str(b.name,120),mail=email(b.email),pw=String(b.password||"");
+        // Não impor 10 caracteres: senhas fracas são avisadas no cliente, não bloqueadas na API.
         if(name.length<2||!validEmail(mail)||!pw)fail("Informe nome, e-mail válido e uma senha.");
-        if(await db.prepare("SELECT id FROM users WHERE email=?").bind(mail).first())fail("E-mail já cadastrado.",409);
+        // Comparação canônica também cobre cadastros legados com maiúsculas/espaços.
+        if(await db.prepare("SELECT id FROM users WHERE lower(trim(email))=? LIMIT 1").bind(mail).first())fail("E-mail já cadastrado.",409);
         const salt=randomToken(),stamp=now();
-        await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,stamp,stamp).run();
+        try{
+          await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,stamp,stamp).run();
+        }catch(err){
+          // O gatilho D1 e o UNIQUE original impedem cadastros paralelos do mesmo e-mail.
+          if(/EMAIL_ALREADY_REGISTERED|UNIQUE constraint failed: users\.email/i.test(String(err.message||"")))fail("E-mail já cadastrado.",409);
+          throw err;
+        }
         return answer({ok:true},201);
       }
       if(path==="/api/v1/auth/login"&&method==="POST"){
@@ -541,7 +549,7 @@
         if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
         const u=loginKey==="admin"
           ?await db.prepare("SELECT * FROM users WHERE role=\'admin\' ORDER BY created_at ASC LIMIT 1").first()
-          :await db.prepare("SELECT * FROM users WHERE email=?").bind(loginKey).first();
+          :await db.prepare("SELECT * FROM users WHERE lower(trim(email))=? ORDER BY created_at LIMIT 1").bind(loginKey).first();
         if(!u||await pwHash(pw,u.pass_salt)!==u.pass_hash){await rateFail(db,loginKey);fail("Credenciais inválidas.",401)}
         await resetRate(db,loginKey);
         // O login normal também autentica Admin, sem exigir uma segunda entrada.
@@ -556,7 +564,7 @@
         if(attempts?.blocked_until&&attempts.blocked_until>now())fail("Muitas tentativas. Tente novamente mais tarde.",429);
         const admin=identifier==="admin"
           ?await db.prepare("SELECT * FROM users WHERE role='admin' ORDER BY created_at ASC LIMIT 1").first()
-          :await db.prepare("SELECT * FROM users WHERE email=? AND role='admin'").bind(key).first();
+          :await db.prepare("SELECT * FROM users WHERE lower(trim(email))=? AND role='admin' ORDER BY created_at LIMIT 1").bind(key).first();
         if(!admin||await pwHash(pw,admin.pass_salt)!==admin.pass_hash){
           await rateFail(db,key);fail("Credenciais administrativas inválidas.",401);
         }
@@ -584,7 +592,7 @@
         return answer({ok:true,logout:true});
       }
       if(path==="/api/v1/auth/forgot"&&method==="POST"){
-        const b=await body(req),mail=email(b.email),u=await db.prepare("SELECT id,email FROM users WHERE email=?").bind(mail).first();
+        const b=await body(req),mail=email(b.email),u=await db.prepare("SELECT id,email FROM users WHERE lower(trim(email))=? ORDER BY created_at LIMIT 1").bind(mail).first();
         if(u){
           const recent=await db.prepare("SELECT COUNT(*) AS n FROM password_resets WHERE user_id=? AND created_at>?").bind(u.id,isoAfter(-30)).first();
           if(recent.n<3){

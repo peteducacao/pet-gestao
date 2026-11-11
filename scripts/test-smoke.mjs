@@ -51,6 +51,16 @@ await test("cadastro começa como Usuário",async()=>{
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
 });
+
+await test("rejeitar cadastro com e-mail duplicado mesmo com maiúsculas e espaços",async()=>{
+ for(const email of ["TESTE-USUARIO@PET.LOCAL","  teste-usuario@pet.local  ","\u00a0Teste-Usuario@Pet.Local\u00a0"]){
+  const duplicate=await api("/auth/register","POST",{name:"Outra pessoa",email,password:"1234"});
+  assert.equal(duplicate.status,409,"Variação do endereço deve ser recusada");
+  assert.match(duplicate.error,/E-mail já cadastrado/i);
+ }
+ const all=good(await api("/admin/users")).users;
+ assert.equal(all.filter(u=>u.email==="teste-usuario@pet.local").length,1,"Apenas uma conta por e-mail");
+});
 await test("senha com quantidade livre de caracteres no cadastro e alteração",async()=>{
  const original=token,email="comprimento-senha-"+Date.now()+"@pet.local";
  let activePassword="7";

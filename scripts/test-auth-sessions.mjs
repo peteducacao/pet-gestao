@@ -77,3 +77,18 @@ assert.ok(front.includes('data-do="mail-toggle-schedule"'),"Agendamento usa bot�
 assert.ok(front.includes('class="demand-header-actions"'),"Excluir fica ao lado de Registrar");
 assert.ok(!front.includes('["geral","Geral"]'),"Filtro Geral foi removido");
 console.log("Sessões, e-mails, avisos, agendamento e filtro simplificado: OK.");
+
+
+// Avaliação de força: apenas um aviso no navegador, sem mínimo de 10 caracteres.
+const strengthBegin=front.indexOf("function passwordStrength(password){");
+const strengthEnd=front.indexOf("function passwordStrengthMarkup(){",strengthBegin);
+assert.ok(strengthBegin>=0&&strengthEnd>strengthBegin,"Indicador de força de senha presente");
+const meterContext={};
+vm.createContext(meterContext);
+vm.runInContext(front.slice(strengthBegin,strengthEnd)+"\nthis.passwordStrength=passwordStrength;",meterContext);
+assert.equal(meterContext.passwordStrength("1234").level,0,"1234 deve alertar como muito fraca");
+assert.equal(meterContext.passwordStrength("7").level,0,"Senha de um caractere permitida com aviso");
+assert.equal(meterContext.passwordStrength("Vento!Correnteza76").level,3,"Senha complexa tem avaliação forte");
+assert.ok(front.includes('confirmLabel:"Continuar mesmo assim"'),"Senha fraca permite continuar após confirmação");
+assert.ok(!/minlength=["']10/.test(front.slice(front.indexOf("function renderRegisterAccount()"),front.indexOf("function renderForgot()"))),"Cadastro não exige 10 caracteres");
+console.log("Força de senha e confirmação de senha fraca: OK.");

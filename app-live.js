@@ -1181,7 +1181,57 @@ function authRequired(){return header("Acesso","Entre na sua conta","Esta funcio
 function renderLogin(){
  return header("Conta","Entrar","Acesse suas atividades e demandas.")+'<section class="card card-pad live-auth"><form id="login-form" class="register-form"><label>E-mail<input type="text" name="email" required autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="Digite seu e-mail"></label><label>Senha<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label class="remember-login-option"><input type="checkbox" name="rememberMe" value="true"><span><strong>Manter-me conectado</strong><small>Continuar conectado neste dispositivo até você sair da conta.</small></span></label><button class="button primary" type="submit">Entrar</button></form><p>'+button("Criar conta","cadastro")+button("Esqueceu sua senha?","esqueci")+'</p></section>';
 }
-function renderRegisterAccount(){return header("Conta","Criar conta","Usuário, e-mail e senha.")+'<section class="card card-pad live-auth"><form id="register-account-form" class="register-form"><label>Usuário<input name="name" required minlength="2" maxlength="120"></label><label>E-mail<input name="email" type="email" required></label><label>Senha<span class="password-control"><input name="password" type="password" required  autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Criar conta</button></form></section>'}
+function passwordStrength(password){
+ const value=String(password||"");
+ if(!value)return {level:-1,label:"Aguardando",hint:"Digite uma senha para avaliar sua força."};
+ const normalized=value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+ const categories=[/[a-z]/.test(value),/[A-Z]/.test(value),/[0-9]/.test(value),/[^A-Za-z0-9]/.test(value)].filter(Boolean).length;
+ const distinct=new Set(normalized).size;
+ const repeating=/^(.)\1+$/.test(value);
+ const common=/^(?:1234(?:567890?)?|12345|123456|1234567|12345678|123456789|0123456789|qwerty(?:123)?|asdf(?:123)?|password(?:123)?|senha(?:123)?|admin(?:123)?|usuario(?:123)?|0000+|1111+)$/i.test(normalized);
+ const sequence=/(0123|1234|2345|3456|4567|5678|6789|9876|8765|7654|6543|5432|4321|abcd|qwer|asdf)/i.test(normalized);
+ let level;
+ if(value.length<=5||repeating||common||(/^\d+$/.test(value)&&value.length<12))level=0;
+ else if(value.length<8||categories<2||distinct<5||(sequence&&value.length<12))level=1;
+ else if(value.length>=12&&categories>=3&&distinct>=8&&!sequence)level=3;
+ else level=2;
+ const labels=["Muito fraca","Fraca","Razoável","Forte"];
+ const hints=[
+  "Fácil de adivinhar. Evite sequências como 1234 e senhas conhecidas.",
+  "Pode ser descoberta facilmente. Prefira uma senha maior e menos previsível.",
+  "Uma boa escolha, mas uma senha mais longa e exclusiva é mais segura.",
+  "Boa combinação estimada. Prefira sempre uma senha exclusiva para este site."
+ ];
+ return {level,label:labels[level],hint:hints[level]};
+}
+function passwordStrengthMarkup(){
+ return '<div class="password-strength" data-password-strength data-level="-1">'+
+ '<div class="password-strength-top"><span>Força da senha</span><strong data-strength-label aria-live="polite">Aguardando</strong></div>'+
+ '<div class="password-strength-track" role="meter" aria-label="Força da senha" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-valuetext="Aguardando"><span></span></div>'+
+ '<small data-strength-hint>Digite uma senha para avaliar sua força.</small></div>';
+}
+function refreshPasswordStrength(input){
+ const area=input?.closest("label")?.querySelector("[data-password-strength]");
+ if(!area)return;
+ const result=passwordStrength(input.value),meter=area.querySelector('[role="meter"]');
+ area.dataset.level=String(result.level);
+ area.querySelector("[data-strength-label]").textContent=result.label;
+ area.querySelector("[data-strength-hint]").textContent=result.hint;
+ if(meter){
+  meter.setAttribute("aria-valuenow",String(result.level+1));
+  meter.setAttribute("aria-valuetext",result.label);
+ }
+}
+function renderRegisterAccount(){
+ return header("Conta","Criar conta","Usuário, e-mail e senha.")+
+ '<section class="card card-pad live-auth"><form id="register-account-form" class="register-form">'+
+ '<label>Usuário<input name="name" required minlength="2" maxlength="120" autocomplete="name"></label>'+
+ '<label>E-mail<input name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false"></label>'+
+ '<label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="new-password" spellcheck="false"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span>'+
+ passwordStrengthMarkup()+'</label>'+
+ '<button type="submit" class="button primary">Criar conta</button></form></section>';
+}
+
 function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos um link para o e-mail cadastrado.")+'<section class="card card-pad live-auth"><form id="forgot-form" class="register-form"><label>E-mail<input type="email" name="email" required></label><button type="submit" class="button primary">Enviar link</button></form></section>'}
 function renderReset(tokenPart){return header("Conta","Redefinir senha","O link é válido por 30 minutos e pode ser usado uma única vez.")+'<section class="card card-pad live-auth"><form id="reset-form" data-token="'+esc(tokenPart)+'" class="register-form"><label>Nova senha<span class="password-control"><input type="password" name="password"  required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Alterar senha</button></form></section>'}
 function renderAccount(){
@@ -1918,7 +1968,19 @@ async function handleSubmit(e){
    try{await reload();}finally{state.authTransition=false;}
    setToast("Acesso autorizado.");return;
  }
- if(form.id==="register-account-form"){await request("/auth/register","POST",userFields(form));location.hash="#/login";setToast("Conta criada. Faça login.");return}
+ if(form.id==="register-account-form"){
+   const fields=userFields(form);
+   fields.email=String(fields.email||"").trim().toLowerCase();
+   const strength=passwordStrength(fields.password);
+   if(strength.level<=1){
+     const proceed=await askConfirm("Esta senha foi avaliada como "+strength.label.toLowerCase()+". Ela pode ser descoberta facilmente e colocar sua conta em risco. Deseja continuar com essa senha?",{
+       title:"Senha fraca",kind:"warning",cancelLabel:"Escolher outra senha",confirmLabel:"Continuar mesmo assim"
+     });
+     if(!proceed)return;
+   }
+   await request("/auth/register","POST",fields,"guest");
+   location.hash="#/login";setToast("Conta criada. Faça login.");return;
+ }
  if(form.id==="forgot-form"){
    const submit=form.querySelector('button[type="submit"]');
    if(submit?.disabled)return;
@@ -1961,7 +2023,7 @@ async function handleSubmit(e){
    return;
  }
  if(form.id==="mail-form"){await sendMail(form);return}
- }catch(err){state.authTransition=false;setToast(err.message)}
+ }catch(err){state.authTransition=false;setToast(err.message,/E-mail já cadastrado/i.test(err.message)?"warning":"auto")}
  finally{if(isLogin)setConnecting(false)}
 }
 async function handleChange(e){
@@ -2214,6 +2276,7 @@ function start(){
  },true);
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("input",e=>{
+   if(e.target?.matches?.('#register-account-form input[name="password"]'))refreshPasswordStrength(e.target);
    if(["collective-date-day","collective-date-month","collective-date-year"].includes(e.target?.id)){
      const native=$("#collective-event-day");
      if(native)native.value=collectiveSelectedDay();

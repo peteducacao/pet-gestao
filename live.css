@@ -2304,3 +2304,17 @@ body.mail-preview-open{overflow:hidden}
  #screen .account-photo-controls .button{font-size:12px}
  .task-photo-card{padding:10px}
 }
+
+
+/* Cadastro: indicador de força em tempo real, compacto e responsivo. */
+#screen .live-auth .password-strength{--strength-color:#bbb5c8;--strength-width:0%;display:grid;gap:7px;margin-top:9px;width:100%;min-width:0}
+#screen .live-auth .password-strength-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;color:#665e78;font-size:12px;font-weight:650}
+#screen .live-auth .password-strength-top strong{color:var(--strength-color);font-weight:850}
+#screen .live-auth .password-strength-track{width:100%;height:8px;border-radius:99px;background:#e8e3ef;overflow:hidden}
+#screen .live-auth .password-strength-track>span{display:block;width:var(--strength-width);height:100%;border-radius:inherit;background:var(--strength-color);transition:width .18s ease,background-color .18s ease}
+#screen .live-auth .password-strength small{display:block;max-width:100%;color:#746c81;font-size:11.5px;line-height:1.5;font-weight:450}
+#screen .live-auth .password-strength[data-level="0"]{--strength-color:#ba3b50;--strength-width:25%}
+#screen .live-auth .password-strength[data-level="1"]{--strength-color:#b66d19;--strength-width:50%}
+#screen .live-auth .password-strength[data-level="2"]{--strength-color:#5b61bc;--strength-width:75%}
+#screen .live-auth .password-strength[data-level="3"]{--strength-color:#187a58;--strength-width:100%}
+@media(prefers-reduced-motion:reduce){#screen .live-auth .password-strength-track>span{transition:none}}
