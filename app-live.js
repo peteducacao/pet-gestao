@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let taskFormDraft=null;
@@ -73,7 +73,7 @@ function taskDraftSnapshot(){
   return [key,value,Boolean(el.disabled)];
  }).filter(Boolean);
  return JSON.stringify({controls,scope:state.assignmentScope,
-  users:[...state.selectedUsers].sort(),commissions:[...state.selectedCommissions].sort()});
+  users:[...state.selectedUsers].sort(),commissions:[...state.selectedCommissions].sort(),taskFiles:(state.taskFiles||[]).map(f=>[f.name,f.size,f.lastModified])});
 }
 function hasUnsavedTaskChanges(){
  return Boolean(taskFormDraft&&taskFormRoute(lastHash)&&
@@ -778,6 +778,63 @@ function refreshDeadlineMode(previousScope=null,previousSingle=null){
  }
  host.innerHTML=renderDeadlineSettings(currentRows);
 }
+
+const TASK_FILE_MAX=10*1024*1024,TASK_FILES_MAX=8,TASK_FILES_TOTAL_MAX=30*1024*1024;
+const fileSize=n=>n>=1048576?(n/1048576).toFixed(2).replace(".",",")+" MB":Math.max(1,Math.ceil(n/1024))+" KB";
+function taskFileList(t,remove=false){
+ return (t?.attachments||[]).map(f=>'<div class="task-attachment-item"><span class="task-file-art">'+ico("folder")+'</span>'+
+ '<span class="task-file-info"><strong>'+esc(f.name)+'</strong><small>'+fileSize(f.size)+'</small></span>'+
+ '<button type="button" class="button ghost" data-do="task-file-download" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Baixar</button>'+
+ (remove?'<button type="button" class="button subtle-danger" data-do="task-file-delete" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Excluir</button>':"")+
+ '</div>').join("");
+}
+function taskFilePendingList(){
+ return state.taskFiles.length?state.taskFiles.map((file,i)=>'<div class="task-attachment-item"><span class="task-file-art">'+ico("folder")+'</span>'+
+ '<span class="task-file-info"><strong>'+esc(file.name)+'</strong><small>'+fileSize(file.size)+' · Enviar ao salvar</small></span>'+
+ '<button type="button" class="button ghost" data-do="task-file-unselect" data-index="'+i+'">Retirar</button></div>').join(""):
+ '<p class="field-hint">Nenhum arquivo selecionado.</p>';
+}
+function taskFileForm(t){
+ return '<section class="task-files-section"><h3>'+ico("folder")+' Arquivos da demanda</h3>'+
+ '<p class="field-hint">Guarde documentos, imagens e outros arquivos na própria demanda. Até 10 MB por arquivo, 8 arquivos e 30 MB no total. Não são enviados por e-mail automaticamente.</p>'+
+ ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Arquivos armazenados</h4>'+taskFileList(t)+'</div>':"")+
+ '<label class="task-file-picker">Selecionar arquivos<input id="task-file-input" type="file" multiple></label>'+
+ '<div id="task-file-selection">'+taskFilePendingList()+'</div>'+
+ '<p class="field-hint task-file-progress" id="task-file-progress" role="status" aria-live="polite" hidden></p></section>';
+}
+function taskFileDetail(t){
+ if(!canWrite())return "";
+ const count=(t.attachments||[]).length;
+ return '<section class="card card-pad detail-accent-card task-detail-files"><h2 class="detail-card-heading">'+ico("folder")+' Arquivos da demanda <span class="pill soft">'+count+'</span></h2>'+
+ (count?taskFileList(t,true):'<p class="field-hint">Ainda não há arquivos armazenados.</p>')+
+ (!t.archivedAt?'<p class="field-hint">Para acrescentar arquivos, selecione Editar demanda.</p>':"")+'</section>';
+}
+async function uploadTaskFile(taskId,file,progress){
+ const path="/tasks/"+id(taskId)+"/attachments",meta=await request(path,"POST",{name:file.name,size:file.size,mimeType:file.type||"application/octet-stream"}),base=path+"/"+id(meta.id);
+ try{
+  for(let i=0;i<meta.chunkCount;i++){
+   if((localStorage.getItem(sessionRevisionKey)||"")!==localSessionRevision)throw Error("Sua sessão mudou em outra aba.");
+   const chunk=file.slice(i*meta.chunkSize,Math.min(file.size,(i+1)*meta.chunkSize));
+   const response=await fetch(API+"/api/v1"+base+"/chunks/"+i,{
+    method:"PUT",cache:"no-store",headers:{Authorization:"Bearer "+token,"Content-Type":"application/octet-stream"},
+    body:await chunk.arrayBuffer()
+   });
+   if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||"Falha ao armazenar uma parte do arquivo.");
+   progress?.(i+1,meta.chunkCount);
+  }
+  await request(base+"/complete","POST",{});
+ }catch(e){await request(base,"DELETE").catch(()=>{});throw e}
+}
+async function downloadTaskFile(taskId,fileId,name){
+ if((localStorage.getItem(sessionRevisionKey)||"")!==localSessionRevision)throw Error("Sua sessão mudou em outra aba.");
+ const response=await fetch(API+"/api/v1/tasks/"+id(taskId)+"/attachments/"+id(fileId)+"/download",{
+  headers:{Authorization:"Bearer "+token},cache:"no-store"
+ });
+ if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||"Download indisponível.");
+ const url=URL.createObjectURL(await response.blob()),link=document.createElement("a");
+ link.href=url;link.download=name||"arquivo";document.body.append(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
 function renderTaskForm(routeId){
  if(!canWrite())return authRequired();
  let t=null,cid=null;
@@ -786,6 +843,7 @@ function renderTaskForm(routeId){
  if(routeId&&!cid&&!t)return empty("Demanda não encontrada");
  if(state.taskFormId!==routeId){
    state.taskFormId=routeId;
+   state.taskFiles=[];
    state.selectedUsers=new Set(t?.assigneeIds||[]);
    state.selectedCommissions=new Set(t?.commissionIds||(cid?[cid]:[]));
    state.standardStageDraft=(t?.deadlines||[]).filter(x=>!["Evento","Atividade"].includes(x.label));
@@ -805,6 +863,7 @@ function renderTaskForm(routeId){
  '<div id="deadline-settings">'+renderDeadlineSettings(t?(t.deadlines||[]):state.assignmentScope==="todos"?[]:[{label:"Prazo",dueAt:""}])+'</div>'+ 
  '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+
   (t?lastReviewEdit(t):"")+richEditor("captionText",t?.captionText||"")+
+ taskFileForm(t)+
  (t?"":'<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div>')+'</form></section>';
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
@@ -963,7 +1022,7 @@ function activitySections(t,readOnly=false){
  '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</div></details>':"";
  return '<div class="activity-detail-layout">'+
   '<div class="activity-detail-top"><div class="stack detail-left-column">'+deadlineFacts(t)+renderAssignees(t)+commissionProgress+'</div>'+
-  '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+
+  '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+taskFileDetail(t)+
   '<section class="card card-pad detail-accent-card detail-review-full">'+
    '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("list")+'</span>Texto para revisão</h2>'+
    lastReviewEdit(t)+
