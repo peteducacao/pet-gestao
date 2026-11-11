@@ -225,8 +225,9 @@ function showAuthMessage(title,message,isError=false){
 }
 
 // Um único diálogo para avisos, confirmações e informações importantes.
-let noticePromiseResolve=null,noticeReturnFocus=null;
+let noticePromiseResolve=null,noticeReturnFocus=null,noticeAutoCloseTimer=null;
 function closeNotice(confirmed=false){
+ if(noticeAutoCloseTimer){clearTimeout(noticeAutoCloseTimer);noticeAutoCloseTimer=null;}
  const layer=$("#notice-dialog");
  if(layer){layer.hidden=true;layer.innerHTML=""}
  document.body.classList.remove("notice-open");
@@ -252,6 +253,9 @@ function showNotice(message,{title="",kind="info",confirm=false,danger=false,sec
  '</div></section>';
  layer.hidden=false;document.body.classList.add("notice-open");
  layer.querySelector(confirm?'[data-do="notice-confirm"]':'.notice-dialog-actions [data-do="notice-cancel"]')?.focus();
+ // Avisos sem escolha desaparecem sozinhos após três segundos, sem contador.
+ // Senhas temporárias e decisões que exigem confirmação não fecham automaticamente.
+ if(!confirm&&!secret)noticeAutoCloseTimer=setTimeout(()=>closeNotice(false),3000);
  if(confirm)return new Promise(resolve=>{noticePromiseResolve=resolve});
 }
 function setToast(message,kind="auto"){
@@ -400,10 +404,13 @@ document.addEventListener("keydown",e=>{
 });
 function renderHome(){
  const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
+ const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4);
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
  '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
  '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
- '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
+ '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
+ (me&&recentEvents.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':ico("bell"))+
+ '</div>'+(recentEvents.length?recentEvents.map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 
 const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
@@ -949,11 +956,18 @@ function renderForgot(){return header("Conta","Esqueceu sua senha?","Enviaremos 
 function renderReset(tokenPart){return header("Conta","Redefinir senha","O link é válido por 30 minutos e pode ser usado uma única vez.")+'<section class="card card-pad live-auth"><form id="reset-form" data-token="'+esc(tokenPart)+'" class="register-form"><label>Nova senha<span class="password-control"><input type="password" name="password" minlength="10" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button class="button primary" type="submit">Alterar senha</button></form></section>'}
 function renderAccount(){
  if(!me)return authRequired();
+ const myCommissions=(data.committees||[]).filter(c=>(c.memberIds||[]).includes(me.id));
+ const commissionsHtml='<section class="profile-commissions"><h3>Minhas comissões</h3>'+
+  (myCommissions.length?'<div class="profile-commission-list">'+myCommissions.map(c=>
+   '<a class="profile-commission-chip" href="'+workspaceHash("comissoes/"+c.id)+'">'+
+    '<span class="profile-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
+    '</span><span>'+esc(c.name)+'</span>'+ico("chevron-right")+'</a>').join("")+'</div>':
+   '<p class="field-hint">Você ainda não participa de nenhuma comissão.</p>')+'</section>';
  return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info"><h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Status:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
  '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required minlength="10"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
- '<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
+ commissionsHtml+'<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
  '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section></section>'+
  '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
   '<div class="account-delete-backdrop" data-do="account-delete-close"></div>'+
@@ -1012,14 +1026,16 @@ function renderAdmin(){
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
  const stats=[["Demandas",data.tasks.length,"list"],["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
  const metric=([name,value,iconName])=>'<div class="admin-metric"><span class="admin-metric-icon">'+ico(iconName)+'</span><strong '+(name==="E-mails"?'id="admin-mail-count"':"")+'>'+value+'</strong><span>'+name+'</span></div>';
- const recent=(data.history||[]).slice(0,4);
+ const recent=(data.history||[]).filter(x=>!me?.activityClearedAt||x.created_at>me.activityClearedAt).slice(0,4);
  const dashboard=state.adminTab==="painel"?'<div class="admin-metrics">'+stats.map(metric).join("")+'</div>'+
  '<section class="admin-box"><h2>Ações rápidas</h2><div class="admin-shortcuts">'+
  '<a href="#/admin/registrar">'+ico("plus")+'<span>Nova demanda</span></a>'+
  '<a href="#/admin/comissoes">'+ico("users")+'<span>Gerenciar comissões</span></a>'+
  '<a href="#/admin/usuarios">'+ico("user")+'<span>Gerenciar usuários</span></a>'+
  '<a href="#/admin/emails">'+ico("mail")+'<span>Enviar e-mail</span></a></div></section>'+
- '<section class="admin-box"><h2>Últimas alterações</h2>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
+ '<section class="admin-box"><div class="admin-history-head"><h2>Últimas alterações</h2>'+
+ (recent.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':"")+
+ '</div>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
  const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","emails","configuracoes"];
  const tabRoute=adminParts.length===1&&tabNames.includes(adminParts[0])?adminParts[0]:null;
  if(tabRoute)state.adminTab=tabRoute;
@@ -1273,7 +1289,15 @@ async function handleClick(e){
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
  }
- if(action==="auth-message-close"){closeAuthMessage();return}
+ if(action==="clear-activity"){
+   if(!me)return;
+   if(!await askConfirm("Limpar todas as atualizações exibidas para sua conta? Os históricos das demandas continuarão preservados.",{
+     title:"Limpar últimas atualizações?",confirmLabel:"Limpar atualizações",cancelLabel:"Manter atualizações"
+   }))return;
+   await saveAndReload(()=>request("/activity/clear","POST",{}),"Últimas atualizações limpas.");
+   return;
+  }
+  if(action==="auth-message-close"){closeAuthMessage();return}
  if(action==="notice-confirm"){closeNotice(true);return}
  if(action==="notice-cancel"){closeNotice(false);return}
  if(action==="notice-copy"){
