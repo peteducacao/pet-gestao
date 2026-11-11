@@ -111,7 +111,7 @@ await move("#/inicio");await move("#/demandas");
 selectCompleted();await wait();
 assert.equal(document.querySelector('[data-do="archive-selection-open"]'),null,"Usuário somente leitura não exclui");
 user.role="tutor";
-tasks=tasks.filter(t=>t.id!=="concluida-visibilidade-cargos");
+tasks.splice(tasks.findIndex(t=>t.id==="concluida-visibilidade-cargos"),1);
 await move("#/inicio");await move("#/demandas");
 const resetSelection=document.querySelector('select[data-filter="status"]');
 resetSelection.value="todas";resetSelection.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
@@ -140,7 +140,7 @@ assert.deepEqual(readMetrics(),{Demandas:3,"Concluídas":1,Atrasadas:1,Pendentes
 await move("#/comissoes/financas");
 assert.deepEqual(readMetrics(),{Demandas:1,"Concluídas":0,Atrasadas:0,Pendentes:1},
  "Finanças só contabiliza suas demandas e participações");
-tasks=tasks.filter(t=>t.id!=="indicador-videos-concluido");
+tasks.splice(tasks.findIndex(t=>t.id==="indicador-videos-concluido"),1);
 committees.splice(committees.findIndex(c=>c.id==="financas"),1);
 await move("#/demandas");
 
