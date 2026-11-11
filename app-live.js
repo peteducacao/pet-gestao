@@ -406,7 +406,7 @@ function renderHome(){
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+ico("bell")+'</div>'+((data.events||[]).length?data.events.slice(0,4).map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 
-const VISUALIZATIONS=[["todas","Todas as demandas"],["geral","Geral"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
+const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
 function visualizationSelect(filter,value,options=VISUALIZATIONS){
  return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
  '<span class="visualization-select-wrap"><span class="visualization-symbol" aria-hidden="true">'+ico("list")+'</span>'+
@@ -416,21 +416,12 @@ function visualizationSelect(filter,value,options=VISUALIZATIONS){
 function renderDemandas(){
  const done=state.statusFilter==="concluida"||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
- const actions=canWrite()?button("+ Registrar demanda","registrar",true):"";
- // Geral é a visão exclusiva do coletivo Todos(as), inclusive eventos já concluídos.
- // As demais visualizações preservam o comportamento existente.
- let list=state.statusFilter==="geral"
-  ?data.tasks.filter(t=>t.assignmentScope==="todos").filter(t=>{
-    const date=dt(taskDate(t));
-    return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&
-      (displayMode!=="semanal"||!state.week||weekFor(date)===state.week);
-   })
-  :data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
+ let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
   return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&(!state.week||displayMode!=="semanal"||weekFor(date)===state.week);
  });
- else if(!["todas","geral"].includes(state.statusFilter))list=list.filter(t=>taskStatus(t)===state.statusFilter);
+ else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
  [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
@@ -441,23 +432,29 @@ function renderDemandas(){
  for(const selected of state.archiveSelectedIds)if(!visibleIds.has(selected))state.archiveSelectedIds.delete(selected);
  const selectedCount=state.archiveSelectedIds.size;
  const picking=canBulkDelete&&state.archiveDeleteMode;
- const toolbar=canBulkDelete?
-  '<div class="archive-bulk-toolbar" aria-label="Gerenciar exclusão das demandas concluídas">'+
-   (picking?
-    '<div class="archive-bulk-intro"><strong>Selecionar demandas para excluir</strong><small>Somente as demandas marcadas serão apagadas definitivamente.</small></div>'+
-    '<div class="archive-bulk-buttons">'+
-     '<button type="button" class="button ghost" data-do="archive-select-all">'+ico("checklist")+(selectedCount===list.length&&list.length?" Desmarcar todas":" Selecionar todas")+'</button>'+
-     '<button type="button" class="button danger-outline" data-do="archive-delete-selected" '+(!selectedCount?'disabled':'')+'>'+ico("close")+' Excluir selecionadas ('+selectedCount+')</button>'+
-     '<button type="button" class="button ghost" data-do="archive-selection-cancel">Cancelar</button></div>':
-    '<button type="button" class="button danger-outline" data-do="archive-selection-open">'+ico("close")+' Excluir demandas</button>')+
+ const actions=canWrite()?'<div class="demand-header-actions">'+
+   button("+ Registrar demanda","registrar",true)+
+   (canBulkDelete?'<button type="button" class="button danger-outline demand-delete-trigger" data-do="'+
+     (picking?"archive-selection-cancel":"archive-selection-open")+'">'+
+     ico(picking?"close":"trash")+(picking?" Cancelar seleção":" Excluir demandas")+'</button>':"")+
    '</div>':"";
+ const toolbar=picking?
+  '<div class="archive-bulk-toolbar" aria-label="Selecionar demandas concluídas">'+
+   '<div class="archive-bulk-intro"><strong>Selecione as demandas</strong>'+
+   '<small>Marque as que deseja excluir. A confirmação será solicitada antes de apagar.</small></div>'+
+   '<div class="archive-bulk-buttons">'+
+     '<button type="button" class="button ghost" data-do="archive-select-all">'+
+       ico("checklist")+(selectedCount===list.length&&list.length?" Desmarcar todas":" Selecionar todas")+'</button>'+
+     '<button type="button" class="button archive-bulk-delete" data-do="archive-delete-selected" '+(!selectedCount?'disabled':'')+'>'+
+       ico("trash")+' Excluir selecionadas ('+selectedCount+')</button>'+
+   '</div></div>':"";
  return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
  '<section class="card card-pad demand-management-panel">'+
  '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+periodSelect+'</div>'+
  '<div class="list-toolbar">'+period()+'</div><hr class="divider">'+
  toolbar+
  (list.length?list.map(t=>'<div class="live-task-card'+(picking?' archive-select-row':'')+'">'+
- (picking?'<label class="archive-task-selector"><input type="checkbox" data-archive-select value="'+esc(t.id)+'" '+(state.archiveSelectedIds.has(t.id)?"checked":"")+'><span>Selecionar esta demanda</span></label>':"")+
+ (picking?'<label class="archive-task-selector"><input type="checkbox" data-archive-select value="'+esc(t.id)+'" '+(state.archiveSelectedIds.has(t.id)?"checked":"")+'><span>'+(state.archiveSelectedIds.has(t.id)?"Selecionada para excluir":"Marcar para excluir")+'</span></label>':"")+
  taskCard(t)+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
 function renderCronograma(){
