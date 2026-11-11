@@ -1119,7 +1119,7 @@ function renderAdmin(){
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
- const stats=[["Demandas",data.tasks.length,"list"],["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
+ const stats=[["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
  const metric=([name,value,iconName])=>'<div class="admin-metric"><span class="admin-metric-icon">'+ico(iconName)+'</span><strong '+(name==="E-mails"?'id="admin-mail-count"':"")+'>'+value+'</strong><span>'+name+'</span></div>';
  const recent=(data.history||[]).filter(x=>!me?.activityClearedAt||x.created_at>me.activityClearedAt).slice(0,4);
  const dashboard=state.adminTab==="painel"?'<div class="admin-metrics">'+stats.map(metric).join("")+'</div>'+
