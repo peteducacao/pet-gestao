@@ -2012,17 +2012,23 @@ async function handleChange(e){
   if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
  if(t.id==="task-file-input"){
+   if(!canSeeTaskPhotos())return setToast("Somente PETianos(as) podem anexar fotos.");
+   const originalFiles=Array.from(t.files||[]);t.value="";
    const saved=data.tasks.find(task=>task.id===state.taskFormId)?.attachments||[];
-   for(const file of t.files||[]){
-     if(!file.size||file.size>TASK_FILE_MAX){setToast("O arquivo "+file.name+" deve ter até 10 MB.");continue;}
-     const total=[...saved,...state.taskFiles].reduce((n,f)=>n+(f.size||0),0);
-     if(saved.length+state.taskFiles.length>=TASK_FILES_MAX||total+file.size>TASK_FILES_TOTAL_MAX){
-       setToast("Limite por demanda: até 8 arquivos e 30 MB no total.");break;
+   for(const image of originalFiles){
+     if(saved.length+state.taskFiles.length>=TASK_FILES_MAX){
+       setToast("Uma demanda aceita até 8 fotos.");break;
      }
-     if(state.taskFiles.some(f=>f.name===file.name&&f.size===file.size&&f.lastModified===file.lastModified))continue;
-     state.taskFiles.push(file);
+     try{
+       const photo=await shrinkPhoto(image);
+       const total=[...saved,...state.taskFiles].reduce((n,f)=>n+(f.size||0),0);
+       if(total+photo.size>TASK_FILES_TOTAL_MAX){
+         setToast("Limite de 2,8 MB em fotos por demanda.");break;
+       }
+       if(state.taskFiles.some(f=>f.name===photo.name&&f.size===photo.size&&f.lastModified===photo.lastModified))continue;
+       state.taskFiles.push(photo);
+     }catch(e){setToast(image.name+": "+e.message)}
    }
-   t.value="";
    const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
    return;
  }
