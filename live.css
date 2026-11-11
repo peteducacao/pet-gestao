@@ -2212,3 +2212,17 @@ body.mail-preview-open{overflow:hidden}
  #screen .commission-help-item summary{padding:14px;font-size:12.5px}
  #screen .commission-help-item p{padding:0 14px 15px;font-size:12.5px}
 }
+
+
+/* Ajuda geral no menu Organização: leitura confortável e perguntas expansíveis. */
+#screen .help-page{display:grid;gap:15px;max-width:960px;margin-top:18px}
+#screen .help-page .help-section{padding:23px 25px;min-width:0}
+#screen .help-page .help-section h2{font-size:19px;margin:0 0 15px;color:#322845}
+#screen .help-page .help-section>p{margin:0;line-height:1.65;color:#6f657b}
+#screen .help-page .commission-help{margin:0}
+#screen .help-page .commission-help-item summary{min-height:48px}
+@media(max-width:600px){
+ #screen .help-page{gap:12px;margin-top:14px}
+ #screen .help-page .help-section{padding:18px 15px}
+ #screen .help-page .help-section h2{font-size:17px}
+}
