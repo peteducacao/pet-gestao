@@ -19,13 +19,40 @@ if(!/^[a-f0-9-]{36}$/i.test(browserId||"")){browserId=freshClientId();localStora
 let localSessionRevision=localStorage.getItem(sessionRevisionKey)||"";
 function publishSessionChange(){localSessionRevision=freshClientId();localStorage.setItem(sessionRevisionKey,localSessionRevision)}
 
-// "Manter-me conectado" guarda somente o token de sessão; nunca a senha.
-const readSessionToken=key=>localStorage.getItem(key)||sessionStorage.getItem(key)||"";
+// Sessão temporária compartilhada pelas abas do MESMO navegador via cookie de
+// sessão (sem Max-Age/Expires). Persistência indefinida só quando marcada.
+// Somente o token é compartilhado, nunca a senha. Cookie restrito ao app.
+const cookiePath=location.pathname.replace(/[^/]*$/,"")||"/";
+const cookieName="pet-gestao-active-session";
+const sessionCookieOptions="; Path="+cookiePath+"; SameSite=Strict"+(location.protocol==="https:"?"; Secure":"");
+function readSessionCookie(){
+ const found=document.cookie.split("; ").find(item=>item.startsWith(cookieName+"="));
+ if(!found)return "";
+ try{return decodeURIComponent(found.slice(cookieName.length+1))}catch{return ""}
+}
+function writeSessionCookie(value){
+ document.cookie=cookieName+"="+encodeURIComponent(value)+sessionCookieOptions;
+}
+function clearSessionCookie(){
+ document.cookie=cookieName+"=; Max-Age=0"+sessionCookieOptions;
+}
+const readSessionToken=key=>localStorage.getItem(key)||(key===tokenKey?readSessionCookie():"")||sessionStorage.getItem(key)||"";
 function saveSessionToken(key,value,remember){
  sessionStorage.removeItem(key);localStorage.removeItem(key);
- (remember?localStorage:sessionStorage).setItem(key,value);
+ if(key===tokenKey)clearSessionCookie();
+ if(remember)localStorage.setItem(key,value);
+ else{
+  sessionStorage.setItem(key,value);
+  if(key===tokenKey)writeSessionCookie(value);
+ }
 }
-function forgetSessionToken(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
+function forgetSessionToken(key){
+ sessionStorage.removeItem(key);localStorage.removeItem(key);
+ if(key===tokenKey)clearSessionCookie();
+}
+// Migração transparente de uma sessão temporária anterior para novas abas.
+if(!localStorage.getItem(tokenKey)&&sessionStorage.getItem(tokenKey)&&!readSessionCookie())
+ writeSessionCookie(sessionStorage.getItem(tokenKey));
 // Migração das sessões anteriores: a mesma sessão agora atende ao site inteiro.
 const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionToken(adminTokenKey);
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
@@ -1786,7 +1813,7 @@ function syncBrowserSession(){
  if(latest===localSessionRevision)return;
  localSessionRevision=latest;
  sessionStorage.removeItem(tokenKey);
- token=localStorage.getItem(tokenKey)||"";
+ token=readSessionToken(tokenKey);
  me=null;regularMe=null;resetTaskDraft();
  state.adminMenuOpen=false;state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
  location.hash="#/inicio";
