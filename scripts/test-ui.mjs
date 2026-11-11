@@ -411,13 +411,14 @@ assert.ok(lastMail?.message?.includes("✨"),"Emojis no envio manual");
 console.log("TESTES DE INTERFACE SIMULADA: navegação, Atas (editar e excluir), cores, filtros, conclusão conjunta, arquivamento e e-mails — OK.");
 // Exclusão da conta é acessível por Meu perfil e exige confirmação e senha.
 await move("#/conta");
+const profileBeforeLogout=document.querySelector(".account-profile-info")?.textContent;
 tap('[data-do="logout"]');await wait();
 assert.equal(document.querySelector("#notice-title")?.textContent,"Sair da conta?",
  "Logout exige confirmação");
 assert.ok(document.querySelector("#notice-dialog")?.textContent.includes("Continuar conectado"));
 tap('#notice-dialog [data-do="notice-cancel"]');await wait();
-assert.equal(document.querySelector(".account-profile-info")?.textContent.includes("PETiana Teste"),true,
- "Cancelar logout preserva a identidade");
+assert.equal(document.querySelector(".account-profile-info")?.textContent,profileBeforeLogout,
+ "Cancelar logout preserva a identidade e os dados exibidos");
 const deleteAccountButton=document.querySelector('[data-do="account-delete-open"]');
 assert.ok(deleteAccountButton,"Meu perfil oferece Excluir minha conta");
 tap('[data-do="account-delete-open"]');
