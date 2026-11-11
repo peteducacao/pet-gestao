@@ -49,6 +49,44 @@ await test("cadastro começa como Usuário",async()=>{
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
 });
+await test("duas contas no mesmo navegador revogam a sessão anterior no servidor",async()=>{
+ const original=token,browserId="b31a4111-9999-4333-8aaa-123456789abc";
+ try{
+  const old=good(await api("/auth/login","POST",{
+   email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD,browserId
+  }));
+  const newer=good(await api("/auth/login","POST",{
+   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!",browserId
+  }));
+  assert.notEqual(old.token,newer.token);
+  token=old.token;
+  assert.equal((await api("/auth/me")).status,401,"Sessão antiga não é válida após troca de conta");
+  token=newer.token;
+  assert.equal(good(await api("/auth/me")).user.role,"usuario");
+  token=original;
+  assert.equal(good(await api("/auth/me")).user.role,"admin","Outra sessão de outro navegador não foi revogada");
+ }finally{token=original}
+});
+await test("limpar atualizações é pessoal e não apaga as demandas",async()=>{
+ const before=good(await api("/bootstrap")).tasks.length;
+ good(await api("/activity/clear","POST",{}));
+ const after=good(await api("/bootstrap"));
+ assert.ok(after.session.user.activityClearedAt,"Data de limpeza pessoal registrada");
+ assert.equal(after.tasks.length,before,"Histórico institucional preservado");
+});
+await test("e-mails agendados nunca incluem o endereço do remetente",async()=>{
+ const sent=good(await api("/mail","POST",{
+  all:true,subject:"Verificação isolada de autor",message:"Mensagem sem cópia ao autor",
+  scheduledAt:"2099-01-01T00:00:00.000Z"
+ }),201);
+ assert.equal(sent.status,"agendado");
+ const item=good(await api("/mail")).items.find(x=>x.id===sent.id);
+ assert.ok(item,"E-mail agendado está na fila");
+ assert.ok(!item.recipientEmails.includes(process.env.TEST_ADMIN_EMAIL.toLowerCase()),
+   "Remetente não consta entre os destinatários");
+ assert.ok(item.recipientEmails.includes("teste-usuario@pet.local"),
+   "Os demais destinatários são preservados");
+});
 await test("admin pode promover ou voltar à categoria Usuário",async()=>{
  const id=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
  good(await api("/admin/users/"+id,"PATCH",{role:"petiano",notificationEnabled:false}));
