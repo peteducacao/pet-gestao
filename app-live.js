@@ -1011,6 +1011,17 @@ function notificationTemplateFields(kind){
   '<label class="rich-label">Mensagem</label>'+
   richEditor("message",config.body||"");
 }
+function closeAdminMenu(){
+ if(!state.adminMenuOpen)return;
+ state.adminMenuOpen=false;
+ const sidebar=$(".admin-sidebar"),overlay=$(".admin-screen-overlay");
+ sidebar?.classList.remove("open");
+ if(overlay){
+  overlay.classList.add("closing");
+  overlay.disabled=true;
+  setTimeout(()=>{if(overlay.isConnected)overlay.remove()},230);
+ }
+}
 function renderAdmin(){
  const adminPart=routeParts().parts;
  if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
@@ -1375,7 +1386,11 @@ async function handleClick(e){
   window.scrollTo({top:0});
   return;
  }
- if(action==="admin-menu"){state.adminMenuOpen=!state.adminMenuOpen;render();return}
+ if(action==="admin-menu"){
+   if(state.adminMenuOpen)closeAdminMenu();
+   else{state.adminMenuOpen=true;render()}
+   return;
+  }
  if(action==="mail-monitor-open"){state.mailMonitorOpen=true;render();return}
  if(action==="mail-monitor-close"){state.mailMonitorOpen=false;render();return}
  if(action==="mail-monitor-refresh"){await loadMailHistory();return}
@@ -1517,8 +1532,9 @@ async function handleClick(e){
  }
  if(action==="admin-signout"){
   // Voltar ao site não encerra a sessão.
-  state.adminTab="painel";state.adminMenuOpen=false;
-  location.hash="#/inicio";return;
+  state.adminTab="painel";closeAdminMenu();
+  setTimeout(()=>{location.hash="#/inicio"},180);
+  return;
  }
  if(action==="account-delete-open"){
    const layer=$("#account-delete-dialog");if(!layer)return;
@@ -1758,6 +1774,7 @@ async function handleChange(e){
 }
 function onNavigation(){
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
+ if(lastHash!==location.hash)state.adminMenuOpen=false;
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
  if(state.authTransition){window.scrollTo({top:0});return}
  if(wasAdmin!==nowAdmin){state.adminMenuOpen=false;reload().finally(()=>setConnecting(false))}else render();
@@ -1838,6 +1855,14 @@ function start(){
    if(e.target.closest('[data-do="rich-format"]'))e.preventDefault();
  });
  document.addEventListener("click",e=>{
+   const menuLink=e.target.closest(".admin-sidebar a[href^='#/']");
+   if(menuLink&&state.adminMenuOpen&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
+     e.preventDefault();
+     const href=menuLink.getAttribute("href");
+     closeAdminMenu();
+     setTimeout(()=>{if(location.hash===href)render();else location.hash=href},180);
+     return;
+   }
    const innerLink=e.target.closest(".admin-layout a[href^='#/']");
    if(innerLink&&isAdmin()&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
      const href=innerLink.getAttribute("href")||"";
