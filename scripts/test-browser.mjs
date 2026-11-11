@@ -810,6 +810,9 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(tasks.some(x=>x.id==="t1"),false);
  // O controle de exclusão de conta também deve estar acessível pelo perfil.
  await page.goto(origin+"/#/conta");
+ await page.locator('[data-do="install-pet-app"]').waitFor({state:"visible",timeout:10000});
+ await page.locator('[data-do="install-pet-app"]').click();
+ assert.equal(await page.locator("#pet-install-help").isVisible(),true,"Instalação pelo perfil oferece instruções quando não há prompt");
  await page.locator('[data-do="account-delete-open"]').waitFor({state:"visible",timeout:10000});
  await page.locator('[data-do="account-delete-open"]').click();
  assert.equal(await page.locator("#account-delete-dialog").isVisible(),true);

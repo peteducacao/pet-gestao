@@ -433,6 +433,7 @@ assert.equal(document.querySelector(".account-profile-info")?.textContent,profil
  "Cancelar logout preserva a identidade e os dados exibidos");
 const deleteAccountButton=document.querySelector('[data-do="account-delete-open"]');
 assert.ok(deleteAccountButton,"Meu perfil oferece Excluir minha conta");
+assert.ok(document.querySelector('[data-do="install-pet-app"]'),"Instalação no perfil disponível para todas as contas");
 tap('[data-do="account-delete-open"]');
 assert.equal(document.querySelector("#account-delete-dialog")?.hidden,false,
   "Abre diálogo de exclusão definitiva");

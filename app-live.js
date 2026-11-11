@@ -1457,6 +1457,39 @@ function renderConfirmEmail(tokenPart){
   (valid?'<button type="button" class="button primary" data-do="confirm-account-email">Confirmar meu e-mail</button>':'<a href="#/login" class="button primary">Entrar</a>')+
   '</section>';
 }
+let pwaInstallPrompt=null,pwaInstalled=false;
+function isPwaInstalled(){
+ return pwaInstalled||Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches)||navigator.standalone===true;
+}
+function renderAppInstall(){
+ const installed=isPwaInstalled();
+ return '<section class="account-app-install" aria-label="Instalar aplicativo PET Gestão">'+
+  '<div class="account-app-install-head"><span class="account-app-install-icon">'+ico("download")+'</span><div>'+
+  '<h3>Aplicativo PET Gestão</h3><p>Instale no celular ou computador para abrir o PET Gestão com um ícone próprio. Os dados continuam sincronizados pela internet.</p></div></div>'+
+  '<button type="button" class="button primary account-app-install-button" data-do="install-pet-app" '+(installed?'disabled aria-disabled="true"':'')+'>'+
+  ico(installed?"check":"download")+(installed?" Aplicativo já instalado":" Instalar PET Gestão")+'</button>'+
+  '<p id="pet-install-help" class="account-app-install-help" role="status" aria-live="polite" hidden></p></section>';
+}
+async function installPetApp(){
+ if(isPwaInstalled()){setToast("O PET Gestão já está aberto como aplicativo.");return;}
+ if(pwaInstallPrompt){
+  const prompt=pwaInstallPrompt;pwaInstallPrompt=null;
+  await prompt.prompt();
+  const choice=await prompt.userChoice;
+  if(choice?.outcome==="accepted")setToast("Instalação solicitada. Confira o ícone PET Gestão na tela inicial.");
+  else{
+   const hint=$("#pet-install-help");
+   if(hint){hint.hidden=false;hint.textContent="Para tentar novamente, abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.";}
+  }
+  return;
+ }
+ const hint=$("#pet-install-help");if(!hint)return;
+ const agent=navigator.userAgent||"";
+ if(/iPhone|iPad|iPod/i.test(agent))hint.textContent="No iPhone, abra o site no Safari, toque em Compartilhar e selecione Adicionar à Tela de Início.";
+ else if(/Android/i.test(agent))hint.textContent="No Android, abra este site no Chrome, toque no menu ⋮ e escolha Instalar aplicativo ou Adicionar à tela inicial. Se a opção não aparecer, atualize o site.";
+ else hint.textContent="No computador, use o Chrome ou Edge e escolha Instalar aplicativo pelo menu ⋮ ou pelo ícone de instalação da barra de endereço.";
+ hint.hidden=false;
+}
 function renderAccount(){
  if(!me)return authRequired();
  const myCommissions=(data.committees||[]).filter(c=>(c.memberIds||[]).includes(me.id));
@@ -1488,7 +1521,7 @@ function renderAccount(){
  return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+'<section class="card card-pad live-auth account-profile"><div class="account-profile-info">'+profilePhoto+'<h2>'+esc(me.name)+'</h2><p>'+esc(me.email)+'</p><p><strong>Status:</strong> '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</p></div>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
- emailManagement+'<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required ><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
+ emailManagement+renderAppInstall()+'<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required ><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
  commissionsHtml+'<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
  '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section></section>'+
  '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
@@ -1884,6 +1917,7 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="install-pet-app"){await installPetApp();return}
  if(action==="collective-pick-date"){
    const picker=$("#collective-event-day");
    if(!picker)return;
@@ -2502,6 +2536,14 @@ function syncBrowserSession(){
 function start(){
  if(hasStarted)return;
  hasStarted=true;
+ if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(err=>console.warn("Não foi possível ativar a instalação do aplicativo:",err));
+ window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();pwaInstallPrompt=event;});
+ window.addEventListener("appinstalled",()=>{
+   pwaInstalled=true;pwaInstallPrompt=null;
+   const btn=$('[data-do="install-pet-app"]');
+   if(btn){btn.disabled=true;btn.setAttribute("aria-disabled","true");btn.innerHTML=ico("check")+" Aplicativo já instalado";}
+   const hint=$("#pet-install-help");if(hint)hint.hidden=true;
+ });
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
  
