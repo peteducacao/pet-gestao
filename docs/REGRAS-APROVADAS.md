@@ -212,3 +212,11 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - A autenticação continua usando hash PBKDF2 e limite de tentativas, sem armazenar a senha em texto simples. O limite geral de tamanho das requisições continua valendo para proteção do servidor, independentemente do campo de senha.
 - **Orientação de segurança:** embora senhas curtas sejam aceitas por escolha do usuário, recomendar senhas longas e difíceis de adivinhar. Não mostrar senha em logs, URL ou mensagens públicas.
 - Testar senha numérica curta e senha com mais de 200 caracteres, incluindo login e troca de senha.
+
+
+## Identidade visual das comissões — 11/11/2026
+- A página **Comissões cadastradas** mostra cards responsivos com título, número de integrantes, ação **Ver atividades**, menu de opções e ilustração destacada à direita. As ondas decorativas e o botão são tonalidades derivadas da cor RGB salva em cada comissão; não alteram o valor armazenado.
+- **Imagem própria prevalece** sobre a ilustração padrão, respeitando o enquadramento quadrado escolhido no editor. **Usar imagem padrão** remove apenas a imagem personalizada, não modifica cor, integrantes, nome, vagas, tarefas ou histórico.
+- As dez comissões conhecidas têm desenhos vetoriais específicos (Vídeos, Cards, ImaginAÇÃO, CinePET, Salinha, Finanças, Legendas, Site, Comemorações e Impressora 3D). Comissões criadas posteriormente sem desenho específico recebem a ilustração universal de trabalho em equipe. Renomear uma comissão sem imagem pode trocar automaticamente a ilustração.
+- Os mesmos desenhos padrão são reutilizados nas miniaturas de comissões em outras telas. Cartões sem permissão de interação permanecem somente leitura, sem links ou menu; todos os controles administrativos existentes continuam com as mesmas permissões. O layout de 3/2/1 colunas se adapta a desktop, tablet e celular.
+- Testes isolados: `node scripts/test-commission-cards.mjs`; nenhum registro real de comissão é modificado para validar a interface.
