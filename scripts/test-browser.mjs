@@ -365,23 +365,30 @@ try{
  await page.locator('.task-form-header-save').waitFor();
  await page.locator('input[name="overviewVisibility"][value="comissao"]').waitFor();
  assert.equal(await page.locator('input[name="overviewVisibility"][value="comissao"]').isChecked(),true,"Opção de comissão preservada na edição");
+ user.role="petiano";
  await page.goto(origin+"/#/registrar/t1");
+ await page.reload({waitUntil:"domcontentloaded"});
  // Seleção múltipla de arquivos locais para guardar na demanda.
  await page.locator("#task-file-input").waitFor({state:"attached",timeout:10000});
  assert.equal(await page.locator("#task-file-input").getAttribute("multiple"),"");
  await page.locator("#task-file-input").setInputFiles([
   {name:"planejamento-oficina.pdf",mimeType:"application/pdf",buffer:Buffer.from("conteudo A")},
-  {name:"imagem-atividade.png",mimeType:"image/png",buffer:Buffer.from("conteudo B")}
+  {name:"orientacoes.txt",mimeType:"text/plain",buffer:Buffer.from("conteudo B")}
  ]);
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),2,
   "Duas seleções aparecem na mesma demanda");
  assert.ok((await page.locator("#task-file-selection").innerText()).includes("planejamento-oficina.pdf"));
- assert.ok((await page.locator("#task-file-selection").innerText()).includes("imagem-atividade.png"));
+ assert.ok((await page.locator("#task-file-selection").innerText()).includes("orientacoes.txt"));
  await page.locator('[data-do="task-file-unselect"]').first().click();
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),1,
   "Retirar um arquivo mantém os demais");
  await page.locator('[data-do="task-file-unselect"]').first().click();
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),0);
+ // A Tutoria não visualiza o seletor e não recebe anexos de PETianos.
+ user.role="tutor";
+ await page.reload({waitUntil:"domcontentloaded"});
+ assert.equal(await page.locator("#task-file-input").count(),0,
+  "Tutoria não possui acesso aos anexos das demandas");
  await page.locator('input[name="overviewVisibility"][value="comissao"]').check();
  assert.equal(await page.locator('#task-form button[type="submit"]').count(),0,"Nenhum Salvar demanda duplicado abaixo do formulário de edição");
  assert.equal(await page.locator('.page-actions button[form="task-form"].task-form-header-save').count(),1,"Salvar demanda permanece no cabeçalho");
