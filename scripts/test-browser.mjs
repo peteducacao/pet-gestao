@@ -259,7 +259,16 @@ try{
  assert.equal(await page.locator("#collective-date-year").inputValue(),"2026","Em evento novo, só ano é pré-preenchido");
  assert.equal(await page.locator("#collective-date-day").inputValue(),"","Evento novo não escolhe dia sozinho");
  assert.equal(await page.locator("#collective-date-month").inputValue(),"","Evento novo não escolhe mês sozinho");
- await page.goto(origin+"/#/atividade/t-everyone");
+ // Saída de uma criação alterada: cancelar mantém; confirmar descarta.
+ await page.evaluate(()=>{location.hash="#/atividade/t-everyone"});
+ await page.locator("#notice-dialog").waitFor({state:"visible",timeout:10000});
+ assert.ok((await page.locator("#notice-title").innerText()).includes("Alterações não salvas"));
+ assert.equal(await page.locator("#notice-dialog [data-do='notice-cancel']").innerText(),"Continuar editando");
+ await page.locator("#notice-dialog [data-do='notice-cancel']").click();
+ assert.equal(await page.locator('#task-form input[name="title"]').count(),1,"Cancelar mantém formulário aberto");
+ await page.evaluate(()=>{location.hash="#/atividade/t-everyone"});
+ await page.locator("#notice-dialog [data-do='notice-confirm']").click();
+ await page.locator(".details-facts").waitFor();
  assert.ok((await page.locator(".details-facts").innerText()).includes("Data do evento"));
  // Uma pessoa: data simples e conclusão pela própria pessoa, sem arquivamento por data.
  tasks.push({...task,id:"t-one-person",title:"Atividade individual simples",
