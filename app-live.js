@@ -548,18 +548,75 @@ function commissionDefaultArt(name){
   site:["💻","#e4e9ff"],comemoracoes:["🎉","#ffe4ed"],impressora3d:["🖨️","#e5f2f1"]
  };
  const [symbol,color]=art[n]||["📋","#ece7fa"];
- return '<span class="commission-default-art" style="--art-color:'+color+'" aria-hidden="true">'+symbol+'</span>';
+ return '<span class="commission-default-art" style="--art-color:'+color+'" aria-hidden="true">'+commissionCardArt(name)+'</span>';
+}
+// Tons decorativos derivados da cor RGB salva na comissão (sem alterar o D1).
+// Clarear ou escurecer aqui afeta somente a arte, nunca o valor escolhido.
+function commissionCardTheme(value){
+ const hex=/^#[0-9a-f]{6}$/i.test(String(value||""))?value:"#f7f3ff";
+ const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);
+ const hi=Math.max(...rgb),lo=Math.min(...rgb),d=hi-lo;
+ let h=0,s=0,l=(hi+lo)/2;
+ if(d){
+  s=d/(1-Math.abs(2*l-1));
+  if(hi===rgb[0])h=((rgb[1]-rgb[2])/d)%6;
+  else if(hi===rgb[1])h=(rgb[2]-rgb[0])/d+2;
+  else h=(rgb[0]-rgb[1])/d+4;
+  h=(h*60+360)%360;
+ }
+ const saturation=s<.08?0:Math.max(58,Math.round(s*100));
+ return {
+  color:hex,
+  tone:"hsl("+Math.round(h)+" "+saturation+"% 65%)",
+  ink:"hsl("+Math.round(h)+" "+Math.min(85,saturation)+"% 26%)"
+ };
+}
+// Desenhos SVG internos: funcionam sem rede e servem de padrão para qualquer nova comissão.
+// A imagem própria do cadastro tem prioridade absoluta sobre esses desenhos.
+function commissionCardArt(name){
+ const key=String(name||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+ const motifs={
+  videos:'<g filter="url(#petCardShadow)"><circle cx="65" cy="48" r="25" fill="url(#petCardDark)" stroke="#535b80" stroke-width="4"/><circle cx="117" cy="43" r="30" fill="url(#petCardDark)" stroke="#535b80" stroke-width="4"/><circle cx="65" cy="48" r="10" fill="#dce5ef"/><circle cx="117" cy="43" r="12" fill="#dce5ef"/><rect x="35" y="70" width="112" height="76" rx="21" fill="url(#petCardDark)" stroke="#697691" stroke-width="4"/><path d="M145 91 178 73q8-4 8 6v60q0 10-8 6l-33-18z" fill="#303954" stroke="#747d9a" stroke-width="3"/><path d="m82 89 38 22-38 22z" fill="url(#petCardGreen)" stroke="#8ffab0" stroke-width="3"/><path d="M48 82q46-10 83 0" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="4"/></g><path d="m189 82 13-11m-10 33h15m-15 18 11 9" stroke="#ffbd38" stroke-width="7" stroke-linecap="round"/>',
+  cards:'<g filter="url(#petCardShadow)"><rect x="42" y="47" width="99" height="102" rx="16" transform="rotate(-9 92 98)" fill="url(#petCardPink)" stroke="#f79ac0" stroke-width="4"/><rect x="64" y="63" width="103" height="95" rx="14" fill="#fff" stroke="#ef94bd" stroke-width="5"/><rect x="72" y="72" width="87" height="68" rx="8" fill="url(#petCardBlue)"/><circle cx="142" cy="86" r="11" fill="#ffcf61"/><path d="m76 137 25-33 21 22 18-25 17 36z" fill="#3c8deb"/><path d="m159 147 20-56" stroke="#ba2b6c" stroke-width="12" stroke-linecap="round"/><path d="m179 92 9-17q5-8 9 3l-3 23z" fill="#f4af53"/></g><path d="m24 78-12-5m16-12-8-12m18 8 2-12" stroke="#f9bb25" stroke-width="6" stroke-linecap="round"/>',
+  imaginacao:'<g filter="url(#petCardShadow)"><path d="M90 31c-34 0-56 23-56 52 0 21 11 32 28 46l7 17h42l7-17c18-14 29-26 29-46 0-30-22-52-57-52z" fill="url(#petCardGold)" stroke="#eba72d" stroke-width="4"/><path d="m72 92 19 20 20-20" stroke="#fff4bb" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M70 145h41v12H70z" fill="#655f7e"/><rect x="74" y="154" width="32" height="10" rx="5" fill="#37395f"/><ellipse cx="77" cy="57" rx="22" ry="12" transform="rotate(-35 77 57)" fill="#fff" opacity=".43"/></g><g stroke="#ffb317" stroke-width="7" stroke-linecap="round"><path d="M89 10V2M37 26 24 15M142 24l14-13M14 72H2M171 69h13M28 134l-13 11m143-9 14 10"/></g>',
+  cinepet:'<g filter="url(#petCardShadow)"><rect x="36" y="71" width="134" height="90" rx="15" fill="url(#petCardPurple)" stroke="#4b3baf" stroke-width="4"/><path d="m85 93 42 24-42 24z" fill="#fff"/><path d="M37 67h130l-6-32H42z" fill="#f4f5ff" stroke="#5554aa" stroke-width="4"/><path d="m56 36 23 31m21-31 23 31m20-31 20 31" stroke="#4b428e" stroke-width="13"/><rect x="37" y="67" width="130" height="12" rx="5" fill="#362e85"/></g><g filter="url(#petCardShadow)"><path d="m158 124 45 0-8 49h-29z" fill="#fff2e6"/><path d="m165 123 8 49m17-49-7 49" stroke="#ef4b57" stroke-width="10"/><g fill="#fff1a1"><circle cx="163" cy="116" r="10"/><circle cx="181" cy="114" r="11"/><circle cx="198" cy="118" r="10"/><circle cx="176" cy="101" r="11"/><circle cx="193" cy="101" r="9"/></g></g>',
+  salinha:'<g filter="url(#petCardShadow)"><path d="M53 92 114 41l63 51v71H53z" fill="url(#petCardGold)" stroke="#ed9b45" stroke-width="4"/><path d="m41 95 72-63 75 63" fill="none" stroke="#ef6959" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><rect x="91" y="115" width="32" height="48" rx="7" fill="#795c55"/><rect x="135" y="112" width="26" height="27" rx="5" fill="url(#petCardBlue)"/><circle cx="116" cy="136" r="3" fill="#ffe0a2"/><path d="M63 165h117" stroke="#5cc468" stroke-width="14" stroke-linecap="round"/><circle cx="34" cy="115" r="27" fill="url(#petCardGreen)"/><circle cx="55" cy="136" r="22" fill="#46b870"/></g><path d="M108 67q13-12 27 0m-22 8q8-7 17 0" stroke="#e77944" stroke-width="5" fill="none" stroke-linecap="round"/>',
+  financas:'<g filter="url(#petCardShadow)"><ellipse cx="51" cy="146" rx="36" ry="10" fill="#c78300"/><rect x="16" y="105" width="72" height="37" rx="8" fill="url(#petCardGold)" stroke="#dc962b" stroke-width="3"/><path d="M18 116h70m-70 13h70" stroke="#f7ca59" stroke-width="5"/><rect x="100" y="43" width="83" height="122" rx="14" fill="url(#petCardBlue)" stroke="#525dba" stroke-width="5"/><rect x="111" y="54" width="61" height="32" rx="7" fill="#a4e0ff" stroke="#5970b3" stroke-width="3"/><g fill="#faf5f9"><rect x="111" y="98" width="16" height="15" rx="4"/><rect x="135" y="98" width="16" height="15" rx="4"/><rect x="159" y="98" width="15" height="15" rx="4"/><rect x="111" y="121" width="16" height="15" rx="4"/><rect x="135" y="121" width="16" height="15" rx="4"/><rect x="159" y="121" width="15" height="32" rx="4" fill="#3dca8d"/><rect x="111" y="144" width="40" height="11" rx="4"/></g></g>',
+  legenda:'<g filter="url(#petCardShadow)"><path d="M35 49q0-16 16-16h110q16 0 16 16v69q0 16-16 16H75l-29 19v-19q-11-3-11-16z" fill="url(#petCardPurple)" stroke="#6955d0" stroke-width="5"/><rect x="50" y="55" width="112" height="60" rx="9" fill="#f5f1ff"/><text x="106" y="99" font-family="Arial,sans-serif" font-weight="900" font-size="42" text-anchor="middle" fill="#5340b0">CC</text><rect x="65" y="142" width="101" height="32" rx="11" fill="#987bf6"/><path d="M80 155h71m-71 9h52" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g>',
+  legendas:'<g filter="url(#petCardShadow)"><path d="M35 49q0-16 16-16h110q16 0 16 16v69q0 16-16 16H75l-29 19v-19q-11-3-11-16z" fill="url(#petCardPurple)" stroke="#6955d0" stroke-width="5"/><rect x="50" y="55" width="112" height="60" rx="9" fill="#f5f1ff"/><text x="106" y="99" font-family="Arial,sans-serif" font-weight="900" font-size="42" text-anchor="middle" fill="#5340b0">CC</text><rect x="65" y="142" width="101" height="32" rx="11" fill="#987bf6"/><path d="M80 155h71m-71 9h52" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g>',
+  site:'<g filter="url(#petCardShadow)"><rect x="35" y="37" width="147" height="114" rx="13" fill="url(#petCardDark)" stroke="#69749d" stroke-width="5"/><rect x="45" y="47" width="127" height="94" rx="5" fill="url(#petCardBlue)"/><path d="m89 76-19 17 19 17m38-34 19 17-19 17m-24 7 13-49" fill="none" stroke="#eaf6ff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 152h172l-17 19H41z" fill="#d4d9ec" stroke="#8492b0" stroke-width="4"/><path d="m153 112 11 48 12-13 13 23 11-7-13-22 17-4z" fill="#fff" stroke="#3a497e" stroke-width="4"/></g>',
+  comemoracoes:'<g filter="url(#petCardShadow)"><path d="m61 95 97 53-119 25z" fill="url(#petCardPink)" stroke="#de5173" stroke-width="4"/><path d="m63 95 31 17-25 50-29 10z" fill="url(#petCardGold)"/><path d="M100 116 82 161m44-34-12 28" stroke="#f6d05d" stroke-width="13"/><ellipse cx="64" cy="94" rx="22" ry="12" transform="rotate(30 64 94)" fill="#ffbd48"/></g><g stroke-linecap="round" fill="none" stroke-width="10"><path d="M77 60q-23-22 0-33" stroke="#f052a1"/><path d="M114 62q27-18 8-39" stroke="#35bdbb"/><path d="M146 94q27-16 18-34" stroke="#a05cf4"/><path d="M98 76q-7-29 10-40" stroke="#ef9c23"/></g><path d="m169 39 7 10 11-3-6 13 8 8-15-1-6 10-2-14-11-5 12-6z" fill="#f7b82e"/><circle cx="45" cy="49" r="5" fill="#a05cf4"/><circle cx="152" cy="24" r="5" fill="#ec5d88"/>',
+  impressora3d:'<g filter="url(#petCardShadow)"><path d="M40 37h132v132H40z" fill="none" stroke="#454c81" stroke-width="12" stroke-linejoin="round"/><path d="M30 169h153" stroke="#6875ac" stroke-width="15" stroke-linecap="round"/><path d="M105 78 137 98l-31 20-31-20z" fill="#b4e8f4" stroke="#518aee" stroke-width="3"/><path d="m75 98 31 20v36l-31-21z" fill="#66b4ef"/><path d="m137 98-31 20v36l31-21z" fill="#446eda"/><rect x="76" y="41" width="60" height="18" rx="6" fill="#353a64"/><path d="m106 59v19" stroke="#667dc2" stroke-width="7"/><path d="M64 147h83" stroke="#777fae" stroke-width="8"/></g>',
+  default:'<g filter="url(#petCardShadow)"><circle cx="72" cy="57" r="25" fill="url(#petCardGold)"/><circle cx="136" cy="57" r="25" fill="url(#petCardBlue)"/><path d="M26 153v-19q0-38 46-38t46 38v19z" fill="url(#petCardPurple)"/><path d="M90 153v-19q0-38 46-38t46 38v19z" fill="url(#petCardGreen)"/><path d="m86 111 17 18 28-31" stroke="#fff" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>'
+ };
+ return '<svg class="commission-card-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 218 194" aria-hidden="true" focusable="false">'+
+ '<defs><filter id="petCardShadow" x="-30%" y="-30%" width="170%" height="180%"><feDropShadow dx="0" dy="7" stdDeviation="5" flood-color="#1f265b" flood-opacity=".22"/></filter>'+
+ '<linearGradient id="petCardDark" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#515c85"/><stop offset="1" stop-color="#222a45"/></linearGradient>'+
+ '<linearGradient id="petCardPurple" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#bda8ff"/><stop offset="1" stop-color="#5c4fc4"/></linearGradient>'+
+ '<linearGradient id="petCardBlue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#86ddff"/><stop offset="1" stop-color="#4478ea"/></linearGradient>'+
+ '<linearGradient id="petCardPink" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe1ef"/><stop offset="1" stop-color="#f45f9c"/></linearGradient>'+
+ '<linearGradient id="petCardGreen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a5ffad"/><stop offset="1" stop-color="#36c36d"/></linearGradient>'+
+ '<linearGradient id="petCardGold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff5a1"/><stop offset="1" stop-color="#ffad23"/></linearGradient></defs>'+
+ (motifs[key]||motifs.default)+'</svg>';
 }
 function renderComissoes(){
  return header("Trabalho em equipe","Comissões","Organização das equipes.",canWrite()?button("+ Nova comissão","comissoes/nova",true):"")+
  '<section class="card card-pad"><div class="section-head"><h2>Comissões cadastradas</h2><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="commission-cards-grid">'+data.committees.map(c=>{
- const members=c.memberCount??(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
- const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="'+workspaceHash("comissoes/"+id(c.id))+'"':"";
- return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="'+esc(c.name)+'">':commissionDefaultArt(c.name))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes'+(!cmax?' · Vagas a definir':"")+'</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
- (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
- (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>'
+  const members=c.memberCount??(c.memberIds||[]).length,cmax=c.maxMembers||0,joined=Boolean(me&&(c.memberIds||[]).includes(me.id));
+  const theme=commissionCardTheme(c.backgroundColor);
+  const linkTag=canWrite()?"a":"div",linkProps=canWrite()?' href="'+workspaceHash("comissoes/"+id(c.id))+'"':"";
+  const art=c.imageData?'<img src="'+esc(c.imageData)+'" alt="" loading="lazy">':commissionCardArt(c.name);
+  return '<article class="commission-tile commission-tile-v2" style="--commission-bg:'+theme.color+';--commission-tone:'+theme.tone+';--commission-ink:'+theme.ink+'">'+
+   '<'+linkTag+linkProps+' class="commission-tile-link commission-tile-link-v2">'+
+   '<span class="commission-v2-copy"><span class="commission-v2-marker" aria-hidden="true"></span><h3>'+esc(c.name)+'</h3>'+
+   '<span class="commission-v2-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes'+(!cmax?' · Vagas a definir':"")+'</span>'+
+   (canWrite()?'<span class="commission-v2-view">Ver atividades '+ico("arrow")+'</span>':"")+'</span>'+
+   '<span class="commission-v2-art'+(c.imageData?' commission-v2-art-custom':'')+'">'+art+'</span></'+linkTag+'>'+
+   (canWrite()?'<details class="commission-tile-menu"><summary title="Opções" aria-label="Opções da comissão '+esc(c.name)+'">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
+   (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>';
  }).join("")+'</div></section>';
 }
+
 function commissionHelp(){
  const topics=[
   ["Como participar de uma comissão?","Abra as opções (⋮) da equipe e escolha Fazer parte. Se as vagas estiverem limitadas, o sistema informa quando não for possível ingressar."],
@@ -828,11 +885,11 @@ function renderCommitteeEdit(cid){
     '<button type="button" data-do="commission-color-preset" data-color="'+hex+'" class="commission-palette-option" style="--preset-color:'+hex+'" aria-label="Usar cor '+hex+'"></button>').join("")+'</div></div></div>';
  const imagePreview=c?.imageData?
   '<img src="'+esc(c.imageData)+'" alt="Imagem atual da comissão">':
-  '<span class="commission-image-placeholder">'+ico("image")+'<small>Sem imagem</small></span>';
+  '<span class="commission-image-placeholder commission-image-default">'+commissionCardArt(c?.name||"")+'<small>Imagem padrão</small></span>';
  const imagePicker='<div class="commission-image-field"><span class="commission-field-label">Imagem da comissão (opcional)</span>'+
   '<div class="commission-image-picker-row"><div class="commission-image-preview" id="commission-image-preview">'+imagePreview+'</div>'+
   '<div class="commission-image-actions"><label class="button ghost commission-image-choose">Escolher imagem<input type="file" id="commission-upload" accept="image/png,image/jpeg,image/webp" aria-label="Escolher imagem da comissão"></label>'+
-  '<button type="button" class="button ghost" data-do="commission-image-remove">Remover imagem</button>'+
+  '<button type="button" class="button ghost" data-do="commission-image-remove">Usar imagem padrão</button>'+
   '<small id="commission-image-hint">JPG, PNG ou WebP de até 2 MB. Edite, recorte e redimensione antes de salvar.</small></div></div>'+
   '<input type="hidden" name="imageData" value="'+esc(c?.imageData||"")+'"></div>';
 
@@ -2028,8 +2085,8 @@ async function handleClick(e){
    const hidden=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
    if(!hidden||!preview)return;
    hidden.value="";
-   preview.innerHTML='<span class="commission-image-placeholder">'+ico("image")+'<small>Sem imagem</small></span>';
-   const hint=$("#commission-image-hint");if(hint)hint.textContent="Imagem removida. Clique em Salvar comissão para concluir.";
+   preview.innerHTML='<span class="commission-image-placeholder commission-image-default">'+commissionCardArt($("#commission-form")?.elements.name?.value||"")+'<small>Imagem padrão</small></span>';
+   const hint=$("#commission-image-hint");if(hint)hint.textContent="Imagem padrão selecionada. Clique em Salvar comissão para concluir.";
    return;
  }
  if(action==="finish-joint-open"){openFinishDialog(data.tasks.find(t=>t.id===tid));return;}
@@ -2652,6 +2709,10 @@ function start(){
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("input",e=>{
    const el=e.target;
+   if(el?.matches?.('#commission-form input[name="name"]')){
+     const image=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
+     if(image&&!image.value&&preview)preview.innerHTML='<span class="commission-image-placeholder commission-image-default">'+commissionCardArt(el.value)+'<small>Imagem padrão</small></span>';
+   }
    if(el?.matches?.("[data-commission-rgb-range],[data-commission-rgb-number]"))setCommissionRgbFromChannel(el);
    if(el?.matches?.("[data-commission-color-hex]")){
      const normalized=String(el.value||"").trim();

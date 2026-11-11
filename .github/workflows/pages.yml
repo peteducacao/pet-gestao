@@ -49,6 +49,8 @@ jobs:
           node --check --input-type=module < worker/src/index.js
       - name: Testar permanência de sessão e login discreto
         run: node scripts/test-auth-sessions.mjs
+      - name: Testar cards de comissões, imagens e tons RGB
+        run: node scripts/test-commission-cards.mjs
       - name: Validar migrações, limpeza dos testes e preservação dos dados reais
         run: |
           python3 - <<'PY'

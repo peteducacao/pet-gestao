@@ -1,5 +1,5 @@
 // Armazena somente arquivos estáticos públicos. Nunca armazena API, conta ou anexos.
-const CACHE_NAME="pet-gestao-public-shell-v20261111-02";
+const CACHE_NAME="pet-gestao-public-shell-v20261111-03";
 const FILES=["./","./index.html","./styles.css","./live.css","./app-live.js",
  "./site.webmanifest","./assets/gestao-icon.svg","./assets/pet-gestao-192.png","./assets/pet-gestao-512.png"];
 self.addEventListener("install",event=>{

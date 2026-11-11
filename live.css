@@ -2436,3 +2436,133 @@ body.commission-image-editor-open{overflow:hidden}
 #screen .account-app-install-button[disabled]{background:#ded6ec;color:#594c68;opacity:1;cursor:default}
 #screen .account-app-install-help{margin:0;background:#fff;border:1px solid #dcd0ef;padding:12px;border-radius:11px;font-size:12px;line-height:1.65;color:#584468}
 @media(max-width:480px){#screen .account-app-install{padding:15px 13px}}
+
+
+.commission-default-art>.commission-card-svg{display:block;width:96%;height:96%;max-width:100%;max-height:100%;flex:none}
+/* Comissões 2026: cards editoriais, imagem à direita e ondas guiadas pelo RGB.
+   A cor original continua salva sem alterações; só o visual deriva dela. */
+#screen .commission-cards-grid{gap:16px;margin-top:20px}
+#screen .commission-tile-v2{
+ position:relative;isolation:isolate;min-width:0;
+ border:1px solid color-mix(in srgb,var(--commission-tone) 18%,#e8e5ef);
+ border-radius:23px;background:#fff;
+ box-shadow:0 9px 23px rgba(37,29,76,.065);
+ transition:transform .18s ease,box-shadow .18s ease;
+}
+#screen .commission-tile-v2:hover{
+ transform:translateY(-3px);box-shadow:0 15px 32px rgba(37,29,76,.12);
+}
+#screen .commission-tile-link-v2{
+ position:relative;display:flex;align-items:stretch;width:100%;min-height:212px;
+ padding:23px 23px 20px;border-radius:22px;overflow:hidden;
+ background:linear-gradient(111deg,#fff 15%,color-mix(in srgb,var(--commission-tone) 7%,#fff) 100%);
+ color:#21193b;text-decoration:none;
+}
+#screen .commission-tile-link-v2::before,
+#screen .commission-tile-link-v2::after{
+ content:"";position:absolute;pointer-events:none;z-index:0;opacity:1;
+}
+#screen .commission-tile-link-v2::before{
+ right:-22%;top:-72%;width:86%;height:230%;border-radius:48% 0 0 47%;
+ transform:rotate(19deg);
+ background:linear-gradient(115deg,
+ color-mix(in srgb,var(--commission-tone) 10%,#fff) 0%,
+ color-mix(in srgb,var(--commission-tone) 38%,#fff) 47%,
+ color-mix(in srgb,var(--commission-tone) 80%,#fff) 100%);
+}
+#screen .commission-tile-link-v2::after{
+ right:-18%;bottom:-103%;width:95%;height:140%;border-radius:55% 0 0 0;
+ transform:rotate(-12deg);
+ background:linear-gradient(100deg,
+ color-mix(in srgb,var(--commission-tone) 26%,#fff),
+ color-mix(in srgb,var(--commission-tone) 75%,#fff));
+ opacity:.84;
+}
+#screen .commission-v2-copy{
+ display:flex;position:relative;z-index:2;flex-direction:column;
+ align-items:flex-start;min-width:0;width:61%;max-width:61%;padding:2px 4px 1px 1px;
+}
+#screen .commission-v2-marker{
+ display:block;width:43px;height:5px;border-radius:10px;margin:3px 0 13px;
+ background:var(--commission-tone);flex:none;
+}
+#screen .commission-v2-copy h3{
+ margin:0 0 10px;font-size:clamp(18px,1.65vw,24px);line-height:1.12;
+ font-weight:850;letter-spacing:-.6px;color:#16142f;overflow-wrap:anywhere;
+}
+#screen .commission-v2-members{
+ display:flex;align-items:center;gap:7px;min-width:0;
+ color:#49445f;font-size:13px;line-height:1.5;overflow-wrap:anywhere;
+}
+#screen .commission-v2-members svg{width:17px;height:17px;flex:none}
+#screen .commission-v2-view{
+ display:inline-flex;align-items:center;justify-content:center;gap:8px;
+ margin-top:auto;padding:10px 14px;min-height:38px;border-radius:999px;
+ background:color-mix(in srgb,var(--commission-tone) 24%,#fff);
+ color:var(--commission-ink);font-size:13px;font-weight:800;
+ white-space:nowrap;transition:background .15s ease,transform .15s ease;
+}
+#screen .commission-v2-view svg{width:18px;height:18px}
+#screen a.commission-tile-link-v2:hover .commission-v2-view{
+ background:color-mix(in srgb,var(--commission-tone) 38%,#fff);
+ transform:translateX(2px);
+}
+#screen a.commission-tile-link-v2:focus-visible{
+ outline:3px solid var(--commission-ink);outline-offset:3px;
+}
+#screen .commission-v2-art{
+ position:absolute;right:3%;top:13%;height:81%;width:48%;
+ display:flex;align-items:center;justify-content:center;z-index:1;
+ pointer-events:none;
+}
+#screen .commission-v2-art .commission-card-svg{
+ display:block;width:100%;height:100%;max-width:200px;max-height:184px;
+ overflow:visible;filter:drop-shadow(0 8px 7px rgba(42,27,95,.07));
+}
+#screen .commission-v2-art-custom img{
+ display:block;max-width:92%;max-height:90%;width:clamp(105px,11vw,159px);
+ height:auto;aspect-ratio:1;object-fit:cover;border-radius:20px;
+ border:3px solid rgba(255,255,255,.87);background:#fff;
+ box-shadow:0 11px 25px rgba(30,24,69,.15);
+}
+#screen .commission-tile-v2 .commission-tile-menu{top:12px;right:12px;z-index:7}
+#screen .commission-tile-v2 .commission-tile-menu>summary{
+ background:rgba(255,255,255,.94);box-shadow:0 3px 12px rgba(45,32,94,.08);
+}
+#screen .commission-tile-v2 .commission-tile-menu-items{z-index:15}
+#screen .commission-image-default{
+ display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;
+ background:#f7f4ff;
+}
+#screen .commission-image-default .commission-card-svg{
+ display:block;width:75%;max-width:85px;height:75%;max-height:78px;
+}
+#screen .commission-image-default small{font-size:10px;color:#6d5a83}
+@media(max-width:1100px){
+ #screen .commission-tile-link-v2{min-height:208px;padding:20px}
+ #screen .commission-v2-copy{width:63%;max-width:63%}
+ #screen .commission-v2-art{width:46%}
+ #screen .commission-v2-copy h3{font-size:21px}
+}
+@media(max-width:850px){
+ #screen .commission-v2-copy h3{font-size:20px}
+ #screen .commission-v2-members{font-size:12px}
+ #screen .commission-v2-art{right:1%;width:46%}
+}
+@media(max-width:650px){
+ #screen .commission-cards-grid{grid-template-columns:1fr;gap:13px}
+ #screen .commission-tile-link-v2{min-height:198px;padding:20px}
+ #screen .commission-v2-copy{width:61%;max-width:61%}
+ #screen .commission-v2-copy h3{font-size:22px}
+ #screen .commission-v2-art{width:48%;right:3%;top:10%;height:83%}
+}
+@media(max-width:390px){
+ #screen .commission-tile-link-v2{padding:17px;min-height:185px}
+ #screen .commission-v2-copy h3{font-size:19px}
+ #screen .commission-v2-members{font-size:11px}
+ #screen .commission-v2-view{font-size:11px;padding:9px 10px}
+ #screen .commission-v2-art{right:0;width:46%}
+}
+@media(prefers-reduced-motion:reduce){
+ #screen .commission-tile-v2,#screen .commission-v2-view{transition:none}
+}
