@@ -64,7 +64,7 @@ vm.runInContext(match[0]+"\nthis.saved=readSessionToken('pet-gestao:session-toke
 assert.equal(temporaryTab.saved,"token-temporario-compartilhado");
 
 // A tela pública não anuncia a existência da Administração.
-const login=front.slice(front.indexOf("function renderLogin(){"),front.indexOf("function renderRegisterAccount()"));
+const login=front.slice(front.indexOf("function renderLogin(){"),front.indexOf("function passwordStrength(password){"));
 assert.ok(login.includes("Digite seu e-mail"));
 assert.ok(login.includes("Manter-me conectado"));
 assert.ok(login.includes("até você sair da conta"));
