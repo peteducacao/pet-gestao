@@ -99,6 +99,12 @@ async function loginAs(person){
 try{
  await page.goto(origin+"/#/demandas",{waitUntil:"domcontentloaded"});
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
+ await page.goto(origin+"/#/conta");
+ await page.locator(".profile-commissions").waitFor({state:"visible",timeout:10000});
+ assert.ok((await page.locator(".profile-commissions").innerText()).includes("Vídeos"),
+   "Meu perfil mostra minhas comissões sem alterar o cadastro");
+ await page.goto(origin+"/#/demandas");
+ await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
  // Regression: GitHub Pages/browser may fail to load config.js. The PUBLIC fallback
  // must still let the user access PET Gestão without "URL da API ainda não publicada".
  await page.route("**/config.js*",route=>route.abort());
