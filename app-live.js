@@ -183,6 +183,11 @@ function setConnecting(show,label="Conectando ao PET Gestão..."){
  const modal=$("#connecting-popup");
  if(!modal)return;
  if(show){const message=modal.querySelector(".connecting-message");if(message)message.textContent=label;}
+ else{
+  modal.classList.remove("returning-to-gestao");
+  const hint=modal.querySelector(".connecting-hint");
+  if(hint)hint.textContent="Validando seu acesso";
+ }
  modal.hidden=!show;
 }
 function workspaceHash(route){return routeParts().page==="admin"?"#/admin/"+route:"#/"+route;}
@@ -1558,9 +1563,14 @@ async function handleClick(e){
    return;
  }
  if(action==="admin-signout"){
-  // Voltar ao site não encerra a sessão.
+  // A transição é visual: continua na MESMA sessão, sem nova autenticação.
   state.adminTab="painel";closeAdminMenu();
-  setTimeout(()=>{location.hash="#/inicio"},180);
+  const modal=$("#connecting-popup");
+  modal?.classList.add("returning-to-gestao");
+  const hint=modal?.querySelector(".connecting-hint");
+  if(hint)hint.textContent="Preparando sua área de trabalho";
+  setConnecting(true,"Voltando ao PET Gestão...");
+  setTimeout(()=>{location.hash="#/inicio"},480);
   return;
  }
  if(action==="account-delete-open"){
@@ -1572,6 +1582,11 @@ async function handleClick(e){
    const layer=$("#account-delete-dialog");if(layer)layer.hidden=true;return;
  }
  if(action==="logout"){
+  if(!await askConfirm("Deseja realmente sair da sua conta neste navegador?",{
+   title:"Sair da conta?",
+   cancelLabel:"Continuar conectado",
+   confirmLabel:"Sim, sair da conta"
+  }))return;
   try{await request("/auth/logout","POST",{},"user")}catch{}
   token="";me=null;regularMe=null;
   forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);publishSessionChange();
