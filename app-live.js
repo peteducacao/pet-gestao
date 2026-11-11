@@ -1723,6 +1723,8 @@ function start(){
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  window.addEventListener("hashchange",()=>{
+   // Eventos duplicados para a mesma rota não devem fechar uma confirmação aberta.
+   if(location.hash===lastHash)return;
    $("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;
    closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog();closeMailPreview();
    const destination=location.hash;
