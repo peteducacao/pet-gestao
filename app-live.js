@@ -292,7 +292,7 @@ function routeParts(){const raw=decodeURIComponent((location.hash||"#/inicio").s
 async function request(path,method="GET",payload,scope){
  if(!API)throw Error("URL da API ainda não publicada.");
  // Qualquer mudança de identidade em outra aba invalida o token antigo.
- if(scope!=="guest"&&localStorage.getItem(sessionRevisionKey)!==localSessionRevision)
+ if(scope!=="guest"&&(localStorage.getItem(sessionRevisionKey)||"")!==localSessionRevision)
   throw Error("A sessão foi alterada em outra aba. Atualize a página para continuar.");
  const headers={"Accept":"application/json"};
  const activeToken=scope==="guest"?"":token;
@@ -1022,7 +1022,7 @@ function renderAdmin(){
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição. As alterações só serão aplicadas quando você salvar.</p></div><button type="button" class="button primary admin-save-all-button" data-do="save-all-commissions">'+ico("check")+' Salvar todas as alterações</button></div><div class="admin-commission-list">'+
  data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática das demandas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<label><input type="checkbox" id="mail-scheduled"> Agendar envio</label><div id="mail-scheduling"></div><div id="mail-attachments"></div><div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-manual">Pré-visualizar e-mail</button><button class="button primary" type="submit">Registrar envio</button></div></form></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<div class="mail-schedule-choice"><button type="button" class="button ghost mail-schedule-toggle" data-do="mail-toggle-schedule" aria-pressed="false">'+ico("calendar")+' Agendar envio</button><small>Escolha um horário somente se quiser enviar depois.</small></div><div id="mail-scheduling"></div><div id="mail-attachments"></div><div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-manual">Pré-visualizar e-mail</button><button class="button primary" type="submit">Enviar</button></div></form></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Avisos automáticos de prazo</h2><p class="field-hint">Defina quando os responsáveis receberão avisos sobre etapas pendentes. Cada etapa recebe um aviso de cada tipo; demandas arquivadas não recebem alertas. Os avisos iniciam desativados para evitar envios inesperados.</p>'+
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-soon" '+(reminderConfig.dueSoonEnabled?"checked":"")+'> E-mail de prazo vencendo</label><label class="deadline-days">Enviar faltando <input type="number" id="reminder-days" min="1" max="30" step="1" value="'+esc(reminderConfig.daysBefore??3)+'"> dia(s) para o prazo</label><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> E-mail de prazo vencido</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas. Cada endereço recebe um único e-mail por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-settings">Salvar avisos de prazo</button></div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de e-mails de prazo</h2><p class="field-hint">Edite e pré-visualize separadamente as mensagens automáticas de prazo vencendo e vencido. Campos disponíveis: {demanda}, {etapa}, {prazo}, {dias}, {link}.</p>'+
@@ -1122,6 +1122,15 @@ function renderMailRecipients(){
  const list=state.mailAudience==="comissoes"?data.committees:state.mailAudience==="usuarios"?data.users:[];
  el.innerHTML=list.map(x=>'<label class="assignment-option"><input type="checkbox" name="mail-target" value="'+esc(x.id)+'"><span>'+esc(x.name)+'</span></label>').join("");
 }
+function updateMailScheduleButton(){
+ const toggle=$('[data-do="mail-toggle-schedule"]');
+ if(toggle){
+  toggle.setAttribute("aria-pressed",String(state.mailScheduled));
+  toggle.innerHTML=ico(state.mailScheduled?"close":"calendar")+(state.mailScheduled?" Cancelar agendamento":" Agendar envio");
+ }
+ const submit=$("#mail-form button[type='submit']");
+ if(submit)submit.textContent=state.mailScheduled?"Agendar envio":"Enviar";
+}
 function renderMailScheduling(){
  const el=$("#mail-scheduling");if(el)el.innerHTML=state.mailScheduled?'<label>Data e horário do envio<input type="datetime-local" name="sendAt" required></label>':
  '<label>Anexos (somente envio imediato, máximo 10 MB por arquivo)<input type="file" id="mail-file-input" multiple></label><div id="mail-file-list">'+state.mailFiles.map((f,i)=>'<p>'+esc(f.name)+' ('+(f.size/1024/1024).toFixed(2)+' MB) <button type="button" data-do="remove-mail-file" data-index="'+i+'">Remover</button></p>').join("")+'</div>';
@@ -1157,11 +1166,19 @@ function render(){
  lastStatusSnapshot=statusSnapshot();
  if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
-   if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();loadMailHistory();}
+   if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();updateMailScheduleButton();loadMailHistory();}
    if(state.adminTab==="painel")loadMailHistory();
  }
 }
-async function askNotification(){return canNotify()?await askConfirm("Deseja notificar os(as) responsáveis por e-mail sobre esta alteração?",{title:"Enviar notificação por e-mail?"}):false}
+async function askNotification(participants=null){
+ if(!canNotify())return false;
+ if(participants&&participants.users.length===1&&participants.users[0]===me.id&&!participants.commissions.length)return false;
+ return Boolean(await askConfirm("Deseja avisar os(as) responsáveis sobre esta alteração? Seu próprio e-mail não receberá cópia.",{
+  title:"Notificar os(as) responsáveis?",
+  cancelLabel:"Salvar sem enviar",
+  confirmLabel:"Salvar e enviar"
+ }));
+}
 async function saveAndReload(action,success="Alterações salvas."){
  try{await action();await reload();setToast(success);return true}catch(e){setToast(e.message);return false}
 }
@@ -1187,9 +1204,10 @@ async function saveTask(form){
  if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
  const taskId=form.dataset.id;
  const previous=taskId?data.tasks.find(t=>t.id===taskId):null;
- const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?await askNotification():false;
  const overviewVisible=f.overviewVisibility!=="comissao";
  if(!overviewVisible&&!commissions.length)return setToast("Selecione uma comissão para exibir somente nela.");
+ const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?
+  await askNotification({users,commissions}):false;
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,assignmentScope:state.assignmentScope,overviewVisible,notify};
  await saveAndReload(async()=>{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
@@ -1286,7 +1304,7 @@ async function sendMail(form){
   const result=await request("/mail","POST",{all:state.mailAudience==="todos",userIds,committeeIds,subject:f.subject,message:f.message,scheduledAt,attachments},"admin");
   state.mailFiles=[];state.mailAudience="todos";state.mailScheduled=false;
   form.reset();
-  renderMailRecipients();renderMailScheduling();
+  renderMailRecipients();renderMailScheduling();updateMailScheduleButton();
   await loadMailHistory();
   setToast(result.status==="enviado"?"E-mail enviado.":result.status==="agendado"?"E-mail agendado.":"E-mail registrado na fila de envio.");
  }catch(e){setToast("Não foi possível registrar o envio: "+e.message)}
@@ -1318,6 +1336,11 @@ async function handleClick(e){
    try{await navigator.clipboard.writeText(field.value);b.textContent="Copiado!";}
    catch{field.focus();field.select();b.textContent="Selecione e copie";}
    return;
+ }
+ if(action==="mail-toggle-schedule"){
+  state.mailScheduled=!state.mailScheduled;
+  if(state.mailScheduled)state.mailFiles=[];
+  renderMailScheduling();updateMailScheduleButton();return;
  }
  if(action==="mail-preview-close"){closeMailPreview();return}
  if(action==="mail-preview-template"){showMailPreview("template");return}
@@ -1422,7 +1445,9 @@ async function handleClick(e){
    return;
   }
  if(action==="edit-notes"){$("#notes-editor").hidden=false;$("#notes-preview").hidden=true;return}
- if(action==="save-notes"){const content=$("#notes-content").value;const notify=await askNotification();await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:content,notify}),"Observações salvas.");return}
+ if(action==="save-notes"){const content=$("#notes-content").value;
+   const target=data.tasks.find(t=>t.id===tid);
+   const notify=await askNotification({users:target?.assigneeIds||[],commissions:target?.commissionIds||[]});await saveAndReload(()=>request("/tasks/"+id(tid)+"/notes","PATCH",{captionText:content,notify}),"Observações salvas.");return}
  if(action==="join-commission"||action==="leave-commission"){
    showCommissionDialog(action==="join-commission"?"join":"leave",committee(tid));return;
  }
@@ -1725,7 +1750,6 @@ async function handleChange(e){
   }
   if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
- if(t.id==="mail-scheduled"){state.mailScheduled=t.checked;state.mailFiles=[];renderMailScheduling();return}
  if(t.id==="mail-file-input"){for(const file of t.files){if(file.size>10*1024*1024){setToast("O arquivo "+file.name+" excede 10 MB.");continue}state.mailFiles.push(file)}renderMailScheduling();return}
  if(t.id==="commission-upload"){
    const file=t.files?.[0];if(!file)return;if(file.size>650000)return setToast("Imagem de comissão muito grande. Use até 650 KB.");
