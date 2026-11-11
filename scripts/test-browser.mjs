@@ -818,5 +818,33 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator("#account-delete-dialog").isHidden(),true,
    "Cancelar exclusão da conta não executa nenhuma solicitação");
  assert.equal(calls.some(call=>call.p==="/account"&&call.method==="DELETE"),false);
+ // Editor de imagem e RGB da comissão testados em um navegador Chromium real.
+ await page.goto(origin+"/#/comissoes/nova");
+ await page.locator("#commission-form").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator('#commission-form input[type="color"]').count(),0,"RGB não usa seletor nativo");
+ await page.locator('[data-do="commission-color-toggle"]').click();
+ await page.locator('[data-commission-rgb-range="r"]').fill("128");
+ assert.equal((await page.locator('input[name="backgroundColor"]').inputValue()).slice(1,3),"80");
+ await page.locator('[data-do="commission-color-preset"][data-color="#deedff"]').click();
+ assert.equal(await page.locator('input[name="backgroundColor"]').inputValue(),"#deedff");
+ const demoPNG=await page.evaluate(()=>{
+   const canvas=document.createElement("canvas");canvas.width=160;canvas.height=110;
+   const ctx=canvas.getContext("2d");ctx.fillStyle="#8348c1";ctx.fillRect(0,0,160,110);
+   ctx.fillStyle="#ffffff";ctx.fillRect(24,20,112,70);
+   return canvas.toDataURL("image/png").split(",")[1];
+ });
+ await page.locator("#commission-upload").setInputFiles({
+   name:"imagem-comissao.png",mimeType:"image/png",buffer:Buffer.from(demoPNG,"base64")
+ });
+ await page.locator("#commission-image-editor").waitFor({state:"visible",timeout:10000});
+ await page.locator("#commission-image-zoom").fill("1.6");
+ await page.locator('[data-do="commission-image-rotate"][data-angle="1"]').click();
+ await page.locator("#commission-image-resolution").selectOption("768");
+ await page.locator('[data-do="commission-image-apply"]').click();
+ await page.locator("#commission-image-editor").waitFor({state:"hidden",timeout:10000});
+ const preparedImage=await page.locator('#commission-form input[name="imageData"]').inputValue();
+ assert.match(preparedImage,/^data:image\/(?:webp|jpeg);base64,/,"Editor produz imagem otimizada");
+ assert.ok(preparedImage.length<950000,"Imagem final respeita limite do servidor");
+ assert.equal(await page.locator("#commission-image-preview img").count(),1,"Prévia editada aparece no formulário");
  console.log("BROWSER: navegação, evento Todos(as) só com data, exclusão da conta, responsividade e Admin — OK.");
 }finally{await browser.close();server.kill();}
