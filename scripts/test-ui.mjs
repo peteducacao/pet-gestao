@@ -92,6 +92,29 @@ assert.equal(document.querySelector('#account-button'),null,"Sem perfil duplicad
 assert.equal(document.querySelector('a[data-route="conta"]').getAttribute("href"),"#/conta","Perfil acessível no menu lateral");
 assert.equal(document.querySelector('a[data-route="cronograma"]'),null,"Cronograma duplicado removido");
 await move("#/demandas");
+// A exclusão de concluídas precisa aparecer para Tutoria e PETianos(as),
+// mesmo quando a conta não possui o escopo administrativo.
+tasks.push({...tasks[0],id:"concluida-visibilidade-cargos",
+ title:"Concluída visível ao PET",archivedAt:"2026-11-10T12:00:00Z",status:"concluida"});
+const selectCompleted=()=>{const el=document.querySelector('select[data-filter="status"]');el.value="concluida";el.dispatchEvent(new window.Event("change",{bubbles:true}));};
+selectCompleted();await wait();
+assert.ok(document.querySelector('[data-do="archive-selection-open"]'),"Tutoria encontra Excluir demandas em Concluídas");
+tap('[data-do="archive-selection-open"]');await wait();
+assert.equal(document.querySelectorAll('[data-archive-select]').length,1,"Tutoria pode selecionar concluídas");
+tap('[data-do="archive-selection-cancel"]');await wait();
+user.role="petiano";
+await move("#/inicio");await move("#/demandas");
+selectCompleted();await wait();
+assert.ok(document.querySelector('[data-do="archive-selection-open"]'),"PETiano(a) encontra Excluir demandas");
+user.role="usuario";
+await move("#/inicio");await move("#/demandas");
+selectCompleted();await wait();
+assert.equal(document.querySelector('[data-do="archive-selection-open"]'),null,"Usuário somente leitura não exclui");
+user.role="tutor";
+tasks=tasks.filter(t=>t.id!=="concluida-visibilidade-cargos");
+await move("#/inicio");await move("#/demandas");
+const resetSelection=document.querySelector('select[data-filter="status"]');
+resetSelection.value="todas";resetSelection.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 assert.ok(document.querySelector('.task-status-atrasada'),"Situação atrasada visível");
  const singleCommitteeCard=[...document.querySelectorAll(".demand-activity-card")].find(el=>el.querySelector(".demand-activity-title")?.textContent==="V InterPET");
 assert.ok(singleCommitteeCard,"Demanda vinculada só a uma comissão aparece");
@@ -399,7 +422,7 @@ tap('[data-do="account-delete-close"]');
 assert.equal(document.querySelector("#account-delete-dialog")?.hidden,true,
   "Cancelar volta ao perfil sem apagar a conta");
 assert.equal(user.role,"tutor","Cancelar preserva sessão e perfil");
-// No modo arquivadas, só Admin tem exclusão em lote.
+// No modo Concluídas, todas as contas editoras têm exclusão em lote.
 tasks.push({...tasks[0],id:"t-archive-bulk-1",title:"Concluída A",archivedAt:"2026-11-10T12:00:00Z",status:"concluida"},
  {...tasks[0],id:"t-archive-bulk-2",title:"Concluída B",archivedAt:"2026-11-10T12:00:00Z",status:"concluida"});
 await move("#/demandas");
@@ -407,7 +430,7 @@ const archivedStatusSelect=document.querySelector('[data-filter="status"]');
 assert.ok(archivedStatusSelect,"Filtro de situação disponível");
 archivedStatusSelect.value="concluida";archivedStatusSelect.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 const bulkEntry=document.querySelector('[data-do="archive-selection-open"]');
-assert.ok(bulkEntry,"Admin encontra Excluir na lista de concluídas");
+assert.ok(bulkEntry,"PETiano(a), Tutor(a) e Admin encontram Excluir na lista de concluídas");
 tap('[data-do="archive-selection-open"]');await wait();
 const availableArchiveCards=document.querySelectorAll('[data-archive-select]').length;
 assert.ok(availableArchiveCards>=2,"Caixas individuais aparecem para todas as concluídas do período");
