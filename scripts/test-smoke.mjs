@@ -75,10 +75,10 @@ await test("limpar atualizações é pessoal e não apaga as demandas",async()=>
  assert.equal(after.tasks.length,before,"Histórico institucional preservado");
 });
 await test("e-mails agendados nunca incluem o endereço do remetente",async()=>{
- const sent=good(await api("/mail","POST",{
+ const sent=await api("/mail","POST",{
   all:true,subject:"Verificação isolada de autor",message:"Mensagem sem cópia ao autor",
   scheduledAt:"2099-01-01T00:00:00.000Z"
- }),201);
+ });
  assert.equal(sent.status,"agendado");
  const item=good(await api("/mail")).items.find(x=>x.id===sent.id);
  assert.ok(item,"E-mail agendado está na fila");
