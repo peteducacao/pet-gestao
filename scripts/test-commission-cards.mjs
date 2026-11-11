@@ -41,6 +41,7 @@ ctx.canWrite=()=>false;
 html=renderComissoes();
 assert.ok(!html.includes("Ver atividades")&&!html.includes("commission-tile-menu"),"Leitura não pode ter interações.");
 assert.ok(html.includes('<div class="commission-tile-link'),"Leitura precisa preservar o conteúdo sem link.");
+assert.match(css,/#screen \.commission-tile-link-v2\{[^}]*flex-direction:row/s,"O layout horizontal deve esticar o bloco de texto para manter Ver atividades perto da base.");
 for(const token of [".commission-tile-link-v2",".commission-v2-art-custom","#screen .commission-tile-v2","--commission-tone","@media(max-width:650px)"])
  assert.ok(css.includes(token),"CSS ausente: "+token);
 console.log("OK: artes padrão, fallback, cor RGB, foto própria, permissões e responsividade.");
