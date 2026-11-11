@@ -84,8 +84,8 @@ await test("anexos da demanda no D1: autenticação, upload em partes, download 
   good(await api(prefix+"/"+fileId,"DELETE",{}));
   assert.equal(good(await api(prefix)).attachments.length,0);
   const again=good(await api(prefix,"POST",{name:"apagar junto.txt",size:1,mimeType:"text/plain"}),201);
-  res=await up.call(null,0,new Uint8Array([42])); // O endereço deve apontar para o novo arquivo.
-  assert.equal(res.status,409,"O arquivo antigo não aceita mais partes");
+  res=await up(0,new Uint8Array([42]));
+  assert.equal(res.status,404,"Arquivo excluído não aceita mais partes");
   const upNew=await fetch(base+prefix+"/"+again.id+"/chunks/0",{
    method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/octet-stream"},body:new Uint8Array([42])
   });
