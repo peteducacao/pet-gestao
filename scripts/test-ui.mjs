@@ -480,9 +480,6 @@ tasks=tasks.filter(t=>!t.id.startsWith("t-archive-bulk-"));
  const allBox=mixedPicker.querySelector("#finish-select-all");allBox.checked=true;allBox.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
   assert.equal(mixedPicker.querySelectorAll('input[name="joint-target"]:checked').length,3,"Marcar todos marca as três participações");
  tap('#finish-dialog [data-do="finish-close"]');
- window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
-
-
 // Formulário de comissões usa editor RGB próprio (sem seletor nativo Android).
 user.role="petiano";
 await move("#/comissoes/nova");
@@ -500,3 +497,6 @@ tap('[data-do="reset-color"]');await wait();
 assert.equal(document.querySelector('#commission-form input[name="backgroundColor"]').value,"#f7f3ff");
 assert.ok(document.querySelector("#commission-image-editor"),"Modal de imagem disponível");
 assert.ok(document.querySelector('#commission-upload[accept="image/png,image/jpeg,image/webp"]'));
+ window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
+
+
