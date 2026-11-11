@@ -782,9 +782,9 @@ await test("Admin mantém ferramentas no painel novo e mostra popup de conexão"
  const js=readFileSync("app-live.js","utf8");
  const index=readFileSync("index.html","utf8");
  const css=readFileSync("live.css","utf8");
- assert.ok(js.includes('href="#/admin/demandas"'));
-  assert.ok(js.includes('href="#/admin/reunioes"'));
- assert.match(js,/function adminEmbeddedView\(parts\)/);
+ assert.ok(!js.includes('href="#/admin/demandas"'),"Demandas permanece somente na navegação comum");
+  assert.ok(!js.includes('href="#/admin/reunioes"'),"Atas permanece somente na navegação comum");
+ assert.match(js,/const tabs=\[\["painel","Painel"/);
  assert.match(js,/if\(page==="demandas"\)return renderDemandas\(\)/);
  assert.match(js,/if\(page==="registrar"\)return renderTaskForm\(route\)/);
  assert.match(js,/location.hash=workspaceHash\("demandas"\)/);
