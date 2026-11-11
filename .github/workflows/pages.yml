@@ -92,6 +92,8 @@ jobs:
           PY
       - name: Preparar configurações e arquivos públicos
         run: node scripts/prepare-deploy.mjs
+      - name: Validar instalação Android e ícones PWA gerados
+        run: node scripts/test-pwa-install.mjs
       - name: Conferir URL publica gerada e fallback do site
         run: |
           node --input-type=module <<'JS'
