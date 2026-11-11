@@ -784,8 +784,10 @@
         if(!result.meta.changes)fail("Esta comissão está com todas as vagas preenchidas.",409);
         return answer({ok:true});
       }
-      if(path==="/api/v1/admin/tasks/bulk-delete"&&method==="POST"){
-        ensure(user,true);
+      if((path==="/api/v1/tasks/bulk-delete"||path==="/api/v1/admin/tasks/bulk-delete")&&method==="POST"){
+        // Disponível a todas as funções que podem editar demandas.
+        // Endpoint legado mantido para quem ainda está com o site antigo em cache.
+        ensure(user);
         const b=await body(req);
         if(!Array.isArray(b.taskIds)||!b.taskIds.length||b.taskIds.length>100)
           fail("Selecione de 1 a 100 demandas concluídas para excluir.",400);
@@ -845,14 +847,9 @@
       }
       if(match&&method==="DELETE"){
         ensure(user);const old=await readTask(db,match[1]);
-        if(old.archivedAt)ensure(user,true);
-        else {
-          // As permissões de exclusão de demandas ativas independem de quem as criou.
-          // A sessão deve ter cargo de edição; contas comuns continuam bloqueadas.
-          const allowed=user.role==="petiano"||user.role==="tutor"||
-            (user.role==="admin"&&user.session_admin_scope===1);
-          if(!allowed)fail("Somente PETianos(as), Tutoria ou Administração podem excluir demandas ativas.",403);
-        }
+        // Concluídas e ativas: PETiano(a), Tutor(a) e Administração.
+        if(!["petiano","tutor","admin"].includes(user.role))
+          fail("Somente PETianos(as), Tutoria ou Administração podem excluir demandas.",403);
         // Apagar de forma atômica, inclusive os avisos de prazo pendentes e o histórico.
         // A autorização é validada no Worker, não por campos enviados pelo navegador.
         await db.batch([
