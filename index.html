@@ -42,11 +42,12 @@
       margin-top:clamp(18px,2.8vh,30px);
     }
     #startup-loading .startup-splash-dots span{
-      display:block;width:10px;height:10px;border-radius:50%;
-      background:#c7a7ff;animation:pet-splash-pulse 1.45s ease-in-out infinite;
+      display:block;width:11px;height:11px;border-radius:50%;
+      background:#c7a7ff;transform-origin:center center;
+      animation:pet-splash-pulse 1.25s ease-in-out infinite both;
     }
-    #startup-loading .startup-splash-dots span:nth-child(2){background:#26eab7;animation-delay:.2s}
-    #startup-loading .startup-splash-dots span:nth-child(3){animation-delay:.4s}
+    #startup-loading .startup-splash-dots span:nth-child(2){background:#26eab7;animation-delay:.19s}
+    #startup-loading .startup-splash-dots span:nth-child(3){animation-delay:.38s}
     #startup-loading .startup-splash-foot{
       position:absolute;z-index:1;bottom:max(26px,env(safe-area-inset-bottom));left:14px;right:14px;
       display:flex;justify-content:center;align-items:center;gap:clamp(9px,2.2vw,20px);
@@ -57,7 +58,12 @@
     #startup-loading .startup-splash-foot::after{
       content:"";width:clamp(20px,8vw,64px);height:2px;border-radius:6px;background:#37e5bd;
     }
-    @keyframes pet-splash-pulse{0%,100%{opacity:.5;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+    /* Um ponto por vez sobe, brilha e volta ao repouso: atividade visual, não timer fictício. */
+    @keyframes pet-splash-pulse{
+      0%,65%,100%{opacity:.36;transform:translateY(0) scale(.85)}
+      20%{opacity:1;transform:translateY(-10px) scale(1.22)}
+      37%{opacity:.86;transform:translateY(-4px) scale(1.05)}
+    }
     @media(max-height:510px){
       #startup-loading .startup-splash-body{transform:none}
       #startup-loading .startup-splash-logo{width:88px;margin-bottom:7px}
@@ -71,7 +77,7 @@
     }
   </style>
   <script>document.documentElement.classList.add("pet-booting");</script>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#592FAF" />
   <meta name="application-name" content="PET Gestão" />
   <meta name="apple-mobile-web-app-title" content="PET Gestão" />
@@ -87,14 +93,14 @@
   <title>PET Gestão | PET Educação UFS</title>
   <link rel="icon" type="image/svg+xml" href="assets/gestao-icon.svg?v=gestao-20261110" />
   <link rel="shortcut icon" type="image/svg+xml" href="assets/gestao-icon.svg?v=gestao-20261110" />
-  <link rel="manifest" href="site.webmanifest?v=20261111-instalar" />
+  <link rel="manifest" href="site.webmanifest?v=20261111-webapk-v2" />
   <link rel="apple-touch-icon" href="assets/pet-gestao-192.png" />
   <link rel="stylesheet" href="styles.css?v=gestao-20261110" />
   <link rel="stylesheet" href="live.css?v=gestao-20261111-comissoes-alinhamento-v2" />
   <!-- A URL abaixo é PUBLICA; nenhuma credencial pode ser incluída nesta configuração. -->
   <script>window.PET_GESTAO_CONFIG=Object.freeze({apiBaseUrl:"https://pet-gestao.pet-educacao.workers.dev",appName:"PET Gestão",demoMode:false,locale:"pt-BR"});</script>
   <script src="config.js?v=gestao-20261110-api-resilient"></script>
-  <script src="app-live.js?v=gestao-20261111-comissoes-rgb-v1" defer></script>
+  <script src="app-live.js?v=gestao-20261111-pwa-android-v2" defer></script>
 </head>
 <body>
   <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
