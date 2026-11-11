@@ -678,7 +678,7 @@ function setCommissionRgbFromChannel(input){
 }
 
 /* Editor de imagem local: a foto original nunca é enviada ao servidor. */
-const COMMISSION_ORIGINAL_MAX=25*1024*1024,COMMISSION_FINAL_MAX=600*1024;
+const COMMISSION_ORIGINAL_MAX=2*1024*1024,COMMISSION_FINAL_MAX=600*1024;
 let commissionImageEditor=null;
 function clampCommissionImagePosition(){
  const m=commissionImageEditor;if(!m)return;
@@ -719,7 +719,7 @@ function closeCommissionImageEditor(){
 }
 async function openCommissionImageEditor(file){
  if(!file||!/^image\/(?:jpeg|png|webp)$/.test(file.type))throw Error("Escolha uma imagem JPG, PNG ou WebP.");
- if(file.size>COMMISSION_ORIGINAL_MAX)throw Error("A imagem original deve ter no máximo 25 MB.");
+ if(file.size>COMMISSION_ORIGINAL_MAX)throw Error("A imagem original deve ter no máximo 2 MB.");
  if(!file.size)throw Error("A imagem está vazia.");
  let bitmap;
  try{
@@ -833,7 +833,7 @@ function renderCommitteeEdit(cid){
   '<div class="commission-image-picker-row"><div class="commission-image-preview" id="commission-image-preview">'+imagePreview+'</div>'+
   '<div class="commission-image-actions"><label class="button ghost commission-image-choose">Escolher imagem<input type="file" id="commission-upload" accept="image/png,image/jpeg,image/webp" aria-label="Escolher imagem da comissão"></label>'+
   '<button type="button" class="button ghost" data-do="commission-image-remove">Remover imagem</button>'+
-  '<small id="commission-image-hint">JPG, PNG ou WebP de até 25 MB. Edite, recorte e redimensione antes de salvar.</small></div></div>'+
+  '<small id="commission-image-hint">JPG, PNG ou WebP de até 2 MB. Edite, recorte e redimensione antes de salvar.</small></div></div>'+
   '<input type="hidden" name="imageData" value="'+esc(c?.imageData||"")+'"></div>';
 
  return header("Comissões",c?"Editar comissão":"Nova comissão","")+
