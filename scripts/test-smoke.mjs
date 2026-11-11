@@ -37,6 +37,68 @@ await test("sessões temporárias e permanentes da Administração",async()=>{
 let a,b,task,meeting;
 // Antes de modificar senhas de teste, conferir a fila de e-mails no D1 local.
 await import("./test-email-queue.mjs");
+await test("anexos da demanda no D1: autenticação, upload em partes, download e exclusão",async()=>{
+ const adminToken=token,user=good(await api("/auth/me")).user;
+ const created=good(await api("/tasks","POST",{
+  title:"Demanda isolada com arquivos",
+  assignmentScope:"usuarios",assigneeIds:[user.id],commissionIds:[],deadlines:[]
+ }),201);
+ const taskId=created.id;
+ const prefix="/tasks/"+encodeURIComponent(taskId)+"/attachments";
+ const raw=new Uint8Array(300003);
+ for(let i=0;i<raw.length;i++)raw[i]=i%251;
+ let fileId="";
+ try{
+  token="";
+  assert.equal((await api(prefix)).status,401,"Visitante não pode listar anexos");
+  assert.equal((await api(prefix,"POST",{name:"documento.pdf",size:raw.length})).status,401);
+  token=adminToken;
+  assert.equal((await api(prefix,"POST",{name:"imenso.pdf",size:10485761})).status,413);
+  const meta=good(await api(prefix,"POST",{
+   name:"arquivo de teste.pdf",size:raw.length,mimeType:"application/pdf"
+  }),201);
+  fileId=meta.id;
+  assert.equal(meta.chunkSize,262144);
+  assert.equal(meta.chunkCount,2);
+  assert.equal(good(await api(prefix)).attachments.length,0,"Arquivo incompleto não fica visível");
+  assert.equal((await api(prefix+"/"+fileId+"/complete","POST",{})).status,409);
+  const up=async(i,bytes)=>fetch(base+prefix+"/"+fileId+"/chunks/"+i,{
+   method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/octet-stream"},body:bytes
+  });
+  const bad=await up(0,raw.slice(0,10));assert.equal(bad.status,400);
+  let res=await up(0,raw.slice(0,262144));assert.equal(res.status,200,await res.text());
+  res=await up(1,raw.slice(262144));assert.equal(res.status,200,await res.text());
+  good(await api(prefix+"/"+fileId+"/complete","POST",{}));
+  const listing=good(await api(prefix)).attachments;
+  assert.equal(listing.length,1);
+  assert.equal(listing[0].name,"arquivo de teste.pdf");
+  assert.equal(listing[0].size,raw.length);
+  token="";
+  assert.equal((await fetch(base+prefix+"/"+fileId+"/download")).status,401);
+  token=adminToken;
+  const download=await fetch(base+prefix+"/"+fileId+"/download",{headers:{Authorization:"Bearer "+token}});
+  assert.equal(download.status,200);
+  assert.equal(download.headers.get("content-type"),"application/octet-stream");
+  assert.deepEqual(new Uint8Array(await download.arrayBuffer()),raw,"Binário baixado idêntico ao enviado");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,1);
+  good(await api(prefix+"/"+fileId,"DELETE",{}));
+  assert.equal(good(await api(prefix)).attachments.length,0);
+  const again=good(await api(prefix,"POST",{name:"apagar junto.txt",size:1,mimeType:"text/plain"}),201);
+  res=await up.call(null,0,new Uint8Array([42])); // O endereço deve apontar para o novo arquivo.
+  assert.equal(res.status,409,"O arquivo antigo não aceita mais partes");
+  const upNew=await fetch(base+prefix+"/"+again.id+"/chunks/0",{
+   method:"PUT",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/octet-stream"},body:new Uint8Array([42])
+  });
+  assert.equal(upNew.status,200);
+  good(await api(prefix+"/"+again.id+"/complete","POST",{}));
+  good(await api("/tasks/"+taskId,"DELETE"));
+  assert.equal((await api(prefix)).status,404,"Exclusão de demanda elimina acesso aos arquivos");
+  console.log("PASS anexos: arquivos D1 em partes, persistência, segurança e exclusão");
+ }finally{
+  token=adminToken;
+  if(good(await api("/bootstrap")).tasks.some(t=>t.id===taskId))good(await api("/tasks/"+taskId,"DELETE"));
+ }
+});
 await test("login administrativo independente",async()=>{
  const bad=await api("/auth/admin-login","POST",{identifier:"Admin",password:"errada"});
  assert.equal(bad.status,401);
