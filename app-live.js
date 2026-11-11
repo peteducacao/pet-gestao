@@ -1518,34 +1518,46 @@ let pwaInstallPrompt=null,pwaInstalled=false;
 function isPwaInstalled(){
  return pwaInstalled||Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches)||navigator.standalone===true;
 }
+// O WebAPK (aplicativo na gaveta do Android) é criado pelo Chrome/Google Play Services.
+// Não é possível obrigar o navegador a produzir um WebAPK via JavaScript.
+// Orientar a instalação pelo Chrome, sem confundir atalho de página com aplicativo.
+function pwaInstallInstructions(){
+ const agent=navigator.userAgent||"";
+ if(/iPhone|iPad|iPod/i.test(agent))
+  return "No iPhone/iPad, abra o PET Gestão no Safari, toque em Compartilhar e escolha Adicionar à Tela de Início.";
+ if(/Android/i.test(agent))
+  return "Para aparecer na lista de aplicativos do Android, abra https://peteducacao.github.io/pet-gestao/ diretamente no Google Chrome (fora do navegador interno de outros aplicativos). Toque em ⋮ → Instalar aplicativo e confirme Instalar. Se aparecer apenas Criar atalho, o Android criará somente um atalho; atualize o Chrome e tente novamente.";
+ return "No computador, abra o PET Gestão no Chrome ou Microsoft Edge e use a opção Instalar aplicativo do menu ou da barra de endereços.";
+}
+function showPwaInstallHelp(message){
+ const hint=$("#pet-install-help");
+ if(hint){hint.textContent=message;hint.hidden=false;}
+}
 function renderAppInstall(){
  const installed=isPwaInstalled();
  return '<section class="account-app-install" aria-label="Instalar aplicativo PET Gestão">'+
   '<div class="account-app-install-head"><span class="account-app-install-icon">'+ico("download")+'</span><div>'+
-  '<h3>Aplicativo PET Gestão</h3><p>Instale no celular ou computador para abrir o PET Gestão com um ícone próprio. Os dados continuam sincronizados pela internet.</p></div></div>'+
+  '<h3>Aplicativo PET Gestão</h3><p>Instale pelo Google Chrome para abrir o PET Gestão com seu próprio ícone. No Android compatível, o aplicativo aparece também na lista de apps. Os dados continuam sincronizados pela internet.</p></div></div>'+
   '<button type="button" class="button primary account-app-install-button" data-do="install-pet-app" '+(installed?'disabled aria-disabled="true"':'')+'>'+
-  ico(installed?"check":"download")+(installed?" Aplicativo já instalado":" Instalar PET Gestão")+'</button>'+
+  ico(installed?"check":"download")+(installed?" Aplicativo instalado":" Baixar aplicativo")+'</button>'+
   '<p id="pet-install-help" class="account-app-install-help" role="status" aria-live="polite" hidden></p></section>';
 }
 async function installPetApp(){
  if(isPwaInstalled()){setToast("O PET Gestão já está aberto como aplicativo.");return;}
  if(pwaInstallPrompt){
-  const prompt=pwaInstallPrompt;pwaInstallPrompt=null;
-  await prompt.prompt();
-  const choice=await prompt.userChoice;
-  if(choice?.outcome==="accepted")setToast("Instalação solicitada. Confira o ícone PET Gestão na tela inicial.");
-  else{
-   const hint=$("#pet-install-help");
-   if(hint){hint.hidden=false;hint.textContent="Para tentar novamente, abra o menu do navegador e escolha Instalar aplicativo ou Adicionar à tela inicial.";}
+  const event=pwaInstallPrompt;pwaInstallPrompt=null;
+  try{
+   await event.prompt();
+   const choice=await event.userChoice;
+   if(choice?.outcome==="accepted"){
+    showPwaInstallHelp("Instalação solicitada. O Chrome pode precisar concluir a instalação pelo sistema Android. Confira a lista de aplicativos.");
+   }else showPwaInstallHelp(pwaInstallInstructions());
+  }catch{
+   showPwaInstallHelp(pwaInstallInstructions());
   }
   return;
  }
- const hint=$("#pet-install-help");if(!hint)return;
- const agent=navigator.userAgent||"";
- if(/iPhone|iPad|iPod/i.test(agent))hint.textContent="No iPhone, abra o site no Safari, toque em Compartilhar e selecione Adicionar à Tela de Início.";
- else if(/Android/i.test(agent))hint.textContent="No Android, abra este site no Chrome, toque no menu ⋮ e escolha Instalar aplicativo ou Adicionar à tela inicial. Se a opção não aparecer, atualize o site.";
- else hint.textContent="No computador, use o Chrome ou Edge e escolha Instalar aplicativo pelo menu ⋮ ou pelo ícone de instalação da barra de endereço.";
- hint.hidden=false;
+ showPwaInstallHelp(pwaInstallInstructions());
 }
 function renderAccount(){
  if(!me)return authRequired();
@@ -2597,6 +2609,8 @@ function start(){
  window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();pwaInstallPrompt=event;});
  window.addEventListener("appinstalled",()=>{
    pwaInstalled=true;pwaInstallPrompt=null;
+    const help=$("#pet-install-help");
+    if(help){help.hidden=false;help.textContent="Aplicativo instalado. Ele pode aparecer na lista de aplicativos do Android.";}
    const btn=$('[data-do="install-pet-app"]');
    if(btn){btn.disabled=true;btn.setAttribute("aria-disabled","true");btn.innerHTML=ico("check")+" Aplicativo já instalado";}
    const hint=$("#pet-install-help");if(hint)hint.hidden=true;
