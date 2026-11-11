@@ -548,7 +548,7 @@ function commissionDefaultArt(name){
   site:["💻","#e4e9ff"],comemoracoes:["🎉","#ffe4ed"],impressora3d:["🖨️","#e5f2f1"]
  };
  const [symbol,color]=art[n]||["📋","#ece7fa"];
- return '<span class="commission-default-art" style="--art-color:'+color+'" aria-hidden="true">'+symbol+'</span>';
+ return '<span class="commission-default-art" style="--art-color:'+color+'" aria-hidden="true">'+commissionCardArt(name)+'</span>';
 }
 // Tons decorativos derivados da cor RGB salva na comissão (sem alterar o D1).
 // Clarear ou escurecer aqui afeta somente a arte, nunca o valor escolhido.
@@ -2709,6 +2709,10 @@ function start(){
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("input",e=>{
    const el=e.target;
+   if(el?.matches?.('#commission-form input[name="name"]')){
+     const image=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
+     if(image&&!image.value&&preview)preview.innerHTML='<span class="commission-image-placeholder commission-image-default">'+commissionCardArt(el.value)+'<small>Imagem padrão</small></span>';
+   }
    if(el?.matches?.("[data-commission-rgb-range],[data-commission-rgb-number]"))setCommissionRgbFromChannel(el);
    if(el?.matches?.("[data-commission-color-hex]")){
      const normalized=String(el.value||"").trim();
