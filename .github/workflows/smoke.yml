@@ -8,6 +8,7 @@ on:
       - 'live.css'
       - 'scripts/test-ui.mjs'
       - 'scripts/test-browser.mjs'
+      - 'scripts/test-browser-sessions.mjs'
       - '.github/workflows/smoke.yml'
   pull_request:
     branches: [main]
@@ -43,3 +44,5 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Clicar e verificar telas no navegador
         run: node scripts/test-browser.mjs
+      - name: Impedir duas identidades em abas do mesmo navegador
+        run: node scripts/test-browser-sessions.mjs
