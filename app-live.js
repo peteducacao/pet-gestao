@@ -1380,13 +1380,36 @@ async function saveTask(form){
  const previous=taskId?data.tasks.find(t=>t.id===taskId):null;
  const overviewVisible=f.overviewVisibility!=="comissao";
  if(!overviewVisible&&!commissions.length)return setToast("Selecione uma comissão para exibir somente nela.");
+ const picked=[...(state.taskFiles||[])];
+ const existing=previous?.attachments||[];
+ if(picked.some(x=>!x.size||x.size>TASK_FILE_MAX))return setToast("Os anexos devem ter até 10 MB por arquivo e não podem estar vazios.");
+ if(existing.length+picked.length>TASK_FILES_MAX||
+    picked.reduce((total,x)=>total+x.size,existing.reduce((total,x)=>total+x.size,0))>TASK_FILES_TOTAL_MAX)
+   return setToast("A demanda aceita até 8 arquivos e 30 MB no total.");
  const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?
   await askNotification({users,commissions}):false;
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,assignmentScope:state.assignmentScope,overviewVisible,notify};
- await saveAndReload(async()=>{
+ let savedId=taskId||"";
+ try{
    const r=await request(taskId?"/tasks/"+id(taskId):"/tasks",taskId?"PUT":"POST",body);
-   resetTaskDraft();state.taskFormId=null;location.hash=workspaceHash("demandas");return r;
- },"Demanda salva com sucesso.");
+   savedId=taskId||r.id;
+   const failures=[];
+   for(let index=0;index<picked.length;index++){
+     const file=picked[index],progress=$("#task-file-progress");
+     if(progress){progress.hidden=false;progress.textContent="Armazenando "+(index+1)+" de "+picked.length+": "+file.name;}
+     try{
+       await uploadTaskFile(savedId,file,(part,total)=>{
+         if(progress?.isConnected)progress.textContent="Armazenando "+file.name+" · parte "+part+" de "+total;
+       });
+     }catch(e){failures.push(file.name+" ("+e.message+")");}
+   }
+   state.taskFiles=[];resetTaskDraft();state.taskFormId=null;
+   location.hash=workspaceHash("demandas");await reload();
+   if(failures.length)showNotice("A demanda foi salva, mas alguns arquivos não puderam ser armazenados: "+failures.join("; ")+". Abra Editar demanda para tentar novamente.",{
+     title:"Demanda salva com anexos pendentes",kind:"warning"});
+   else setToast(picked.length?"Demanda e "+picked.length+" arquivo(s) salvos.":"Demanda salva com sucesso.");
+ }catch(e){setToast(e.message);}
+
 }
 async function finishTask(t,cid){
  if(isEveryoneAssigned(t))return setToast("O evento será concluído automaticamente após a data informada.");
@@ -1786,6 +1809,23 @@ async function handleClick(e){
    if(form){form.hidden=!form.hidden;b.setAttribute("aria-expanded",String(!form.hidden));}
    return;
  }
+ if(action==="task-file-unselect"){
+   state.taskFiles.splice(Number(b.dataset.index),1);
+   const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
+   return;
+ }
+ if(action==="task-file-download"){
+   try{await downloadTaskFile(tid,b.dataset.fileId,b.dataset.name);}
+   catch(e){setToast(e.message)}
+   return;
+ }
+ if(action==="task-file-delete"){
+   if(!await askConfirm("Excluir o arquivo "+b.dataset.name+" desta demanda? Ele não poderá ser recuperado.",{
+      title:"Excluir anexo?",danger:true
+   }))return;
+   await saveAndReload(()=>request("/tasks/"+id(tid)+"/attachments/"+id(b.dataset.fileId),"DELETE"),"Anexo excluído.");
+   return;
+ }
  if(action==="remove-mail-file"){state.mailFiles.splice(Number(b.dataset.index),1);renderMailScheduling();return}
 }
 async function handleSubmit(e){
@@ -1939,6 +1979,21 @@ async function handleChange(e){
   }
   if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
+ if(t.id==="task-file-input"){
+   const saved=data.tasks.find(task=>task.id===state.taskFormId)?.attachments||[];
+   for(const file of t.files||[]){
+     if(!file.size||file.size>TASK_FILE_MAX){setToast("O arquivo "+file.name+" deve ter até 10 MB.");continue;}
+     const total=[...saved,...state.taskFiles].reduce((n,f)=>n+(f.size||0),0);
+     if(saved.length+state.taskFiles.length>=TASK_FILES_MAX||total+file.size>TASK_FILES_TOTAL_MAX){
+       setToast("Limite por demanda: até 8 arquivos e 30 MB no total.");break;
+     }
+     if(state.taskFiles.some(f=>f.name===file.name&&f.size===file.size&&f.lastModified===file.lastModified))continue;
+     state.taskFiles.push(file);
+   }
+   t.value="";
+   const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
+   return;
+ }
  if(t.id==="mail-file-input"){for(const file of t.files){if(file.size>10*1024*1024){setToast("O arquivo "+file.name+" excede 10 MB.");continue}state.mailFiles.push(file)}renderMailScheduling();return}
  if(t.id==="commission-upload"){
    const file=t.files?.[0];if(!file)return;if(file.size>650000)return setToast("Imagem de comissão muito grande. Use até 650 KB.");
