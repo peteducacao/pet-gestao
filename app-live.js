@@ -796,7 +796,7 @@ function taskFilePendingList(){
 }
 function taskFileForm(t){
  return '<section class="task-files-section"><h3>'+ico("folder")+' Arquivos da demanda</h3>'+
- '<p class="field-hint">Guarde documentos, imagens e outros arquivos na própria demanda. Até 10 MB por arquivo, 8 arquivos e 30 MB no total. Não são enviados por e-mail automaticamente.</p>'+
+ '<p class="field-hint">Guarde documentos, imagens e outros arquivos na própria demanda. Selecione vários arquivos (até 10 MB cada, 8 por demanda e 30 MB no total). Somente PETianos(as), Tutoria e Administração podem visualizar e baixar. Os anexos não são enviados automaticamente por e-mail.</p>'+
  ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Arquivos armazenados</h4>'+taskFileList(t)+'</div>':"")+
  '<label class="task-file-picker">Selecionar arquivos<input id="task-file-input" type="file" multiple></label>'+
  '<div id="task-file-selection">'+taskFilePendingList()+'</div>'+
