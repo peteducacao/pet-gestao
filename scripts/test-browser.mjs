@@ -606,6 +606,8 @@ await page.locator('a[data-route="reunioes"]').click();
    deadlines:[{id:"p3",label:"Prazo",dueAt:new Date(Date.now()-60000).toISOString(),assigneeIds:["u1"]}],
    userDone:{},commissionDone:{},archivedAt:null,status:"pendente"});
  await page.goto(origin+"/#/minhas-pendencias");
+ // O mock incluiu uma demanda após o bootstrap; recarregar para trazê-la ao perfil Tutor(a).
+ await page.reload({waitUntil:"domcontentloaded"});
  const personalOnly=page.locator(".mine-task-item").filter({hasText:"Concluir sem e-mail da tutoria"});
  await personalOnly.locator('button[data-do="finish-mine"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
