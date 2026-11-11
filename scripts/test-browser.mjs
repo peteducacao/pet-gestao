@@ -369,11 +369,11 @@ try{
  await page.locator('input[name="overviewVisibility"][value="comissao"]').check();
  assert.equal(await page.locator('#task-form button[type="submit"]').count(),0,"Nenhum Salvar demanda duplicado abaixo do formulário de edição");
  assert.equal(await page.locator('.page-actions button[form="task-form"].task-form-header-save').count(),1,"Salvar demanda permanece no cabeçalho");
- const formButtons=await page.locator('.page-actions').evaluate(el=>{
-  const buttons=[...el.querySelectorAll('button')],save=buttons.find(b=>b.classList.contains("task-form-header-save")),back=buttons.find(b=>b.dataset.do==="back");
-  return {save:!!save,back:!!back,near:Math.abs(save.getBoundingClientRect().top-back.getBoundingClientRect().top)<8};
- });
- assert.ok(formButtons.save&&formButtons.back&&formButtons.near,"Salvar e Voltar devem ficar na mesma linha");
+ const formButtons=await page.locator('.page-actions').evaluate(el=>({
+  save:!!el.querySelector(".task-form-header-save"),
+  back:!!el.querySelector('[data-do="back"]')
+ }));
+ assert.ok(formButtons.save&&!formButtons.back,"Salvar no cabeçalho sem Voltar duplicado");
  await page.locator('.task-form-header-save').click();
  await page.waitForTimeout(200);
  assert.ok(calls.some(x=>x.method==="PUT"&&x.p==="/tasks/t1"&&x.body.overviewVisible===false),"Cadastro deve enviar escolha de exibição ao servidor");
@@ -537,6 +537,13 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/reunioes");
  await page.locator('select[data-filter="meetings"]').waitFor();
  assert.equal(await page.locator('select[data-filter="meetings"] option').count(),2,"Atas mostram Todas/Recentes no seletor");
+ await page.goto(origin+"/#/ajuda");
+ await page.locator(".help-page").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator("#commission-help-title").count(),1,"Ajuda de Comissões integra a Ajuda geral");
+ const menuOrder=await page.locator("#primary-nav .nav-link").evaluateAll(nodes=>nodes.map(el=>el.dataset.route));
+ assert.equal(menuOrder.indexOf("ajuda"),menuOrder.indexOf("comissoes")+1,"Ajuda abaixo de Comissões");
+ await page.goto(origin+"/#/comissoes");
+ assert.equal(await page.locator(".commission-help-item").count(),0,"Sem Ajuda duplicada em Comissões");
  await page.goto(origin+"/#/comissoes/videos");
  await page.locator('select[data-filter="commissionStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="commissionStatus"] option').count(),3);
@@ -594,9 +601,11 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.setViewportSize({width:390,height:844});
  await page.locator('[data-do="admin-menu"]').click();
  await page.locator(".admin-sidebar.open").waitFor({state:"visible",timeout:4000});
- await page.locator('.admin-sidebar a[href="#/admin/reunioes"]').click();
- await page.waitForURL("**/#/admin/reunioes");
- assert.equal(await page.locator(".admin-sidebar.open").count(),0,"Menu Admin fecha ao navegar para Atas");
+ await page.locator('.admin-sidebar a[href="#/admin/usuarios"]').click();
+ await page.waitForURL("**/#/admin/usuarios");
+ assert.equal(await page.locator(".admin-sidebar.open").count(),0,"Menu Admin fecha ao navegar para Usuários");
+ assert.equal(await page.locator('.admin-sidebar a[href="#/admin/demandas"]').count(),0,"Sem Demandas duplicadas no Admin");
+ assert.equal(await page.locator('.admin-sidebar a[href="#/admin/reunioes"]').count(),0,"Sem Atas duplicadas no Admin");
  await page.goto(origin+"/#/admin/comissoes");
  await page.locator('.admin-commission-item').first().waitFor();
  assert.equal(await page.locator('[data-do="save-vagas"]').count(),0,"Botões Salvar individuais removidos");
