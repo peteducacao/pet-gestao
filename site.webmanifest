@@ -40,5 +40,10 @@
       "type": "image/svg+xml",
       "purpose": "any"
     }
+  ],
+  "prefer_related_applications": false,
+  "categories": [
+    "education",
+    "productivity"
   ]
 }
