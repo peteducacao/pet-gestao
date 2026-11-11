@@ -2164,3 +2164,51 @@ body.mail-preview-open{overflow:hidden}
 /* No celular, fechar o menu administrativo desliza e apaga o fundo suavemente. */
 .admin-screen-overlay{opacity:1;transition:opacity .22s ease}
 .admin-screen-overlay.closing{opacity:0;pointer-events:none}
+
+
+/* Retorno do Painel Admin: modal existente ganha entrada leve e transição visível. */
+.connecting-popup.returning-to-gestao{background:rgba(20,17,45,.62);backdrop-filter:blur(6px)}
+.connecting-popup.returning-to-gestao .connecting-card{
+ animation:gestaoReturnAppear .35s cubic-bezier(.18,.8,.26,1) both;
+ border-color:#dfd1f4;box-shadow:0 28px 90px #20133d50;
+}
+.connecting-popup.returning-to-gestao .connecting-spinner{
+ border-top-color:#7044cc;box-shadow:0 0 0 7px #eee7ff66;
+}
+@keyframes gestaoReturnAppear{
+ from{opacity:.25;transform:translateY(14px) scale(.96)}
+ to{opacity:1;transform:translateY(0) scale(1)}
+}
+/* Crédito da última alteração: perto do texto para revisão, sem competir com o editor. */
+#screen .review-last-edit{
+ display:flex;align-items:center;gap:4px 7px;flex-wrap:wrap;
+ margin:5px 0 12px;color:#766c83;font-size:11.5px;line-height:1.5;
+}
+#screen .review-last-edit strong{color:#4a3b60;font-weight:750}
+#screen .review-last-edit-role{color:#786a92}
+#screen .review-last-edit time{font-variant-numeric:tabular-nums;color:#82788e}
+#screen .detail-review-full .review-last-edit{margin:2px 0 14px}
+@media(max-width:530px){#screen .review-last-edit{font-size:11px}}
+/* FAQ no rodapé das Comissões: perguntas e respostas recolhíveis. */
+#screen .commission-help{margin-top:17px}
+#screen .commission-help .section-head h2{display:flex;align-items:center;gap:9px}
+#screen .commission-help .section-head h2 svg{width:19px;height:19px;color:#7249c3}
+#screen .commission-help-list{display:grid;gap:9px;margin-top:12px}
+#screen .commission-help-item{
+ border:1px solid #e9e2f2;background:#fcfbff;border-radius:13px;overflow:hidden;
+}
+#screen .commission-help-item summary{
+ display:flex;justify-content:space-between;align-items:center;gap:14px;
+ cursor:pointer;padding:15px 17px;font-weight:750;font-size:13px;color:#40314e;
+ list-style:none;
+}
+#screen .commission-help-item summary::-webkit-details-marker{display:none}
+#screen .commission-help-item summary span{font-size:21px;color:#8058c8;transition:transform .18s}
+#screen .commission-help-item[open] summary span{transform:rotate(180deg)}
+#screen .commission-help-item p{
+ margin:0;padding:0 17px 17px;color:#6d637b;font-size:13px;line-height:1.6;
+}
+@media(max-width:530px){
+ #screen .commission-help-item summary{padding:14px;font-size:12.5px}
+ #screen .commission-help-item p{padding:0 14px 15px;font-size:12.5px}
+}
