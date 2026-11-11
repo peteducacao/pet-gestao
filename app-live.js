@@ -533,7 +533,24 @@ function renderComissoes(){
  return '<article class="commission-tile" style="--commission-bg:'+esc(c.backgroundColor||"#f7f3ff")+'"><'+linkTag+linkProps+' class="commission-tile-link"><div class="commission-tile-main"><span class="commission-icon">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="'+esc(c.name)+'">':commissionDefaultArt(c.name))+'</span><div class="commission-tile-info"><h3>'+esc(c.name)+'</h3><p>'+esc(c.description||"")+'</p></div></div><div class="commission-tile-members">'+ico("users")+' '+members+(cmax?" / "+cmax:"")+' integrantes'+(!cmax?' · Vagas a definir':"")+'</div>'+(canWrite()?'<span class="commission-tile-view">Ver atividades '+ico("arrow")+'</span>':"")+'</'+linkTag+'>'+
  (canWrite()?'<details class="commission-tile-menu"><summary title="Opções">⋮</summary><div class="commission-tile-menu-items">'+button("Editar","comissoes/editar/"+id(c.id))+
  (isAdmin()?'<button type="button" data-do="delete-commission" data-id="'+esc(c.id)+'">Excluir</button>':joined?'<button type="button" data-do="leave-commission" data-id="'+esc(c.id)+'">Sair da comissão</button>':'<button type="button" data-do="join-commission" data-id="'+esc(c.id)+'">Fazer parte</button>')+'</div></details>':"")+'</article>'
- }).join("")+'</div></section>';
+ }).join("")+'</div></section>'+
+ commissionHelp();
+}
+function commissionHelp(){
+ const topics=[
+  ["Como participar de uma comissão?","Abra as opções (⋮) da equipe e escolha Fazer parte. Se as vagas estiverem limitadas, o sistema informa quando não for possível ingressar."],
+  ["Onde encontro as demandas da minha comissão?","Toque no card da equipe para consultar as atividades vinculadas. O painel resume Demandas, Concluídas, Atrasadas e Pendentes."],
+  ["Qual a diferença entre pessoa e comissão responsável?","Uma pessoa indicada individualmente tem sua própria participação. Uma comissão é uma participação coletiva, e seus integrantes podem acompanhar as pendências daquela equipe."],
+  ["Concluir minha participação conclui a demanda inteira?","Não necessariamente. A demanda só é arquivada quando todas as pessoas e comissões responsáveis tiverem concluído suas participações."],
+  ["Qual a diferença entre pendente e atrasada?","Pendente é uma participação ainda não concluída e sem prazo vencido; atrasada é uma participação ainda não concluída com prazo vencido."],
+  ["Como sair de uma comissão?","Abra as opções da equipe e escolha Sair da comissão. Caso a saída seja bloqueada por regras de participação, o site mostrará uma explicação."]
+ ];
+ return '<section class="card card-pad commission-help" aria-labelledby="commission-help-title">'+
+  '<div class="section-head"><div><h2 id="commission-help-title">'+ico("info")+' Ajuda sobre comissões</h2>'+
+  '<p>Entenda os responsáveis, o andamento e as opções disponíveis.</p></div></div>'+
+  '<div class="commission-help-list">'+topics.map(([q,a])=>
+   '<details class="commission-help-item"><summary>'+esc(q)+'<span aria-hidden="true">⌄</span></summary>'+
+   '<p>'+esc(a)+'</p></details>').join("")+'</div></section>';
 }
 
 // O painel contabiliza a participação DESTA comissão, independentemente
