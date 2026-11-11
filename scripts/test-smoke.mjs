@@ -258,11 +258,13 @@ await test("exclusão em lote por PETiano(a), Tutor(a) e Administração: exige 
     commissionIds:[],deadlines:[{id:"evento-data",label:"Evento",dueAt:day+"T23:59:59"}]
    }),201).id);
   }
-  assert.ok(archivedIds.every(id=>good(await api("/bootstrap")).tasks.find(t=>t.id===id)?.archivedAt));
+  const before=good(await api("/bootstrap")).tasks;
+  assert.ok(archivedIds.every(id=>before.find(t=>t.id===id)?.archivedAt));
   assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:[]})).status,400);
   assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:[archivedIds[0],archivedIds[0]]})).status,400);
   assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:[...archivedIds,activeId]})).status,409);
-  assert.ok(archivedIds.every(id=>good(await api("/bootstrap")).tasks.some(t=>t.id===id)),
+  const preserved=good(await api("/bootstrap")).tasks;
+  assert.ok(archivedIds.every(id=>preserved.some(t=>t.id===id)),
    "Rejeição do lote com pendentes mantém todas as demandas");
   token="";
   assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,401);
