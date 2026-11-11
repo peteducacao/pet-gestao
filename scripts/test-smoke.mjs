@@ -51,6 +51,24 @@ await test("cadastro começa como Usuário",async()=>{
  const users=good(await api("/admin/users")).users;
  assert.equal(users.find(u=>u.email==="teste-usuario@pet.local").role,"usuario");
 });
+await test("senha com quantidade livre de caracteres no cadastro e alteração",async()=>{
+ const original=token,email="comprimento-senha-"+Date.now()+"@pet.local";
+ let activePassword="7";
+ good(await api("/auth/register","POST",{name:"Teste Senha Livre",email,password:activePassword}),201);
+ try{
+  token=good(await api("/auth/login","POST",{email,password:activePassword})).token;
+  assert.equal(good(await api("/auth/me")).user.email,email,"Senha numérica de um caractere pode ser utilizada");
+  const longPassword="1234567890".repeat(65);
+  assert.equal(longPassword.length,650,"Teste supera o limite antigo de 200 caracteres");
+  good(await api("/auth/change-password","POST",{password:activePassword,newPassword:longPassword}));
+  activePassword=longPassword;
+  token=good(await api("/auth/login","POST",{email,password:activePassword})).token;
+  assert.equal(good(await api("/auth/me")).user.email,email,"Senha longa continua válida ao entrar");
+  good(await api("/account","DELETE",{password:activePassword,confirmation:"EXCLUIR MINHA CONTA"}));
+ }finally{
+  token=original;
+ }
+});
 await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)",async()=>{
  const adminToken=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
  assert.ok(person);
