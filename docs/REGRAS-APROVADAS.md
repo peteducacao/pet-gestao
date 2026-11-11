@@ -205,3 +205,10 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - O Worker valida tamanho, tipo declarado e assinatura inicial JPEG antes de publicar a foto da demanda. A foto de perfil também exige data URI de JPEG. Não confiar apenas no atributo `accept="image/*"` do navegador.
 - **Exclusão:** retirar uma foto não remove as outras; excluir uma demanda remove suas fotos e seus blocos associados. Demandas concluídas conservam fotos anteriores para PETianos(as) consultarem, mas não recebem novos uploads. Uploads incompletos antigos são limpos automaticamente.
 - **Testes:** negar listagem/download/upload a visitantes, Usuários, Administração e Tutoria; confirmar inclusão, abertura, download e remoção independente de duas fotos pelo PETiano; rejeitar PDF e tamanho excessivo; verificar a foto de perfil, remoção e preservação das demandas reais. 
+
+## Campo de senha com tamanho livre — 11/11/2026
+- Todos os campos de senha (entrar, cadastrar, alterar no Meu perfil, recuperar/redefinir e confirmar exclusão) aceitam **algarismos, letras e símbolos**, sem limite máximo de caracteres configurado.
+- Para criar e definir uma senha nova, exigir apenas um valor não vazio. O antigo mínimo de 10 caracteres e o teto de 200 foram retirados do formulário e das rotas `/auth/register`, `/auth/change-password` e `/auth/reset`.
+- A autenticação continua usando hash PBKDF2 e limite de tentativas, sem armazenar a senha em texto simples. O limite geral de tamanho das requisições continua valendo para proteção do servidor, independentemente do campo de senha.
+- **Orientação de segurança:** embora senhas curtas sejam aceitas por escolha do usuário, recomendar senhas longas e difíceis de adivinhar. Não mostrar senha em logs, URL ou mensagens públicas.
+- Testar senha numérica curta e senha com mais de 200 caracteres, incluindo login e troca de senha.
