@@ -228,3 +228,10 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - Preservar as permissões, autenticação e carregamento de `/bootstrap`; a tela deve desaparecer automaticamente após o primeiro `render`, inclusive se a API falhar. Não impor espera artificial e respeitar `prefers-reduced-motion`.
 - A tela nativa inicial do Android é gerada pelo próprio sistema a partir do manifesto e do ícone do aplicativo; esta alteração substitui a tela HTML visível após a inicialização, não o splash nativo do Android.
 - Cache do PWA atualizado para entregar a versão nova. Teste de regressão: `node scripts/test-startup-splash.mjs`.
+
+## Instalação Android e animação da abertura — 11/11/2026
+- O PET Gestão utiliza o mesmo fluxo PWA do Inventário PET: manifesto com identificador persistente, display standalone, ícones PNG de 192/512 px comuns e adaptáveis, service worker e evento nativo beforeinstallprompt. A instalação WebAPK, com presença na lista de aplicativos, depende do Chrome e dos serviços Android, não de JavaScript.
+- Em Meu perfil, o botão Baixar aplicativo apresenta o instalador oferecido pelo Chrome. Na ausência do prompt, orienta a abrir diretamente no Chrome e escolher Instalar aplicativo, diferenciando isso de Criar atalho. Não declarar o app instalado até confirmação pelo navegador.
+- O manifesto não aponta para aplicativo da Play Store (prefer_related_applications: false). O ícone e o cadastro da instalação permanecem próprios do PET Gestão. Alguns aparelhos e navegadores podem oferecer apenas um atalho.
+- Na tela de abertura, os três pontos sobem e brilham em sequência, com duração de 1,25 s e deslocamentos de 0,19 s. Respeitar a preferência de redução de movimento do sistema.
+- O CI valida manifesto, ícones gerados no pacote do deploy, botões e versão do cache, sem consultar ou alterar usuários, demandas ou banco.
