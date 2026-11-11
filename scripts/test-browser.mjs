@@ -113,7 +113,7 @@ try{
  assert.equal(await page.locator('select[data-filter="status"]').count(),1);
  assert.equal(await page.locator('.task-status-atrasada').count()>0,true);
  assert.equal(await page.locator('select[data-filter="periodMode"]').count(),1,"Mensal e semanal em seletor");
- assert.equal(await page.locator('select[data-filter="status"] option').count(),4,"Visualização inclui concluídas");
+ assert.equal(await page.locator('select[data-filter="status"] option').count(),5,"Visualização mantém Todas as demandas e acrescenta Geral, Pendentes, Atrasadas e Concluídas");
  assert.equal(await page.locator('button[data-do="mode"]').count(),0,"Sem controles segmentados redundantes");
  const single=page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"});
  assert.equal(await single.locator(".demand-card-single.demand-card-committee").count(),1,"Uma comissão aparece diretamente, sem seletor");
