@@ -558,10 +558,9 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('[data-do="archive-selection-open"]').count(),0,"Somente leitura não pode excluir");
  user.role="tutor";
  tasks=tasks.filter(t=>t.id!=="t-done-roles");
- // Após simular o perfil somente leitura, recarregar sessão de Tutoria
- // antes de acessar Minhas pendências, em vez de manter o bootstrap antigo.
- await page.goto(origin+"/#/inicio");
- await page.reload({waitUntil:"domcontentloaded"});
+ // O teste de perfil Usuário altera o mock sem reemitir um login;
+ // autenticar a Tutoria novamente para atualizar papel e sessão no front.
+ await loginAs(user);
  await page.goto(origin+"/#/minhas-pendencias");
  await page.locator('select[data-filter="mineStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="mineStatus"] option').count(),3);
