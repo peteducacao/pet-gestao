@@ -889,7 +889,7 @@ function renderCommitteeEdit(cid){
  const imagePicker='<div class="commission-image-field"><span class="commission-field-label">Imagem da comissão (opcional)</span>'+
   '<div class="commission-image-picker-row"><div class="commission-image-preview" id="commission-image-preview">'+imagePreview+'</div>'+
   '<div class="commission-image-actions"><label class="button ghost commission-image-choose">Escolher imagem<input type="file" id="commission-upload" accept="image/png,image/jpeg,image/webp" aria-label="Escolher imagem da comissão"></label>'+
-  '<button type="button" class="button ghost" data-do="commission-image-remove">Remover imagem</button>'+
+  '<button type="button" class="button ghost" data-do="commission-image-remove">Usar imagem padrão</button>'+
   '<small id="commission-image-hint">JPG, PNG ou WebP de até 2 MB. Edite, recorte e redimensione antes de salvar.</small></div></div>'+
   '<input type="hidden" name="imageData" value="'+esc(c?.imageData||"")+'"></div>';
 
