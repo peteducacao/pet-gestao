@@ -198,30 +198,47 @@
     await db.prepare("INSERT INTO email_queue (id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) VALUES(?,?,?,?,?,?,?,'pendente',?,?)").bind(id,creatorId,kind,JSON.stringify(unique(emails)),subject,message,when||stamp,stamp,taskId).run();
     return id;
   }
+  // Revalidar cada aviso vinculado a uma demanda antes de entregá-lo.
+  // Envios manuais não são cancelados por alterações de demandas.
+  async function validQueuedNotification(db,item){
+    if(!item.task_id)return true;
+    const task=await db.prepare("SELECT archived_at,deadlines FROM tasks WHERE id=?").bind(item.task_id).first();
+    if(!task||task.archived_at)return false;
+    if(!["due_soon","overdue"].includes(item.kind))return true;
+    const notice=await db.prepare("SELECT stage_id,stage_due_at FROM deadline_notice_log WHERE queue_id=? AND task_id=?")
+      .bind(item.id,item.task_id).first();
+    return Boolean(notice&&asJson(task.deadlines,[]).some(stage=>
+      String(stage.id||"")===String(notice.stage_id)&&
+      String(stage.dueAt||"")===String(notice.stage_due_at)&&
+      !stage.completedAt));
+  }
   async function processQueue(env,limit=10){
     // Envios interrompidos não são reenviados automaticamente: evita duplicar e-mails.
     await env.DB.prepare("UPDATE email_queue SET status='falhou',error_message='Processamento interrompido; verificar antes de reenviar' WHERE status='processando' AND scheduled_at<?").bind(isoAfter(-60)).run();
     const list=(await env.DB.prepare("SELECT * FROM email_queue WHERE status='pendente' AND scheduled_at<=? ORDER BY scheduled_at LIMIT ?").bind(now(),limit).all()).results;
     for(const item of list){
-      if(item.task_id){
-         const task=await env.DB.prepare("SELECT archived_at,deadlines FROM tasks WHERE id=?").bind(item.task_id).first();
-         let valid=Boolean(task&&!task.archived_at);
-         if(valid&&["due_soon","overdue"].includes(item.kind)){
-           const notice=await env.DB.prepare("SELECT stage_id,stage_due_at FROM deadline_notice_log WHERE queue_id=? AND task_id=?").bind(item.id,item.task_id).first();
-           valid=Boolean(notice&&asJson(task.deadlines,[]).some(d=>String(d.id||"")===String(notice.stage_id)&&String(d.dueAt||"")===String(notice.stage_due_at)&&!d.completedAt));
-         }
-         if(!valid){
-           await env.DB.prepare("UPDATE email_queue SET status='cancelado',error_message='Aviso inválido: demanda excluída, concluída ou prazo alterado' WHERE id=? AND status='pendente'").bind(item.id).run();
-           continue;
-         }
-       }
-       const claimed=await env.DB.prepare("UPDATE email_queue SET status='processando',attempts=attempts+1 WHERE id=? AND status='pendente'").bind(item.id).run();
+      // Cancelar automaticamente se a demanda deixou de existir ou o prazo mudou.
+      if(!await validQueuedNotification(env.DB,item)){
+        await env.DB.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda excluída, concluída ou prazo alterado' WHERE id=? AND status='pendente'")
+          .bind(item.id).run();
+        continue;
+      }
+      const claimed=await env.DB.prepare("UPDATE email_queue SET status='processando',attempts=attempts+1 WHERE id=? AND status='pendente'")
+        .bind(item.id).run();
       if(!claimed.meta.changes)continue;
       try{
+        // Segundo controle após reservar a mensagem: uma edição/exclusão
+        // concorrente não deve deixar um aviso antigo sair da fila.
+        const current=await env.DB.prepare("SELECT id,status,task_id,kind FROM email_queue WHERE id=?").bind(item.id).first();
+        if(!current||current.status!=="processando")continue;
+        if(!await validQueuedNotification(env.DB,current)){
+          await env.DB.prepare("UPDATE email_queue SET status='cancelado',error_message='Notificação obsoleta cancelada antes do envio' WHERE id=? AND status='processando'").bind(item.id).run();
+          continue;
+        }
         await authorizedMail(env,asJson(item.recipient_emails,[]),item.subject,item.body);
-        await env.DB.prepare("UPDATE email_queue SET status='enviado',sent_at=?,error_message=NULL WHERE id=?").bind(now(),item.id).run();
+        await env.DB.prepare("UPDATE email_queue SET status='enviado',sent_at=?,error_message=NULL WHERE id=? AND status='processando'").bind(now(),item.id).run();
       }catch(err){
-        await env.DB.prepare("UPDATE email_queue SET status='falhou',error_message=? WHERE id=?").bind(str(err.message,500),item.id).run();
+        await env.DB.prepare("UPDATE email_queue SET status='falhou',error_message=? WHERE id=? AND status='processando'").bind(str(err.message,500),item.id).run();
       }
     }
     // Recuperar registros de processamentos interrompidos; a entrega pode ter sido realizada
@@ -859,7 +876,7 @@
         t.deadlines=t.deadlines.map(d=>{const previous=oldStages.get(d.id);return previous&&previous.label===d.label&&previous.dueAt===d.dueAt?{...d,completedAt:previous.completedAt||null,commissionCompleted:previous.commissionCompleted||{}}:{...d,completedAt:null,commissionCompleted:{}}});
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,assignment_scope=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,t.assignmentScope,user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
-        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda atualizada' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','overdue')").bind(old.id).run();
+        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda ou prazo atualizado; notificação anterior obsoleta' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','overdue','automatica')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
          await audit(db,old.id,user,t.captionText!==old.captionText?"Atualizou texto para revisão":"Atualizou dados, prazos ou responsáveis");
         if(t.assignmentScope==="todos")await autoCompleteCollectiveEvents(env,old.id);
@@ -894,6 +911,9 @@
         if(match[2]==="notes"){
           const value=String(b.captionText||"").slice(0,30000);
           await db.prepare("UPDATE tasks SET caption_text=?,updated_by=?,updated_at=?,version=version+1 WHERE id=?").bind(value,user.id,stamp,old.id).run();
+          // Substituir notificações antigas de revisão ainda não enviadas.
+          if(value!==old.captionText)
+            await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Texto de revisão atualizado' WHERE task_id=? AND kind='automatica' AND status IN ('pendente','falhou')").bind(old.id).run();
           await audit(db,old.id,user,"Atualizou observações");
           if(value!==old.captionText){
             await markTutorReviewAfterCorrection(db,old,user,stamp);
