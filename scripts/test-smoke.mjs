@@ -972,3 +972,7 @@ await test("avisos e confirmações usam popup central sem caixas nativas",async
  assert.ok(css.includes("backdrop-filter:blur(8px)"));
 });
 console.log(tests+" testes passaram no banco local isolado");
+
+// Teste adicional do D1 local: uma mudança de prazo ou exclusão não pode
+// deixar notificações antigas pendentes, mesmo se já tinham entrado na fila.
+await import("./test-email-queue.mjs");
