@@ -102,6 +102,46 @@ assert.equal(multiPersonCard.querySelectorAll(".demand-card-single.demand-card-c
 assert.equal(multiPersonCard.querySelectorAll(".demand-card-picker.demand-card-person").length,1,"Duas pessoas usam o seletor");
 assert.equal(multiPersonCard.querySelectorAll(".demand-card-person li").length,2);
 
+// O resumo contabiliza cada comissão, inclusive conclusão parcial independente.
+committees.push({id:"financas",name:"Finanças",memberIds:[],memberCount:0,maxMembers:0});
+tasks.push({...tasks[0],id:"indicador-videos-concluido",title:"Vídeos concluída e Finanças pendente",
+ commissionIds:["videos","financas"],commissionDone:{videos:{at:"2026-11-10T13:00:00Z",by:"u1"}},
+ archivedAt:null,userDone:{},status:"pendente",deadlines:[]});
+await move("#/comissoes/videos");
+const readMetrics=()=>Object.fromEntries([...document.querySelectorAll(".commission-overview-card")].map(el=>[
+ el.querySelector(".commission-overview-label").textContent,
+ Number(el.querySelector(".commission-overview-value").textContent)
+]));
+assert.deepEqual(readMetrics(),{Demandas:3,"Concluídas":1,Atrasadas:1,Pendentes:1},
+ "Vídeos contabiliza concluída própria, atraso e pendência da comissão");
+await move("#/comissoes/financas");
+assert.deepEqual(readMetrics(),{Demandas:1,"Concluídas":0,Atrasadas:0,Pendentes:1},
+ "Finanças só contabiliza suas demandas e participações");
+tasks=tasks.filter(t=>t.id!=="indicador-videos-concluido");
+committees=committees.filter(c=>c.id!=="financas");
+await move("#/demandas");
+
+// Criar sem preencher não deve interromper; alterar e navegar exige confirmação.
+await move("#/registrar");
+await move("#/demandas");
+assert.equal(document.querySelector("#notice-dialog").hidden,true,"Sem alteração não há alerta");
+await move("#/registrar");
+const draftTitle=document.querySelector('#task-form input[name="title"]');
+draftTitle.value="Não quero perder esta demanda";
+draftTitle.dispatchEvent(new window.Event("input",{bubbles:true}));
+await move("#/comissoes");
+assert.equal(window.location.hash,"#/registrar","Navegação para outra página é interrompida");
+assert.equal(document.querySelector("#notice-title").textContent,"Alterações não salvas");
+assert.ok(document.querySelector("#notice-dialog").textContent.includes("Sair sem salvar"));
+assert.ok(document.querySelector("#notice-dialog").textContent.includes("Continuar editando"));
+tap('#notice-dialog [data-do="notice-cancel"]');await wait();
+assert.equal(document.querySelector('#task-form input[name="title"]').value,"Não quero perder esta demanda",
+ "Cancelar saída mantém conteúdo digitado");
+await move("#/comissoes");await wait();
+tap('#notice-dialog [data-do="notice-confirm"]');await wait();await wait();
+assert.equal(window.location.hash,"#/comissoes","Confirmação permite abandonar rascunho");
+await move("#/demandas");
+
 assert.ok(document.querySelector('select[data-filter="status"]'),"Seletor de status");
 assert.equal(document.querySelectorAll('button[data-do="mode"]').length,0,"Período mensal/semanal usa seletor");
 assert.ok(document.querySelector('select[data-filter="periodMode"]'),"Seletor de período disponível");
