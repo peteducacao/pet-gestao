@@ -527,7 +527,7 @@
       diagnosticStage="request";
       if(path==="/api/v1/auth/register"&&method==="POST"){
         const b=await body(req),name=str(b.name,120),mail=email(b.email),pw=String(b.password||"");
-        if(name.length<2||!validEmail(mail)||pw.length<10||pw.length>200)fail("Informe nome, e-mail válido e senha com pelo menos 10 caracteres.");
+        if(name.length<2||!validEmail(mail)||!pw)fail("Informe nome, e-mail válido e uma senha.");
         if(await db.prepare("SELECT id FROM users WHERE email=?").bind(mail).first())fail("E-mail já cadastrado.",409);
         const salt=randomToken(),stamp=now();
         await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,stamp,stamp).run();
@@ -577,7 +577,7 @@
         requireLogin(user);
         const b=await body(req),pw=String(b.password||""),next=String(b.newPassword||"");
         if(await pwHash(pw,user.pass_salt)!==user.pass_hash)fail("Senha atual incorreta.",401);
-        if(next.length<10||next.length>200)fail("A nova senha deve conter pelo menos 10 caracteres.");
+        if(!next)fail("Informe uma nova senha.");
         const salt=randomToken();
         await db.prepare("UPDATE users SET pass_hash=?,pass_salt=?,must_change_password=0,updated_at=? WHERE id=?").bind(await pwHash(next,salt),salt,now(),user.id).run();
         await db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id).run();
@@ -599,7 +599,7 @@
       }
       if(path==="/api/v1/auth/reset"&&method==="POST"){
         const b=await body(req),pw=String(b.password||""),token=str(b.token,100);
-        if(pw.length<10||pw.length>200)fail("A nova senha precisa conter pelo menos 10 caracteres.");
+        if(!pw)fail("Informe uma nova senha.");
         const digest=await sha(token);
         const r=await db.prepare("SELECT * FROM password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>?").bind(digest,now()).first();
         if(!r)fail("Link expirado ou já utilizado.",400);
