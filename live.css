@@ -2273,3 +2273,34 @@ body.mail-preview-open{overflow:hidden}
  #screen .task-attachment-item .button{padding:7px 9px}
  #screen .task-file-info{flex-basis:calc(100% - 54px)}
 }
+
+
+/* Fotos leves: somente PETianos(as) veem as imagens das demandas. */
+#screen .task-photo-expanded{max-width:100%}
+.task-photo-modal{position:fixed;inset:0;z-index:1500;display:grid;place-items:center;padding:15px}
+.task-photo-backdrop{position:absolute;inset:0;background:#151126d9;backdrop-filter:blur(5px)}
+.task-photo-card{z-index:1;position:relative;display:flex;flex-direction:column;gap:10px;
+ width:min(900px,100%);max-height:94dvh;background:#fff;border-radius:17px;
+ padding:12px;box-shadow:0 24px 70px #09061e70}
+.task-photo-card header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+ padding:2px 4px 5px;color:#3b2a56}
+.task-photo-card header strong{font-size:13px;overflow-wrap:anywhere}
+.task-photo-card header .button{flex:0 0 auto}
+.task-photo-expanded{display:block;width:100%;max-height:calc(94dvh - 76px);object-fit:contain;border-radius:10px;background:#f6f4fa}
+#screen .account-photo-editor{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+ margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #eee7f4}
+#screen .account-photo-preview{flex:0 0 93px;width:93px;height:93px;border-radius:50%;
+ display:grid;place-items:center;overflow:hidden;background:linear-gradient(145deg,#ede5ff,#d4c5f4);
+ color:#643caa;font-size:35px;font-weight:850;border:3px solid #fff;box-shadow:0 4px 14px #4e36872b}
+#screen .account-photo-preview img{width:100%;height:100%;object-fit:cover}
+#screen .account-photo-controls{display:flex;flex:1 1 190px;gap:9px;flex-wrap:wrap;align-items:center}
+#screen .account-photo-controls .button{min-height:40px;padding:9px 13px;cursor:pointer}
+#screen .account-photo-controls small{display:block;flex-basis:100%;font-size:11px;line-height:1.4;color:#776d85}
+#screen .account-photo-choose input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+@media(max-width:480px){
+ #screen .account-photo-editor{gap:12px}
+ #screen .account-photo-preview{flex-basis:76px;width:76px;height:76px;font-size:27px}
+ #screen .account-photo-controls{gap:7px;flex-basis:150px}
+ #screen .account-photo-controls .button{font-size:12px}
+ .task-photo-card{padding:10px}
+}
