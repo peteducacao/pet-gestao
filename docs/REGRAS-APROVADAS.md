@@ -173,3 +173,16 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - **Ajuda em Comissões:** no rodapé da listagem geral, disponibilizar bloco expansível **Ajuda sobre comissões** com explicações sobre ingresso/saída, demandas vinculadas, diferença entre participantes individuais e comissões, andamento e conclusão independente e diferenciação entre pendente/atrasada. Não altera membros ou dados das equipes.
 - **Auditoria de redundância:** o relatório `docs/AUDITORIA-REDUNDANCIAS-2026-11-11.md` aponta potenciais sobreposições de links, seletores e atalhos; suas seis propostas dependem de aprovação antes de qualquer remoção. Não confundir atalhos para o mesmo destino com registros duplicados no banco.
 - **Regressões obrigatórias:** testar duas abas (persistente e temporária), troca de conta, cancelamento/aceitação do logout, retorno animado do Admin, metadados de revisão e Ajuda em Comissões. A publicação só deve ser considerada concluída após execução bem-sucedida dos workflows correspondentes.
+
+## Fila de notificações vinculada a demandas — 11/11/2026
+- Toda notificação automática nova de criação, revisão, prazo vencendo ou vencido guarda o ID da demanda em `email_queue.task_id` (migração `0014_email_vinculo_demanda.sql`).
+- Antes de enviar, o Worker verifica se a demanda existe e está ativa. Para lembretes de prazo, também verifica se a etapa e a data originais continuam iguais e se a etapa não foi concluída. Avisos obsoletos ficam com status `cancelado`.
+- Excluir demanda individualmente ou em lote cancela os avisos automáticos ainda pendentes/falhos, inclusive os de criação e revisão. Editar prazos/responsáveis ou concluir uma participação invalida lembretes pendentes; o próximo cron só recria os avisos que correspondem às regras e datas atuais.
+- A migração cancela mensagens automáticas antigas pendentes sem ID de demanda, que não poderiam ser validadas. E-mails manuais independentes não são afetados. E-mails já entregues não podem ser desfeitos.
+- A validação ocorre imediatamente antes de tentar enviar. Uma exclusão concorrente a um envio já em andamento pode não impedir a entrega; o sistema não promete revogar e-mail já transmitido à ponte Gmail.
+
+## Simplificações aprovadas — 11/11/2026
+- Em conclusão de participações mistas, manter **Só minha participação**, seleção individual e **Marcar todos**; retirar o atalho redundante **Concluir para todos(as)**.
+- Remover botão textual **Voltar** duplicado dos formulários de comissão, demanda e ata, mantendo a seta de navegação e o aviso de alterações não salvas.
+- Menu administrativo exclusivo para Painel, Usuários, Comissões, E-mails e Configurações. Retirar atalhos de Demandas e Atas e a ação rápida **Nova demanda** da área Admin. A área comum permanece acessível pelo botão **Voltar ao PET Gestão**.
+- Manter resumo **Fila e histórico do Gmail** e **Acompanhar envios**, porque o primeiro é um resumo de status e o segundo permite inspeção detalhada.
