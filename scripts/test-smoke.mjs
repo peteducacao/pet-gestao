@@ -245,47 +245,51 @@ await test("eventos coletivos passados concluem imediatamente e guardam o histó
   assert.ok(updated.archivedAt,"Mudar a data para um ano passado arquiva imediatamente");
  }finally{good(await api("/tasks/"+edit,"DELETE"))}
 });
-await test("exclusão em lote de concluídas exige Administração, confirmação e preserva pendentes",async()=>{
+await test("exclusão em lote por PETiano(a), Tutor(a) e Administração: exige concluídas e seleção segura",async()=>{
  const adminToken=token,person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
  const archivedIds=[],activeId=good(await api("/tasks","POST",{
-   title:"Não excluir demanda ativa por lote",assignmentScope:"usuarios",
-   assigneeIds:[eligible[0]],commissionIds:[],deadlines:[]
+  title:"Demanda ativa para preservar",assignmentScope:"usuarios",assigneeIds:[eligible[0]],commissionIds:[],deadlines:[]
  }),201).id;
  try{
-   for(const [i,day] of ["2015-04-15","2016-03-20"].entries()){
-     const archived=good(await api("/tasks","POST",{
-       title:"Concluída para exclusão em lote "+i,assignmentScope:"todos",
-       assigneeIds:eligible,commissionIds:[],
-       deadlines:[{id:"evento-data",label:"Evento",dueAt:day+"T23:59:59"}]
-     }),201).id;
-     archivedIds.push(archived);
-   }
-   const before=good(await api("/bootstrap")).tasks;
-   assert.ok(archivedIds.every(id=>before.find(t=>t.id===id)?.archivedAt));
-   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[]})).status,400);
-   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[...archivedIds,archivedIds[0]]})).status,400);
-   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:[...archivedIds,activeId]})).status,409,
-     "Seleção misturada com demanda ativa é recusada antes de qualquer exclusão");
-   const preserved=good(await api("/bootstrap")).tasks;
-   assert.ok(archivedIds.every(id=>preserved.some(t=>t.id===id)),
-     "Recusa protege todas as arquivadas do lote");
-   token="";
-   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,401,
-     "Sessão anônima não exclui demandas concluídas");
-   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
-   assert.equal((await api("/admin/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,403,
-     "A Tutoria e os usuários comuns não podem executar exclusão em lote");
+  for(const [i,day] of ["2015-04-15","2016-03-20","2017-02-10"].entries()){
+   archivedIds.push(good(await api("/tasks","POST",{
+    title:"Concluída para exclusão em lote "+i,assignmentScope:"todos",assigneeIds:eligible,
+    commissionIds:[],deadlines:[{id:"evento-data",label:"Evento",dueAt:day+"T23:59:59"}]
+   }),201).id);
+  }
+  assert.ok(archivedIds.every(id=>good(await api("/bootstrap")).tasks.find(t=>t.id===id)?.archivedAt));
+  assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:[]})).status,400);
+  assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:[archivedIds[0],archivedIds[0]]})).status,400);
+  assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:[...archivedIds,activeId]})).status,409);
+  assert.ok(archivedIds.every(id=>good(await api("/bootstrap")).tasks.some(t=>t.id===id)),
+   "Rejeição do lote com pendentes mantém todas as demandas");
+  token="";
+  assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,401);
+  token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+  assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:archivedIds})).status,403,
+   "Usuário somente leitura não pode excluir concluídas");
+  for(const [index,role] of ["petiano","tutor"].entries()){
    token=adminToken;
-   const result=good(await api("/admin/tasks/bulk-delete","POST",{taskIds:archivedIds}));
-   assert.equal(result.deletedCount,2);
-   const after=good(await api("/bootstrap")).tasks;
-   assert.ok(archivedIds.every(id=>!after.some(t=>t.id===id)),"Ambas as concluídas foram removidas");
-   assert.ok(after.some(t=>t.id===activeId),"Uma demanda ativa não é removida");
+   good(await api("/admin/users/"+person.id,"PATCH",{role,notificationEnabled:false}));
+   token=good(await api("/auth/login","POST",{
+    email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+   })).token;
+   const deleted=good(await api("/tasks/bulk-delete","POST",{taskIds:[archivedIds[index]]}));
+   assert.equal(deleted.deletedCount,1,role+" pode excluir demandas concluídas em lote");
+   assert.equal((await api("/admin/users")).status,403,"Exclusão não dá permissão de Administração");
+  }
+  token=adminToken;
+  const result=good(await api("/tasks/bulk-delete","POST",{taskIds:[archivedIds[2]]}));
+  assert.equal(result.deletedCount,1,"Administração pode excluir em lote");
+  const after=good(await api("/bootstrap")).tasks;
+  assert.ok(archivedIds.every(id=>!after.some(t=>t.id===id)),"As concluídas foram removidas");
+  assert.ok(after.some(t=>t.id===activeId),"A demanda ativa foi preservada");
  }finally{
-   token=adminToken;
-   for(const id of [...archivedIds,activeId])
-     if(good(await api("/bootstrap")).tasks.some(t=>t.id===id))good(await api("/tasks/"+id,"DELETE"));
+  token=adminToken;
+  good(await api("/admin/users/"+person.id,"PATCH",{role:person.role,notificationEnabled:false}));
+  for(const id of [...archivedIds,activeId])
+   if(good(await api("/bootstrap")).tasks.some(t=>t.id===id))good(await api("/tasks/"+id,"DELETE"));
  }
 });
 await test("atividade atribuída a uma pessoa usa só data e exige conclusão manual",async()=>{
@@ -517,19 +521,29 @@ await test("conclusão independente",async()=>{
  assert.equal(r.remainingCommissions.length,1);
 });
 await test("arquivamento",async()=>{const r=good(await api("/tasks/"+task+"/finish","PATCH",{commissionId:b,early:true}));assert.equal(r.archived,true)});
-await test("ataque simulado: PETiano(a) e Tutor(a) não apagam demandas arquivadas",async()=>{
- const original=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
+await test("PETiano(a) e Tutor(a) podem excluir concluídas individualmente; Usuário não",async()=>{
+ const adminToken=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
  try{
   for(const role of ["petiano","tutor"]){
    good(await api("/admin/users/"+person.id,"PATCH",{role,notificationEnabled:false}));
-   const login=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"}));
-   token=login.token;
-   assert.equal((await api("/tasks/"+task,"DELETE")).status,403,"Exclusão liberada a "+role);
-   assert.ok(good(await api("/bootstrap")).tasks.some(x=>x.id===task),"Registro arquivado não foi apagado.");
-   token=original;
+   const ids=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
+   const archived=good(await api("/tasks","POST",{
+    title:"Concluída para exclusão individual por "+role,
+    assignmentScope:"todos",assigneeIds:ids,commissionIds:[],
+    deadlines:[{id:"evento-data",label:"Evento",dueAt:"2017-01-12T23:59:59"}]
+   }),201).id;
+   token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+   good(await api("/tasks/"+archived,"DELETE"));
+   assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===archived),"Exclusão por "+role);
+   token=adminToken;
   }
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  token=good(await api("/auth/login","POST",{email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"})).token;
+  assert.equal((await api("/tasks/"+task,"DELETE")).status,403,"Usuário não exclui concluída");
+  token=adminToken;
+  assert.ok(good(await api("/bootstrap")).tasks.some(x=>x.id===task),"Demanda real preservada");
  }finally{
-  token=original;
+  token=adminToken;
   good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
  }
 });
@@ -582,7 +596,7 @@ await test("modelo editável das notificações fica no Admin",async()=>{
   assert.equal(state.subject,subject);
   assert.equal(state.body,message);
 });
-await test("exclusão definitiva somente pela sessão Admin",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
+await test("Administração também exclui concluídas individualmente",async()=>{good(await api("/tasks/"+task,"DELETE"));assert.ok(!good(await api("/bootstrap")).tasks.some(x=>x.id===task))});
 await test("conclusão individual só arquiva após a última participação",async()=>{
  const adminToken=token,admin=good(await api("/auth/me")).user;
  const other=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
