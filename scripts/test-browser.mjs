@@ -464,6 +464,9 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.match(await editor.innerHTML(),/<ol\b/i,"Lista numerada deve usar marcador semântico real");
 
  await page.locator('a[data-route="demandas"]').click();
+ await page.locator("#notice-dialog").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator('#notice-dialog button[data-do="notice-confirm"]').innerText(),"Sair sem salvar");
+ await page.locator('#notice-dialog button[data-do="notice-confirm"]').click();
  await page.setViewportSize({width:390,height:844});
  await page.goto(origin+"/#/atividade/t1");
  await page.locator(".assignee-columns").waitFor();
