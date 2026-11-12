@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const js=readFileSync("app-live.js","utf8"),css=readFileSync("live.css","utf8");
-const start=js.indexOf("function commissionCardTheme(");
+const start=js.indexOf("const COMMISSION_PRESET_ARTS=");
 const end=js.indexOf("function commissionHelp(){",start);
 assert.ok(start>0&&end>start,"Bloco de comissões não encontrado.");
 const ctx={
@@ -17,13 +17,15 @@ const ctx={
 };
 const factory=new Function("ctx","with(ctx){"+js.slice(start,end)+"return {commissionCardTheme,commissionCardArt,renderComissoes};}");
 const {commissionCardTheme,commissionCardArt,renderComissoes}=factory(ctx);
-const names=["Vídeos","Cards","ImaginAÇÃO","CinePET","Salinha","Finanças","Legendas","Site","Comemorações","Impressora 3D","Comissão nova"];
+const names=["Vídeos","Cards","ImaginAÇÃO","CinePET","Salinha","Finanças","Legendas","Site","Comemorações","Impressora 3D","Secretaria","Comissão nova"];
 for(const name of names){
  const svg=commissionCardArt(name);
  assert.ok(svg.startsWith('<svg class="commission-card-svg"'),"Sem ilustração: "+name);
  assert.ok(svg.endsWith("</svg>")&&svg.includes("<defs>")&&!svg.includes("undefined"),"SVG incorreto: "+name);
 }
 assert.ok(commissionCardArt("Comissão nova").includes("petCardGreen"),"Fallback genérico ausente.");
+assert.equal(commissionCardArt("Vídeos"),commissionCardArt("Comissão de Vídeos"),"Renomear Vídeos não altera a arte padrão.");
+assert.equal(commissionCardArt("Secretaria"),commissionCardArt("Comissão de Secretaria"),"Nome prefixado mantém a arte da Secretaria.");
 for(const hex of ["#000000","#ffffff","#f3e8ff","#00fa19","#ae0000","#0000ff"]){
  const theme=commissionCardTheme(hex);
  assert.equal(theme.color,hex);
