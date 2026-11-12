@@ -1048,8 +1048,16 @@ function refreshDeadlineMode(previousScope=null,previousSingle=null){
  host.innerHTML=renderDeadlineSettings(currentRows);
 }
 
-const TASK_FILE_MAX=350*1024,TASK_FILES_MAX=8,TASK_FILES_TOTAL_MAX=8*TASK_FILE_MAX;
-const TASK_PHOTO_TARGET=350*1024;
+const TASK_FILE_MAX=25*1024*1024,TASK_FILES_MAX=8,TASK_FILES_TOTAL_MAX=8*TASK_FILE_MAX;
+const TASK_PHOTO_TARGET=350*1024; // Somente para transformações opcionais; anexos preservam o arquivo original.
+const TASK_PHOTO_MIMES=new Set(["image/jpeg","image/png","image/webp"]);
+const pendingPhotoUrls=new WeakMap();
+function pendingPhotoUrl(file){
+ if(!pendingPhotoUrls.has(file))pendingPhotoUrls.set(file,URL.createObjectURL(file));
+ return pendingPhotoUrls.get(file);
+}
+function releasePendingPhoto(file){const url=pendingPhotoUrls.get(file);if(url){URL.revokeObjectURL(url);pendingPhotoUrls.delete(file)}}
+
 async function shrinkPhoto(file,{edge=1440,maxBytes=TASK_PHOTO_TARGET,square=false}={}){
  if(!file||!file.type.startsWith("image/"))throw Error("Escolha somente fotos.");
  if(file.size>25*1024*1024)throw Error("Foto original muito grande: máximo de 25 MB.");
@@ -1097,9 +1105,9 @@ function taskFilePendingList(){
 function taskFileForm(t){
  if(!canSeeTaskPhotos())return "";
  return '<section class="task-files-section"><h3>'+ico("folder")+' Fotos da demanda</h3>'+
- '<p class="field-hint">Selecione várias fotos, até 8 por demanda. As imagens são reduzidas automaticamente para até 350 KB cada, economizando armazenamento. Somente PETianos(as) conseguem ver as fotos. Não são enviadas por e-mail.</p>'+
+ '<p class="field-hint">Anexe até 8 fotos (JPG, PNG ou WebP, até 25 MB cada). Os arquivos são guardados na qualidade original, sem recorte nem compactação, para baixar e publicar depois. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail.</p>'+
  ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Fotos armazenadas</h4>'+taskFileList(t)+'</div>':"")+
- '<label class="task-file-picker">Selecionar fotos<input id="task-file-input" type="file" accept="image/*" multiple></label>'+
+ '<label class="task-file-picker">Selecionar fotos<input id="task-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>'+
  '<div id="task-file-selection">'+taskFilePendingList()+'</div>'+
  '<p class="field-hint task-file-progress" id="task-file-progress" role="status" aria-live="polite" hidden></p></section>';
 }
@@ -1857,10 +1865,10 @@ async function saveTask(form){
  if(!overviewVisible&&!commissions.length)return setToast("Selecione uma comissão para exibir somente nela.");
  const picked=canSeeTaskPhotos()?[...(state.taskFiles||[])]:[];
  const existing=previous?.attachments||[];
- if(picked.some(x=>!x.size||x.size>TASK_FILE_MAX||x.type!=="image/jpeg"))return setToast("As fotos devem estar compactadas em JPG, com até 350 KB cada.");
+ if(picked.some(x=>!x.size||x.size>TASK_FILE_MAX||!TASK_PHOTO_MIMES.has(x.type)))return setToast("Use fotos originais JPG, PNG ou WebP com até 25 MB cada.");
  if(existing.length+picked.length>TASK_FILES_MAX||
     picked.reduce((total,x)=>total+x.size,existing.reduce((total,x)=>total+x.size,0))>TASK_FILES_TOTAL_MAX)
-   return setToast("A demanda aceita até 8 fotos e 2,8 MB no total.");
+   return setToast("A demanda aceita até 8 fotos de 25 MB cada.");
  const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?
   await askNotification({users,commissions}):false;
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,assignmentScope:state.assignmentScope,overviewVisible,notify};
@@ -1878,6 +1886,7 @@ async function saveTask(form){
        });
      }catch(e){failures.push(file.name+" ("+e.message+")");}
    }
+   for(const pending of state.taskFiles)releasePendingPhoto(pending);
    state.taskFiles=[];resetTaskDraft();state.taskFormId=null;
    location.hash=workspaceHash("demandas");await reload();
    if(failures.length)showNotice("A demanda foi salva, mas alguns arquivos não puderam ser armazenados: "+failures.join("; ")+". Abra Editar demanda para tentar novamente.",{
@@ -2339,8 +2348,14 @@ async function handleClick(e){
    return;
  }
  if(action==="task-file-unselect"){
-   state.taskFiles.splice(Number(b.dataset.index),1);
+   const [removed]=state.taskFiles.splice(Number(b.dataset.index),1);
+   if(removed)releasePendingPhoto(removed);
    const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
+   return;
+ }
+ if(action==="task-photo-preview-local"){
+   const file=state.taskFiles[Number(b.dataset.index)];
+   if(file)openPersonPhotoPreview(URL.createObjectURL(file),file.name,true);
    return;
  }
  if(action==="task-photo-view"){
@@ -2561,11 +2576,12 @@ async function handleChange(e){
    for(const image of images){
      if(saved.length+state.taskFiles.length>=TASK_FILES_MAX){setToast("Limite de 8 fotos por demanda.");break}
      try{
-       const photo=await shrinkPhoto(image,{maxBytes:TASK_FILE_MAX});
+       if(!TASK_PHOTO_MIMES.has(image.type)||!(/\.(jpe?g|png|webp)$/i.test(image.name)))throw Error("Use JPG, PNG ou WebP.");
+       if(!image.size||image.size>TASK_FILE_MAX)throw Error("A foto original deve ter até 25 MB.");
        const total=[...saved,...state.taskFiles].reduce((n,f)=>n+(f.size||0),0);
-       if(total+photo.size>TASK_FILES_TOTAL_MAX){setToast("Limite de 2,8 MB em fotos por demanda.");break}
-       if(state.taskFiles.some(f=>f.name===photo.name&&f.size===photo.size&&f.lastModified===photo.lastModified))continue;
-       state.taskFiles.push(photo);
+       if(total+image.size>TASK_FILES_TOTAL_MAX){setToast("Limite de 8 fotos de até 25 MB por demanda.");break}
+       if(state.taskFiles.some(f=>f.name===image.name&&f.size===image.size&&f.lastModified===image.lastModified))continue;
+       state.taskFiles.push(image);
      }catch(e){setToast(image.name+": "+e.message)}
    }
    const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
