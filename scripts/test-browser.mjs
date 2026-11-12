@@ -535,6 +535,46 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(measured.textDecoration.includes("underline"),"Sublinhado visível");
  assert.equal(measured.color,"rgb(221, 51, 68)","Cor de fonte correta");
  assert.equal(measured.parentBackground,"rgb(255, 255, 255)","Fundo branco permanece inalterado");
+ // Regressão real: botões permanecem marcados ao escrever, até serem desligados.
+ await editor.fill("");
+ await editor.click();
+ for(const name of ["bold","italic","underline"]){
+  const control=toolbar.locator('[data-format="'+name+'"]');
+  if(await control.getAttribute("aria-pressed")==="true")await control.click();
+  await control.click();
+  assert.equal(await control.getAttribute("aria-pressed"),"true",name+" fica ativado");
+ }
+ await page.keyboard.type("Escrevendo com três estilos");
+ const firstRun=editor.locator("span[data-rich-typed]").first();
+ await firstRun.waitFor({timeout:5000});
+ const typed=await firstRun.evaluate(el=>({
+  italic:getComputedStyle(el).fontStyle,
+  bold:getComputedStyle(el).fontWeight,
+  underline:getComputedStyle(el).textDecorationLine,
+  content:el.textContent
+ }));
+ assert.equal(typed.italic,"italic","Digitando com I ativado gera itálico visível");
+ assert.ok(Number(typed.bold)>=600,"Negrito ativo permanece durante a digitação");
+ assert.ok(typed.underline.includes("underline"),"Sublinhado ativo permanece durante a digitação");
+ assert.equal(typed.content,"Escrevendo com três estilos");
+ await toolbar.locator('[data-format="italic"]').click();
+ assert.equal(await toolbar.locator('[data-format="italic"]').getAttribute("aria-pressed"),"false","I desliga separadamente");
+ assert.equal(await toolbar.locator('[data-format="bold"]').getAttribute("aria-pressed"),"true","B permanece ligado");
+ assert.equal(await toolbar.locator('[data-format="underline"]').getAttribute("aria-pressed"),"true","U permanece ligado");
+ await page.keyboard.type(" sem italico");
+ const secondRun=editor.locator("span[data-rich-typed]").last();
+ const typed2=await secondRun.evaluate(el=>({italic:getComputedStyle(el).fontStyle,bold:getComputedStyle(el).fontWeight,
+  underline:getComputedStyle(el).textDecorationLine}));
+ assert.equal(typed2.italic,"normal","Desligar I remove itálico do texto novo");
+ assert.ok(Number(typed2.bold)>=600,"B permanece ativo enquanto I foi desligado");
+ assert.ok(typed2.underline.includes("underline"),"U permanece ativo enquanto I foi desligado");
+ await toolbar.locator('[data-format="underline"]').click();
+ await toolbar.locator('[data-format="bold"]').click();
+ await page.keyboard.type(" normal");
+ assert.equal(await toolbar.locator('[data-format="bold"]').getAttribute("aria-pressed"),"false");
+ assert.equal(await toolbar.locator('[data-format="underline"]').getAttribute("aria-pressed"),"false");
+ assert.equal(await editor.locator("span[data-rich-typed]").last().evaluate(el=>getComputedStyle(el).fontWeight),"400",
+  "Desligar B retira o negrito do texto novo");
  assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),2,"Formatação agrupada");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");
@@ -886,6 +926,18 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#commission-form [data-format="insertOrderedList"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-rich-color]').count(),1);
  assert.equal(await page.locator('#commission-form input[type="color"]:not([data-rich-color])').count(),0,"RGB não usa seletor de cor nativo para a comissão");
+ await page.locator('[data-do="commission-preset-gallery"]').click();
+ await page.locator("#commission-preset-gallery").waitFor({state:"visible"});
+ assert.equal(await page.locator('#commission-preset-gallery .commission-preset-option').count(),12,"Galeria reúne todas as 12 artes");
+ await page.locator('[data-do="commission-preset-select"][data-key="videos"]').click();
+ await page.locator("#commission-preset-gallery").waitFor({state:"hidden"});
+ const presetPng=await page.locator('#commission-form input[name="imageData"]').inputValue();
+ assert.match(presetPng,/^data:image\/png;base64,/,"Arte padrão salva como PNG, compatível com o backend");
+ await page.locator('#commission-form input[name="name"]').fill("Comissão de Vídeos");
+ assert.equal(await page.locator('#commission-form input[name="imageData"]').inputValue(),presetPng,
+   "Renomear comissão mantém arte selecionada no campo persistente");
+ assert.equal(await page.locator('#commission-image-preview img').count(),1,
+   "Imagem escolhida continua visível após mudar o nome");
  await page.locator('[data-do="commission-color-toggle"]').click();
  await page.locator('[data-commission-rgb-range="r"]').fill("128");
  assert.equal((await page.locator('input[name="backgroundColor"]').inputValue()).slice(1,3),"80");
