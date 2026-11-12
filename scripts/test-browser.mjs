@@ -434,7 +434,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.match(await page.locator('#meeting-form [data-rich-input="rawNotes"]').innerText(),/Pauta[\s\S]*Responsável: \(\?\?\?\)/,
   "Atas antigas em texto simples continuam legíveis");
  assert.equal(await page.locator('#meeting-form [data-format="bold"]').count(),1,"Ata permite negrito");
- assert.equal(await page.locator('#meeting-form [data-format="italic"]').count(),1,"Ata permite itálico");
+ assert.equal(await page.locator('#meeting-form [data-format="italic"],#meeting-form [data-format="underline"]').count(),0,"Ata não exibe itálico nem sublinhado");
  assert.equal(await page.locator('#meeting-form [data-format="insertUnorderedList"]').count(),1,"Ata permite marcadores");
  assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("type"),"hidden",
@@ -512,69 +512,37 @@ await page.locator('a[data-route="reunioes"]').click();
  await editor.fill("Revisão 📚 com cores");
  await editor.selectText();
  const toolbar=page.locator('[data-rich="captionText"]');
+ assert.equal(await toolbar.locator('[data-format="italic"],[data-format="underline"]').count(),0,
+  "Itálico e sublinhado removidos do editor");
  await toolbar.locator('[data-format="bold"]').click();
- await toolbar.locator('[data-format="italic"]').click();
- await toolbar.locator('[data-format="underline"]').click();
  await toolbar.locator('[data-rich-color]').fill("#dd3344");
- const combinedHtml=await editor.innerHTML();
- assert.match(combinedHtml,/<strong\b/i,"Negrito é preservado");
- assert.match(combinedHtml,/<em\b/i,"Itálico funciona junto ao negrito");
- assert.match(combinedHtml,/<u\b/i,"Sublinhado funciona com negrito e itálico");
- assert.match(combinedHtml,/style="color:\s*(?:rgb\(221,\s*51,\s*68\)|#dd3344)/i,"Cor aplicada à letra");
- assert.doesNotMatch(combinedHtml,/background(?:-color)?\s*:/i,"Cor do texto não altera o fundo");
- const measured=await editor.locator("strong em u span").evaluate(element=>({
-  fontStyle:getComputedStyle(element).fontStyle,
-  fontWeight:getComputedStyle(element).fontWeight,
-  textDecoration:getComputedStyle(element.closest("u")).textDecorationLine,
-  color:getComputedStyle(element).color,
-  background:getComputedStyle(element).backgroundColor,
-  parentBackground:getComputedStyle(element.closest("[contenteditable]")).backgroundColor
+ const styledHtml=await editor.innerHTML();
+ assert.match(styledHtml,/<strong\b/i,"Negrito preservado");
+ assert.match(styledHtml,/style="color:\s*(?:rgb\(221,\s*51,\s*68\)|#dd3344)/i,"Cor aplicada à letra");
+ assert.doesNotMatch(styledHtml,/background(?:-color)?\s*:/i,"Cor não altera o fundo");
+ const measured=await editor.locator("strong span").evaluate(element=>({
+  weight:getComputedStyle(element).fontWeight,color:getComputedStyle(element).color,
+  background:getComputedStyle(element.closest("[contenteditable]")).backgroundColor
  }));
- assert.equal(measured.fontStyle,"italic","Itálico visível");
- assert.ok(Number(measured.fontWeight)>=600,"Texto continua em negrito");
- assert.ok(measured.textDecoration.includes("underline"),"Sublinhado visível");
+ assert.ok(Number(measured.weight)>=600,"Negrito visível");
  assert.equal(measured.color,"rgb(221, 51, 68)","Cor de fonte correta");
- assert.equal(measured.parentBackground,"rgb(255, 255, 255)","Fundo branco permanece inalterado");
- // Regressão real: botões permanecem marcados ao escrever, até serem desligados.
+ assert.equal(measured.background,"rgb(255, 255, 255)","Fundo branco preservado");
  await editor.fill("");
  await editor.click();
- for(const name of ["bold","italic","underline"]){
-  const control=toolbar.locator('[data-format="'+name+'"]');
-  if(await control.getAttribute("aria-pressed")==="true")await control.click();
-  await control.click();
-  assert.equal(await control.getAttribute("aria-pressed"),"true",name+" fica ativado");
- }
- await page.keyboard.type("Escrevendo com três estilos");
+ const boldControl=toolbar.locator('[data-format="bold"]');
+ if(await boldControl.getAttribute("aria-pressed")==="true")await boldControl.click();
+ await boldControl.click();
+ assert.equal(await boldControl.getAttribute("aria-pressed"),"true","Negrito fica ativado até desmarcar");
+ await page.keyboard.type("Escrevendo em negrito");
  const firstRun=editor.locator("span[data-rich-typed]").first();
  await firstRun.waitFor({timeout:5000});
- const typed=await firstRun.evaluate(el=>({
-  italic:getComputedStyle(el).fontStyle,
-  bold:getComputedStyle(el).fontWeight,
-  underline:getComputedStyle(el).textDecorationLine,
-  content:el.textContent
- }));
- assert.equal(typed.italic,"italic","Digitando com I ativado gera itálico visível");
- assert.ok(Number(typed.bold)>=600,"Negrito ativo permanece durante a digitação");
- assert.ok(typed.underline.includes("underline"),"Sublinhado ativo permanece durante a digitação");
- assert.equal(typed.content,"Escrevendo com três estilos");
- await toolbar.locator('[data-format="italic"]').click();
- assert.equal(await toolbar.locator('[data-format="italic"]').getAttribute("aria-pressed"),"false","I desliga separadamente");
- assert.equal(await toolbar.locator('[data-format="bold"]').getAttribute("aria-pressed"),"true","B permanece ligado");
- assert.equal(await toolbar.locator('[data-format="underline"]').getAttribute("aria-pressed"),"true","U permanece ligado");
- await page.keyboard.type(" sem italico");
- const secondRun=editor.locator("span[data-rich-typed]").last();
- const typed2=await secondRun.evaluate(el=>({italic:getComputedStyle(el).fontStyle,bold:getComputedStyle(el).fontWeight,
-  underline:getComputedStyle(el).textDecorationLine}));
- assert.equal(typed2.italic,"normal","Desligar I remove itálico do texto novo");
- assert.ok(Number(typed2.bold)>=600,"B permanece ativo enquanto I foi desligado");
- assert.ok(typed2.underline.includes("underline"),"U permanece ativo enquanto I foi desligado");
- await toolbar.locator('[data-format="underline"]').click();
- await toolbar.locator('[data-format="bold"]').click();
+ assert.ok(Number(await firstRun.evaluate(el=>getComputedStyle(el).fontWeight))>=600,
+  "Digitação com B ativado mantém negrito");
+ await boldControl.click();
+ assert.equal(await boldControl.getAttribute("aria-pressed"),"false","Clique seguinte desliga B");
  await page.keyboard.type(" normal");
- assert.equal(await toolbar.locator('[data-format="bold"]').getAttribute("aria-pressed"),"false");
- assert.equal(await toolbar.locator('[data-format="underline"]').getAttribute("aria-pressed"),"false");
  assert.equal(await editor.locator("span[data-rich-typed]").last().evaluate(el=>getComputedStyle(el).fontWeight),"400",
-  "Desligar B retira o negrito do texto novo");
+  "Texto digitado após desligar B não fica em negrito");
  assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),2,"Formatação agrupada");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");
@@ -922,7 +890,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#commission-form [data-rich-input="description"]').count(),1,"Descrição usa editor com formatação");
  assert.equal(await page.locator('#commission-form textarea[name="description"]').count(),0,"Descrição não utiliza textarea sem formatação");
  assert.equal(await page.locator('#commission-form [data-format="bold"]').count(),1);
- assert.equal(await page.locator('#commission-form [data-format="italic"]').count(),1);
+ assert.equal(await page.locator('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').count(),0);
  assert.equal(await page.locator('#commission-form [data-format="insertOrderedList"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-rich-color]').count(),1);
  assert.equal(await page.locator('#commission-form input[type="color"]:not([data-rich-color])').count(),0,"RGB não usa seletor de cor nativo para a comissão");
