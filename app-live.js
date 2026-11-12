@@ -124,6 +124,12 @@ function richEditor(name,value,placeholder="Escreva aqui..."){
 }
 
 const collectRich=(form,fields)=>{for(const e of form.querySelectorAll("[data-rich-input]"))fields[e.dataset.richInput]=safeRich(e.innerHTML);return fields};
+function richPlainText(value){
+ const template=document.createElement("template");
+ // Remove a formatação apenas para a prévia curta da lista; preserva a ata original no editor.
+ template.innerHTML=safeRich(value).replace(/<\/?(?:br|p|div|li|ul|ol)\b[^>]*>/gi," ");
+ return String(template.content.textContent||"").replace(/\s+/g," ").trim();
+}
 
 const id=v=>encodeURIComponent(String(v));
 const ico=(name)=>'<svg aria-hidden="true"><use href="#i-'+name+'"></use></svg>';
@@ -706,7 +712,8 @@ function renderCommittee(cid){
  const all=data.tasks.filter(t=>active(t)&&(t.commissionIds||[]).includes(cid)&&!commissionFinished(t,cid))
  .filter(t=>state.commissionStatusFilter==="todas"||taskStatus(t,cid)===state.commissionStatusFilter)
  .sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
- return header("Comissões",c.name,c.description||"","")+
+ return header("Comissões",c.name,"","")+
+ (c.description?'<section class="commission-description-rich" aria-label="Descrição da comissão">'+safeRich(c.description)+'</section>':"")+
  commissionOverview(cid)+
  '<section class="card card-pad"><div class="section-head"><div><h2>Pendências da comissão</h2><p>Atividades vinculadas a esta equipe em Demandas.</p></div><span class="pill soft">'+all.length+' pendente(s)</span></div>'+
  visualizationSelect("commissionStatus",state.commissionStatusFilter,[["todas","Todas as pendências"],["pendente","Pendentes"],["atrasada","Atrasadas"]])+
@@ -907,7 +914,7 @@ function renderCommitteeEdit(cid){
  return header("Comissões",c?"Editar comissão":"Nova comissão","")+
  '<section class="card card-pad register-page"><form id="commission-form" data-id="'+esc(cid||"")+'" class="register-form">'+
  '<label>Nome da comissão *<input name="name" required maxlength="90" value="'+esc(c?.name||"")+'"></label>'+
- '<label>Descrição (opcional)<textarea name="description" rows="3">'+esc(c?.description||"")+'</textarea></label>'+
+ '<label class="rich-label">Descrição (opcional)</label>'+richEditor("description",c?.description||"","Apresente a comissão e suas atividades...")+
  colorEditor+imagePicker+
  '<button class="button primary" type="submit">Salvar comissão</button></form></section>';
 }
@@ -1497,7 +1504,7 @@ function renderMeetings(){
  const showing=state.meetingView==="recentes"?items.slice(0,5):items;
  return header("Registros","Atas de Reunião","Registros organizados das reuniões da equipe.",canWrite()?button("+ Criar ata","reunioes/nova",true):"")+
  '<section class="card card-pad meeting-list">'+visualizationSelect("meetings",state.meetingView,[["todas","Todas as atas"],["recentes","Recentes"]])+
- (showing.length?showing.map(m=>'<article class="meeting-card"><a class="meeting-card-link" href="'+workspaceHash("reunioes/editar/"+id(m.id))+'"><span class="meeting-card-icon">'+ico("calendar")+'</span><span class="meeting-card-main"><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small><span class="meeting-card-preview">'+esc((m.rawNotes||"").replace(/<[^>]+>/g," ").slice(0,130))+'</span></span>'+ico("arrow")+'</a>'+
+ (showing.length?showing.map(m=>'<article class="meeting-card"><a class="meeting-card-link" href="'+workspaceHash("reunioes/editar/"+id(m.id))+'"><span class="meeting-card-icon">'+ico("calendar")+'</span><span class="meeting-card-main"><strong>'+esc(m.title)+'</strong><small>'+textDate(m.date)+'</small><span class="meeting-card-preview">'+esc(richPlainText(m.rawNotes||"").slice(0,130))+'</span></span>'+ico("arrow")+'</a>'+
  (canWrite()?'<details class="meeting-menu"><summary title="Opções da ata" aria-label="Opções da ata">⋮</summary><div class="meeting-menu-options">'+button("Editar","reunioes/editar/"+id(m.id))+'<button type="button" class="button subtle-danger" data-do="delete-meeting" data-id="'+esc(m.id)+'">Excluir</button></div></details>':"")+'</article>').join(""):empty("Nenhuma ata registrada","Crie uma ata para registrar os encontros da equipe."))+
  '</section>';
 }
@@ -1514,7 +1521,7 @@ function renderMemory(routeId){
  '<section class="card card-pad register-page meeting-editor"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form">'+
  (m?'<div class="meeting-metadata"><strong>'+esc(m.title)+'</strong><span>'+textDate(m.date)+'</span></div><input type="hidden" name="title" value="'+esc(m.title)+'"><input type="hidden" name="date" value="'+esc(m.date)+'">':
  '<label>Título da reunião *<input name="title" required maxlength="180"></label><label>Data *<input name="date" type="date" required value="'+dateKey(current)+'"></label>')+
- '<label>Texto da ata<textarea name="rawNotes" rows="16" placeholder="Registre os assuntos e encaminhamentos da reunião.">'+esc(m?.rawNotes||"")+'</textarea></label>'+
+ '<label class="rich-label">Texto da ata</label>'+richEditor("rawNotes",m?.rawNotes||"","Registre os assuntos e encaminhamentos da reunião.")+
  '<div class="form-actions"><button type="submit" class="button primary">Salvar ata</button></div></form></section>';
 }
 
@@ -1992,7 +1999,7 @@ async function finishTask(t,cid){
  if(success)location.hash=cid?workspaceHash("comissoes/"+id(cid)):workspaceHash("minhas-pendencias");
 }
 async function saveCommission(form){
- const values=userFields(form);const ok=await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");if(ok)location.hash=workspaceHash("comissoes");
+ const values=collectRich(form,userFields(form));const ok=await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");if(ok)location.hash=workspaceHash("comissoes");
 }
 async function loadAdminUsers(){
  try{
@@ -2572,7 +2579,7 @@ async function handleSubmit(e){
  }
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
- if(form.id==="meeting-form"){const f=userFields(form);const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
+ if(form.id==="meeting-form"){const f=collectRich(form,userFields(form));const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
  if(form.id==="notification-template-form"||form.id==="deadline-template-form"){
    const f=collectRich(form,userFields(form));
    if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
