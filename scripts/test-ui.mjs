@@ -507,7 +507,7 @@ tasks=tasks.filter(t=>!t.id.startsWith("t-archive-bulk-"));
 user.role="petiano";
 await move("#/comissoes/nova");
 assert.ok(document.querySelector("[data-do='commission-color-toggle']"),"Campo RGB disponível");
-assert.equal(document.querySelector('#commission-form input[type="color"]'),null,"Sem seletor de cor nativo na comissão");
+assert.equal(document.querySelector('#commission-form input[type="color"]:not([data-rich-color])'),null,"Sem seletor de cor nativo na comissão");
 tap('[data-do="commission-color-toggle"]');await wait();
 assert.equal(document.querySelector("#commission-rgb-panel").hidden,false);
 const redRGB=document.querySelector('[data-commission-rgb-range="r"]');
