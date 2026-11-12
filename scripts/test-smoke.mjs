@@ -1121,7 +1121,8 @@ await test("revisão e anotações têm editores independentes e texto longo",as
  assert.ok(ui.includes('richEditor("captionText"'));
  assert.ok(ui.includes('function safeRich('));
  assert.ok(css.includes('.saved-activity-text{white-space:pre-wrap'));
- assert.ok(ui.includes('<label>Descrição (opcional)<textarea name="description"'),"Descrição de comissão permanece separada.");
+ assert.ok(ui.includes('richEditor("description",c?.description'),"Descrição da comissão usa o editor de texto formatado.");
+ assert.ok(ui.includes('richEditor("rawNotes",m?.rawNotes'),"As atas usam o editor de texto formatado.");
 });
 await test("comissões mostram só pendências sem filtros redundantes",async()=>{
  const {readFileSync}=await import("node:fs");
