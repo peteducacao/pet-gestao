@@ -284,6 +284,36 @@ await test("admin pode promover ou voltar à categoria Usuário",async()=>{
  good(await api("/admin/users/"+id,"PATCH",{role:"usuario",notificationEnabled:false}));
  assert.equal(good(await api("/admin/users")).users.find(u=>u.id===id).role,"usuario");
 });
+await test("múltiplos administradores com proteção do último",async()=>{
+ const firstAdminToken=token;
+ const person=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local");
+ assert.ok(person);
+ try{
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"admin",notificationEnabled:false}));
+  const updated=good(await api("/admin/users")).users.find(u=>u.id===person.id);
+  assert.equal(updated.role,"admin","Administração pode ser concedida a outra conta");
+  const secondLogin=good(await api("/auth/login","POST",{
+   email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
+  }));
+  assert.equal(secondLogin.user.role,"admin");
+  assert.equal(secondLogin.user.adminSession,true,"Novo Admin deve obter escopo no novo login");
+  token=secondLogin.token;
+  assert.equal((await api("/admin/users")).status,200,"Segundo Admin acessa o painel");
+  token=firstAdminToken;
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+  assert.equal(good(await api("/admin/users")).users.find(u=>u.id===person.id).role,"usuario");
+  token=secondLogin.token;
+  assert.equal((await api("/admin/users")).status,403,"Admin rebaixado perde acesso mesmo com sessão antiga");
+  token=firstAdminToken;
+  const firstAdmin=good(await api("/admin/users")).users.find(u=>u.role==="admin");
+  assert.equal((await api("/admin/users/"+firstAdmin.id,"PATCH",{role:"petiano"})).status,409,
+   "O último administrador não pode perder o cargo");
+ }finally{
+  token=firstAdminToken;
+  const latest=good(await api("/admin/users")).users.find(u=>u.id===person.id);
+  if(latest.role==="admin")good(await api("/admin/users/"+person.id,"PATCH",{role:"usuario",notificationEnabled:false}));
+ }
+});
 await test("ataques simulados: Tutoria não entra no Admin nem modifica credenciais",async()=>{
  const admin=token;
  const id=good(await api("/admin/users")).users.find(u=>u.email==="teste-usuario@pet.local").id;
