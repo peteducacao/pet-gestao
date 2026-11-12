@@ -42,6 +42,10 @@ window.fetch=async (url,options={})=>{
  if(path==="/auth/login"&&method==="POST")return reply({token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user});
  if(path==="/auth/me")return reply({user});
  if(path==="/bootstrap")return reply({session:{user:isAdmin?admin:user},tasks,meetings,committees,users,history:[],events:[],settings});
+ if(path==="/commissions"&&method==="POST"){committees.push({id:"new-"+(++idNum),name:body.name,description:body.description,memberIds:[],memberCount:0,backgroundColor:body.backgroundColor,maxMembers:0});return reply({ok:true},201);}
+ if(/^\/commissions\/[^/]+$/.test(path)&&method==="PUT"){
+  const c=committees.find(x=>x.id===path.split("/")[2]);if(c)Object.assign(c,body);return reply({ok:true});
+ }
  if(path==="/meetings"&&method==="POST"){meetings.unshift({id:"m"+(++idNum),title:body.title,date:body.date,rawNotes:body.rawNotes});return reply({ok:true},201);}
  if(/^\/meetings\/[^/]+$/.test(path)){
    const m=meetings.find(x=>x.id===path.split("/")[2]);
@@ -202,10 +206,19 @@ assert.ok(meetingView,"Atas usam um seletor, sem botões de filtros duplicados")
 meetingView.value="recentes";meetingView.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 assert.ok(document.querySelector('.meeting-card-link').getAttribute("href").includes("reunioes/editar/m1"));
 await move("#/reunioes/editar/m1");
-const memo=document.querySelector('#meeting-form textarea[name="rawNotes"]');
-assert.ok(memo);memo.value+="\n📚 Poesia no PET";
+const memo=document.querySelector('#meeting-form [data-rich-input="rawNotes"]');
+assert.ok(memo,"Editor de atas com formatação disponível");
+assert.ok(memo.textContent.includes("Pautas"),"Texto existente recuperado no editor");
+assert.ok(document.querySelector('#meeting-form [data-format="bold"]'),"A ata tem botão negrito");
+assert.ok(document.querySelector('#meeting-form [data-format="insertUnorderedList"]'),"A ata tem marcadores");
+assert.ok(document.querySelector('#meeting-form [data-rich-color]'),"A ata aceita cor de texto");
+assert.equal(document.querySelector('#meeting-form input[name="title"]').type,"hidden","Título não é formatável");
+memo.innerHTML+='<p><strong>📚 Poesia no PET</strong></p><ul><li>Responsável: (???)</li></ul>';
 submit("#meeting-form");await wait();await wait();
-assert.ok(meetings[0].rawNotes.includes("📚"),"Emojis e quebras preservados nas Atas");
+assert.ok(meetings[0].rawNotes.includes("📚"),"Emojis preservados nas Atas");
+assert.ok(meetings[0].rawNotes.includes("<strong>"),"Negrito preservado nas Atas");
+assert.ok(meetings[0].rawNotes.includes("<ul>"),"Marcadores preservados nas Atas");
+assert.ok(meetings[0].rawNotes.includes("<br>"),"Quebras do texto antigo preservadas nas Atas");
 await move("#/reunioes");
 tap('button[data-do="delete-meeting"]');await wait();
 tap('button[data-do="notice-confirm"]');await wait();await wait();
@@ -507,6 +520,18 @@ tap('[data-do="reset-color"]');await wait();
 assert.equal(document.querySelector('#commission-form input[name="backgroundColor"]').value,"#f7f3ff");
 assert.ok(document.querySelector("#commission-image-editor"),"Modal de imagem disponível");
 assert.ok(document.querySelector('#commission-upload[accept="image/png,image/jpeg,image/webp"]'));
+const committeeEditor=document.querySelector('#commission-form [data-rich-input="description"]');
+assert.ok(committeeEditor,"Descrição de comissão tem editor avançado");
+assert.ok(document.querySelector('#commission-form [data-format="bold"]'),"Permite negrito na descrição");
+assert.ok(document.querySelector('#commission-form [data-format="italic"]'),"Permite itálico na descrição");
+assert.ok(document.querySelector('#commission-form [data-format="insertOrderedList"]'),"Permite lista na descrição");
+assert.ok(document.querySelector('#commission-form [data-rich-color]'),"Permite cor na descrição");
+assert.equal(document.querySelector('#commission-form textarea'),null,"Descrição deixa de usar textarea simples");
+document.querySelector('#commission-form input[name="name"]').value="Equipe teste formatação";
+committeeEditor.innerHTML='<p><strong>Descrição colorida</strong></p><ul><li>Atividade</li></ul>';
+submit("#commission-form");await wait();await wait();
+assert.ok(committees.some(c=>c.name==="Equipe teste formatação"&&c.description.includes("<strong>")&&c.description.includes("<ul>")),
+ "A comissão salva HTML formatado no campo de descrição");
  window.close(); // Encerra também o relógio de atualização automática de status no JSDOM.
 
 
