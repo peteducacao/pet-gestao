@@ -28,7 +28,7 @@ await page.route("**/api/v1/**",async route=>{
  if(method==="OPTIONS")return route.fulfill({status:204,headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PUT,PATCH,DELETE","access-control-allow-headers":"Authorization,Content-Type"}});
  let result={ok:true},status=200;let body={};try{body=req.postDataJSON()||{}}catch{}
  calls.push({method,p,body,authorization:req.headers()["authorization"]||""});
- if(p==="/auth/me")result={user};
+ if(p==="/auth/me")result={user:adminMode?admin:user};
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/auth/login"&&method==="POST")result={token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user};
  else if(p==="/mail")result={items:[]};
