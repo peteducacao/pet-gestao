@@ -947,10 +947,35 @@ function syncStageAssigneePlaceholder(){
   field.outerHTML=stageAssigneeField(selectedOwner);
  });
 }
+function stageDateFromRow(row){
+ if(!row)return "";
+ const native=row.querySelector('[data-stage="day"]');
+ const day=row.querySelector('[data-stage-part="day"]');
+ const month=row.querySelector('[data-stage-part="month"]');
+ const year=row.querySelector('[data-stage-part="year"]');
+ if(!day||!month||!year)return native?.value||"";
+ const dd=day.value.trim(),mm=month.value.trim(),yy=year.value.trim();
+ if(!dd&&!mm)return native?.value||""; // Compatibilidade com o calendário nativo.
+ if(!/^\d{1,2}$/.test(dd)||!/^\d{1,2}$/.test(mm)||!/^\d{4}$/.test(yy))return "";
+ const iso=yy+"-"+mm.padStart(2,"0")+"-"+dd.padStart(2,"0");
+ const date=new Date(iso+"T12:00:00Z");
+ return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===iso?iso:"";
+}
+function syncStageDate(row){
+ const picker=row?.querySelector('[data-stage="day"]');if(picker)picker.value=stageDateFromRow(row);
+}
 function stageRow(stage={},i=0){
  const owners=stage.assigneeIds||[],selectedOwner=owners[0]||"";
+ const saved=(stage.dueAt||"").slice(0,10);
+ const parts=/^\d{4}-\d{2}-\d{2}$/.test(saved)?saved.split("-"):[];
+ const yy=parts[0]||String(new Date().getFullYear()),mm=parts[1]||"",dd=parts[2]||"";
  return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
- '<label>Data<input type="date" data-stage="day" value="'+esc((stage.dueAt||"").slice(0,10))+'" min="'+current.getFullYear()+'-01-01"></label>'+
+ '<fieldset class="stage-date-fields"><legend>Data</legend><div class="collective-date-parts stage-date-parts">'+
+ '<label>Dia<input type="text" data-stage-part="day" inputmode="numeric" maxlength="2" placeholder="DD" autocomplete="off" value="'+esc(dd)+'"></label>'+
+ '<label>Mês<input type="text" data-stage-part="month" inputmode="numeric" maxlength="2" placeholder="MM" autocomplete="off" value="'+esc(mm)+'"></label>'+
+ '<label>Ano<input type="text" data-stage-part="year" inputmode="numeric" maxlength="4" placeholder="AAAA" autocomplete="off" value="'+esc(yy)+'"></label>'+
+ '<button type="button" class="button ghost collective-calendar-button" data-do="stage-pick-date" title="Abrir calendário" aria-label="Abrir calendário da etapa">'+ico("calendar")+'</button></div>'+
+ '<input type="date" data-stage="day" class="stage-native-date" tabindex="-1" aria-label="Selecionar data da etapa pelo calendário" value="'+esc(saved)+'"></fieldset>'+
  '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
  '<label data-previous-owner="'+esc(selectedOwner)+'">'+(state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)")+stageAssigneeField(selectedOwner)+'</label>'+
  '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
@@ -967,7 +992,7 @@ function collectiveEventDate(stage=null){
   "Atividade individual para a pessoa selecionada. A conclusão será marcada pela própria pessoa; a chegada da data não conclui a demanda automaticamente.";
  const saved=(stage?.dueAt||"").slice(0,10);
  const parts=/^\d{4}-\d{2}-\d{2}$/.test(saved)?saved.split("-"):[];
- const yy=parts[0]||String(current.getFullYear()),mm=parts[1]||"",dd=parts[2]||"";
+ const yy=parts[0]||String(new Date().getFullYear()),mm=parts[1]||"",dd=parts[2]||"";
  return '<div class="collective-event-date"><div class="collective-date-fields" role="group" aria-label="'+label+'">'+
   '<span class="collective-date-label-text">'+label+' <span class="task-form-required" aria-hidden="true">*</span></span>'+
   '<div class="collective-date-parts">'+
@@ -1018,8 +1043,8 @@ function refreshDeadlineMode(previousScope=null,previousSingle=null){
  const currentRows=$$(".live-stage").map(row=>({
    id:row.dataset.stageId,
    label:row.querySelector('[data-stage="label"]')?.value||"Prazo",
-   dueAt:(row.querySelector('[data-stage="day"]')?.value||"")+
-     (row.querySelector('[data-stage="day"]')?.value?"T"+(row.querySelector('[data-stage="hour"]')?.value||"23:59")+":00":""),
+   dueAt:stageDateFromRow(row)+
+     (stageDateFromRow(row)?"T"+(row.querySelector('[data-stage="hour"]')?.value||"23:59")+":00":""),
    assigneeIds:row.querySelector('select[data-stage="assignee"]')?.value?[row.querySelector('select[data-stage="assignee"]').value]:[]
  }));
  if(!hadDateMode&&nowDateMode){
@@ -1888,14 +1913,13 @@ async function saveTask(form){
   [{id:isCollective?"evento-data":"atividade-data",label:isCollective?"Evento":"Atividade",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:
   $$(".live-stage").map(row=>{
     const label=row.querySelector('[data-stage="label"]')?.value||"Prazo",
-      day=row.querySelector('[data-stage="day"]')?.value||"",
+      day=stageDateFromRow(row),
       time=row.querySelector('[data-stage="hour"]')?.value||"23:59",
       person=row.querySelector('[data-stage="assignee"]')?.value||"";
     return {id:row.dataset.stageId,label,dueAt:day?day+"T"+time+":00":"",assigneeIds:person?[person]:[]};
   });
  if(!f.title.trim())return setToast("Informe o título.");
  if(stages.some(x=>!x.dueAt))return setToast("Informe a data de todas as etapas inseridas.");
- if(!isCollective&&!isSingle&&stages.some(x=>+x.dueAt.slice(0,4)<current.getFullYear()))return setToast("Não cadastre datas de anos anteriores nas etapas.");
  const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
  if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
  const taskId=form.dataset.id;
@@ -2038,8 +2062,8 @@ async function handleClick(e){
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
  if(action==="install-pet-app"){await installPetApp();return}
- if(action==="collective-pick-date"){
-   const picker=$("#collective-event-day");
+ if(action==="collective-pick-date"||action==="stage-pick-date"){
+   const picker=action==="stage-pick-date"?b.closest(".live-stage")?.querySelector('[data-stage="day"]'):$("#collective-event-day");
    if(!picker)return;
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
@@ -2522,6 +2546,15 @@ async function handleChange(e){
    else state.archiveSelectedIds.delete(t.value);
    render();return;
  }
+ if(t.dataset.stage==="day"&&t.closest(".live-stage")){
+   if(t.value){
+     const row=t.closest(".live-stage"),parts=t.value.split("-");
+     const year=row.querySelector('[data-stage-part="year"]'),month=row.querySelector('[data-stage-part="month"]'),day=row.querySelector('[data-stage-part="day"]');
+     if(year)year.value=parts[0];if(month)month.value=parts[1];if(day)day.value=parts[2];
+   }
+   return;
+ }
+ if(t.hasAttribute("data-stage-part")){syncStageDate(t.closest(".live-stage"));return;}
  if(t.id==="collective-event-day"&&t.value){updateCollectiveDateInputs(t.value);return;}
  if(["collective-date-day","collective-date-month","collective-date-year"].includes(t.id)){
    const native=$("#collective-event-day");
@@ -2806,6 +2839,7 @@ function start(){
      const native=$("#collective-event-day");
      if(native)native.value=collectiveSelectedDay();
    }
+   if(el?.hasAttribute?.("data-stage-part"))syncStageDate(el.closest(".live-stage"));
  });
  document.addEventListener("change",e=>handleChange(e).catch(err=>setToast(err.message)));
  reload();
