@@ -447,8 +447,12 @@ try{
  // A opção geral deve incluir explicitamente a lista Demandas, sem mudar as permissões.
  assert.ok((await page.locator('.task-visibility').innerText()).includes("Visão geral, Demandas e comissões"),
   "Rótulo informa a presença em Demandas");
- assert.ok((await page.locator('.task-visibility').innerText()).includes("Visível na Visão geral, em Demandas e nas comissões vinculadas."),
-  "Ajuda informa os três destinos");
+ assert.ok((await page.locator('.task-visibility').innerText()).includes("Visível na Visão geral e em Demandas, nas Minhas pendências dos responsáveis e nas comissões vinculadas."),
+  "Ajuda informa onde aparece a demanda geral");
+ assert.ok((await page.locator('.task-visibility').innerText()).includes("Não aparece na Visão geral, em Demandas nem em Minhas pendências."),
+  "Somente comissões não entra nas outras listagens");
+ assert.ok((await page.locator('.task-visibility').innerText()).includes("Prazo, Correção, Postagem e Personalizar."),
+  "Todos os tipos de etapa seguem o seletor de exibição");
  // A Tutoria não visualiza o seletor e não recebe anexos de PETianos.
  user.role="tutor";
  await page.reload({waitUntil:"domcontentloaded"});
@@ -468,8 +472,14 @@ try{
  await page.goto(origin+"/#/inicio");
  assert.equal(await page.locator(".dashboard-grid .demand-activity-card").count(),0,"Atividades só nas comissões não devem aparecer na Visão geral");
  await page.goto(origin+"/#/demandas");
- assert.ok((await page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"}).count())>=1,
-  "A opção só comissões mantém a demanda visível em Demandas");
+ assert.equal(await page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"}).count(),0,
+  "Somente comissões não exibe a demanda em Demandas");
+ await page.goto(origin+"/#/minhas-pendencias");
+ assert.equal(await page.locator(".mine-task-item").filter({hasText:"Poesia no PET"}).count(),0,
+  "Somente comissões não aparece em Minhas pendências");
+ await page.goto(origin+"/#/comissoes/videos");
+ assert.equal(await page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"}).count(),1,
+  "A demanda continua na comissão vinculada");
  task.overviewVisible=true;
  await page.goto(origin+"/#/inicio");
  await page.reload();
@@ -477,6 +487,9 @@ try{
  await page.goto(origin+"/#/demandas");
  assert.ok((await page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"}).count())>=1,
   "A opção Visão geral, Demandas e comissões inclui a demanda na listagem");
+ await page.goto(origin+"/#/minhas-pendencias");
+ assert.equal(await page.locator(".mine-task-item").filter({hasText:"Poesia no PET"}).count(),1,
+  "Exibição geral inclui Minhas pendências dos responsáveis");
  await page.goto(origin+"/#/inicio");
 await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".meeting-card-link").waitFor({timeout:5000});
@@ -657,13 +670,20 @@ await page.locator('a[data-route="reunioes"]').click();
  await mixed.locator('button[data-do="finish-mine"]').click();
  assert.equal(await page.locator('#finish-dialog input[name="joint-target"]').count(),2,"Participações individual e comissão não são confundidas");
  await page.locator('[data-do="finish-close"]').last().click();
- const only=page.locator(".mine-task-item").filter({hasText:"Atividade exclusiva da comissão"});
- await only.locator('button[data-do="finish-mine"]').click();
+ assert.equal(await page.locator(".mine-task-item").filter({hasText:"Atividade exclusiva da comissão"}).count(),0,
+  "Demandas somente comissão não entram em Minhas pendências");
+ await page.goto(origin+"/#/comissoes/videos");
+ assert.equal(await page.locator(".demand-activity-card").filter({hasText:"Atividade exclusiva da comissão"}).count(),1,
+  "Demanda restrita continua acessível na comissão");
+ await page.goto(origin+"/#/atividade/t2/videos");
+ await page.locator('[data-detail-status]').selectOption("concluir");
+ await page.locator('#finish-dialog [data-do="finish-joint-confirm"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
  await page.waitForTimeout(250);
- assert.ok(calls.some(x=>x.p==="/tasks/t2/finish"&&x.body.commissionId==="videos"),"Concluir a pendência da comissão usa sua participação vinculada");
+ assert.ok(calls.some(x=>x.p==="/tasks/t2/finish"&&x.body.commissionIds?.includes("videos")),
+  "Concluir a demanda restrita diretamente na comissão registra sua participação");
  await page.goto(origin+"/#/minhas-pendencias");
- assert.equal(await page.locator(".mine-task-item").count(),1,"Concluída pela comissão desaparece das pendências do integrante");
+ assert.equal(await page.locator(".mine-task-item").count(),1,"Minhas pendências conserva apenas a tarefa geral");
  await page.goto(origin+"/#/reunioes");
  await page.locator('select[data-filter="meetings"]').waitFor();
  assert.equal(await page.locator('select[data-filter="meetings"] option').count(),2,"Atas mostram Todas/Recentes no seletor");
