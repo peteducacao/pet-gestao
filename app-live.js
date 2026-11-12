@@ -98,8 +98,15 @@ function safeRich(value){
   if(tag==="BR")return "<br>";
   if(tag==="SPAN"||tag==="FONT"){
     const c=node.style?.color||node.getAttribute("color")||"";
-    const color=/^(#[a-f0-9]{3,8}|rgb\([\d\s,.%]+\))$/i.test(c)?' style="color:'+esc(c)+'"':"";
-    return "<span"+color+">"+inside+"</span>";
+    const style=[];
+    if(/^(#[a-f0-9]{3,8}|rgb\([\d\s,.%]+\))$/i.test(c))style.push("color:"+esc(c));
+    const weight=node.style?.fontWeight||"";
+    if(/^(normal|bold|[1-9]00)$/.test(weight))style.push("font-weight:"+weight);
+    const italic=node.style?.fontStyle||"";
+    if(/^(normal|italic|oblique)$/.test(italic))style.push("font-style:"+italic);
+    const decoration=node.style?.textDecorationLine||node.style?.textDecoration||"";
+    if(/^(none|underline)$/.test(decoration))style.push("text-decoration:"+decoration);
+    return "<span"+(style.length?' style="'+style.join(";")+'"':"")+">"+inside+"</span>";
   }
   const name=tag.toLowerCase();
   return "<"+name+">"+inside+"</"+name+">";
@@ -125,67 +132,167 @@ function richEditor(name,value,placeholder="Escreva aqui..."){
 
 // Formatação aplicada diretamente aos caracteres selecionados (nunca ao fundo).
 // Não depende da implementação inconsistente de execCommand em navegadores móveis.
+
+const richStates=new WeakMap();
+function richState(editor){
+ let state=richStates.get(editor);
+ if(!state){state={bold:false,italic:false,underline:false,color:null,locked:false};richStates.set(editor,state)}
+ return state;
+}
+function richStyleFromCursor(editor){
+ const selection=window.getSelection();
+ if(!selection?.rangeCount)return;
+ const range=selection.getRangeAt(0);
+ if(!editor.contains(range.commonAncestorContainer))return;
+ const node=range.startContainer;
+ let element=node.nodeType===1?node:node.parentElement;
+ if(element===editor&&node.nodeType===1){
+  const near=node.childNodes[Math.max(0,Math.min(range.startOffset-1,node.childNodes.length-1))];
+  if(near)element=near.nodeType===1?near:near.parentElement;
+ }
+ element=element||editor;
+ const css=window.getComputedStyle(element);
+ const ancestor=tag=>Boolean(element.closest?.(tag)&&editor.contains(element.closest(tag)));
+ const underline=ancestor("u")||[element,...[...function*(n){for(let p=n.parentElement;p&&p!==editor;p=p.parentElement)yield p;}(element)]]
+  .some(el=>el.style?.textDecorationLine?.includes("underline")||el.style?.textDecoration?.includes("underline"));
+ const color=css.color?.match(/^rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+ const state=richState(editor);
+ state.bold=/^(bold|[6-9]00)$/.test(css.fontWeight)||Number(css.fontWeight)>=600;
+ state.italic=css.fontStyle==="italic"||css.fontStyle==="oblique";
+ state.underline=underline;
+ state.color=color?"#"+color.slice(1,4).map(v=>Number(v).toString(16).padStart(2,"0")).join(""):null;
+ state.locked=false;
+ updateRichToolbar(editor);
+}
+function updateRichToolbar(editor){
+ const state=richState(editor),root=editor.closest(".rich-editor");
+ if(!root)return;
+ for(const name of ["bold","italic","underline"]){
+  const button=root.querySelector('[data-format="'+name+'"]');
+  if(button)button.setAttribute("aria-pressed",String(Boolean(state[name])));
+ }
+ const input=root.querySelector("[data-rich-color]"),letter=root.querySelector(".rich-color-symbol");
+ if(input&&state.color&&/^#[\da-f]{6}$/i.test(state.color))input.value=state.color;
+ if(letter)letter.style.setProperty("--selected-text-color",state.color||"#5b3bb5");
+}
 function getRichRange(editor){
  const selection=window.getSelection();
  const active=selection?.rangeCount?selection.getRangeAt(0):null;
  if(active&&editor.contains(active.commonAncestorContainer))return active.cloneRange();
  const saved=richRanges.get(editor);
  if(saved&&editor.isConnected&&editor.contains(saved.commonAncestorContainer))return saved.cloneRange();
- return null;
+ const end=document.createRange();
+ end.selectNodeContents(editor);end.collapse(false);
+ return end;
 }
 function saveRichRange(editor){
  const selection=window.getSelection();
  if(selection?.rangeCount&&editor.contains(selection.getRangeAt(0).commonAncestorContainer))
-   richRanges.set(editor,selection.getRangeAt(0).cloneRange());
+  richRanges.set(editor,selection.getRangeAt(0).cloneRange());
+}
+function setRichSelection(editor,range){
+ const selection=window.getSelection();
+ selection.removeAllRanges();selection.addRange(range);
+ richRanges.set(editor,range.cloneRange());
+}
+function unwrapRichSelection(editor,range,tag){
+ if(range.collapsed)return false;
+ let node=range.startContainer.nodeType===3?range.startContainer.parentElement:range.startContainer;
+ const selected=range.toString();
+ while(node&&node!==editor){
+  if(node.nodeType===1&&node.matches(tag)&&node.textContent===selected){
+   const first=node.firstChild,last=node.lastChild,parent=node.parentNode;
+   if(!first||!last||!parent)return false;
+   const result=document.createRange();
+   result.setStartBefore(first);result.setEndAfter(last);
+   node.replaceWith(...[...node.childNodes]);
+   setRichSelection(editor,result);
+   return true;
+  }
+  node=node.parentElement;
+ }
+ return false;
 }
 function applyRichFormat(editor,format,color=""){
  if(!editor)return false;
  const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","foreColor"]);
  if(!allowed.has(format))return false;
- const range=getRichRange(editor);
- if(!range)return false;
+ const state=richState(editor),range=getRichRange(editor);
  editor.focus({preventScroll:true});
- const selection=window.getSelection();
- selection.removeAllRanges();
- selection.addRange(range);
+ setRichSelection(editor,range);
  if(format==="insertUnorderedList"||format==="insertOrderedList"){
-   const result=document.execCommand(format,false,null);
-   saveRichRange(editor);
-   editor.dispatchEvent(new Event("input",{bubbles:true}));
-   return result;
+  const result=document.execCommand(format,false,null);
+  saveRichRange(editor);
+  editor.dispatchEvent(new Event("input",{bubbles:true}));
+  return result;
  }
+ if(format==="foreColor"&&!/^#[a-f0-9]{6}$/i.test(color))return false;
+ const next=format==="foreColor"?color:!state[format];
  if(range.collapsed){
-   // Com cursor sem seleção, mantém o estilo para o texto digitado a seguir.
-   const cmd=format==="foreColor"?"foreColor":format;
-   if(format==="foreColor")document.execCommand("styleWithCSS",false,true);
-   const result=document.execCommand(cmd,false,format==="foreColor"?color:null);
-   saveRichRange(editor);
-   editor.dispatchEvent(new Event("input",{bubbles:true}));
-   return result;
+  if(format==="foreColor")state.color=next;
+  else state[format]=next;
+  state.locked=true;
+  updateRichToolbar(editor);
+  return true;
  }
+ // Em seleção, aplicar a formatação sem destruir outras marcas já combinadas.
  const tag={bold:"strong",italic:"em",underline:"u",foreColor:"span"}[format];
- const wrapper=document.createElement(tag);
- if(format==="foreColor"){
-   if(!/^#[0-9a-f]{6}$/i.test(color))return false;
-   wrapper.style.color=color;
- }
- const contents=range.extractContents();
- if(format==="foreColor"){
-   // Uma cor aplicada depois deve substituir cores anteriores, não ficar escondida por elas.
+ const isTurningOff=format!=="foreColor"&&!next;
+ if(!(isTurningOff&&unwrapRichSelection(editor,range,tag))){
+  const wrapper=document.createElement(tag);
+  if(format==="foreColor")wrapper.style.color=color;
+  const contents=range.extractContents();
+  if(format==="foreColor"){
    for(const node of [...contents.querySelectorAll("[style],font[color]")]){
-     if(node.style)node.style.removeProperty("color");
-     if(node.tagName==="FONT")node.removeAttribute("color");
+    if(node.style)node.style.removeProperty("color");
+    if(node.tagName==="FONT")node.removeAttribute("color");
    }
+  }
+  wrapper.append(contents);
+  range.insertNode(wrapper);
+  const nextRange=document.createRange();
+  nextRange.selectNodeContents(wrapper);
+  setRichSelection(editor,nextRange);
  }
- wrapper.append(contents);
- range.insertNode(wrapper);
- const next=document.createRange();
- next.selectNodeContents(wrapper);
- selection.removeAllRanges();
- selection.addRange(next);
- richRanges.set(editor,next.cloneRange());
+ if(format==="foreColor")state.color=next;
+ else state[format]=next;
+ state.locked=true;
+ updateRichToolbar(editor);
  editor.dispatchEvent(new Event("input",{bubbles:true}));
  return true;
+}
+// Uma combinação de B, I e U só é aplicada ao texto enquanto seus botões estão acesos.
+function insertRichTypedText(event){
+ const editor=event.target.closest?.("[data-rich-input]");
+ if(!editor||event.isComposing||event.inputType!=="insertText"||!event.data)return;
+ const state=richState(editor);
+ if(!state.locked)return;
+ const range=getRichRange(editor);
+ event.preventDefault();
+ const styleKey=[state.bold?1:0,state.italic?1:0,state.underline?1:0,state.color||""].join(":");
+ // Anexa novos caracteres ao mesmo trecho, sem criar uma tag para cada tecla.
+ if(range.collapsed&&range.startContainer.nodeType===3){
+  const textNode=range.startContainer,holder=textNode.parentElement;
+  if(holder?.dataset.richTyped===styleKey&&range.startOffset===textNode.length){
+   textNode.appendData(event.data);
+   const cursor=document.createRange();cursor.setStart(textNode,textNode.length);cursor.collapse(true);
+   setRichSelection(editor,cursor);
+   editor.dispatchEvent(new Event("input",{bubbles:true}));
+   return;
+  }
+ }
+ range.deleteContents();
+ const span=document.createElement("span");
+ span.dataset.richTyped=styleKey;
+ span.style.fontWeight=state.bold?"700":"400";
+ span.style.fontStyle=state.italic?"italic":"normal";
+ span.style.textDecoration=state.underline?"underline":"none";
+ if(state.color)span.style.color=state.color;
+ const node=document.createTextNode(event.data);
+ span.append(node);range.insertNode(span);
+ const cursor=document.createRange();cursor.setStart(node,node.length);cursor.collapse(true);
+ setRichSelection(editor,cursor);
+ editor.dispatchEvent(new Event("input",{bubbles:true}));
 }
 const collectRich=(form,fields)=>{for(const e of form.querySelectorAll("[data-rich-input]"))fields[e.dataset.richInput]=safeRich(e.innerHTML);return fields};
 function richPlainText(value){
@@ -2892,7 +2999,20 @@ function start(){
    if(!selected?.rangeCount)return;
    const anchor=selected.anchorNode?.nodeType===1?selected.anchorNode:selected.anchorNode?.parentElement;
    const editor=anchor?.closest?.("[data-rich-input]");
-   if(editor)saveRichRange(editor);
+   if(editor){
+    saveRichRange(editor);
+    if(!richState(editor).locked)richStyleFromCursor(editor);
+   }
+ });
+ document.addEventListener("beforeinput",insertRichTypedText);
+ document.addEventListener("pointerup",e=>{
+   const editor=e.target.closest?.("[data-rich-input]");
+   if(editor)richStyleFromCursor(editor);
+ });
+ document.addEventListener("keydown",e=>{
+   const editor=e.target.closest?.("[data-rich-input]");
+   if(editor&&/^(ArrowLeft|ArrowRight|ArrowUp|ArrowDown|Home|End|PageUp|PageDown)$/.test(e.key))
+    richState(editor).locked=false;
  });
  document.addEventListener("pointerdown",e=>{
    const toolbar=e.target.closest(".rich-toolbar");
