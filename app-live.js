@@ -379,6 +379,11 @@ function weekFor(d){const x=dt(d);return x?weeks(x.getFullYear(),x.getMonth()).f
 function taskDate(t){
  if(t.displayDate)return t.displayDate;
  if(t.assignmentScope==="todos")return stages(t).filter(x=>x.dueAt).map(x=>x.dueAt).sort().at(-1)||t.registeredAt;
+ // Para publicações de uma comissão, o calendário acompanha a DATA DE POSTAGEM,
+ // não o prazo anterior de produção/correção. Mantém as semanas corretas.
+ const publication=(t.commissionIds||[]).length?
+   stages(t).filter(x=>x.label==="Postagem"&&x.dueAt).map(x=>x.dueAt).sort().at(-1):null;
+ if(publication)return publication;
  return stages(t).filter(x=>!x.completedAt&&x.dueAt).map(x=>x.dueAt).sort()[0]||t.registeredAt;
 }
 function filtered(t,mode=state.mode){
