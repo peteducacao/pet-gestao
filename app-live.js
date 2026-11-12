@@ -1598,7 +1598,11 @@ async function installPetApp(){
 function renderAccount(){
  if(!me)return authRequired();
  const myCommissions=(data.committees||[]).filter(c=>(c.memberIds||[]).includes(me.id));
- const commissionsHtml='<section class="profile-commissions"><h3>Minhas comissões</h3>'+
+ const commissionCount=myCommissions.length;
+ const commissionCountLabel=commissionCount===1?"comissão":"comissões";
+ const commissionsHtml='<section class="profile-commissions" aria-label="Minhas comissões: '+commissionCount+' '+commissionCountLabel+'">'+
+  '<div class="profile-commissions-heading"><div><span class="profile-section-eyebrow">PARTICIPAÇÃO</span><h3>Minhas comissões</h3></div>'+
+  '<div class="profile-commission-counter" aria-live="polite"><strong>'+commissionCount+'</strong><span>'+commissionCountLabel+'</span></div></div>'+
   (myCommissions.length?'<div class="profile-commission-list">'+myCommissions.map(c=>
    '<a class="profile-commission-chip" href="'+workspaceHash("comissoes/"+c.id)+'">'+
     '<span class="profile-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
