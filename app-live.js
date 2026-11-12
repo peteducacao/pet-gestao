@@ -1252,9 +1252,9 @@ function stageRow(stage={},i=0){
  '<label>Ano<input type="text" data-stage-part="year" inputmode="numeric" maxlength="4" placeholder="AAAA" autocomplete="off" value="'+esc(yy)+'"></label>'+
  '<button type="button" class="button ghost collective-calendar-button" data-do="stage-pick-date" title="Abrir calendário" aria-label="Abrir calendário da etapa">'+ico("calendar")+'</button></div>'+
  '<input type="date" data-stage="day" class="stage-native-date" tabindex="-1" aria-label="Selecionar data da etapa pelo calendário" value="'+esc(saved)+'"></fieldset>'+
- '<label>Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
- '<label data-previous-owner="'+esc(selectedOwner)+'">'+(state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)")+stageAssigneeField(selectedOwner)+'</label>'+
- '<button type="button" class="button ghost" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
+ '<label class="stage-time-field">Horário<input type="time" data-stage="hour" value="'+esc((stage.dueAt||"").slice(11,16)||"23:59")+'"></label>'+
+ '<label class="stage-owner-field" data-previous-owner="'+esc(selectedOwner)+'">'+(state.assignmentScope==="todos"?"Responsável":"Responsável (opcional)")+stageAssigneeField(selectedOwner)+'</label>'+
+ '<button type="button" class="button ghost stage-remove-button" data-do="remove-stage">'+ico("close")+' Remover</button></div>';
 }
 function singlePersonDateMode(){return state.assignmentScope==="usuarios"&&state.selectedUsers.size===1&&state.selectedCommissions.size===0;}
 function simpleDateMode(){return state.assignmentScope==="todos"||singlePersonDateMode();}
@@ -1514,8 +1514,8 @@ function renderTaskForm(routeId){
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
  '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
  '<div id="assignment-container">'+assignmentView()+'</div>'+
- '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">A demanda continua disponível em Demandas e nas pendências dos responsáveis.</p>'+
- '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral e comissões</strong><small>Visível na Visão geral e nas comissões vinculadas.</small></span></label>'+
+ '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">Em qualquer opção, a demanda continua disponível em Demandas e nas pendências dos responsáveis. A escolha define apenas sua presença na Visão geral.</p>'+
+ '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral, Demandas e comissões</strong><small>Visível na Visão geral, em Demandas e nas comissões vinculadas.</small></span></label>'+
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
  '<div id="deadline-settings">'+renderDeadlineSettings(t?(t.deadlines||[]):state.assignmentScope==="todos"?[]:[{label:"Prazo",dueAt:""}])+'</div>'+ 
  '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+
