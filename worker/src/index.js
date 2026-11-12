@@ -933,7 +933,7 @@
         if(!name)fail("Informe o nome da comissão.");
         const image=String(b.imageData||"");
         if(image.length>950000||image&&!/^data:image\/(png|jpeg|webp);base64,/.test(image))fail("Imagem inválida ou muito grande.");
-        await db.prepare("INSERT INTO commissions(id,name,description,background_color,image_data,max_members,sort_order,created_at) VALUES(?,?,?,?,?,0,(SELECT COALESCE(MAX(sort_order),0)+1 FROM commissions),?)").bind(uid(),name,str(b.description,2000),color(b.backgroundColor),image,now()).run();
+        await db.prepare("INSERT INTO commissions(id,name,description,background_color,image_data,max_members,sort_order,created_at) VALUES(?,?,?,?,?,0,(SELECT COALESCE(MAX(sort_order),0)+1 FROM commissions),?)").bind(uid(),name,str(b.description,9000),color(b.backgroundColor),image,now()).run();
         return answer({ok:true});
       }
       match=path.match(/^\/api\/v1\/commissions\/([^/]+)$/);
@@ -946,7 +946,7 @@
         if(b.maxMembers!==undefined&&Number(b.maxMembers)!==Number(c.max_members)&&!mayManageVacancies)fail("Somente a Administração altera vagas das comissões.",403);
         const max=mayManageVacancies&&Number.isInteger(b.maxMembers)&&b.maxMembers>=0?b.maxMembers:c.max_members;
         if(max>0){const count=await db.prepare("SELECT COUNT(*) AS n FROM commission_members WHERE commission_id=?").bind(c.id).first();if(count.n>max)fail("O limite não pode ser inferior à quantidade de integrantes atuais.")}
-        await db.prepare("UPDATE commissions SET name=?,description=?,background_color=?,image_data=?,max_members=? WHERE id=?").bind(str(b.name||c.name,90),str(b.description??c.description,2000),color(b.backgroundColor||c.background_color),image,max,c.id).run();
+        await db.prepare("UPDATE commissions SET name=?,description=?,background_color=?,image_data=?,max_members=? WHERE id=?").bind(str(b.name||c.name,90),str(b.description??c.description,9000),color(b.backgroundColor||c.background_color),image,max,c.id).run();
         return answer({ok:true});
       }
       if(match&&method==="DELETE"){
