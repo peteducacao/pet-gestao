@@ -834,18 +834,20 @@
         ensure(user,true);const b=await body(req),target=await db.prepare("SELECT * FROM users WHERE id=?").bind(match[1]).first();
         if(!target)fail("Usuário não encontrado.",404);
         const desired=["usuario","petiano","tutor","admin"].includes(b.role)?b.role:(target.role_override||target.role);
-        if(desired==="admin"&&target.role!=="admin")fail("A conta Administração é exclusiva e não pode ser atribuída a outro usuário.",403);
-        if(target.role==="admin"&&desired!=="admin")fail("Não é permitido alterar o cargo da conta Administração.",403);
+        // Qualquer conta existente pode receber Administração por ação de um Admin
+        // autenticado. O último administrador nunca pode ser rebaixado.
         const role=desired==="usuario"?"petiano":desired;
         const override=desired==="usuario"?"usuario":null;
-        if(target.role==="admin"&&role!=="admin"){
-          const count=await db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='admin'").first();
-          if(count.n<=1)fail("Não é possível remover o último administrador.");
-        }
         const name=b.name!==undefined?str(b.name,120):target.name;
         if(name.length<2)fail("Nome inválido.");
-        await db.prepare("UPDATE users SET name=?,role=?,role_override=?,notification_enabled=?,updated_at=? WHERE id=?").bind(name,role,override,b.notificationEnabled===undefined?target.notification_enabled:b.notificationEnabled?1:0,now(),target.id).run();
-        return answer({ok:true});
+        const demotingAdmin=target.role==="admin"&&role!=="admin";
+        // A condição no próprio UPDATE impede a retirada do último Admin
+        // mesmo quando duas alterações são recebidas simultaneamente.
+        const query="UPDATE users SET name=?,role=?,role_override=?,notification_enabled=?,updated_at=? WHERE id=?"+
+          (demotingAdmin?" AND (SELECT COUNT(*) FROM users WHERE role='admin')>1":"");
+        const changed=await db.prepare(query).bind(name,role,override,b.notificationEnabled===undefined?target.notification_enabled:b.notificationEnabled?1:0,now(),target.id).run();
+        if(demotingAdmin&&!changed.meta.changes)fail("Não é possível remover o último administrador.",409);
+        return answer({ok:true,role:desired,requiresNewLogin:target.role!=="admin"&&role==="admin"});
       }
       match=path.match(/^\/api\/v1\/admin\/users\/([^/]+)\/temporary-password$/);
       if(match&&method==="POST"){
