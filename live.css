@@ -2954,3 +2954,36 @@ body.commission-image-editor-open{overflow:hidden}
  #screen .account-admin-activation{flex-direction:column;align-items:stretch}
  #screen .account-admin-activation .button{justify-content:center}
 }
+
+
+/* Editor de texto padronizado para descrições, atas e campos livres.
+   Os títulos continuam com inputs simples. */
+#screen #commission-form .rich-content{min-height:132px}
+#screen #meeting-form .rich-content{
+ min-height:320px;max-height:65vh;overflow:auto;
+ line-height:1.75;white-space:pre-wrap;
+}
+#screen #meeting-form .rich-editor,
+#screen #commission-form .rich-editor{margin:4px 0 9px}
+#screen .commission-description-rich{
+ width:100%;box-sizing:border-box;max-width:980px;
+ padding:16px 20px;margin:0 0 18px;
+ background:#faf8ff;border:1px solid #e8def7;border-radius:15px;
+ color:#4d4266;font-size:14px;line-height:1.7;
+ overflow-wrap:anywhere;white-space:pre-wrap;
+}
+#screen .commission-description-rich p,
+#screen .commission-description-rich div{margin:0 0 9px}
+#screen .commission-description-rich p:last-child,
+#screen .commission-description-rich div:last-child{margin-bottom:0}
+#screen .commission-description-rich ul{
+ list-style:disc outside;padding-left:25px;margin:8px 0;
+}
+#screen .commission-description-rich ol{
+ list-style:decimal outside;padding-left:25px;margin:8px 0;
+}
+#screen .commission-description-rich li{display:list-item}
+@media(max-width:620px){
+ #screen #meeting-form .rich-content{min-height:260px;max-height:62dvh}
+ #screen .commission-description-rich{padding:14px 15px}
+}
