@@ -2851,3 +2851,73 @@ body.commission-image-editor-open{overflow:hidden}
  #screen .profile-security-panel{padding:16px}
  #screen .profile-security-panel>.button{width:100%}
 }
+
+
+/* Visão geral: botão de acesso às demandas com destaque real e contraste. */
+#screen .dashboard-grid>.card:first-child>.section-head>.button{
+ display:inline-flex;align-items:center;justify-content:center;
+ color:#fff;background:linear-gradient(135deg,#7550db,#5930bf);
+ border:1px solid #6440c6;border-radius:11px;
+ box-shadow:0 6px 15px rgba(91,49,180,.24);
+ min-height:39px;padding:9px 14px;font-weight:850;
+ text-decoration:none;transition:background .16s ease,transform .16s ease,box-shadow .16s ease;
+}
+#screen .dashboard-grid>.card:first-child>.section-head>.button::after{
+ content:"→";font-size:17px;font-weight:750;margin-left:9px;line-height:1;
+}
+#screen .dashboard-grid>.card:first-child>.section-head>.button:hover{
+ color:#fff;background:#48249e;transform:translateY(-1px);
+ box-shadow:0 9px 20px rgba(82,37,164,.32);
+}
+#screen .dashboard-grid>.card:first-child>.section-head>.button:focus-visible{
+ outline:3px solid #d3bbff;outline-offset:3px;
+}
+
+/* Datas de todas as etapas: ano corrente editável, dia e mês sem pré-seleção. */
+#screen .live-stage .stage-date-fields{
+ position:relative;min-width:0;margin:0;padding:0;border:0;
+}
+#screen .live-stage .stage-date-fields legend{
+ padding:0 0 7px;color:#5b516f;font-size:12px;font-weight:750;
+}
+#screen .live-stage .stage-date-parts{
+ display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,.85fr) minmax(0,1.1fr) 43px;
+ gap:6px;align-items:end;max-width:100%;
+}
+#screen .live-stage .stage-date-parts label{
+ display:grid;gap:4px;color:#625674;font-size:11px;font-weight:750;min-width:0;
+}
+#screen .live-stage .stage-date-parts input{
+ width:100%;min-width:0;min-height:43px;max-width:none;
+ border:1px solid #dbcfec;background:#fff;border-radius:9px;
+ padding:7px 5px;font-size:14px;font-weight:750;
+ text-align:center;color:#3c2d59;
+}
+#screen .live-stage .stage-date-parts .collective-calendar-button{
+ display:grid;place-items:center;width:43px;min-width:43px;height:43px;min-height:43px;
+ border-radius:9px;padding:0;margin:0;background:#f2ebff;color:#653fb1;
+}
+#screen .live-stage .stage-date-parts .collective-calendar-button:hover{
+ background:#e6d7ff;border-color:#a98bdf;
+}
+#screen .live-stage .stage-native-date{
+ position:absolute!important;left:-9999px!important;
+ width:1px!important;height:1px!important;min-height:0!important;
+ padding:0!important;margin:0!important;opacity:0!important;pointer-events:none!important;
+}
+#screen .live-stage{grid-template-columns:minmax(125px,.8fr) minmax(280px,1.5fr) minmax(112px,.75fr) minmax(130px,.9fr) auto}
+#screen .admin-role-guide{
+ margin:3px 0 18px;padding:11px 13px;
+ border-radius:11px;border:1px solid #e4d9f3;background:#faf7ff;
+ color:#625477;line-height:1.55;font-size:12px;
+}
+@media(max-width:1180px){
+ #screen .live-stage{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #screen .live-stage .stage-date-fields{min-width:0}
+}
+@media(max-width:540px){
+ #screen .live-stage{grid-template-columns:1fr}
+ #screen .live-stage .stage-date-parts{grid-template-columns:minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.15fr) 43px}
+ #screen .live-stage .stage-date-parts input{font-size:14px}
+ #screen .dashboard-grid>.card:first-child>.section-head>.button{width:100%;min-height:42px}
+}
