@@ -333,6 +333,32 @@ try{
  await stageType.selectOption("__custom__");
  assert.equal(await page.locator('.live-stage [data-stage="custom-label"]').isVisible(),true,"Campo surge ao escolher Personalizar");
  await page.locator('.live-stage [data-stage="custom-label"]').fill("Reunião de alinhamento");
+ // Regressão visual: no Android, Etapa, Data, Horário e Responsável não podem se sobrepor.
+ for(const width of [360,390,414]){
+  await page.setViewportSize({width,height:844});
+  const geometry=await page.locator(".live-stage").evaluate(stage=>{
+   const select=[".stage-label-field",".stage-date-fields",".stage-time-field",".stage-owner-field",".stage-remove-button"];
+   const rects=select.map(selector=>{
+    const box=stage.querySelector(selector).getBoundingClientRect();
+    return {name:selector,top:box.top,bottom:box.bottom,left:box.left,right:box.right,width:box.width};
+   });
+   const date=stage.querySelector(".stage-date-parts");
+   const cells=[...date.children].map(el=>el.getBoundingClientRect());
+   const rect=stage.getBoundingClientRect();
+   return {direction:getComputedStyle(stage).flexDirection,display:getComputedStyle(stage).display,
+    stageWidth:stage.clientWidth,stageScrollWidth:stage.scrollWidth,right:rect.right,
+    rects,dateCellWidths:cells.map(c=>c.width),
+    dateNoOverlap:cells.every((c,i)=>!cells.slice(i+1).some(d=>Math.min(c.right,d.right)-Math.max(c.left,d.left)>2&&Math.min(c.bottom,d.bottom)-Math.max(c.top,d.top)>2))};
+  });
+  assert.equal(geometry.display,"flex","Etapa deve ser flex em "+width+"px");
+  assert.equal(geometry.direction,"column","Campos empilhados em "+width+"px");
+  assert.ok(geometry.stageScrollWidth<=geometry.stageWidth+2,"Sem rolagem horizontal interna em "+width+"px: "+JSON.stringify(geometry));
+  assert.ok(geometry.rects.every((r,i,a)=>i===0||r.top>=a[i-1].bottom-2),
+   "Etapa/Data/Horário/Responsável/Remover sem sobreposição em "+width+"px: "+JSON.stringify(geometry));
+  assert.ok(geometry.dateNoOverlap&&geometry.dateCellWidths.every(w=>w>0),
+   "Dia/Mês/Ano/Calendário sem sobreposição em "+width+"px: "+JSON.stringify(geometry));
+ }
+ await page.setViewportSize({width:1280,height:800});
  await page.locator('.live-stage [data-stage-part="day"]').fill("03");
  await page.locator('.live-stage [data-stage-part="month"]').fill("12");
  assert.equal(await page.locator('.live-stage [data-stage="day"]').inputValue(),new Date().getFullYear()+"-12-03",
@@ -418,6 +444,11 @@ try{
   "Retirar um arquivo mantém os demais");
  await page.locator('[data-do="task-file-unselect"]').first().click();
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),0);
+ // A opção geral deve incluir explicitamente a lista Demandas, sem mudar as permissões.
+ assert.ok((await page.locator('.task-visibility').innerText()).includes("Visão geral, Demandas e comissões"),
+  "Rótulo informa a presença em Demandas");
+ assert.ok((await page.locator('.task-visibility').innerText()).includes("Visível na Visão geral, em Demandas e nas comissões vinculadas."),
+  "Ajuda informa os três destinos");
  // A Tutoria não visualiza o seletor e não recebe anexos de PETianos.
  user.role="tutor";
  await page.reload({waitUntil:"domcontentloaded"});
@@ -436,9 +467,17 @@ try{
  assert.ok(calls.some(x=>x.method==="PUT"&&x.p==="/tasks/t1"&&x.body.overviewVisible===false),"Cadastro deve enviar escolha de exibição ao servidor");
  await page.goto(origin+"/#/inicio");
  assert.equal(await page.locator(".dashboard-grid .demand-activity-card").count(),0,"Atividades só nas comissões não devem aparecer na Visão geral");
+ await page.goto(origin+"/#/demandas");
+ assert.ok((await page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"}).count())>=1,
+  "A opção só comissões mantém a demanda visível em Demandas");
  task.overviewVisible=true;
+ await page.goto(origin+"/#/inicio");
  await page.reload();
  await page.locator(".dashboard-grid .demand-activity-card").first().waitFor();
+ await page.goto(origin+"/#/demandas");
+ assert.ok((await page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"}).count())>=1,
+  "A opção Visão geral, Demandas e comissões inclui a demanda na listagem");
+ await page.goto(origin+"/#/inicio");
 await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".meeting-card-link").waitFor({timeout:5000});
  await page.locator(".meeting-card-link").click();
