@@ -728,8 +728,21 @@ function renderCronograma(){
  return header("Planejamento","Cronograma","Acompanhe os prazos das comissões.")+'<section class="card card-pad">'+period()+
  (groups.size?[...groups].sort((a,b)=>a[0]-b[0]).map(([week,items])=>'<section class="committee-group"><h3 class="committee-group-label">Semana '+week+' · '+MONTHS[state.month]+'</h3>'+items.map(t=>taskCard(t)).join("")+'</section>').join(""):empty("Sem atividades neste período"))+'</section>';
 }
+const COMMISSION_PRESET_ARTS=[
+ ["videos","Vídeos"],["cards","Cards"],["imaginacao","ImaginAÇÃO"],
+ ["cinepet","CinePET"],["salinha","Salinha"],["financas","Finanças"],
+ ["legendas","Legendas"],["site","Site"],["comemoracoes","Comemorações"],
+ ["impressora3d","Impressora 3D"],["secretaria","Secretaria"],["default","Genérica"]
+];
+function commissionArtKey(name){
+ const raw=String(name||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+ const simpler=raw.replace(/^(?:comissaode|comissaodo|comissaoda|comissao|equipede|equipe|setorde|setor)/,"");
+ const key=simpler||raw;
+ if(key==="legenda")return "legendas";
+ return COMMISSION_PRESET_ARTS.some(([k])=>k===key)?key:"default";
+}
 function commissionDefaultArt(name){
- const n=String(name||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+ const n=commissionArtKey(name);
  const art={
   videos:["🎬","#e8dffc"],cards:["🎨","#fce5ed"],imaginacao:["✨","#fff0c9"],cinepet:["🎞️","#e2e9ff"],
   salinha:["🏡","#e3f4e6"],financas:["💰","#fff0d8"],legenda:["💬","#e1f3fa"],
@@ -762,7 +775,7 @@ function commissionCardTheme(value){
 // Desenhos SVG internos: funcionam sem rede e servem de padrão para qualquer nova comissão.
 // A imagem própria do cadastro tem prioridade absoluta sobre esses desenhos.
 function commissionCardArt(name){
- const key=String(name||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+ const key=commissionArtKey(name);
  const motifs={
   videos:'<g filter="url(#petCardShadow)"><circle cx="65" cy="48" r="25" fill="url(#petCardDark)" stroke="#535b80" stroke-width="4"/><circle cx="117" cy="43" r="30" fill="url(#petCardDark)" stroke="#535b80" stroke-width="4"/><circle cx="65" cy="48" r="10" fill="#dce5ef"/><circle cx="117" cy="43" r="12" fill="#dce5ef"/><rect x="35" y="70" width="112" height="76" rx="21" fill="url(#petCardDark)" stroke="#697691" stroke-width="4"/><path d="M145 91 178 73q8-4 8 6v60q0 10-8 6l-33-18z" fill="#303954" stroke="#747d9a" stroke-width="3"/><path d="m82 89 38 22-38 22z" fill="url(#petCardGreen)" stroke="#8ffab0" stroke-width="3"/><path d="M48 82q46-10 83 0" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="4"/></g><path d="m189 82 13-11m-10 33h15m-15 18 11 9" stroke="#ffbd38" stroke-width="7" stroke-linecap="round"/>',
   cards:'<g filter="url(#petCardShadow)"><rect x="42" y="47" width="99" height="102" rx="16" transform="rotate(-9 92 98)" fill="url(#petCardPink)" stroke="#f79ac0" stroke-width="4"/><rect x="64" y="63" width="103" height="95" rx="14" fill="#fff" stroke="#ef94bd" stroke-width="5"/><rect x="72" y="72" width="87" height="68" rx="8" fill="url(#petCardBlue)"/><circle cx="142" cy="86" r="11" fill="#ffcf61"/><path d="m76 137 25-33 21 22 18-25 17 36z" fill="#3c8deb"/><path d="m159 147 20-56" stroke="#ba2b6c" stroke-width="12" stroke-linecap="round"/><path d="m179 92 9-17q5-8 9 3l-3 23z" fill="#f4af53"/></g><path d="m24 78-12-5m16-12-8-12m18 8 2-12" stroke="#f9bb25" stroke-width="6" stroke-linecap="round"/>',
@@ -788,6 +801,56 @@ function commissionCardArt(name){
  '<linearGradient id="petCardGold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff5a1"/><stop offset="1" stop-color="#ffad23"/></linearGradient></defs>'+
  (motifs[key]||motifs.default)+'</svg>';
 }
+
+function openCommissionPresetGallery(){
+ const form=$("#commission-form");
+ if(!form)return;
+ closeCommissionPresetGallery();
+ const layer=document.createElement("div");
+ layer.id="commission-preset-gallery";layer.className="commission-preset-gallery";
+ layer.innerHTML='<div class="commission-preset-backdrop" data-do="commission-preset-close"></div>'+
+ '<section class="commission-preset-dialog" role="dialog" aria-modal="true" aria-labelledby="commission-preset-title">'+
+ '<header><div><span>GALERIA DE ARTES</span><h2 id="commission-preset-title">Imagens padrões das comissões</h2>'+
+ '<p>Escolha qualquer arte. Ela ficará vinculada à comissão mesmo que o nome seja alterado.</p></div>'+
+ '<button type="button" class="button ghost" data-do="commission-preset-close" aria-label="Fechar galeria">✕ Fechar</button></header>'+
+ '<div class="commission-preset-grid">'+COMMISSION_PRESET_ARTS.map(([key,label])=>
+ '<button type="button" class="commission-preset-option" data-do="commission-preset-select" data-key="'+key+'" aria-label="Selecionar imagem padrão de '+esc(label)+'">'+
+ '<span class="commission-preset-picture">'+commissionCardArt(key)+'</span>'+
+ '<strong>'+esc(label)+'</strong></button>').join("")+'</div></section>';
+ document.body.append(layer);
+ layer.querySelector("[data-do='commission-preset-close']:not(.commission-preset-backdrop)")?.focus();
+}
+function closeCommissionPresetGallery(){document.querySelector("#commission-preset-gallery")?.remove()}
+async function selectCommissionPreset(key){
+ if(!COMMISSION_PRESET_ARTS.some(([k])=>k===key))throw Error("Imagem padrão inválida.");
+ const hidden=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
+ if(!hidden||!preview)return;
+ const svg=commissionCardArt(key);
+ const blob=new Blob([svg],{type:"image/svg+xml;charset=utf-8"});
+ const url=URL.createObjectURL(blob);
+ try{
+  const img=await new Promise((resolve,reject)=>{
+   const element=new Image();
+   element.onload=()=>resolve(element);
+   element.onerror=()=>reject(new Error("Não foi possível preparar a imagem padrão."));
+   element.src=url;
+  });
+  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=512;
+  const ctx=canvas.getContext("2d");
+  if(!ctx)throw Error("Não foi possível criar a imagem neste navegador.");
+  const scale=Math.min(448/218,448/194);
+  ctx.drawImage(img,(512-218*scale)/2,(512-194*scale)/2,218*scale,194*scale);
+  const png=canvas.toDataURL("image/png");
+  if(png.length>950000)throw Error("A imagem gerada ultrapassou o tamanho permitido.");
+  hidden.value=png;
+  preview.innerHTML='<img src="'+esc(png)+'" alt="Imagem padrão selecionada">';
+  const hint=$("#commission-image-hint");
+  if(hint)hint.textContent="Arte padrão escolhida. Ela será mantida mesmo que a comissão seja renomeada. Clique em Salvar comissão.";
+  closeCommissionPresetGallery();
+  setToast("Imagem padrão escolhida. Salve a comissão para manter a alteração.");
+ }finally{URL.revokeObjectURL(url)}
+}
+
 function renderComissoes(){
  return header("Trabalho em equipe","Comissões","Organização das equipes.",canWrite()?button("+ Nova comissão","comissoes/nova",true):"")+
  '<section class="card card-pad"><div class="section-head"><h2>Comissões cadastradas</h2><span class="pill soft">'+data.committees.length+' comissões</span></div><div class="commission-cards-grid">'+data.committees.map(c=>{
@@ -1079,7 +1142,7 @@ function renderCommitteeEdit(cid){
  const imagePicker='<div class="commission-image-field"><span class="commission-field-label">Imagem da comissão (opcional)</span>'+
   '<div class="commission-image-picker-row"><div class="commission-image-preview" id="commission-image-preview">'+imagePreview+'</div>'+
   '<div class="commission-image-actions"><label class="button ghost commission-image-choose">Escolher imagem<input type="file" id="commission-upload" accept="image/png,image/jpeg,image/webp" aria-label="Escolher imagem da comissão"></label>'+
-  '<button type="button" class="button ghost" data-do="commission-image-remove">Usar imagem padrão</button>'+
+  '<button type="button" class="button ghost" data-do="commission-preset-gallery">Usar imagens padrões</button>'+
   '<small id="commission-image-hint">JPG, PNG ou WebP de até 2 MB. Edite, recorte e redimensione antes de salvar.</small></div></div>'+
   '<input type="hidden" name="imageData" value="'+esc(c?.imageData||"")+'"></div>';
 
@@ -2368,14 +2431,9 @@ async function handleClick(e){
  }
  if(action==="commission-image-cancel"){closeCommissionImageEditor();return}
  if(action==="commission-image-apply"){await applyCommissionImage(b);return}
- if(action==="commission-image-remove"){
-   const hidden=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
-   if(!hidden||!preview)return;
-   hidden.value="";
-   preview.innerHTML='<span class="commission-image-placeholder commission-image-default">'+commissionCardArt($("#commission-form")?.elements.name?.value||"")+'<small>Imagem padrão</small></span>';
-   const hint=$("#commission-image-hint");if(hint)hint.textContent="Imagem padrão selecionada. Clique em Salvar comissão para concluir.";
-   return;
- }
+ if(action==="commission-preset-gallery"){openCommissionPresetGallery();return}
+ if(action==="commission-preset-close"){closeCommissionPresetGallery();return}
+ if(action==="commission-preset-select"){await selectCommissionPreset(b.dataset.key);return}
  if(action==="finish-joint-open"){openFinishDialog(data.tasks.find(t=>t.id===tid));return;}
  if(action==="finish-select-self"){
    const task=data.tasks.find(x=>x.id===tid),layer=$("#finish-dialog");if(!task||!layer)return;
@@ -2983,6 +3041,7 @@ function start(){
    if(hasUnsavedTaskChanges()){e.preventDefault();e.returnValue="";}
  });
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
+   if($("#commission-preset-gallery")){e.preventDefault();closeCommissionPresetGallery();return}
    if(commissionImageEditor){e.preventDefault();closeCommissionImageEditor();return}
    if($("#task-photo-modal")){e.preventDefault();closeTaskPhoto();return}
    if($("#person-photo-modal")){e.preventDefault();closePersonPhotoPreview();return}
