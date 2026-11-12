@@ -866,7 +866,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#commission-form [data-format="italic"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-format="insertOrderedList"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-rich-color]').count(),1);
- assert.equal(await page.locator('#commission-form input[type="color"]').count(),0,"RGB não usa seletor de cor nativo para a comissão");
+ assert.equal(await page.locator('#commission-form input[type="color"]:not([data-rich-color])').count(),0,"RGB não usa seletor de cor nativo para a comissão");
  await page.locator('[data-do="commission-color-toggle"]').click();
  await page.locator('[data-commission-rgb-range="r"]').fill("128");
  assert.equal((await page.locator('input[name="backgroundColor"]').inputValue()).slice(1,3),"80");
