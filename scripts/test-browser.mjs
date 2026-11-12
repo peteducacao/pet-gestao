@@ -327,6 +327,12 @@ try{
    "Ano da etapa é preenchido automaticamente, inclusive para múltiplos responsáveis");
  assert.equal(await page.locator('.live-stage [data-stage-part="day"]').inputValue(),"","Dia da etapa começa vazio");
  assert.equal(await page.locator('.live-stage [data-stage-part="month"]').inputValue(),"","Mês da etapa começa vazio");
+ const stageType=page.locator('.live-stage [data-stage="label"]');
+ assert.equal(await stageType.locator('option[value="__custom__"]').count(),1,"Personalizar aparece entre as opções");
+ assert.equal(await page.locator('.live-stage [data-stage="custom-label"]').isVisible(),false,"Campo personalizado escondido inicialmente");
+ await stageType.selectOption("__custom__");
+ assert.equal(await page.locator('.live-stage [data-stage="custom-label"]').isVisible(),true,"Campo surge ao escolher Personalizar");
+ await page.locator('.live-stage [data-stage="custom-label"]').fill("Reunião de alinhamento");
  await page.locator('.live-stage [data-stage-part="day"]').fill("03");
  await page.locator('.live-stage [data-stage-part="month"]').fill("12");
  assert.equal(await page.locator('.live-stage [data-stage="day"]').inputValue(),new Date().getFullYear()+"-12-03",
@@ -334,7 +340,13 @@ try{
  await page.locator(".task-form-header-save").click();
  await page.waitForTimeout(180);
  assert.equal(tasks.find(x=>x.id==="t-step-empty").deadlines.length,1,"Adicionar etapa após zerar prazos");
+ assert.equal(tasks.find(x=>x.id==="t-step-empty").deadlines[0].label,"Reunião de alinhamento",
+  "Nome personalizado é enviado e salvo sem virar Prazo/Correção/Postagem");
  await page.goto(origin+"/#/registrar/t-step-empty");
+ assert.equal(await page.locator('.live-stage [data-stage="label"]').inputValue(),"__custom__",
+  "Edição reconhece a etapa personalizada");
+ assert.equal(await page.locator('.live-stage [data-stage="custom-label"]').inputValue(),"Reunião de alinhamento",
+  "Texto personalizado permanece editável");
  await page.locator('#stage-rows [data-do="remove-stage"]').click();
  await page.locator(".task-form-header-save").click();
  await page.waitForTimeout(180);
