@@ -1077,7 +1077,9 @@ await test("seção SISTEMA aparece somente para quem possui permissão administ
  assert.match(index,/<p class="nav-caption separated" id="admin-nav-caption" hidden>SISTEMA<\/p>/);
  assert.match(index,/<nav class="nav-group" id="admin-nav-group" aria-label="Administração" hidden>/);
  assert.match(index,/<a class="nav-link" id="admin-link" href="#\/admin" hidden>/);
- assert.ok(src.includes('const adminVisible=adminRole(me)&&!me.mustChangePassword;'),"Admin tem botão exclusivo mesmo fora do painel");
+ assert.ok(src.includes('const adminVisible=hasAdminRole(me)&&!me.mustChangePassword;'),"Somente cargo Administração vê acesso ou ativação do painel");
+ assert.ok(src.includes('if(!isAdmin()&&hasAdminRole(me)&&!me.mustChangePassword)'),"Promovidos autenticam a nova sessão antes de entrar");
+ assert.ok(src.includes('if(activated.user?.role!=="admin"||activated.user?.adminSession!==true)'),"Não aceitar falso login administrativo");
  assert.ok(src.includes('if(adminCaption)adminCaption.hidden=!adminVisible'));
  assert.ok(src.includes('if(adminGroup)adminGroup.hidden=!adminVisible'));
 });
