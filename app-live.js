@@ -2,7 +2,7 @@
 (function frontModule(){
 "use strict";
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
- let lastRichRange=null;
+ const richRanges=new WeakMap(); // Cada editor conserva sua própria seleção ao tocar a barra de ferramentas.
 // Endpoint PUBLICO de contingencia: evita tela bloqueada quando config.js nao e carregado pelo navegador.
 // O arquivo config.js (gerado no deploy) continua tendo prioridade sobre este valor.
 const API_FALLBACK="https://pet-gestao.pet-educacao.workers.dev";
@@ -123,6 +123,70 @@ function richEditor(name,value,placeholder="Escreva aqui..."){
  '</div><div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
 }
 
+// Formatação aplicada diretamente aos caracteres selecionados (nunca ao fundo).
+// Não depende da implementação inconsistente de execCommand em navegadores móveis.
+function getRichRange(editor){
+ const selection=window.getSelection();
+ const active=selection?.rangeCount?selection.getRangeAt(0):null;
+ if(active&&editor.contains(active.commonAncestorContainer))return active.cloneRange();
+ const saved=richRanges.get(editor);
+ if(saved&&editor.isConnected&&editor.contains(saved.commonAncestorContainer))return saved.cloneRange();
+ return null;
+}
+function saveRichRange(editor){
+ const selection=window.getSelection();
+ if(selection?.rangeCount&&editor.contains(selection.getRangeAt(0).commonAncestorContainer))
+   richRanges.set(editor,selection.getRangeAt(0).cloneRange());
+}
+function applyRichFormat(editor,format,color=""){
+ if(!editor)return false;
+ const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","foreColor"]);
+ if(!allowed.has(format))return false;
+ const range=getRichRange(editor);
+ if(!range)return false;
+ editor.focus({preventScroll:true});
+ const selection=window.getSelection();
+ selection.removeAllRanges();
+ selection.addRange(range);
+ if(format==="insertUnorderedList"||format==="insertOrderedList"){
+   const result=document.execCommand(format,false,null);
+   saveRichRange(editor);
+   editor.dispatchEvent(new Event("input",{bubbles:true}));
+   return result;
+ }
+ if(range.collapsed){
+   // Com cursor sem seleção, mantém o estilo para o texto digitado a seguir.
+   const cmd=format==="foreColor"?"foreColor":format;
+   if(format==="foreColor")document.execCommand("styleWithCSS",false,true);
+   const result=document.execCommand(cmd,false,format==="foreColor"?color:null);
+   saveRichRange(editor);
+   editor.dispatchEvent(new Event("input",{bubbles:true}));
+   return result;
+ }
+ const tag={bold:"strong",italic:"em",underline:"u",foreColor:"span"}[format];
+ const wrapper=document.createElement(tag);
+ if(format==="foreColor"){
+   if(!/^#[0-9a-f]{6}$/i.test(color))return false;
+   wrapper.style.color=color;
+ }
+ const contents=range.extractContents();
+ if(format==="foreColor"){
+   // Uma cor aplicada depois deve substituir cores anteriores, não ficar escondida por elas.
+   for(const node of [...contents.querySelectorAll("[style],font[color]")]){
+     if(node.style)node.style.removeProperty("color");
+     if(node.tagName==="FONT")node.removeAttribute("color");
+   }
+ }
+ wrapper.append(contents);
+ range.insertNode(wrapper);
+ const next=document.createRange();
+ next.selectNodeContents(wrapper);
+ selection.removeAllRanges();
+ selection.addRange(next);
+ richRanges.set(editor,next.cloneRange());
+ editor.dispatchEvent(new Event("input",{bubbles:true}));
+ return true;
+}
 const collectRich=(form,fields)=>{for(const e of form.querySelectorAll("[data-rich-input]"))fields[e.dataset.richInput]=safeRich(e.innerHTML);return fields};
 function richPlainText(value){
  const template=document.createElement("template");
@@ -562,7 +626,7 @@ function commissionDefaultArt(name){
  const art={
   videos:["🎬","#e8dffc"],cards:["🎨","#fce5ed"],imaginacao:["✨","#fff0c9"],cinepet:["🎞️","#e2e9ff"],
   salinha:["🏡","#e3f4e6"],financas:["💰","#fff0d8"],legenda:["💬","#e1f3fa"],
-  site:["💻","#e4e9ff"],comemoracoes:["🎉","#ffe4ed"],impressora3d:["🖨️","#e5f2f1"]
+  site:["💻","#e4e9ff"],secretaria:["📋","#e9e0fa"],comemoracoes:["🎉","#ffe4ed"],impressora3d:["🖨️","#e5f2f1"]
  };
  const [symbol,color]=art[n]||["📋","#ece7fa"];
  return '<span class="commission-default-art" style="--art-color:'+color+'" aria-hidden="true">'+commissionCardArt(name)+'</span>';
@@ -601,6 +665,7 @@ function commissionCardArt(name){
   financas:'<g filter="url(#petCardShadow)"><ellipse cx="51" cy="146" rx="36" ry="10" fill="#c78300"/><rect x="16" y="105" width="72" height="37" rx="8" fill="url(#petCardGold)" stroke="#dc962b" stroke-width="3"/><path d="M18 116h70m-70 13h70" stroke="#f7ca59" stroke-width="5"/><rect x="100" y="43" width="83" height="122" rx="14" fill="url(#petCardBlue)" stroke="#525dba" stroke-width="5"/><rect x="111" y="54" width="61" height="32" rx="7" fill="#a4e0ff" stroke="#5970b3" stroke-width="3"/><g fill="#faf5f9"><rect x="111" y="98" width="16" height="15" rx="4"/><rect x="135" y="98" width="16" height="15" rx="4"/><rect x="159" y="98" width="15" height="15" rx="4"/><rect x="111" y="121" width="16" height="15" rx="4"/><rect x="135" y="121" width="16" height="15" rx="4"/><rect x="159" y="121" width="15" height="32" rx="4" fill="#3dca8d"/><rect x="111" y="144" width="40" height="11" rx="4"/></g></g>',
   legenda:'<g filter="url(#petCardShadow)"><path d="M35 49q0-16 16-16h110q16 0 16 16v69q0 16-16 16H75l-29 19v-19q-11-3-11-16z" fill="url(#petCardPurple)" stroke="#6955d0" stroke-width="5"/><rect x="50" y="55" width="112" height="60" rx="9" fill="#f5f1ff"/><text x="106" y="99" font-family="Arial,sans-serif" font-weight="900" font-size="42" text-anchor="middle" fill="#5340b0">CC</text><rect x="65" y="142" width="101" height="32" rx="11" fill="#987bf6"/><path d="M80 155h71m-71 9h52" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g>',
   legendas:'<g filter="url(#petCardShadow)"><path d="M35 49q0-16 16-16h110q16 0 16 16v69q0 16-16 16H75l-29 19v-19q-11-3-11-16z" fill="url(#petCardPurple)" stroke="#6955d0" stroke-width="5"/><rect x="50" y="55" width="112" height="60" rx="9" fill="#f5f1ff"/><text x="106" y="99" font-family="Arial,sans-serif" font-weight="900" font-size="42" text-anchor="middle" fill="#5340b0">CC</text><rect x="65" y="142" width="101" height="32" rx="11" fill="#987bf6"/><path d="M80 155h71m-71 9h52" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g>',
+  secretaria:'<g filter="url(#petCardShadow)"><rect x="48" y="27" width="118" height="151" rx="15" fill="url(#petCardPurple)" stroke="#5342a9" stroke-width="5"/><rect x="58" y="38" width="98" height="129" rx="8" fill="#fffaf7"/><rect x="78" y="19" width="57" height="29" rx="9" fill="url(#petCardDark)" stroke="#7f7bb4" stroke-width="3"/><rect x="92" y="14" width="29" height="15" rx="8" fill="#c9d8f2"/><path d="m73 78 9 8 14-17m-23 44 9 8 14-17m-23 44 9 8 14-17" stroke="#35bca0" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M107 80h34m-34 35h34m-34 35h27" stroke="#9c9bb9" stroke-width="6" stroke-linecap="round"/><path d="m158 147 24-64q4-10 13-6t6 13l-24 64-15 17z" fill="url(#petCardGold)" stroke="#bd7e2e" stroke-width="3"/><path d="m161 165 16-11-15 17z" fill="#3d405e"/></g><path d="M26 49l-10-8m12 23-14-1m176-12 11-8m-4 25 14-1" stroke="#ffbd38" stroke-width="6" stroke-linecap="round"/>',
   site:'<g filter="url(#petCardShadow)"><rect x="35" y="37" width="147" height="114" rx="13" fill="url(#petCardDark)" stroke="#69749d" stroke-width="5"/><rect x="45" y="47" width="127" height="94" rx="5" fill="url(#petCardBlue)"/><path d="m89 76-19 17 19 17m38-34 19 17-19 17m-24 7 13-49" fill="none" stroke="#eaf6ff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 152h172l-17 19H41z" fill="#d4d9ec" stroke="#8492b0" stroke-width="4"/><path d="m153 112 11 48 12-13 13 23 11-7-13-22 17-4z" fill="#fff" stroke="#3a497e" stroke-width="4"/></g>',
   comemoracoes:'<g filter="url(#petCardShadow)"><path d="m61 95 97 53-119 25z" fill="url(#petCardPink)" stroke="#de5173" stroke-width="4"/><path d="m63 95 31 17-25 50-29 10z" fill="url(#petCardGold)"/><path d="M100 116 82 161m44-34-12 28" stroke="#f6d05d" stroke-width="13"/><ellipse cx="64" cy="94" rx="22" ry="12" transform="rotate(30 64 94)" fill="#ffbd48"/></g><g stroke-linecap="round" fill="none" stroke-width="10"><path d="M77 60q-23-22 0-33" stroke="#f052a1"/><path d="M114 62q27-18 8-39" stroke="#35bdbb"/><path d="M146 94q27-16 18-34" stroke="#a05cf4"/><path d="M98 76q-7-29 10-40" stroke="#ef9c23"/></g><path d="m169 39 7 10 11-3-6 13 8 8-15-1-6 10-2-14-11-5 12-6z" fill="#f7b82e"/><circle cx="45" cy="49" r="5" fill="#a05cf4"/><circle cx="152" cy="24" r="5" fill="#ec5d88"/>',
   impressora3d:'<g filter="url(#petCardShadow)"><path d="M40 37h132v132H40z" fill="none" stroke="#454c81" stroke-width="12" stroke-linejoin="round"/><path d="M30 169h153" stroke="#6875ac" stroke-width="15" stroke-linecap="round"/><path d="M105 78 137 98l-31 20-31-20z" fill="#b4e8f4" stroke="#518aee" stroke-width="3"/><path d="m75 98 31 20v36l-31-21z" fill="#66b4ef"/><path d="m137 98-31 20v36l31-21z" fill="#446eda"/><rect x="76" y="41" width="60" height="18" rx="6" fill="#353a64"/><path d="m106 59v19" stroke="#667dc2" stroke-width="7"/><path d="M64 147h83" stroke="#777fae" stroke-width="8"/></g>',
@@ -2414,8 +2479,8 @@ async function handleClick(e){
    return;
  }
  if(action==="rich-format"){
-   const editor=b.closest(".rich-editor")?.querySelector("[contenteditable]");
-   if(editor){editor.focus();document.execCommand(b.dataset.format,false,null);}
+   const editor=b.closest(".rich-editor")?.querySelector("[data-rich-input]");
+   if(editor)applyRichFormat(editor,b.dataset.format);
    return;
  }
 
@@ -2661,14 +2726,8 @@ async function handleChange(e){
    localStorage.setItem("pet-gestao:period",JSON.stringify({year:state.year,month:state.month,week:state.week}));render();return;
  }
  if(t.matches?.("[data-rich-color]")){
-   const editor=t.closest(".rich-editor")?.querySelector("[contenteditable]");
-   if(editor){
-     editor.focus();
-     const selection=window.getSelection();
-     if(lastRichRange&&editor.contains(lastRichRange.commonAncestorContainer)){
-       selection.removeAllRanges();selection.addRange(lastRichRange);
-     }
-     document.execCommand("foreColor",false,t.value);
+   const editor=t.closest(".rich-editor")?.querySelector("[data-rich-input]");
+   if(editor&&applyRichFormat(editor,"foreColor",t.value)){
      const symbol=t.closest(".rich-color-label")?.querySelector(".rich-color-symbol");
      if(symbol)symbol.style.setProperty("--selected-text-color",t.value);
    }
@@ -2832,9 +2891,15 @@ function start(){
    const selected=window.getSelection();
    if(!selected?.rangeCount)return;
    const anchor=selected.anchorNode?.nodeType===1?selected.anchorNode:selected.anchorNode?.parentElement;
-   if(anchor?.closest?.("[data-rich-input]"))lastRichRange=selected.getRangeAt(0).cloneRange();
+   const editor=anchor?.closest?.("[data-rich-input]");
+   if(editor)saveRichRange(editor);
  });
  document.addEventListener("pointerdown",e=>{
+   const toolbar=e.target.closest(".rich-toolbar");
+   if(toolbar){
+     const editor=toolbar.closest(".rich-editor")?.querySelector("[data-rich-input]");
+     if(editor)saveRichRange(editor);
+   }
    if(e.target.closest('[data-do="rich-format"]'))e.preventDefault();
  });
  document.addEventListener("click",e=>{
