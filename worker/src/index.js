@@ -468,9 +468,9 @@
       stages=[{id:str(providedStages[0].id||"atividade-data",60),label:"Atividade",
         dueAt:day+"T23:59:59",assigneeIds:[],commissionCompleted:{},completedAt:null}];
     }else{
-      stages=providedStages.slice(0,40).map(d=>({id:str(d.id||uid(),60),label:str(d.label,20),dueAt:standardTime(d.dueAt),assigneeIds:unique(d.assigneeIds),commissionCompleted:d.commissionCompleted&&typeof d.commissionCompleted==="object"?d.commissionCompleted:{},completedAt:d.completedAt||null}));
+      stages=providedStages.slice(0,40).map(d=>({id:str(d.id||uid(),60),label:str(d.label,60),dueAt:standardTime(d.dueAt),assigneeIds:unique(d.assigneeIds),commissionCompleted:d.commissionCompleted&&typeof d.commissionCompleted==="object"?d.commissionCompleted:{},completedAt:d.completedAt||null}));
       // Sem etapas é permitido para tarefas antigas e demandas com mais responsáveis.
-      if(stages.some(d=>!["Prazo","Correção","Postagem"].includes(d.label)||!d.dueAt))fail("Etapa inválida ou sem data.");
+      if(stages.some(d=>!d.label||d.label.length>60||!d.dueAt))fail("Informe o nome da etapa (até 60 caracteres) e uma data válida.");
       if(!old&&stages.some(d=>Number(d.dueAt.slice(0,4))<currentYear()))fail("Não é permitido cadastrar datas de anos anteriores.");
     }
     const limits=["Prazo","Correção","Postagem"].map(s=>stages.filter(d=>d.label===s).map(x=>x.dueAt).sort());
