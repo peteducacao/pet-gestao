@@ -371,8 +371,8 @@ try{
  // Seleção múltipla de arquivos locais para guardar na demanda.
  await page.locator("#task-file-input").waitFor({state:"attached",timeout:10000});
  assert.equal(await page.locator("#task-file-input").getAttribute("multiple"),"");
- assert.equal(await page.locator("#task-file-input").getAttribute("accept"),"image/*",
-  "Seleção somente de imagens");
+ assert.equal(await page.locator("#task-file-input").getAttribute("accept"),"image/jpeg,image/png,image/webp",
+  "Seleção somente dos formatos originais que o servidor preserva");
  const png=await page.evaluate(()=>{
   const canvas=document.createElement("canvas");canvas.width=32;canvas.height=32;
   const ctx=canvas.getContext("2d");ctx.fillStyle="#6525bc";ctx.fillRect(0,0,32,32);
@@ -386,8 +386,14 @@ try{
  await page.waitForFunction(()=>document.querySelectorAll("#task-file-selection .task-attachment-item").length===2);
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),2,
   "Duas fotos podem ser escolhidas para a mesma demanda");
- assert.ok((await page.locator("#task-file-selection").innerText()).includes("foto-1.jpg"));
- assert.ok((await page.locator("#task-file-selection").innerText()).includes("foto-2.jpg"));
+ assert.ok((await page.locator("#task-file-selection").innerText()).includes("foto-1.png"),"Extensão original mantida");
+ assert.ok((await page.locator("#task-file-selection").innerText()).includes("foto-2.png"),"Não converter imagem em JPEG");
+ assert.equal(await page.locator("#task-file-selection img").count(),2,"Miniaturas locais das fotos");
+ await page.locator('[data-do="task-photo-preview-local"]').first().click();
+ await page.locator("#person-photo-modal img").waitFor();
+ assert.equal(await page.locator("#person-photo-modal img").count(),1,"Foto abre prévia ampliada");
+ await page.locator("#person-photo-modal [data-do='person-photo-close']:not(.person-photo-backdrop)").click();
+ assert.equal(await page.locator("#person-photo-modal").count(),0,"Fechar prévia não remove a foto escolhida");
  await page.locator('[data-do="task-file-unselect"]').first().click();
  assert.equal(await page.locator("#task-file-selection .task-attachment-item").count(),1,
   "Retirar um arquivo mantém os demais");
