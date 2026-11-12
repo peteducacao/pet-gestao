@@ -622,6 +622,19 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/minhas-pendencias");
  await page.locator('select[data-filter="mineStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="mineStatus"] option').count(),3);
+ // Uma conta recém-promovida ainda tem sessão comum: botão aparece
+ // mas exige digitação da senha antes de liberar dados administrativos.
+ user.role="admin";user.adminSession=false;
+ await loginAs(user);
+ await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
+ assert.ok((await page.locator("#admin-link").innerText()).includes("Ativar Administração"),
+  "Cargo novo apresenta caminho visível para ativação");
+ await page.locator("#admin-link").click();
+ await page.locator("#admin-activation-form").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator('#admin-activation-form input[type="password"]').count(),1,
+  "Sessão anterior exige senha antes de ativar Administração");
+ assert.equal(await page.locator(".admin-layout").count(),0,"Sessão antiga não acessa painel");
+ user.role="tutor";
  // Administração: autenticar pelo mesmo formulário de qualquer integrante.
  await loginAs(admin);
  assert.equal(await page.evaluate(()=>localStorage.getItem("pet-gestao:session-token")),"admin-token","Admin usa o mesmo token do login comum");
