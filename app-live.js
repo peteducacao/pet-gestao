@@ -1089,7 +1089,8 @@ async function shrinkPhoto(file,{edge=1440,maxBytes=TASK_PHOTO_TARGET,square=fal
 }
 const fileSize=n=>n>=1048576?(n/1048576).toFixed(2).replace(".",",")+" MB":Math.max(1,Math.ceil(n/1024))+" KB";
 function taskFileList(t,remove=false){
- return (t?.attachments||[]).map(f=>'<div class="task-attachment-item"><span class="task-file-art">'+ico("folder")+'</span>'+
+ return (t?.attachments||[]).map(f=>'<div class="task-attachment-item">'+
+ (f.mimeType?.startsWith("image/")?'<button type="button" class="task-file-art task-photo-thumb-btn" data-do="task-photo-view" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'" title="Ver prévia da foto" aria-label="Ver prévia de '+esc(f.name)+'">🖼️</button>':'<span class="task-file-art">'+ico("folder")+'</span>')+
  '<span class="task-file-info"><strong>'+esc(f.name)+'</strong><small>'+fileSize(f.size)+'</small></span>'+
  (f.mimeType?.startsWith("image/")?'<button type="button" class="button ghost" data-do="task-photo-view" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Ver foto</button>':"")+
  '<button type="button" class="button ghost" data-do="task-file-download" data-id="'+esc(t.id)+'" data-file-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">Baixar</button>'+
@@ -1097,8 +1098,10 @@ function taskFileList(t,remove=false){
  '</div>').join("");
 }
 function taskFilePendingList(){
- return state.taskFiles.length?state.taskFiles.map((file,i)=>'<div class="task-attachment-item"><span class="task-file-art">'+ico("folder")+'</span>'+
+ return state.taskFiles.length?state.taskFiles.map((file,i)=>'<div class="task-attachment-item">'+
+ '<button type="button" class="task-file-art task-file-art-preview" data-do="task-photo-preview-local" data-index="'+i+'" aria-label="Pré-visualizar '+esc(file.name)+'" title="Clique para ampliar a foto"><img src="'+esc(pendingPhotoUrl(file))+'" alt=""></button>'+
  '<span class="task-file-info"><strong>'+esc(file.name)+'</strong><small>'+fileSize(file.size)+' · Enviar ao salvar</small></span>'+
+ '<button type="button" class="button ghost" data-do="task-photo-preview-local" data-index="'+i+'">Ver prévia</button>'+
  '<button type="button" class="button ghost" data-do="task-file-unselect" data-index="'+i+'">Retirar</button></div>').join(""):
  '<p class="field-hint">Nenhum arquivo selecionado.</p>';
 }
@@ -1144,6 +1147,28 @@ async function downloadTaskFile(taskId,fileId,name){
  link.href=url;link.download=name||"arquivo";document.body.append(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
+let personPhotoObjectUrl=null;
+function closePersonPhotoPreview(){
+ document.getElementById("person-photo-modal")?.remove();
+ if(personPhotoObjectUrl){URL.revokeObjectURL(personPhotoObjectUrl);personPhotoObjectUrl=null;}
+}
+function openPersonPhotoPreview(source,name,ownsObjectUrl=false){
+ closePersonPhotoPreview();
+ if(!source)return;
+ if(ownsObjectUrl)personPhotoObjectUrl=source;
+ const dialog=document.createElement("div");
+ dialog.id="person-photo-modal";
+ dialog.className="person-photo-modal";
+ dialog.innerHTML='<div class="person-photo-backdrop" data-do="person-photo-close"></div>'+
+  '<section class="person-photo-dialog" role="dialog" aria-modal="true" aria-label="Pré-visualizar foto">'+
+  '<header><strong>'+esc(name||"Foto")+'</strong>'+
+  '<button type="button" class="button ghost" data-do="person-photo-close" aria-label="Fechar prévia">✕ Fechar</button></header>'+
+  '<img alt="'+esc(name||"Foto")+'"></section>';
+ dialog.querySelector("img").src=source;
+ document.body.append(dialog);
+ dialog.querySelector('[data-do="person-photo-close"]:not(.person-photo-backdrop)')?.focus();
+}
+
 let taskPhotoObjectUrl=null;
 function closeTaskPhoto(){
  const modal=$("#task-photo-modal");modal?.remove();
@@ -1297,13 +1322,16 @@ function collapsibleDetailHeading(title,iconName){
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></summary>';
 }
 function renderAssignees(t){
- const people=(t.assigneeIds||[]).map(id=>nameFor(id)||"Responsável vinculado");
+ const people=(t.assigneeIds||[]).map(personId=>({id:personId,name:nameFor(personId)||"Responsável vinculado",
+   photo:data.users.find(u=>u.id===personId)?.profilePhoto||null}));
  const teams=(t.commissionIds||[]).map(cid=>committee(cid)).filter(Boolean);
  const everyone=isEveryoneAssigned(t);
  const peoplePanel=people.length?'<div class="assignee-group assignee-people-panel">'+
   '<span class="assignee-column-heading">'+ico("user")+' Pessoas</span>'+
   (everyone?'<div class="assignee-everyone">'+ico("users")+' <strong>Todos</strong></div>':
-   '<div class="assignee-chips">'+people.map(name=>'<span class="assignee-person">'+esc(name)+'</span>').join("")+'</div>')+
+   '<div class="assignee-chips">'+people.map(person=>'<span class="assignee-person">'+
+    (person.photo?'<button type="button" class="person-photo-button" data-do="person-photo-open" data-person-id="'+esc(person.id)+'" aria-label="Ampliar foto de '+esc(person.name)+'" title="Clique para ampliar"><img src="'+esc(person.photo)+'" alt=""></button>':"")+
+    esc(person.name)+'</span>').join("")+'</div>')+
   '</div>':"";
  const teamsPanel=teams.length?'<div class="assignee-group assignee-commissions-panel">'+
   '<span class="assignee-column-heading">'+ico("users")+' Comissões</span>'+
@@ -1588,9 +1616,8 @@ function renderAccount(){
   '<label>Senha atual<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label>'+
   '<button type="submit" class="button primary">Enviar link de confirmação</button></form></section>';
  const profilePhoto='<div class="account-photo-editor">'+
-  '<div class="account-photo-preview">'+(me.profilePhoto?
-    '<img src="'+esc(me.profilePhoto)+'" alt="Minha foto de perfil">':
-    '<span aria-label="Sem foto de perfil">'+esc((me.name||"P").trim().charAt(0).toUpperCase())+'</span>')+'</div>'+
+  (me.profilePhoto?'<button type="button" class="account-photo-preview account-photo-preview-clickable" data-do="person-photo-open" data-person-id="'+esc(me.id)+'" aria-label="Ampliar minha foto de perfil" title="Clique para ampliar"><img src="'+esc(me.profilePhoto)+'" alt="Minha foto de perfil"></button>':
+    '<div class="account-photo-preview"><span aria-label="Sem foto de perfil">'+esc((me.name||"P").trim().charAt(0).toUpperCase())+'</span></div>')+
   '<div class="account-photo-controls"><label class="button ghost account-photo-choose">Alterar foto'+
   '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
   (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
@@ -1913,7 +1940,10 @@ async function saveCommission(form){
 async function loadAdminUsers(){
  try{
  const {users}=await request("/admin/users"),target=$("#admin-users");if(!target)return;
- target.innerHTML=users.map(u=>'<div class="live-admin-row"><div><strong>'+esc(u.name)+'</strong><small>'+esc(u.email)+'</small></div><select class="select" data-role="'+esc(u.id)+'">'+[["usuario","Usuário"],["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select><label><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'> Notificações</label><button class="button ghost small-action" data-do="save-user" data-id="'+esc(u.id)+'">Salvar</button><button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">Senha temporária</button></div>').join("");
+ state.adminUsers=users;
+ target.innerHTML=users.map(u=>'<div class="live-admin-row"><div class="admin-user-identity">'+
+ (u.profilePhoto?'<button type="button" class="person-photo-button" data-do="person-photo-open" data-person-id="'+esc(u.id)+'" aria-label="Ampliar foto de '+esc(u.name)+'"><img src="'+esc(u.profilePhoto)+'" alt=""></button>':"")+
+ '<span><strong>'+esc(u.name)+'</strong><small>'+esc(u.email)+'</small></span></div><select class="select" data-role="'+esc(u.id)+'">'+[["usuario","Usuário"],["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select><label><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'> Notificações</label><button class="button ghost small-action" data-do="save-user" data-id="'+esc(u.id)+'">Salvar</button><button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">Senha temporária</button></div>').join("");
  }catch(e){setToast(e.message)}
 }
 const mailQueueStatuses=new Set(["pendente","processando","agendado"]);
@@ -2342,6 +2372,12 @@ async function handleClick(e){
    if(form){form.hidden=!form.hidden;b.setAttribute("aria-expanded",String(!form.hidden));}
    return;
  }
+ if(action==="person-photo-open"){
+   const person=[...(state.adminUsers||[]),...data.users,me].find(u=>u?.id===b.dataset.personId);
+   if(person?.profilePhoto)openPersonPhotoPreview(person.profilePhoto,person.name||"Foto de perfil");
+   return;
+ }
+ if(action==="person-photo-close"){closePersonPhotoPreview();return}
  if(action==="account-photo-delete"){
    if(!await askConfirm("Remover sua foto de perfil?",{title:"Remover foto?"}))return;
    await saveAndReload(()=>request("/account/photo","DELETE"),"Foto de perfil removida.");
@@ -2675,6 +2711,7 @@ function start(){
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
    if(commissionImageEditor){e.preventDefault();closeCommissionImageEditor();return}
    if($("#task-photo-modal")){e.preventDefault();closeTaskPhoto();return}
+   if($("#person-photo-modal")){e.preventDefault();closePersonPhotoPreview();return}
    if(!$("#mail-preview-dialog")?.hidden){e.preventDefault();closeMailPreview()}
    else if(!$("#notice-dialog")?.hidden){e.preventDefault();closeNotice(false)}
    else if(!$("#account-delete-dialog")?.hidden){e.preventDefault();$("#account-delete-dialog").hidden=true}
