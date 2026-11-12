@@ -2795,7 +2795,17 @@ function start(){
  window.addEventListener("storage",e=>{
   if(e.key===sessionRevisionKey||e.key===null)syncBrowserSession();
  });
- window.addEventListener("focus",syncBrowserSession);
+ // Ao voltar de outra aba, o perfil pode ter sido promovido por outro Admin.
+ // Atualiza apenas quando o cargo/escopo mudou, preservando formulários em edição.
+ async function refreshPermissionOnFocus(){
+  if(!token||hasUnsavedTaskChanges())return;
+  try{
+   const response=await request("/auth/me");
+   if(response.user?.role!==me?.role||response.user?.adminSession!==me?.adminSession||
+      response.user?.mustChangePassword!==me?.mustChangePassword)await reload();
+  }catch{/* Sessões inválidas serão verificadas na próxima navegação ou recarga. */}
+ }
+ window.addEventListener("focus",()=>{syncBrowserSession();void refreshPermissionOnFocus()});
  window.addEventListener("beforeunload",e=>{
    if(hasUnsavedTaskChanges()){e.preventDefault();e.returnValue="";}
  });
@@ -2822,7 +2832,7 @@ function start(){
  });
  document.addEventListener("click",e=>{
    const adminLink=e.target.closest("#admin-link");
-   if(adminLink&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey)setConnecting(true,"Carregando painel administrativo...");
+   if(adminLink&&adminRole(me)&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey)setConnecting(true,"Carregando painel administrativo...");
    const menuLink=e.target.closest(".admin-sidebar a[href^='#/']");
    if(menuLink&&state.adminMenuOpen&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
      e.preventDefault();
