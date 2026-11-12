@@ -158,6 +158,12 @@ jobs:
           assert isinstance(d.get('committees'), list), 'Comissões não foram carregadas'
           assert isinstance(d.get('tasks'), list), 'Demandas não foram carregadas'
           assert d.get('session') is None, 'Consulta pública não pode expor sessão'
+          # Confere a bateria de vinte publicações de Legendas sem ler dados privados.
+          fixture=[t for t in d['tasks'] if str(t.get('id','')).startswith('pet-cronograma-legendas-202611-')]
+          assert len(fixture)==20, f'Esperadas 20 postagens de teste na comissão Legendas; encontradas {len(fixture)}'
+          assert all(str(t.get('title','')).startswith('[TESTE]') for t in fixture), 'Os testes devem ser identificáveis'
+          assert all(t.get('overviewVisible') is False for t in fixture), 'Testes não podem aparecer na Visão geral'
+          print('Cronograma de teste validado no D1: 20 postagens identificadas; Visão geral preservada.')
           print('API e estrutura pública validadas sem modificar cadastros.')
           PY
       - name: Configurar GitHub Pages
