@@ -323,7 +323,14 @@ try{
  await page.locator("#task-form").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator(".live-stage").count(),0);
  await page.locator('[data-do="add-stage"]').click();
- await page.locator('.live-stage [data-stage="day"]').fill("2026-12-03");
+ assert.equal(await page.locator('.live-stage [data-stage-part="year"]').inputValue(),String(new Date().getFullYear()),
+   "Ano da etapa é preenchido automaticamente, inclusive para múltiplos responsáveis");
+ assert.equal(await page.locator('.live-stage [data-stage-part="day"]').inputValue(),"","Dia da etapa começa vazio");
+ assert.equal(await page.locator('.live-stage [data-stage-part="month"]').inputValue(),"","Mês da etapa começa vazio");
+ await page.locator('.live-stage [data-stage-part="day"]').fill("03");
+ await page.locator('.live-stage [data-stage-part="month"]').fill("12");
+ assert.equal(await page.locator('.live-stage [data-stage="day"]').inputValue(),new Date().getFullYear()+"-12-03",
+  "Campos separados atualizam o calendário da etapa");
  await page.locator(".task-form-header-save").click();
  await page.waitForTimeout(180);
  assert.equal(tasks.find(x=>x.id==="t-step-empty").deadlines.length,1,"Adicionar etapa após zerar prazos");
