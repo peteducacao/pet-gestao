@@ -629,6 +629,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator("#admin-link").innerText()).includes("Ativar Administração"),
   "Cargo novo apresenta caminho visível para ativação");
+ await page.locator("#open-menu").click();
  await page.locator("#admin-link").click();
  await page.locator("#admin-activation-form").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator('#admin-activation-form input[type="password"]').count(),1,
