@@ -1105,7 +1105,8 @@ await test("Meu perfil fica em PESSOAL, sem dados repetidos no cabeçalho",async
  assert.ok(!index.includes('id="account-button"'));
   assert.ok(ui.includes('el.href=regularMe?"#/conta":"#/login"'));
  assert.ok(!index.includes('id="today-label"'));
- assert.ok(ui.includes('<strong>Status:</strong>'));
+ assert.ok(ui.includes('profile-role-badge'),"O cargo aparece em destaque no novo layout do perfil");
+ assert.ok(ui.includes('profile-commission-counter'),"Contador de comissões preservado");
  assert.ok(ui.includes('change-password-toggle'));
  assert.ok(css.includes('.account-profile .account-logout-button{'));
 });
