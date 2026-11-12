@@ -172,7 +172,7 @@ await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)
   petToken=token;
   assert.equal((await api(prefix,"POST",{name:"ata.pdf",size:150,mimeType:"application/pdf"})).status,415,
    "Documentos PDF devem ser recusados nas demandas");
-  assert.equal((await api(prefix,"POST",{name:"gigante.jpg",size:360*1024,mimeType:"image/jpeg"})).status,413);
+  assert.equal((await api(prefix,"POST",{name:"gigante.jpg",size:25*1024*1024+1,mimeType:"image/jpeg"})).status,413,"Só arquivos maiores que 25 MB são recusados");
   const first=good(await api(prefix,"POST",{name:"oficina-1.jpg",size:raw.length,mimeType:"image/jpeg"}),201);
   assert.equal(first.chunkCount,2);
   assert.equal((await api(prefix+"/"+first.id+"/complete","POST",{})).status,409);
@@ -185,8 +185,18 @@ await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)
   }),201);
   await sendChunk(second.id,0,image2);
   good(await api(prefix+"/"+second.id+"/complete","POST",{}));
-  assert.equal(good(await api(prefix)).attachments.length,2,"É possível armazenar várias fotos");
-  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,2);
+  const imagePng=new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0,7,8,9,10]);
+  const pngMeta=good(await api(prefix,"POST",{
+   name:"oficina-3.png",size:imagePng.length,mimeType:"image/png"
+  }),201);
+  await sendChunk(pngMeta.id,0,imagePng);
+  good(await api(prefix+"/"+pngMeta.id+"/complete","POST",{}));
+  assert.equal(good(await api(prefix)).attachments.length,3,"É possível armazenar várias fotos JPG e PNG");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,3);
+  const pngDownload=await fetch(base+prefix+"/"+pngMeta.id+"/download",{headers:{Authorization:"Bearer "+token}});
+  assert.equal(pngDownload.status,200);
+  assert.equal(pngDownload.headers.get("content-type"),"image/png","Mantém tipo PNG");
+  assert.deepEqual(new Uint8Array(await pngDownload.arrayBuffer()),imagePng,"PNG recuperado sem nenhuma alteração");
   const res=await fetch(base+prefix+"/"+first.id+"/download",{
    headers:{Authorization:"Bearer "+token}
   });
@@ -205,7 +215,7 @@ await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)
   good(await api("/admin/users/"+person.id,"PATCH",{role:"petiano",notificationEnabled:false}));
   token=petToken;
   good(await api(prefix+"/"+first.id,"DELETE",{}));
-  assert.equal(good(await api(prefix)).attachments.length,1,"Uma foto é excluída sem afetar a outra");
+  assert.equal(good(await api(prefix)).attachments.length,2,"Uma foto é excluída sem afetar as outras");
   token=adminToken;
   good(await api("/tasks/"+taskId,"DELETE"));
   token=petToken;
