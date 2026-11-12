@@ -1217,12 +1217,35 @@ function stageDateFromRow(row){
 function syncStageDate(row){
  const picker=row?.querySelector('[data-stage="day"]');if(picker)picker.value=stageDateFromRow(row);
 }
+const STAGE_LABEL_CHOICES=["Prazo","Correção","Postagem"];
+const CUSTOM_STAGE_OPTION="__custom__";
+function stageLabelFromRow(row){
+ const picker=row?.querySelector('[data-stage="label"]');
+ return picker?.value===CUSTOM_STAGE_OPTION?
+  (row.querySelector('[data-stage="custom-label"]')?.value||"").trim():
+  (picker?.value||"Prazo");
+}
+function syncCustomStageField(row,focus=false){
+ const picker=row?.querySelector('[data-stage="label"]');
+ const custom=row?.querySelector('[data-stage="custom-label"]');
+ const label=custom?.closest(".stage-custom-label");
+ if(!picker||!custom||!label)return;
+ const selected=picker.value===CUSTOM_STAGE_OPTION;
+ label.hidden=!selected;
+ custom.disabled=!selected;
+ custom.required=selected;
+ if(selected&&focus)custom.focus();
+}
 function stageRow(stage={},i=0){
  const owners=stage.assigneeIds||[],selectedOwner=owners[0]||"";
  const saved=(stage.dueAt||"").slice(0,10);
  const parts=/^\d{4}-\d{2}-\d{2}$/.test(saved)?saved.split("-"):[];
  const yy=parts[0]||String(new Date().getFullYear()),mm=parts[1]||"",dd=parts[2]||"";
- return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><label>Etapa<select class="select" data-stage="label">'+["Prazo","Correção","Postagem"].map(v=>opt(v,v,stage.label||"Prazo")).join("")+'</select></label>'+
+ const label=stage.label||"Prazo",isCustom=!STAGE_LABEL_CHOICES.includes(label);
+ const chosen=isCustom?CUSTOM_STAGE_OPTION:label;
+ const name= isCustom?label:"";
+ return '<div class="register-deadline live-stage" data-stage-id="'+esc(stage.id||crypto.randomUUID())+'"><div class="stage-label-field"><label>Etapa<select class="select" data-stage="label">'+STAGE_LABEL_CHOICES.map(v=>opt(v,v,chosen)).join("")+opt(CUSTOM_STAGE_OPTION,"Personalizar…",chosen)+'</select></label>'+
+ '<label class="stage-custom-label" '+(isCustom?'':'hidden')+'>Nome da etapa<input type="text" data-stage="custom-label" maxlength="60" placeholder="Ex.: Revisão de roteiro" value="'+esc(name)+'" '+(isCustom?'required':'disabled')+' autocomplete="off"></label></div>'+
  '<fieldset class="stage-date-fields"><legend>Data</legend><div class="collective-date-parts stage-date-parts">'+
  '<label>Dia<input type="text" data-stage-part="day" inputmode="numeric" maxlength="2" placeholder="DD" autocomplete="off" value="'+esc(dd)+'"></label>'+
  '<label>Mês<input type="text" data-stage-part="month" inputmode="numeric" maxlength="2" placeholder="MM" autocomplete="off" value="'+esc(mm)+'"></label>'+
@@ -1285,7 +1308,7 @@ function renderDeadlineSettings(stagesList=[]){
   return '<div class="register-deadlines collective-date-panel"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>'+title+'</h3><p>'+help+'</p></div></div>'+
    collectiveEventDate(saved)+'</div>';
  }
- return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>As etapas são <strong>opcionais</strong>. Você pode salvar a demanda sem prazo ou adicionar Prazo, Correção e Postagem, cada uma com sua data e responsável.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
+ return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>As etapas são <strong>opcionais</strong>. Você pode salvar a demanda sem prazo ou adicionar etapas como Prazo, Correção e Postagem, ou personalizar o nome de uma etapa.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
  '<div id="stage-rows">'+(stagesList||[]).filter(x=>x.label!=="Evento").map(stageRow).join("")+'</div></div>';
 }
 function refreshDeadlineMode(previousScope=null,previousSingle=null){
@@ -1295,7 +1318,7 @@ function refreshDeadlineMode(previousScope=null,previousSingle=null){
  const selectedDate=hadDateMode?collectiveSelectedDay():"";
  const currentRows=$$(".live-stage").map(row=>({
    id:row.dataset.stageId,
-   label:row.querySelector('[data-stage="label"]')?.value||"Prazo",
+   label:stageLabelFromRow(row),
    dueAt:stageDateFromRow(row)+
      (stageDateFromRow(row)?"T"+(row.querySelector('[data-stage="hour"]')?.value||"23:59")+":00":""),
    assigneeIds:row.querySelector('select[data-stage="assignee"]')?.value?[row.querySelector('select[data-stage="assignee"]').value]:[]
@@ -2175,13 +2198,14 @@ async function saveTask(form){
  const stages=isCollective||isSingle?
   [{id:isCollective?"evento-data":"atividade-data",label:isCollective?"Evento":"Atividade",dueAt:eventDay+"T23:59:59",assigneeIds:[]}]:
   $$(".live-stage").map(row=>{
-    const label=row.querySelector('[data-stage="label"]')?.value||"Prazo",
+    const label=stageLabelFromRow(row),
       day=stageDateFromRow(row),
       time=row.querySelector('[data-stage="hour"]')?.value||"23:59",
       person=row.querySelector('[data-stage="assignee"]')?.value||"";
     return {id:row.dataset.stageId,label,dueAt:day?day+"T"+time+":00":"",assigneeIds:person?[person]:[]};
   });
  if(!f.title.trim())return setToast("Informe o título.");
+ if(stages.some(x=>!x.label||x.label.length>60))return setToast("Escreva o nome da etapa personalizada (até 60 caracteres).");
  if(stages.some(x=>!x.dueAt))return setToast("Informe a data de todas as etapas inseridas.");
  const users=state.assignmentScope==="todos"?data.users.filter(x=>["petiano","tutor","admin"].includes(x.role)).map(x=>x.id):[...state.selectedUsers],commissions=state.assignmentScope==="todos"?[]:[...state.selectedCommissions];
  if(!users.length&&!commissions.length)return setToast("Selecione ao menos uma pessoa ou comissão para direcionar a demanda.");
@@ -2850,7 +2874,7 @@ async function handleChange(e){
  }
  if(t.name==="joint-target"){syncFinishSelectAll();return;}
  // A etapa de Correção não deve atribuir tutor automaticamente sem confirmação explícita.
- if(t.dataset.stage==="label")return;
+ if(t.dataset.stage==="label"){syncCustomStageField(t.closest(".live-stage"),true);return;}
  if(t.dataset.assign){
    const previousScope=state.assignmentScope,previousSingle=singlePersonDateMode();
    const set=t.dataset.assign==="comissoes"?state.selectedCommissions:state.selectedUsers;
