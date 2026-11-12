@@ -2359,7 +2359,19 @@ async function handleClick(e){
  if(action==="save-settings"){await saveAndReload(()=>request("/admin/settings","PUT",{autoMonth:$("#setting-month").checked,autoWeek:$("#setting-week").checked}),"Preferências atualizadas.");return}
  if(action==="save-user"){
    const role=$('[data-role="'+CSS.escape(tid)+'"]').value,notificationEnabled=$('[data-notify="'+CSS.escape(tid)+'"]').checked;
-   await saveAndReload(()=>request("/admin/users/"+id(tid),"PATCH",{role,notificationEnabled}),"Perfil atualizado.");return;
+   const person=(state.adminUsers||[]).find(u=>u.id===tid);
+   if(person&&person.role!==role&&(person.role==="admin"||role==="admin")){
+     const granting=role==="admin";
+     const confirmed=await askConfirm(
+       granting?"Conceder acesso completo à Administração para "+person.name+"? A pessoa deverá entrar novamente para ativar esse acesso.":
+       "Remover o acesso administrativo de "+person.name+"? O último administrador não pode ser rebaixado.",
+       {title:granting?"Conceder cargo Administração?":"Remover cargo Administração?",
+        confirmLabel:granting?"Conceder acesso":"Remover acesso",cancelLabel:"Cancelar",danger:!granting});
+     if(!confirmed)return;
+   }
+   await saveAndReload(()=>request("/admin/users/"+id(tid),"PATCH",{role,notificationEnabled}),
+     role==="admin"&&person?.role!=="admin"?"Cargo Administração concedido. A pessoa precisa entrar novamente.":"Perfil atualizado.");
+   return;
  }
  if(action==="temp-pass"){
    if(!await askConfirm("Gerar uma nova senha temporária? A senha anterior deixará de funcionar e a pessoa precisará alterá-la ao entrar.",{title:"Gerar senha temporária?"}))return;
