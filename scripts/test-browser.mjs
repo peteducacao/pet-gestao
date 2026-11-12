@@ -430,8 +430,15 @@ try{
 await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".meeting-card-link").waitFor({timeout:5000});
  await page.locator(".meeting-card-link").click();
- await page.locator("#meeting-form textarea").waitFor({timeout:5000});
- assert.equal(await page.locator("#meeting-form textarea").inputValue(),"Pauta\nResponsável: (???)");
+ await page.locator('#meeting-form [data-rich-input="rawNotes"]').waitFor({timeout:5000});
+ assert.match(await page.locator('#meeting-form [data-rich-input="rawNotes"]').innerText(),/Pauta[\s\S]*Responsável: \(\?\?\?\)/,
+  "Atas antigas em texto simples continuam legíveis");
+ assert.equal(await page.locator('#meeting-form [data-format="bold"]').count(),1,"Ata permite negrito");
+ assert.equal(await page.locator('#meeting-form [data-format="italic"]').count(),1,"Ata permite itálico");
+ assert.equal(await page.locator('#meeting-form [data-format="insertUnorderedList"]').count(),1,"Ata permite marcadores");
+ assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
+ assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("type"),"hidden",
+  "Título da ata não se torna editor formatado");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
  assert.equal(await page.locator("select[data-detail-status]").inputValue(),"atrasada","Venceu há poucos minutos: status atrasada");
@@ -852,7 +859,14 @@ await page.locator('a[data-route="reunioes"]').click();
  // Editor de imagem e RGB da comissão testados em um navegador Chromium real.
  await page.goto(origin+"/#/comissoes/nova");
  await page.locator("#commission-form").waitFor({state:"visible",timeout:10000});
- assert.equal(await page.locator('#commission-form input[type="color"]').count(),0,"RGB não usa seletor nativo");
+ assert.equal(await page.locator('#commission-form input[name="name"]').count(),1,"Título da comissão continua campo simples");
+ assert.equal(await page.locator('#commission-form [data-rich-input="description"]').count(),1,"Descrição usa editor com formatação");
+ assert.equal(await page.locator('#commission-form textarea[name="description"]').count(),0,"Descrição não utiliza textarea sem formatação");
+ assert.equal(await page.locator('#commission-form [data-format="bold"]').count(),1);
+ assert.equal(await page.locator('#commission-form [data-format="italic"]').count(),1);
+ assert.equal(await page.locator('#commission-form [data-format="insertOrderedList"]').count(),1);
+ assert.equal(await page.locator('#commission-form [data-rich-color]').count(),1);
+ assert.equal(await page.locator('#commission-form input[type="color"]').count(),0,"RGB não usa seletor de cor nativo para a comissão");
  await page.locator('[data-do="commission-color-toggle"]').click();
  await page.locator('[data-commission-rgb-range="r"]').fill("128");
  assert.equal((await page.locator('input[name="backgroundColor"]').inputValue()).slice(1,3),"80");
