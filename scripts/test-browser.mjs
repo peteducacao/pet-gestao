@@ -511,11 +511,30 @@ await page.locator('a[data-route="reunioes"]').click();
  const editor=page.locator('[data-rich-input="captionText"]');
  await editor.fill("Revisão 📚 com cores");
  await editor.selectText();
- await page.locator('[data-rich="captionText"] [data-format="bold"]').click();
- assert.match(await editor.innerHTML(),/<(b|strong)>/i,"Negrito funciona");
- await editor.selectText();
- await page.locator('[data-rich="captionText"] input[type="color"]').fill("#dd3344");
- assert.match(await editor.innerHTML(),/(color|font)/i,"Aplicar cor funciona");
+ const toolbar=page.locator('[data-rich="captionText"]');
+ await toolbar.locator('[data-format="bold"]').click();
+ await toolbar.locator('[data-format="italic"]').click();
+ await toolbar.locator('[data-format="underline"]').click();
+ await toolbar.locator('[data-rich-color]').fill("#dd3344");
+ const combinedHtml=await editor.innerHTML();
+ assert.match(combinedHtml,/<strong\b/i,"Negrito é preservado");
+ assert.match(combinedHtml,/<em\b/i,"Itálico funciona junto ao negrito");
+ assert.match(combinedHtml,/<u\b/i,"Sublinhado funciona com negrito e itálico");
+ assert.match(combinedHtml,/style="color:\s*(?:rgb\(221,\s*51,\s*68\)|#dd3344)/i,"Cor aplicada à letra");
+ assert.doesNotMatch(combinedHtml,/background(?:-color)?\s*:/i,"Cor do texto não altera o fundo");
+ const measured=await editor.locator("strong em u span").evaluate(element=>({
+  fontStyle:getComputedStyle(element).fontStyle,
+  fontWeight:getComputedStyle(element).fontWeight,
+  textDecoration:getComputedStyle(element.closest("u")).textDecorationLine,
+  color:getComputedStyle(element).color,
+  background:getComputedStyle(element).backgroundColor,
+  parentBackground:getComputedStyle(element.closest("[contenteditable]")).backgroundColor
+ }));
+ assert.equal(measured.fontStyle,"italic","Itálico visível");
+ assert.ok(Number(measured.fontWeight)>=600,"Texto continua em negrito");
+ assert.ok(measured.textDecoration.includes("underline"),"Sublinhado visível");
+ assert.equal(measured.color,"rgb(221, 51, 68)","Cor de fonte correta");
+ assert.equal(measured.parentBackground,"rgb(255, 255, 255)","Fundo branco permanece inalterado");
  assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),2,"Formatação agrupada");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");
