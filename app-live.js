@@ -355,10 +355,16 @@ function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
  const admin=$("#admin-link"),adminCaption=$("#admin-nav-caption"),adminGroup=$("#admin-nav-group");
- const adminVisible=adminRole(me)&&!me.mustChangePassword;
+ const adminVisible=hasAdminRole(me)&&!me.mustChangePassword;
+ const pendingAdminActivation=adminVisible&&!adminRole(me);
  if(adminCaption)adminCaption.hidden=!adminVisible;
  if(adminGroup)adminGroup.hidden=!adminVisible;
- if(admin){admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.setAttribute("aria-label","Abrir painel administrativo");admin.innerHTML=ico("settings")+'<span>Painel administrativo</span>';admin.title="Painel administrativo"}
+ if(admin){
+  admin.hidden=!adminVisible;admin.classList.remove("nav-locked");admin.href="#/admin/painel";
+  admin.setAttribute("aria-label",pendingAdminActivation?"Ativar painel administrativo":"Abrir painel administrativo");
+  admin.innerHTML=ico("settings")+'<span>'+(pendingAdminActivation?"Ativar Administração":"Painel administrativo")+'</span>';
+  admin.title=pendingAdminActivation?"Confirme sua senha para ativar a nova permissão":"Painel administrativo";
+ }
  // Os detalhes destacam a seção pela qual a pessoa entrou.
  if(["inicio","demandas","comissoes","minhas-pendencias"].includes(page))state.lastListSection=page;
  const selectedSection=["atividade","registrar"].includes(page)?(state.lastListSection||"demandas"):page;
@@ -1663,6 +1669,9 @@ function renderAccount(){
  '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
  '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
+ (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
+ '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
+ '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
  commissionsHtml+'<div class="profile-settings-heading"><h3>Configurações da conta</h3><p>Gerencie seus dados de acesso e a instalação do aplicativo.</p></div>'+
  '<div class="profile-settings-grid">'+emailManagement+renderAppInstall()+'</div>'+
@@ -1738,6 +1747,13 @@ function closeAdminMenu(){
 function renderAdmin(){
  const adminPart=routeParts().parts;
  if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
+ if(!isAdmin()&&hasAdminRole(me)&&!me.mustChangePassword)return header("Administração","Ativar painel administrativo","Seu cargo já é Administração. Confirme sua senha para ativar o acesso nesta sessão.")+
+  '<section class="card card-pad live-auth admin-activation-panel"><h2>Ativar Administração</h2>'+
+  '<p>O cargo foi concedido, mas sua sessão atual foi iniciada antes da promoção. Por segurança, confirme a senha da sua própria conta. Você não precisa trocar de usuário.</p>'+
+  '<form id="admin-activation-form" class="register-form"><label>Senha da sua conta<span class="password-control">'+
+  '<input type="password" name="password" autocomplete="current-password" required placeholder="Digite sua senha">'+
+  '<button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button>'+
+  '</span></label><button class="button primary" type="submit">'+ico("settings")+' Ativar e entrar no painel</button></form></section>';
  if(!isAdmin())return header("Sistema","Painel Admin","Acesso exclusivo da Administração.")+
   '<section class="card card-pad live-auth"><p>'+(me?"Seu perfil não possui acesso administrativo.":"Entre com sua conta Admin pela mesma tela de login.")+'</p>'+
   button(me?"Voltar à Visão geral":"Entrar",me?"inicio":"login",true)+'</section>';
@@ -2472,6 +2488,19 @@ async function handleSubmit(e){
  const isLogin=form.id==="login-form";
  if(isLogin)setConnecting(true,"Conectando ao PET Gestão...");
  try{
+ if(form.id==="admin-activation-form"){
+   // A promoção NÃO eleva automaticamente sessões antigas. A senha é exigida novamente.
+   const rememberMe=Boolean(localStorage.getItem(tokenKey));
+   const password=userFields(form).password;
+   const activated=await request("/auth/login","POST",{email:me.email,password,rememberMe,browserId},"guest");
+   if(activated.user?.role!=="admin"||activated.user?.adminSession!==true)
+     return setToast("Seu acesso administrativo ainda não está ativo. Solicite a confirmação do cargo.");
+   token=activated.token;
+   saveSessionToken(tokenKey,token,rememberMe);publishSessionChange();forgetSessionToken(adminTokenKey);
+   await reload();
+   location.hash="#/admin/painel";
+   setToast("Administração ativada com segurança.");return;
+ }
  if(form.id==="login-form"){
    const f=userFields(form),rememberMe=form.elements.rememberMe?.checked===true;
    const r=await request("/auth/login","POST",{...f,rememberMe,browserId},"guest");
