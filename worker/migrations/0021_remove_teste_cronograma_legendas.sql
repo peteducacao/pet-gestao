@@ -5,7 +5,7 @@
 -- Mantém os vínculos e todas as comissões e usuários.
 DELETE FROM tasks
 WHERE id LIKE 'pet-cronograma-legendas-202611-%'
-  AND title LIKE '[[]TESTE[]]%'
+  AND title LIKE '[TESTE]%'
   AND commission_ids='["legendas"]'
   AND assignee_ids='[]'
   AND overview_visible=0;
