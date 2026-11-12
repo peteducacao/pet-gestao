@@ -2569,3 +2569,123 @@ body.commission-image-editor-open{overflow:hidden}
 @media(prefers-reduced-motion:reduce){
  #screen .commission-tile-v2,#screen .commission-v2-view{transition:none}
 }
+
+
+/* Ajustes de 12/11: seletores compactos, sem espaço vazio entre Visualização e Período. */
+#screen .demand-management-panel .demand-visual-toolbar{
+ display:grid;grid-template-columns:max-content 140px;align-items:end;
+ justify-content:start;gap:18px;margin-bottom:14px;max-width:100%;
+}
+#screen .demand-management-panel .demand-visual-toolbar .visualization-control{
+ width:max-content;max-width:100%;display:inline-flex;gap:8px;align-items:center;
+}
+#screen .demand-management-panel .demand-visual-toolbar .visualization-select-wrap{
+ width:205px;min-width:205px;max-width:205px;
+}
+#screen .demand-management-panel .demand-visual-toolbar .visualization-symbol{flex-basis:27px;margin-left:5px}
+#screen .demand-management-panel .demand-visual-toolbar .visualization-select{padding-right:23px}
+#screen .demand-management-panel .demand-visual-toolbar .period-mode-filter{
+ display:flex;flex-direction:column;align-items:stretch;gap:5px;
+ width:140px;min-width:0;margin:0;
+}
+#screen .demand-management-panel .demand-visual-toolbar .period-mode-filter>span{display:block;padding-left:2px}
+#screen .demand-management-panel .demand-visual-toolbar .period-mode-filter .select{
+ width:140px;min-width:0;max-width:100%;
+}
+#screen .meeting-list>.visualization-control{width:max-content;max-width:100%;gap:9px}
+#screen .meeting-list>.visualization-control .visualization-select-wrap{
+ min-width:0;width:172px;max-width:172px;
+}
+#screen .meeting-list>.visualization-control .visualization-select{
+ flex:1;min-width:0;width:100%;padding-right:28px;
+}
+#screen .demand-management-panel .list-toolbar .filters>.button{
+ background:#6134b0;color:#fff;border-color:#6134b0;
+ box-shadow:0 3px 9px rgba(75,34,141,.16);font-weight:800;
+}
+#screen .demand-management-panel .list-toolbar .filters>.button:hover{
+ background:#4e298f;border-color:#4e298f;
+}
+#screen .demand-management-panel .demand-delete-trigger{
+ background:#fff2f5;border:1px solid #d95b76;color:#a81d42;
+}
+#screen .demand-management-panel .demand-delete-trigger:hover{
+ background:#ffe5eb;color:#8e1735;border-color:#c83e5d;
+}
+@media(max-width:620px){
+ #screen .demand-management-panel .demand-visual-toolbar{
+  display:flex;flex-direction:column;align-items:flex-start;gap:14px;
+ }
+ #screen .demand-management-panel .demand-visual-toolbar .visualization-control{
+  width:100%;flex-wrap:wrap;
+ }
+ #screen .demand-management-panel .demand-visual-toolbar .visualization-select-wrap{
+  flex:0 1 205px;min-width:160px;max-width:205px;width:205px;
+ }
+ #screen .demand-management-panel .demand-visual-toolbar .period-mode-filter{
+  width:165px;
+ }
+ #screen .demand-management-panel .demand-visual-toolbar .period-mode-filter .select{width:165px}
+ #screen .meeting-list>.visualization-control{width:100%;align-items:center}
+ #screen .meeting-list>.visualization-control .visualization-select-wrap{
+  width:172px;flex:0 1 172px;min-width:155px;max-width:172px;
+ }
+}
+
+/* Fotografias originais das demandas: miniaturas de seleção, botão de prévia com contraste. */
+#screen .task-photo-thumb-btn,#screen .task-file-art-preview{
+ padding:0;border:1px solid #9c72df;cursor:zoom-in;overflow:hidden;
+ background:#eee5ff;color:#4a218e;font-size:22px;
+}
+#screen .task-file-art-preview img{display:block;width:100%;height:100%;object-fit:cover}
+#screen .task-photo-thumb-btn:hover,#screen .task-file-art-preview:hover{
+ background:#d9c7f9;outline:2px solid #8048d0;outline-offset:2px;
+}
+#screen .task-files-section .task-attachment-item .button[data-do="task-photo-preview-local"],
+#screen .task-detail-files .task-attachment-item .button[data-do="task-photo-view"],
+#screen .task-files-section .task-attachment-item .button[data-do="task-photo-view"]{
+ background:#eee4ff;color:#50269a;border:1px solid #9d7dd8;font-weight:800;
+}
+#screen .task-attachment-item .button[data-do="task-photo-preview-local"]:hover,
+#screen .task-attachment-item .button[data-do="task-photo-view"]:hover{
+ background:#dcc6ff;color:#391469;
+}
+
+/* Toque nas fotos das pessoas para abrir somente uma pré-visualização ampliada. */
+#screen .person-photo-button{
+ display:inline-grid;place-items:center;flex:0 0 34px;width:34px;height:34px;
+ overflow:hidden;padding:0;border:2px solid #bea5ee;background:#fff;
+ border-radius:50%;cursor:zoom-in;
+}
+#screen .person-photo-button img{display:block;width:100%;height:100%;object-fit:cover}
+#screen .person-photo-button:hover,#screen .account-photo-preview-clickable:hover{
+ outline:2px solid #6735b1;outline-offset:3px;
+}
+#screen .assignee-person:has(.person-photo-button)::before{display:none}
+#screen .assignee-person:has(.person-photo-button){gap:7px;padding:4px 10px 4px 4px}
+#screen .admin-user-identity{display:flex;align-items:center;gap:10px;min-width:0}
+#screen .admin-user-identity>span{min-width:0;overflow-wrap:anywhere}
+#screen .account-photo-preview-clickable{cursor:zoom-in;padding:0}
+.person-photo-modal{
+ position:fixed;inset:0;z-index:1550;display:grid;place-items:center;padding:16px;
+}
+.person-photo-backdrop{
+ position:absolute;inset:0;background:rgba(16,11,35,.83);backdrop-filter:blur(5px);
+}
+.person-photo-dialog{
+ position:relative;z-index:1;background:#fff;border-radius:17px;
+ width:min(760px,100%);max-height:94dvh;
+ padding:14px;display:flex;flex-direction:column;gap:13px;
+ box-shadow:0 22px 80px rgba(12,8,32,.44);
+}
+.person-photo-dialog header{
+ display:flex;align-items:center;justify-content:space-between;gap:12px;
+ font-size:14px;color:#2e1b52;
+}
+.person-photo-dialog header strong{overflow-wrap:anywhere}
+.person-photo-dialog header .button{flex:none;font-weight:800}
+.person-photo-dialog>img{
+ display:block;max-width:100%;width:auto;height:auto;
+ max-height:calc(94dvh - 95px);object-fit:contain;
+ margin:auto;border-radius:10px;background:#f8f5ff;
+}
