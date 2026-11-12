@@ -488,7 +488,7 @@ function visualizationSelect(filter,value,options=VISUALIZATIONS){
  return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
  '<span class="visualization-select-wrap"><span class="visualization-symbol" aria-hidden="true">'+ico("list")+'</span>'+
  '<select class="visualization-select" data-filter="'+esc(filter)+'" aria-label="Visualização">'+options.map(([v,l])=>opt(v,l,value)).join("")+'</select>'+
- '<span class="visualization-chevron" aria-hidden="true">⌄</span></span></label>';
+ '<span class="visualization-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></span></label>';
 }
 function renderDemandas(){
  const done=state.statusFilter==="concluida"||state.mode==="arquivo";
@@ -525,7 +525,7 @@ function renderDemandas(){
      '<button type="button" class="button archive-bulk-delete" data-do="archive-delete-selected" '+(!selectedCount?'disabled':'')+'>'+
        ico("trash")+' Excluir selecionadas ('+selectedCount+')</button>'+
    '</div></div>':"";
- return header("Acompanhamento","Demandas","Atividades organizadas por período e situação.",actions)+
+ return header("Acompanhamento","Demandas","",actions)+
  '<section class="card card-pad demand-management-panel">'+
  '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+periodSelect+'</div>'+
  '<div class="list-toolbar">'+period()+'</div><hr class="divider">'+
