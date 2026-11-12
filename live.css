@@ -3061,3 +3061,80 @@ body.commission-image-editor-open{overflow:hidden}
 }
 #screen .live-stage .stage-custom-label input{background:#fff;border:1px solid #d5c0f2}
 #screen .live-stage .stage-custom-label[hidden]{display:none!important}
+
+
+/* Celular: campos da etapa em ordem vertical, sem sobreposição com a data.
+   A regra antiga .live-stage button{grid-column:span 2} afetava também
+   o botão do calendário dentro da grade de dia/mês/ano. */
+@media(max-width:720px){
+ #screen .register-deadlines #stage-rows > .register-deadline.live-stage{
+  display:flex!important;flex-direction:column!important;align-items:stretch!important;
+  flex-wrap:nowrap!important;gap:16px!important;
+  width:100%;max-width:100%;min-width:0;
+  padding:16px!important;margin:12px 0 0;box-sizing:border-box;
+  grid-template-columns:none!important;
+ }
+ #screen .register-deadlines .live-stage > .stage-label-field,
+ #screen .register-deadlines .live-stage > .stage-date-fields,
+ #screen .register-deadlines .live-stage > .stage-time-field,
+ #screen .register-deadlines .live-stage > .stage-owner-field,
+ #screen .register-deadlines .live-stage > .stage-remove-button{
+  display:block;align-self:stretch;flex:0 0 auto!important;
+  width:100%!important;max-width:100%;min-width:0!important;
+  box-sizing:border-box;grid-column:auto!important;
+ }
+ #screen .register-deadlines .live-stage > .stage-label-field{
+  display:grid;gap:10px;
+ }
+ #screen .register-deadlines .live-stage .stage-label-field > label,
+ #screen .register-deadlines .live-stage > .stage-time-field,
+ #screen .register-deadlines .live-stage > .stage-owner-field{
+  display:grid;gap:7px;min-width:0!important;
+ }
+ #screen .register-deadlines .live-stage .stage-label-field select,
+ #screen .register-deadlines .live-stage .stage-label-field input,
+ #screen .register-deadlines .live-stage > .stage-time-field input,
+ #screen .register-deadlines .live-stage > .stage-owner-field select{
+  box-sizing:border-box;width:100%;min-width:0!important;
+  max-width:100%;min-height:44px;
+ }
+ #screen .register-deadlines .live-stage .stage-date-fields{
+  width:100%!important;min-width:0!important;
+  padding:0!important;margin:0!important;
+  border:0!important;overflow:visible;
+ }
+ #screen .register-deadlines .live-stage .stage-date-parts{
+  display:grid!important;width:100%;max-width:100%;min-width:0;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.18fr) 43px!important;
+  gap:7px;align-items:end;
+ }
+ #screen .register-deadlines .live-stage .stage-date-parts > label{
+  display:grid;gap:6px;margin:0;
+  width:100%;min-width:0!important;max-width:100%;
+  grid-column:auto!important;
+ }
+ #screen .register-deadlines .live-stage .stage-date-parts input{
+  box-sizing:border-box;width:100%;min-width:0;min-height:44px;
+  padding:8px 3px;font-size:14px;text-align:center;
+ }
+ #screen .register-deadlines .live-stage .stage-date-parts > .collective-calendar-button{
+  grid-column:auto!important;grid-row:auto!important;
+  width:43px!important;min-width:43px!important;height:44px!important;
+  min-height:44px!important;margin:0!important;padding:0!important;
+  align-self:end;justify-self:end;
+ }
+ #screen .register-deadlines .live-stage > .stage-remove-button{
+  display:flex;align-items:center;justify-content:center;
+  min-height:44px!important;grid-column:auto!important;
+  border:1px solid #e4d8f0;border-radius:10px;
+ }
+}
+@media(max-width:385px){
+ #screen .register-deadlines #stage-rows > .register-deadline.live-stage{padding:12px!important}
+ #screen .register-deadlines .live-stage .stage-date-parts{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.15fr) 39px!important;gap:5px;
+ }
+ #screen .register-deadlines .live-stage .stage-date-parts > .collective-calendar-button{
+  width:39px!important;min-width:39px!important;
+ }
+}
