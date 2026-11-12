@@ -310,6 +310,9 @@ const dt=d=>{if(!d)return null;const v=new Date(String(d).length===10?d+"T12:00:
 const dateKey=d=>{const v=dt(d)||current;return v.getFullYear()+"-"+String(v.getMonth()+1).padStart(2,"0")+"-"+String(v.getDate()).padStart(2,"0")};
 const stages=t=>Array.isArray(t.deadlines)?t.deadlines:[];
 const active=t=>!t.archivedAt;
+// A escolha de exibição pertence à DEMANDA inteira, independentemente de a etapa
+// se chamar Prazo, Correção, Postagem ou ter um nome personalizado.
+const visibleOutsideCommission=t=>t.overviewVisible!==false;
 const committee=n=>data.committees.find(c=>String(c.id)===String(n));
 const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 // Comissões e atribuições individuais são participações distintas; nunca inferir
@@ -352,7 +355,7 @@ const myPendingParts=t=>{
   committees:me?(t.commissionIds||[]).filter(cid=>canCompleteCommission(cid)&&!commissionFinished(t,cid)):[]
  };
 };
-const isMyPending=t=>Boolean(me&&active(t)&&(myPendingParts(t).personal||myPendingParts(t).committees.length));
+const isMyPending=t=>Boolean(me&&active(t)&&visibleOutsideCommission(t)&&(myPendingParts(t).personal||myPendingParts(t).committees.length));
 const taskProgress=task=>({done:Object.keys(task.commissionDone||{}).length+Object.keys(task.userDone||{}).length,total:(task.commissionIds||[]).length+(task.assigneeIds||[]).length});
 const pendingParticipationCount=task=>(task.assigneeIds||[]).filter(uid=>!task.userDone?.[uid]).length+
  (task.commissionIds||[]).filter(cid=>!task.commissionDone?.[cid]).length;
@@ -650,9 +653,9 @@ document.addEventListener("keydown",e=>{
  }
 });
 function renderViewerHome(){
- const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false);
+ const all=data.tasks.filter(t=>active(t)&&visibleOutsideCommission(t)),visible=all;
  const next=[...visible].sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b)))).slice(0,6);
- const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length;
+ const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt&&visibleOutsideCommission(t)).length;
  return header("Organização","Visão geral","Acompanhe as demandas da equipe em modo de visualização.")+
   '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[visible.length,"Em acompanhamento","checklist"],[late,"Prazos vencidos","alert"],[complete,"Concluídas","check"]].map(x=>
    '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
@@ -661,10 +664,13 @@ function renderViewerHome(){
 }
 function renderHome(){
  if(!canWrite())return renderViewerHome();
- const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
- const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4);
+ const all=data.tasks.filter(t=>active(t)&&visibleOutsideCommission(t)),visible=all,next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
+ const recentEvents=(data.events||[]).filter(e=>
+  (!me?.activityClearedAt||e.createdAt>me.activityClearedAt)&&
+  (!e.taskId||data.tasks.find(t=>t.id===e.taskId)?.overviewVisible!==false)
+ ).slice(0,4);
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt&&visibleOutsideCommission(t)).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
  '<div class="dashboard-grid"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
  (me&&recentEvents.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':ico("bell"))+
@@ -681,7 +687,7 @@ function visualizationSelect(filter,value,options=VISUALIZATIONS){
 function renderDemandas(){
  const done=state.statusFilter==="concluida"||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
- let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
+ let list=data.tasks.filter(t=>visibleOutsideCommission(t)&&(done?Boolean(t.archivedAt):filtered(t,displayMode)));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
   return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&(!state.week||displayMode!=="semanal"||weekFor(date)===state.week);
@@ -723,7 +729,7 @@ function renderDemandas(){
  taskCard(t)+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
 function renderCronograma(){
- const all=data.tasks.filter(t=>active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
+ const all=data.tasks.filter(t=>visibleOutsideCommission(t)&&active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
  const groups=new Map();for(const t of all){const w=weekFor(taskDate(t));if(!groups.has(w))groups.set(w,[]);groups.get(w).push(t)}
  return header("Planejamento","Cronograma","Acompanhe os prazos das comissões.")+'<section class="card card-pad">'+period()+
  (groups.size?[...groups].sort((a,b)=>a[0]-b[0]).map(([week,items])=>'<section class="committee-group"><h3 class="committee-group-label">Semana '+week+' · '+MONTHS[state.month]+'</h3>'+items.map(t=>taskCard(t)).join("")+'</section>').join(""):empty("Sem atividades neste período"))+'</section>';
@@ -890,7 +896,7 @@ function commissionHelp(){
 function renderHelp(){
  const sections=[
  ["Primeiros passos",[
-  ["O que encontro em Visão geral, Demandas e Minhas pendências?","Visão geral resume as próximas atividades. Demandas reúne todos os registros e seus filtros. Minhas pendências lista apenas as participações que ainda dependem de você."],
+  ["O que encontro em Visão geral, Demandas e Minhas pendências?","Visão geral resume atividades de exibição geral. Demandas reúne as atividades de exibição geral com seus filtros. Minhas pendências mostra as participações gerais pendentes; demandas marcadas somente para comissões aparecem apenas nas comissões vinculadas."],
   ["Quem pode cadastrar ou editar demandas?","PETianos(as), Tutoria e Administração têm acesso às operações permitidas aos seus cargos. A conta somente de leitura acompanha as informações públicas."]
  ]],
  ["Demandas e conclusão",[
@@ -1514,9 +1520,9 @@ function renderTaskForm(routeId){
  '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
  '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
  '<div id="assignment-container">'+assignmentView()+'</div>'+
- '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">Em qualquer opção, a demanda continua disponível em Demandas e nas pendências dos responsáveis. A escolha define apenas sua presença na Visão geral.</p>'+
- '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral, Demandas e comissões</strong><small>Visível na Visão geral, em Demandas e nas comissões vinculadas.</small></span></label>'+
- '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
+ '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">Esta escolha vale para a demanda inteira, incluindo as etapas Prazo, Correção, Postagem e Personalizar.</p>'+
+ '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral, Demandas e comissões</strong><small>Visível na Visão geral e em Demandas, nas Minhas pendências dos responsáveis e nas comissões vinculadas.</small></span></label>'+
+ '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Visível apenas nas comissões vinculadas. Não aparece na Visão geral, em Demandas nem em Minhas pendências.</small></span></label></fieldset>'+
  '<div id="deadline-settings">'+renderDeadlineSettings(t?(t.deadlines||[]):state.assignmentScope==="todos"?[]:[{label:"Prazo",dueAt:""}])+'</div>'+ 
  '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+
   (t?lastReviewEdit(t):"")+richEditor("captionText",t?.captionText||"")+
