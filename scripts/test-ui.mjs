@@ -425,7 +425,8 @@ assert.equal(settings.notificationTemplates.create.subject,"Criação personaliz
 assert.equal(settings.notificationTemplates.review.subject,"Revisão personalizada");
 await move("#/admin/configuracoes");
 assert.equal(document.querySelector("#reminder-days")?.closest(".admin-panel").hidden,false,"Avisos agora estão em Configurações");
-assert.equal(document.querySelector("#deadline-template-kind")?.options.length,2,"Modelos de prazo possuem seletor próprio");
+assert.equal(document.querySelector("#deadline-template-kind")?.options.length,3,"Modelos automáticos incluem prazo, evento e vencimento");
+assert.ok([...document.querySelector("#deadline-template-kind").options].some(option=>option.value==="event_soon"),"Modelo de evento coletivo possui opção própria");
 assert.equal(document.querySelectorAll("#deadline-template-form .mail-template-guide-item").length,8,"Avisos de prazo explicam 8 chaves");
 const kindDue=document.querySelector("#deadline-template-kind");
 kindDue.value="due_soon";kindDue.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
