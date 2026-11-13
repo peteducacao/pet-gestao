@@ -1992,7 +1992,7 @@ const templateVariableInfo={
  demanda:"Título da demanda relacionada à notificação.",
  tipo:"Tipo da mensagem: Nova demanda, Texto para revisão, Prazo vencendo ou Evento se aproximando.",
  etapa:"Nome da etapa ou prazo vinculado à demanda.",
- prazo:"Data e horário do vencimento da etapa.",
+ prazo:"Data e horário do prazo ou data do evento.",
  dias:"Dias configurados para o aviso antecipado. Em Prazo vencido, não corresponde aos dias em atraso.",
  link:"Endereço para abrir a demanda no PET Gestão."
 };
@@ -2052,8 +2052,8 @@ function renderAdmin(){
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de e-mails automáticos</h2><p class="field-hint">Edite e pré-visualize separadamente as mensagens de prazo vencendo, evento se aproximando e prazo vencido. Cada modelo possui assunto e mensagem próprios.</p>'+
  '<form id="deadline-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="deadline-template-kind" class="select">'+notificationKinds.filter(([kind])=>["due_soon","event_soon","overdue"].includes(kind)).map(([kind,label])=>opt(kind,label,state.deadlineTemplateKind)).join("")+'</select></label>'+
  '<div id="deadline-template-fields">'+notificationTemplateFields(state.deadlineTemplateKind)+'</div>'+
- '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-deadline">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo de prazo</button></div></form></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelos de criação e revisão</h2><p class="field-hint">Edite as mensagens de criação e revisão enviadas pela Tutoria. Os modelos de prazo vencendo e vencido ficam em Configurações.</p>'+
+ '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-deadline">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo automático</button></div></form></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelos de criação e revisão</h2><p class="field-hint">Edite as mensagens de criação e revisão enviadas pela Tutoria. Os modelos de prazo vencendo, evento se aproximando e prazo vencido ficam em Configurações.</p>'+
  '<form id="notification-template-form" class="register-form"><label>Tipo de mensagem<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.filter(([kind])=>["create","review"].includes(kind)).map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
  '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo</button></div></form></section>'+
