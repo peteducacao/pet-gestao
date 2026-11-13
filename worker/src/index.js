@@ -333,7 +333,8 @@
     const savedModels=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
     const models=asJson(savedModels?.value,{});
     const people=(await db.prepare("SELECT id,email,role,role_override FROM users").all()).results;
-    const peopleById=new Map(people.filter(p=>["petiano","tutor","admin"].includes(p.role_override||p.role)).map(p=>[p.id,p]));
+    const isEligiblePerson=p=>["petiano","tutor","admin"].includes(p.role_override||p.role);
+    const peopleById=new Map(people.filter(isEligiblePerson).map(p=>[p.id,p]));
     const commissionMembers=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
     const membersByCommission=new Map();
     for(const member of commissionMembers){
@@ -359,7 +360,7 @@
         if(!Number.isFinite(dueMs))continue;
         const diffDays=Math.round((Date.parse(eventDay+"T00:00:00Z")-todayUTC)/86400000);
         if(diffDays!==daysBefore||clock.getTime()>=dueMs)continue;
-        const recipients=unique(asJson(task.assignee_ids,[]).map(id=>peopleById.get(id)?.email).filter(validEmail));
+        const recipients=unique(people.filter(isEligiblePerson).map(person=>person.email).filter(validEmail));
         if(!recipients.length)continue;
         const template=models?.event_soon||deadlineMailTemplates.event_soon;
         const dateText=new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(dueMs));
@@ -529,7 +530,7 @@
   }
   async function verifyEveryoneScope(db,t){
     if(t.assignmentScope!=="todos")return;
-    const eligible=(await db.prepare("SELECT id FROM users WHERE role IN ('petiano','tutor','admin') AND COALESCE(role_override,'')!='usuario'").all()).results.map(x=>x.id);
+    const eligible=(await db.prepare("SELECT id FROM users WHERE CASE WHEN role_override IS NOT NULL AND role_override!='' THEN role_override ELSE role END IN ('petiano','tutor','admin')").all()).results.map(x=>x.id);
     if(!eligible.length||eligible.length!==t.assigneeIds.length||eligible.some(id=>!t.assigneeIds.includes(id)))
       fail("Para Todos(as), a demanda deve incluir todas as pessoas elegíveis.");
   }
