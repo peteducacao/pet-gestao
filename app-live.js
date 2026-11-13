@@ -1188,11 +1188,23 @@ function syncVisibilityOptions(){
  if(!allowed&&only.checked)general.checked=true;
 }
 function inheritedAssigneeLabel(){return "Não definido"}
+function stageEligibleAssignees(){
+ const allowed=new Set([...state.selectedUsers].map(String));
+ for(const cid of state.selectedCommissions){
+  for(const uid of (committee(cid)?.memberIds||[]))allowed.add(String(uid));
+ }
+ // Em atribuições somente a pessoas, Administração e Tutoria também podem
+ // ser escolhidas como responsáveis pela etapa, se estiverem cadastradas.
+ if(!state.selectedCommissions.size&&state.selectedUsers.size){
+  for(const u of data.users||[])if(["admin","tutor"].includes(u.role))allowed.add(String(u.id));
+ }
+ return (data.users||[]).filter(u=>allowed.has(String(u.id))&&["petiano","tutor","admin"].includes(u.role));
+}
 function stageAssigneeField(selectedOwner=""){
  if(state.assignmentScope==="todos")
   return '<input type="text" class="select stage-assignee-all" data-stage="assignee" value="Todos(as)" aria-label="Responsável pela etapa: Todos(as)" readonly disabled>';
  return '<select class="select" data-stage="assignee"><option value="">'+inheritedAssigneeLabel()+'</option>'+
-  data.users.map(u=>opt(u.id,u.name,selectedOwner)).join("")+'</select>';
+  stageEligibleAssignees().map(u=>opt(u.id,u.name,selectedOwner)).join("")+'</select>';
 }
 function syncStageAssigneePlaceholder(){
  $$('.live-stage [data-stage="assignee"]').forEach(field=>{
