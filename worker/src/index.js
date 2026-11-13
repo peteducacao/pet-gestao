@@ -222,7 +222,7 @@
     if(!item.task_id)return true;
     const task=await db.prepare("SELECT archived_at,deadlines FROM tasks WHERE id=?").bind(item.task_id).first();
     if(!task||task.archived_at)return false;
-    if(!["due_soon","overdue"].includes(item.kind))return true;
+    if(!["due_soon","overdue","event_soon"].includes(item.kind))return true;
     const notice=await db.prepare("SELECT stage_id,stage_due_at FROM deadline_notice_log WHERE queue_id=? AND task_id=?")
       .bind(item.id,item.task_id).first();
     return Boolean(notice&&asJson(task.deadlines,[]).some(stage=>
@@ -270,6 +270,10 @@
     due_soon:{
       subject:"PET Gestão — Prazo vencendo: {demanda}",
       body:"Olá!\n\nA etapa {etapa} da demanda {demanda} vence em {dias} dia(s), em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"
+    },
+    event_soon:{
+      subject:"PET Gestão — Evento se aproximando: {demanda}",
+      body:"Olá!\\n\\nLembrete: o evento {demanda} acontecerá em {prazo}, daqui a {dias} dia(s).\\n\\nConfira os detalhes no PET Gestão: {link}\\n\\nPET Educação"
     },
     overdue:{
       subject:"PET Gestão — Prazo vencido: {demanda}",
@@ -341,9 +345,38 @@
     for(const task of tasks){
       // Os cenários fictícios usam e-mails próprios de teste e não entram em lembretes regulares.
       if(String(task.title||"").startsWith("[TESTE]"))continue;
-      // Avisos de prazo valem para tarefas com etapas, não para eventos coletivos.
-      if(task.assignment_scope==="todos")continue;
       const stages=asJson(task.deadlines,[]);
+      // Eventos coletivos usam a mesma antecedência de "Prazo vencendo",
+      // mas avisam todos os participantes de Todos(as), sem exigir etapas de entrega.
+      if(task.assignment_scope==="todos"){
+        if(!config.dueSoonEnabled)continue;
+        const eventIndex=stages.findIndex(stage=>stage&&stage.label==="Evento"&&!stage.completedAt&&stage.dueAt);
+        if(eventIndex<0)continue;
+        const event=stages[eventIndex],rawDue=String(event.dueAt),eventDay=rawDue.slice(0,10);
+        if(!/^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2})?)?$/.test(rawDue))continue;
+        const dueMs=Date.parse(eventDay+"T23:59:59-03:00");
+        if(!Number.isFinite(dueMs))continue;
+        const diffDays=Math.round((Date.parse(eventDay+"T00:00:00Z")-todayUTC)/86400000);
+        if(diffDays!==daysBefore||clock.getTime()>=dueMs)continue;
+        const recipients=unique(asJson(task.assignee_ids,[]).map(id=>peopleById.get(id)?.email).filter(validEmail));
+        if(!recipients.length)continue;
+        const template=models?.event_soon||deadlineMailTemplates.event_soon;
+        const dateText=new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(dueMs));
+        const values={autor:"PET Gestão",acao:"lembra que o evento está se aproximando",tipo:"Evento se aproximando",demanda:task.title,etapa:"Evento",prazo:dateText,dias:String(daysBefore),link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
+        const substitute=(txt,html=false)=>String(txt||"").replace(/\\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
+        const subject=substitute(template.subject||deadlineMailTemplates.event_soon.subject).slice(0,200);
+        const bodyTemplate=String(template.body||deadlineMailTemplates.event_soon.body).slice(0,10000);
+        const message=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
+        const stageId=String(event.id||"evento-data"),dedupeKey=[task.id,stageId,rawDue,"event_soon"].join("|");
+        const queueId=uid(),stamp=now();
+        const noticeBatch=await db.batch([
+          db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)").bind(dedupeKey,task.id,stageId,rawDue,"event_soon",queueId,stamp),
+          db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) SELECT ?,NULL,?,?,?,?,?,'pendente',?,? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)").bind(queueId,"event_soon",JSON.stringify(recipients),subject,message,stamp,stamp,task.id,dedupeKey,queueId)
+        ]);
+        if(noticeBatch[0]?.meta?.changes)registered++;
+        if(registered>=30)return;
+        continue;
+      }
       const donePeople=asJson(task.user_done,{}),doneCommissions=asJson(task.commission_done,{});
       const allTaskAssignees=asJson(task.assignee_ids,[]);
       const allPeople=new Set(allTaskAssignees),activePeople=new Set(allTaskAssignees.filter(userId=>!donePeople[userId]));
@@ -866,7 +899,7 @@
           // Compatibilidade com o modelo único anterior.
           await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
         }else{
-          if(!["create","review","due_soon","overdue"].includes(b.kind))fail("Tipo de notificação inválido.");
+          if(!["create","review","due_soon","event_soon","overdue"].includes(b.kind))fail("Tipo de notificação inválido.");
           const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
           const models=asJson(saved?.value,{});
           models[b.kind]={subject,body:message};
@@ -1113,7 +1146,7 @@
         t.deadlines=t.deadlines.map(d=>{const previous=oldStages.get(d.id);return previous&&previous.label===d.label&&previous.dueAt===d.dueAt?{...d,completedAt:previous.completedAt||null,commissionCompleted:previous.commissionCompleted||{}}:{...d,completedAt:null,commissionCompleted:{}}});
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,assignment_scope=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,t.assignmentScope,user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
-        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda ou prazo atualizado; notificação anterior obsoleta' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','overdue','automatica')").bind(old.id).run();
+        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda ou prazo atualizado; notificação anterior obsoleta' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','overdue','automatica')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
          await audit(db,old.id,user,t.captionText!==old.captionText?"Atualizou texto para revisão":"Atualizou dados, prazos ou responsáveis");
         if(t.assignmentScope==="todos")await autoCompleteCollectiveEvents(env,old.id);
@@ -1180,7 +1213,7 @@
           if(finished)copy.completedAt=stamp;
           return copy;
         });
-        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','overdue')").bind(old.id).run();
+        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','overdue')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
          const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
