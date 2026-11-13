@@ -788,7 +788,7 @@ body.notice-open{overflow:hidden}
  #screen .dashboard-grid .demand-activity-date{grid-column:1/-1;grid-row:3}
  #screen .dashboard-grid .demand-activity-owners{grid-column:1/-1;grid-row:4}
  #screen .dashboard-grid .demand-activity-action{grid-column:2;grid-row:5}
- .meeting-card-link{padding-right:48px}
+ .meeting-card-link{padding-right:60px}
  .finish-actions .button{flex:1}
 }
 
