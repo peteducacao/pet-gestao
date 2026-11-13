@@ -273,7 +273,7 @@
     },
     event_soon:{
       subject:"PET Gestão — Evento se aproximando: {demanda}",
-      body:"Olá!\\n\\nLembrete: o evento {demanda} acontecerá em {prazo}, daqui a {dias} dia(s).\\n\\nConfira os detalhes no PET Gestão: {link}\\n\\nPET Educação"
+      body:"Olá!\n\nLembrete: o evento {demanda} acontecerá em {prazo}, daqui a {dias} dia(s).\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"
     },
     overdue:{
       subject:"PET Gestão — Prazo vencido: {demanda}",
@@ -353,7 +353,7 @@
         const eventIndex=stages.findIndex(stage=>stage&&stage.label==="Evento"&&!stage.completedAt&&stage.dueAt);
         if(eventIndex<0)continue;
         const event=stages[eventIndex],rawDue=String(event.dueAt),eventDay=rawDue.slice(0,10);
-        if(!/^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2})?)?$/.test(rawDue))continue;
+        if(!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(rawDue))continue;
         const dueMs=Date.parse(eventDay+"T23:59:59-03:00");
         if(!Number.isFinite(dueMs))continue;
         const diffDays=Math.round((Date.parse(eventDay+"T00:00:00Z")-todayUTC)/86400000);
@@ -363,7 +363,7 @@
         const template=models?.event_soon||deadlineMailTemplates.event_soon;
         const dateText=new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(dueMs));
         const values={autor:"PET Gestão",acao:"lembra que o evento está se aproximando",tipo:"Evento se aproximando",demanda:task.title,etapa:"Evento",prazo:dateText,dias:String(daysBefore),link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
-        const substitute=(txt,html=false)=>String(txt||"").replace(/\\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
+        const substitute=(txt,html=false)=>String(txt||"").replace(/\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
         const subject=substitute(template.subject||deadlineMailTemplates.event_soon.subject).slice(0,200);
         const bodyTemplate=String(template.body||deadlineMailTemplates.event_soon.body).slice(0,10000);
         const message=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
