@@ -108,3 +108,11 @@ assert.ok(front.includes('if(!canWrite())return publicTaskCard(t);'),"Tarefas de
 assert.ok(front.includes('if(!canWrite())return renderViewerHome();'),"Visão geral em modo passivo");
 assert.ok(!front.slice(front.indexOf("function publicTaskCard(t){"),front.indexOf("function taskCard(t,")).includes('href='),"Card de Usuário sem link");
 console.log("Perfil Usuário: verificação de acesso estático OK.");
+ 
+// A configuração única de antecedência aceita a interface restaurada e clientes antigos em cache.
+assert.ok(worker.includes("const dueSoonRaw=b.dueSoonEnabled??b.eventSoonEnabled;"),"API aceita o campo legado de evento");
+assert.ok(worker.includes('const daysBefore=Number(b.daysBefore??b.reminderDays);'),"API normaliza a antecedência numérica");
+assert.ok(worker.includes("const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience};"),"API persiste a configuração unificada");
+assert.ok(front.includes('dueSoonEnabled:$("#reminder-soon").checked'),"Interface envia o controle único de prazo/evento");
+assert.ok(front.includes('daysBefore:days'),"Interface envia a antecedência configurada");
+console.log("Compatibilidade e salvamento dos avisos automáticos: OK.");
