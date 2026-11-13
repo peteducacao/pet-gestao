@@ -927,15 +927,22 @@
       if(path==="/api/v1/admin/reminder-settings"&&method==="PUT"){
         ensure(user,true);
         const b=await body(req);
-        const daysBefore=Number(b.daysBefore);
-        if(typeof b.dueSoonEnabled!=="boolean"||typeof b.overdueEnabled!=="boolean"||
+        // Compatibilidade com clientes antigos em cache que ainda enviam
+        // eventSoonEnabled ou valores booleanos serializados como texto.
+        const dueSoonRaw=b.dueSoonEnabled??b.eventSoonEnabled;
+        const overdueRaw=b.overdueEnabled;
+        const validBoolean=value=>[true,false,"true","false"].includes(value);
+        const dueSoonEnabled=dueSoonRaw===true||dueSoonRaw==="true";
+        const overdueEnabled=overdueRaw===true||overdueRaw==="true";
+        const daysBefore=Number(b.daysBefore??b.reminderDays);
+        if(!validBoolean(dueSoonRaw)||!validBoolean(overdueRaw)||
            !Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)
           fail("Configure os avisos e a antecedência entre 1 e 30 dias.");
         const existing=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
         const previously=asJson(existing?.value,{});
         const overdueAudience=b.overdueAudience??previously.overdueAudience??"pending";
         if(!["pending","all"].includes(overdueAudience))fail("Escolha destinatários válidos para os avisos de prazo vencido.");
-        const config={dueSoonEnabled:b.dueSoonEnabled,daysBefore,overdueEnabled:b.overdueEnabled,overdueAudience};
+        const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience};
         await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
         // Aplicar a configuração imediatamente, sem esperar o próximo cron.
         // A rotina também recupera avisos que ficaram órfãos após limpar o histórico.
