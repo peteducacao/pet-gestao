@@ -149,7 +149,7 @@ body.admin-ui-active .app-shell{display:block;width:100%;min-height:100vh}
 body.admin-ui-active .main-column{width:100%;min-height:100vh}
 body.admin-ui-active .main-column>.content{width:100%;max-width:none;margin:0;padding:0;min-height:100vh}
 body.admin-ui-active #screen{width:100%;max-width:none}
-.admin-layout{display:grid;grid-template-columns:258px minmax(0,1fr);min-height:100vh;width:100%;background:#f7f8fd;color:#20203b}
+.admin-layout{display:grid;grid-template-columns:258px minmax(0,1fr);min-height:100vh;width:100%;background:#eee8fb;color:#20203b}
 .admin-sidebar{display:flex;flex-direction:column;min-height:100vh;padding:32px 17px 20px;background:linear-gradient(167deg,#141d3e 0%,#161b3d 65%,#281957 100%);color:#fff;z-index:29}
 .admin-brand{display:flex;align-items:center;gap:13px;padding:9px 10px 26px;border-bottom:1px solid #ffffff1c}
 .admin-brand>svg{height:37px;width:37px;color:#bda4fc;flex:none}
