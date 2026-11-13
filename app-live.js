@@ -117,7 +117,11 @@ function safeRich(value){
 const formatIcon={
  bold:"<strong>B</strong>",
  insertUnorderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h11M9 12h11M9 18h11"/></svg>',
- insertOrderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 4h2v6M3 10h4M3 15c0-2 4-2 4 0s-4 2-4 5h4M11 6h10M11 12h10M11 18h10"/></svg>'
+ insertOrderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 4h2v6M3 10h4M3 15c0-2 4-2 4 0s-4 2-4 5h4M11 6h10M11 12h10M11 18h10"/></svg>',
+ justifyLeft:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></svg>',
+ justifyCenter:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></svg>',
+ justifyRight:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></svg>',
+ justifyFull:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>'
 };
 function richEditor(name,value,placeholder="Escreva aqui..."){
  const action=(cmd,label)=>'<button type="button" class="rich-format-button" data-do="rich-format" data-format="'+cmd+'" aria-label="'+esc(label)+'" title="'+esc(label)+'" aria-pressed="false">'+formatIcon[cmd]+'</button>';
@@ -125,6 +129,8 @@ function richEditor(name,value,placeholder="Escreva aqui..."){
  '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<div class="rich-toolbar-group" aria-label="Listas">'+action("insertUnorderedList","Lista com marcadores")+action("insertOrderedList","Lista numerada")+'</div>'+
+ '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
+ '<div class="rich-toolbar-group" aria-label="Alinhamento">'+action("justifyLeft","Alinhar à esquerda")+action("justifyCenter","Centralizar")+action("justifyRight","Alinhar à direita")+action("justifyFull","Justificar texto")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<label class="rich-color-label" title="Cor do texto" aria-label="Cor do texto"><span class="rich-color-symbol" aria-hidden="true">A</span><input type="color" data-rich-color value="#5b3bb5" aria-label="Escolher cor do texto"></label>'+
  '</div><div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
@@ -215,12 +221,12 @@ function unwrapRichSelection(editor,range,tag){
 }
 function applyRichFormat(editor,format,color=""){
  if(!editor)return false;
- const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","foreColor"]);
+ const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull","foreColor"]);
  if(!allowed.has(format))return false;
  const state=richState(editor),range=getRichRange(editor);
  editor.focus({preventScroll:true});
  setRichSelection(editor,range);
- if(format==="insertUnorderedList"||format==="insertOrderedList"){
+ if(["insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull"].includes(format)){
   const result=document.execCommand(format,false,null);
   saveRichRange(editor);
   editor.dispatchEvent(new Event("input",{bubbles:true}));
