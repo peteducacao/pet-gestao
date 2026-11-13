@@ -12,6 +12,7 @@ on:
       - 'worker/**'
       - 'scripts/prepare-deploy.mjs'
       - 'scripts/test-auth-sessions.mjs'
+      - 'scripts/test-pwa-install.mjs'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 permissions:
