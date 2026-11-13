@@ -255,6 +255,7 @@
         }
         await authorizedMail(env,asJson(item.recipient_emails,[]),item.subject,item.body);
         await env.DB.prepare("UPDATE email_queue SET status='enviado',sent_at=?,error_message=NULL WHERE id=? AND status='processando'").bind(now(),item.id).run();
+        if(item.kind==="event_soon")await env.DB.prepare("UPDATE deadline_notice_log SET notice_kind='event_soon_sent' WHERE queue_id=? AND notice_kind='event_soon'").bind(item.id).run();
       }catch(err){
         await env.DB.prepare("UPDATE email_queue SET status='falhou',error_message=? WHERE id=? AND status='processando'").bind(str(err.message,500),item.id).run();
       }
@@ -368,9 +369,24 @@
         const bodyTemplate=String(template.body||deadlineMailTemplates.event_soon.body).slice(0,10000);
         const message=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
         const stageId=String(event.id||"evento-data"),dedupeKey=[task.id,stageId,rawDue,"event_soon"].join("|");
+        const previousNotice=await db.prepare("SELECT l.queue_id,l.notice_kind,q.status FROM deadline_notice_log l LEFT JOIN email_queue q ON q.id=l.queue_id WHERE l.dedupe_key=?").bind(dedupeKey).first();
+        if(previousNotice){
+          // O histórico pode ser limpo pela Administração. Um aviso já enviado
+          // continua deduplicado; falhas ou filas apagadas são recuperadas.
+          if(previousNotice.notice_kind==="event_soon_sent"||previousNotice.status==="enviado")continue;
+          if(previousNotice.status==="pendente"||previousNotice.status==="processando")continue;
+          if(previousNotice.status==="falhou"||previousNotice.status==="cancelado"){
+            await db.prepare("UPDATE email_queue SET status='pendente',scheduled_at=?,error_message=NULL WHERE id=? AND status IN ('falhou','cancelado')").bind(now(),previousNotice.queue_id).run();
+            registered++;
+            if(registered>=30)return;
+            continue;
+          }
+          // Registro órfão: o item da fila foi removido sem concluir o envio.
+          await db.prepare("DELETE FROM deadline_notice_log WHERE dedupe_key=? AND notice_kind!='event_soon_sent'").bind(dedupeKey).run();
+        }
         const queueId=uid(),stamp=now();
         const noticeBatch=await db.batch([
-          db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)").bind(dedupeKey,task.id,stageId,rawDue,"event_soon",queueId,stamp),
+          db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)").bind(dedupeKey,task.id,stageId,"event_soon",rawDue,queueId,stamp),
           db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) SELECT ?,NULL,?,?,?,?,?,'pendente',?,? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)").bind(queueId,"event_soon",JSON.stringify(recipients),subject,message,stamp,stamp,task.id,dedupeKey,queueId)
         ]);
         if(noticeBatch[0]?.meta?.changes)registered++;
@@ -920,6 +936,12 @@
         if(!["pending","all"].includes(overdueAudience))fail("Escolha destinatários válidos para os avisos de prazo vencido.");
         const config={dueSoonEnabled:b.dueSoonEnabled,daysBefore,overdueEnabled:b.overdueEnabled,overdueAudience};
         await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
+        // Aplicar a configuração imediatamente, sem esperar o próximo cron.
+        // A rotina também recupera avisos que ficaram órfãos após limpar o histórico.
+        ctx.waitUntil((async()=>{
+          try{await queueDeadlineReminders(env);await processQueue(env,15);}
+          catch(error){console.error("PET Gestão — falha ao disparar avisos após salvar configurações:",error.message);}
+        })());
         return answer({ok:true,reminderSettings:config});
       }
       if(path==="/api/v1/admin/settings"&&method==="PUT"){
@@ -1280,6 +1302,9 @@
       }
       if(path==="/api/v1/mail/clear"&&method==="POST"){
         ensure(user,true);
+        // Preservar a marca de avisos automáticos já entregues antes de limpar
+        // o histórico; falhas removidas poderão ser reconstruídas pela rotina.
+        await db.prepare("UPDATE deadline_notice_log SET notice_kind='event_soon_sent' WHERE notice_kind='event_soon' AND queue_id IN (SELECT id FROM email_queue WHERE kind='event_soon' AND status='enviado')").run();
         const res=await db.prepare("DELETE FROM email_queue WHERE status IN ('enviado','falhou')").run();
         return answer({ok:true,deleted:res.meta.changes});
       }
