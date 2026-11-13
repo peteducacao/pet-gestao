@@ -266,7 +266,7 @@
 
   // Lembretes automáticos: opção desativada até a Administração habilitar.
   // Usa a data civil de Sergipe (UTC-3) e uma chave única por etapa/prazo/tipo.
-  const defaultReminderSettings={dueSoonEnabled:false,daysBefore:3,overdueEnabled:false,overdueAudience:"pending"};
+  const defaultReminderSettings={dueSoonEnabled:false,daysBefore:3,eventEnabled:false,eventDaysBefore:2,overdueEnabled:false,overdueAudience:"pending"};
   const deadlineMailTemplates={
     due_soon:{
       subject:"PET Gestão — Prazo vencendo: {demanda}",
@@ -328,8 +328,11 @@
     const stored=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
     const config={...defaultReminderSettings,...asJson(stored?.value,{})};
     const daysBefore=Number(config.daysBefore);
-    if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)return;
-    if(!config.dueSoonEnabled&&!config.overdueEnabled)return;
+    const eventDaysBefore=Number(config.eventDaysBefore??2);
+    const eventEnabled=config.eventEnabled===true;
+    if((config.dueSoonEnabled||config.overdueEnabled)&&(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30))return;
+    if(eventEnabled&&(!Number.isInteger(eventDaysBefore)||eventDaysBefore<1||eventDaysBefore>30))return;
+    if(!config.dueSoonEnabled&&!config.overdueEnabled&&!eventEnabled)return;
     const savedModels=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
     const models=asJson(savedModels?.value,{});
     const people=(await db.prepare("SELECT id,email,role,role_override FROM users").all()).results;
@@ -351,7 +354,7 @@
       // Eventos coletivos usam a mesma antecedência de "Prazo vencendo",
       // mas avisam todos os participantes de Todos(as), sem exigir etapas de entrega.
       if(task.assignment_scope==="todos"){
-        if(!config.dueSoonEnabled)continue;
+        if(!eventEnabled)continue;
         const eventIndex=stages.findIndex(stage=>stage&&stage.label==="Evento"&&!stage.completedAt&&stage.dueAt);
         if(eventIndex<0)continue;
         const event=stages[eventIndex],rawDue=String(event.dueAt),eventDay=rawDue.slice(0,10);
@@ -359,12 +362,12 @@
         const dueMs=Date.parse(eventDay+"T23:59:59-03:00");
         if(!Number.isFinite(dueMs))continue;
         const diffDays=Math.round((Date.parse(eventDay+"T00:00:00Z")-todayUTC)/86400000);
-        if(diffDays!==daysBefore||clock.getTime()>=dueMs)continue;
+        if(diffDays!==eventDaysBefore||clock.getTime()>=dueMs)continue;
         const recipients=unique(people.filter(isEligiblePerson).map(person=>person.email).filter(validEmail));
         if(!recipients.length)continue;
         const template=models?.event_soon||deadlineMailTemplates.event_soon;
         const dateText=new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(dueMs));
-        const values={autor:"PET Gestão",acao:"lembra que o evento está se aproximando",tipo:"Evento se aproximando",demanda:task.title,etapa:"Evento",prazo:dateText,dias:String(daysBefore),link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
+        const values={autor:"PET Gestão",acao:"lembra que o evento está se aproximando",tipo:"Evento se aproximando",demanda:task.title,etapa:"Evento",prazo:dateText,dias:String(eventDaysBefore),link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
         const substitute=(txt,html=false)=>String(txt||"").replace(/\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
         const subject=substitute(template.subject||deadlineMailTemplates.event_soon.subject).slice(0,200);
         const bodyTemplate=String(template.body||deadlineMailTemplates.event_soon.body).slice(0,10000);
@@ -928,14 +931,16 @@
         ensure(user,true);
         const b=await body(req);
         const daysBefore=Number(b.daysBefore);
-        if(typeof b.dueSoonEnabled!=="boolean"||typeof b.overdueEnabled!=="boolean"||
-           !Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)
-          fail("Configure os avisos e a antecedência entre 1 e 30 dias.");
+        const eventDaysBefore=Number(b.eventDaysBefore);
+        if(typeof b.dueSoonEnabled!=="boolean"||typeof b.eventEnabled!=="boolean"||typeof b.overdueEnabled!=="boolean"||
+           !Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30||
+           !Number.isInteger(eventDaysBefore)||eventDaysBefore<1||eventDaysBefore>30)
+          fail("Configure cada aviso e sua antecedência entre 1 e 30 dias.");
         const existing=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
         const previously=asJson(existing?.value,{});
         const overdueAudience=b.overdueAudience??previously.overdueAudience??"pending";
         if(!["pending","all"].includes(overdueAudience))fail("Escolha destinatários válidos para os avisos de prazo vencido.");
-        const config={dueSoonEnabled:b.dueSoonEnabled,daysBefore,overdueEnabled:b.overdueEnabled,overdueAudience};
+        const config={dueSoonEnabled:b.dueSoonEnabled,daysBefore,eventEnabled:b.eventEnabled,eventDaysBefore,overdueEnabled:b.overdueEnabled,overdueAudience};
         await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
         // Aplicar a configuração imediatamente, sem esperar o próximo cron.
         // A rotina também recupera avisos que ficaram órfãos após limpar o histórico.
