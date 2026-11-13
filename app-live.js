@@ -1193,12 +1193,9 @@ function stageEligibleAssignees(){
  for(const cid of state.selectedCommissions){
   for(const uid of (committee(cid)?.memberIds||[]))allowed.add(String(uid));
  }
- // Sempre que houver pessoas indicadas individualmente — sozinhas ou
- // junto de uma comissão — Administração e Tutoria também podem ser escolhidas.
- // Comissão sem pessoas individuais continua restrita aos seus integrantes.
- if(state.selectedUsers.size){
-  for(const u of data.users||[])if(["admin","tutor"].includes(u.role))allowed.add(String(u.id));
- }
+ // Administração e Tutoria são opções de responsabilidade em qualquer
+ // combinação de pessoas e comissões, desde que estejam cadastradas.
+ for(const u of data.users||[])if(["admin","tutor"].includes(u.role))allowed.add(String(u.id));
  return (data.users||[]).filter(u=>allowed.has(String(u.id))&&["petiano","tutor","admin"].includes(u.role));
 }
 function stageAssigneeField(selectedOwner=""){
