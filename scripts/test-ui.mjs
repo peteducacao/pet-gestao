@@ -212,7 +212,8 @@ assert.ok(memo.textContent.includes("Pautas"),"Texto existente recuperado no edi
 assert.ok(document.querySelector('#meeting-form [data-format="bold"]'),"A ata tem botão negrito");
 assert.ok(document.querySelector('#meeting-form [data-format="insertUnorderedList"]'),"A ata tem marcadores");
 assert.ok(document.querySelector('#meeting-form [data-rich-color]'),"A ata aceita cor de texto");
-assert.equal(document.querySelector('#meeting-form input[name="title"]').type,"hidden","Título não é formatável");
+assert.equal(document.querySelector('#meeting-form input[name="title"]').type,"text","Título da ata é editável");
+assert.equal(document.querySelector('#meeting-form input[name="title"]').required,true,"Título da ata é obrigatório");
 memo.innerHTML+='<p><strong>📚 Poesia no PET</strong></p><ul><li>Responsável: (???)</li></ul>';
 submit("#meeting-form");await wait();await wait();
 assert.ok(meetings[0].rawNotes.includes("📚"),"Emojis preservados nas Atas");
