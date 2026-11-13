@@ -333,7 +333,7 @@
     const savedModels=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
     const models=asJson(savedModels?.value,{});
     const people=(await db.prepare("SELECT id,email,role,role_override FROM users").all()).results;
-    const peopleById=new Map(people.filter(p=>p.role_override!=="usuario"&&["petiano","tutor","admin"].includes(p.role)).map(p=>[p.id,p]));
+    const peopleById=new Map(people.filter(p=>["petiano","tutor","admin"].includes(p.role_override||p.role)).map(p=>[p.id,p]));
     const commissionMembers=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
     const membersByCommission=new Map();
     for(const member of commissionMembers){
@@ -1148,7 +1148,10 @@
         await verifyEveryoneScope(db,t);
         await db.prepare("INSERT INTO tasks(id,title,description,caption_text,registered_at,assignee_ids,commission_ids,commission_done,deadlines,status,created_by,updated_by,created_at,updated_at,overview_visible,assignment_scope) VALUES(?,?,?,?,?,?,?,'{}',?,'pendente',?,?,?,?,?,?)").bind(id,t.title,t.description,t.captionText,start,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),user.id,user.id,stamp,stamp,t.overviewVisible?1:0,t.assignmentScope).run();
         await audit(db,id,user,"Cadastrou a demanda");
-        if(t.assignmentScope==="todos")await autoCompleteCollectiveEvents(env,id);
+        if(t.assignmentScope==="todos"){
+          await autoCompleteCollectiveEvents(env,id);
+          ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento recém-salvo:",error.message)}})());
+        }
         await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Nova demanda","cadastrou");
         return answer({ok:true,id},201);
       }
@@ -1171,7 +1174,10 @@
         await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda ou prazo atualizado; notificação anterior obsoleta' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','overdue','automatica')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
          await audit(db,old.id,user,t.captionText!==old.captionText?"Atualizou texto para revisão":"Atualizou dados, prazos ou responsáveis");
-        if(t.assignmentScope==="todos")await autoCompleteCollectiveEvents(env,old.id);
+        if(t.assignmentScope==="todos"){
+          await autoCompleteCollectiveEvents(env,old.id);
+          ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento atualizado:",error.message)}})());
+        }
         if(t.captionText!==old.captionText){
           await markTutorReviewAfterCorrection(db,old,user,stamp);
           await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
