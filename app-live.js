@@ -1690,7 +1690,8 @@ function activitySections(t,readOnly=false){
   '<div class="activity-detail-top"><div class="stack detail-left-column">'+deadlineFacts(t)+renderAssignees(t)+commissionProgress+'</div>'+
   '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+taskFileDetail(t)+
   '<section class="card card-pad detail-accent-card detail-review-full">'+
-   '<h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("list")+'</span>Texto para revisão</h2>'+
+   '<div class="detail-review-heading"><h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("list")+'</span>Texto para revisão</h2>'+
+   '<button type="button" class="button ghost detail-review-copy" data-do="copy-review-text">'+ico("copy")+' Copiar tudo</button></div>'+
    lastReviewEdit(t)+
    '<div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div>'+
   '</section></div>';
@@ -2372,6 +2373,28 @@ async function handleClick(e){
   if(action==="auth-message-close"){closeAuthMessage();return}
  if(action==="notice-confirm"){closeNotice(true);return}
  if(action==="notice-cancel"){closeNotice(false);return}
+ if(action==="copy-review-text"){
+   const content=b.closest(".detail-review-full")?.querySelector(".saved-activity-text");
+   if(!content)return;
+   const plain=content.innerText||content.textContent||"";
+   try{
+    if(navigator.clipboard?.write&&window.ClipboardItem){
+     const htmlBlob=new Blob([content.innerHTML],{type:"text/html"});
+     const textBlob=new Blob([plain],{type:"text/plain"});
+     await navigator.clipboard.write([new ClipboardItem({"text/html":htmlBlob,"text/plain":textBlob})]);
+    }else if(navigator.clipboard?.writeText){
+     await navigator.clipboard.writeText(plain);
+    }else throw new Error("Clipboard indisponível");
+    setToast("Texto completo copiado!");
+   }catch{
+    const field=document.createElement("textarea");
+    field.value=plain;field.style.position="fixed";field.style.opacity="0";
+    document.body.appendChild(field);field.select();
+    const copied=document.execCommand("copy");field.remove();
+    setToast(copied?"Texto completo copiado!":"Não foi possível copiar. Selecione o texto manualmente.");
+   }
+   return;
+  }
  if(action==="notice-copy"){
    const field=$("#notice-secret-value");if(!field)return;
    try{await navigator.clipboard.writeText(field.value);b.textContent="Copiado!";}
