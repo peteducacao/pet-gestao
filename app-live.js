@@ -1794,7 +1794,7 @@ function renderMemory(routeId){
  if(!m&&routeId!=="nova")return empty("Ata não encontrada");
  return header("Atas de Reunião",m?"Editar ata":"Criar ata","")+
  '<section class="card card-pad register-page meeting-editor"><form id="meeting-form" data-id="'+esc(m?.id||"")+'" class="register-form">'+
- '<label>Título da reunião *<input name="title" required maxlength="180" value="'+esc(m?.title||"")+'" placeholder="Ex.: Reunião ordinária do PET"></label>'+
+ '<label>Título da reunião *<input name="title" type="text" required maxlength="180" value="'+esc(m?.title||"")+'" placeholder="Ex.: Reunião ordinária do PET"></label>'+
  '<label>Data *<input name="date" type="date" required value="'+esc(m?.date||dateKey(current))+'"></label>'+
  '<label class="rich-label">Texto da ata</label>'+richEditor("rawNotes",m?.rawNotes||"","Registre os assuntos e encaminhamentos da reunião.")+
  '<div class="form-actions"><button type="submit" class="button primary">Salvar ata</button></div></form></section>';
