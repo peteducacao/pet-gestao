@@ -6,6 +6,11 @@ on:
       - 'index.html'
       - 'app-live.js'
       - 'live.css'
+      - 'assets/**'
+      - 'site.webmanifest'
+      - 'sw.js'
+      - 'scripts/build-pwa-icons.mjs'
+      - 'scripts/test-brand-icons.mjs'
       - 'scripts/test-ui.mjs'
       - 'scripts/test-browser.mjs'
       - 'scripts/test-browser-sessions.mjs'
@@ -26,6 +31,8 @@ jobs:
           node --check app-live.js
           node --check --input-type=module < worker/src/index.js
           node --check scripts/test-ui.mjs
+      - name: Verificar todas as variações da nova marca, inclusive PNGs
+        run: node scripts/test-brand-icons.mjs
       - name: Instalar dependência de teste
         run: npm install --no-save --no-package-lock jsdom@26
       - name: Testar interface e fluxos simulados
