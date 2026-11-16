@@ -333,6 +333,24 @@ try{
  await stageType.selectOption("__custom__");
  assert.equal(await page.locator('.live-stage [data-stage="custom-label"]').isVisible(),true,"Campo surge ao escolher Personalizar");
  await page.locator('.live-stage [data-stage="custom-label"]').fill("Reunião de alinhamento");
+ // Desktop: campos de Prazos por etapa compactos, sem larguras exageradas ou overflow.
+ for(const width of [1280,1420]){
+  await page.setViewportSize({width,height:900});
+  const dims=await page.locator(".live-stage").evaluate(stage=>{
+   const take=selector=>stage.querySelector(selector).getBoundingClientRect();
+   const date=take(".stage-date-fields");
+   const inputWidths=[...stage.querySelectorAll(".stage-date-parts input")].map(x=>x.getBoundingClientRect().width);
+   const label=take(".stage-label-field"),hour=take(".stage-time-field"),owner=take(".stage-owner-field");
+   return {width:stage.clientWidth,scroll:stage.scrollWidth,date:date.width,label:label.width,hour:hour.width,owner:owner.width,
+    inputWidths,display:getComputedStyle(stage).display,direction:getComputedStyle(stage).flexDirection};
+  });
+  assert.equal(dims.display,"flex","Formulário desktop flexível em "+width);
+  assert.equal(dims.direction,"row","Campos do desktop seguem na direção horizontal");
+  assert.ok(dims.date<=300&&dims.label<=155&&dims.hour<=145&&dims.owner<=195,
+   "Reduzir espaços e dimensões dos campos desktop em "+width+": "+JSON.stringify(dims));
+  assert.ok(dims.inputWidths.every(v=>v>45&&v<100),"Dia, mês e ano proporcionais em "+width+": "+JSON.stringify(dims));
+  assert.ok(dims.scroll<=dims.width+2,"Sem rolagem horizontal no desktop em "+width+": "+JSON.stringify(dims));
+ }
  // Regressão visual: no Android, Etapa, Data, Horário e Responsável não podem se sobrepor.
  for(const width of [360,390,414]){
   await page.setViewportSize({width,height:844});
