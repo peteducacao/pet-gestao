@@ -31,6 +31,10 @@ jobs:
           node --check app-live.js
           node --check --input-type=module < worker/src/index.js
           node --check scripts/test-ui.mjs
+          node --check scripts/test-startup-splash.mjs
+          node --check scripts/test-pwa-install.mjs
+      - name: Testar tela de abertura antes de publicar
+        run: node scripts/test-startup-splash.mjs
       - name: Verificar todas as variações da nova marca, inclusive PNGs
         run: node scripts/test-brand-icons.mjs
       - name: Instalar dependência de teste
