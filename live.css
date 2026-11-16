@@ -3174,3 +3174,8 @@ body.commission-image-editor-open{overflow:hidden}
   flex:0 0 auto;align-self:flex-end;min-height:43px;
  }
 }
+
+/* Visão geral somente leitura: três indicadores objetivos, sem o cartão redundante. */
+#screen .viewer-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:980px){#screen .viewer-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){#screen .viewer-stat-grid{grid-template-columns:1fr}}
