@@ -69,7 +69,7 @@ window.fetch=async (url,options={})=>{
    committees.splice(0,committees.length,...ordered);
    return reply({ok:true,updated:ordered.length});
  }
- if(path==="/admin/reminder-settings"&&method==="PUT"){settings.reminderSettings=body;return reply({ok:true});}
+ if(path==="/admin/reminder-settings"&&["PUT","PATCH"].includes(method)){settings.reminderSettings={...settings.reminderSettings,...body};return reply({ok:true});}
  if(path==="/admin/notification-template"&&method==="PUT"){
  mailTemplateSaved=true;
  settings.notificationTemplates={...settings.notificationTemplates,[body.kind]:{subject:body.subject,body:body.message}};
@@ -425,9 +425,13 @@ assert.equal(settings.notificationTemplates.create.subject,"Criação personaliz
 assert.equal(settings.notificationTemplates.review.subject,"Revisão personalizada");
 await move("#/admin/configuracoes");
 assert.equal(document.querySelector("#reminder-days")?.closest(".admin-panel").hidden,false,"Avisos agora estão em Configurações");
-assert.equal(document.querySelector("#deadline-template-kind")?.options.length,3,"Modelos automáticos incluem prazo, evento e vencimento");
-assert.ok([...document.querySelector("#deadline-template-kind").options].some(option=>option.value==="event_soon"),"Modelo de evento coletivo possui opção própria");
-assert.equal(document.querySelectorAll("#deadline-template-form .mail-template-guide-item").length,8,"Avisos de prazo explicam 8 chaves");
+assert.equal(document.querySelector("#deadline-template-kind")?.options.length,2,"Modelos antecipados mostram apenas prazo e evento");
+assert.ok([...document.querySelector("#deadline-template-kind").options].some(option=>option.value==="event_soon"),"Modelo antecipado para evento permanece");
+assert.equal(document.querySelectorAll("#deadline-template-form .mail-template-guide-item").length,8,"Avisos antecipados explicam 8 chaves");
+assert.ok(document.querySelector("#overdue-template-form"),"Prazo vencido possui modelo exclusivo");
+assert.equal(document.querySelector("#overdue-template-form input[name='kind']").value,"overdue");
+assert.equal(document.querySelectorAll("#overdue-template-form .mail-template-guide-item").length,7,"Modelo vencido não usa dias de antecedência");
+assert.ok(!document.querySelector("#reminder-overdue").closest(".admin-panel").contains(document.querySelector("#reminder-days")),"Prazo vencido fica fora da configuração de antecedência");
 const kindDue=document.querySelector("#deadline-template-kind");
 kindDue.value="due_soon";kindDue.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
 tap('[data-do="mail-preview-deadline"]');
@@ -435,12 +439,20 @@ assert.ok(document.querySelector("#mail-preview-dialog").textContent.includes("d
 tap('#mail-preview-dialog [data-do="mail-preview-close"]');
 document.querySelector("#reminder-days").value="5";
 document.querySelector("#reminder-soon").checked=true;
+tap('[data-do="save-reminder-soon"]');await wait();await wait();
+assert.deepEqual(settings.reminderSettings,{dueSoonEnabled:true,daysBefore:5},"Antecipação salva isoladamente");
 document.querySelector("#reminder-overdue").checked=true;
 const audience=document.querySelector("#reminder-overdue-audience");
 assert.ok(audience,"Admin escolhe quem recebe prazo vencido");
 audience.value="all";
-tap('[data-do="save-reminder-settings"]');await wait();await wait();
-assert.deepEqual(settings.reminderSettings,{dueSoonEnabled:true,overdueEnabled:true,daysBefore:5,overdueAudience:"all"},"Configuração enviada ao Admin com todos os participantes");
+tap('[data-do="save-reminder-overdue"]');await wait();await wait();
+assert.deepEqual(settings.reminderSettings,{dueSoonEnabled:true,daysBefore:5,overdueEnabled:true,overdueAudience:"all"},"Prazo vencido salva independentemente dos dias");
+tap('[data-do="mail-preview-overdue"]');
+assert.ok(document.querySelector("#mail-preview-dialog").textContent.includes("venceu"),"Prévia de atraso é própria");
+tap('#mail-preview-dialog [data-do="mail-preview-close"]');
+document.querySelector("#overdue-template-form input[name='subject']").value="Vencido: {demanda}";
+submit("#overdue-template-form");await wait();await wait();
+assert.equal(settings.notificationTemplates.overdue.subject,"Vencido: {demanda}","Modelo de atraso editável sem afetar antecipações");
 await move("#/admin/emails");
 document.querySelector("#mail-form [data-rich-input='message']").textContent="Olá ✨\n\n#PET";
 document.querySelector("#mail-form input[name='subject']").value="Aviso PET";

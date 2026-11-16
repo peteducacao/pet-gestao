@@ -52,7 +52,7 @@ await page.route("**/api/v1/**",async route=>{
      result={ok:true,deletedCount:chosen.length};
    }
  }
- else if(p==="/admin/reminder-settings"&&method==="PUT"){settings.reminderSettings=body;result={ok:true};}
+ else if(p==="/admin/reminder-settings"&&["PUT","PATCH"].includes(method)){settings.reminderSettings={...settings.reminderSettings,...body};result={ok:true};}
  else if(p==="/admin/notification-template"&&method==="PUT"){
    settings.notificationTemplates[body.kind]={subject:body.subject,body:body.message};
    result={ok:true};
@@ -333,6 +333,24 @@ try{
  await stageType.selectOption("__custom__");
  assert.equal(await page.locator('.live-stage [data-stage="custom-label"]').isVisible(),true,"Campo surge ao escolher Personalizar");
  await page.locator('.live-stage [data-stage="custom-label"]').fill("Reunião de alinhamento");
+ // Desktop: campos de Prazos por etapa compactos, sem larguras exageradas ou overflow.
+ for(const width of [1280,1420]){
+  await page.setViewportSize({width,height:900});
+  const dims=await page.locator(".live-stage").evaluate(stage=>{
+   const take=selector=>stage.querySelector(selector).getBoundingClientRect();
+   const date=take(".stage-date-fields");
+   const inputWidths=[...stage.querySelectorAll(".stage-date-parts input")].map(x=>x.getBoundingClientRect().width);
+   const label=take(".stage-label-field"),hour=take(".stage-time-field"),owner=take(".stage-owner-field");
+   return {width:stage.clientWidth,scroll:stage.scrollWidth,date:date.width,label:label.width,hour:hour.width,owner:owner.width,
+    inputWidths,display:getComputedStyle(stage).display,direction:getComputedStyle(stage).flexDirection};
+  });
+  assert.equal(dims.display,"flex","Formulário desktop flexível em "+width);
+  assert.equal(dims.direction,"row","Campos do desktop seguem na direção horizontal");
+  assert.ok(dims.date<=300&&dims.label<=155&&dims.hour<=145&&dims.owner<=195,
+   "Reduzir espaços e dimensões dos campos desktop em "+width+": "+JSON.stringify(dims));
+  assert.ok(dims.inputWidths.every(v=>v>45&&v<100),"Dia, mês e ano proporcionais em "+width+": "+JSON.stringify(dims));
+  assert.ok(dims.scroll<=dims.width+2,"Sem rolagem horizontal no desktop em "+width+": "+JSON.stringify(dims));
+ }
  // Regressão visual: no Android, Etapa, Data, Horário e Responsável não podem se sobrepor.
  for(const width of [360,390,414]){
   await page.setViewportSize({width,height:844});
@@ -490,7 +508,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("type"),"text",
   "Título da ata permanece editável");
- assert.equal(await page.locator('#meeting-form input[name="title"]').isRequired(),true,
+ assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("required")!==null,true,
   "Título da ata é obrigatório");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
@@ -596,7 +614,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.keyboard.type(" normal");
  assert.equal(await editor.locator("span[data-rich-typed]").last().evaluate(el=>getComputedStyle(el).fontWeight),"400",
   "Texto digitado após desligar B não fica em negrito");
- assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),2,"Formatação agrupada");
+ assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),3,"Formatação agrupada em estilo, listas e alinhamento");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");
  await editor.selectText();
@@ -791,12 +809,17 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator("#deadline-template-kind option").count(),2,"Modelos de prazo em Configurações");
  await page.locator("#reminder-days").fill("5");
  await page.locator("#reminder-soon").check();
+ await page.locator('[data-do="save-reminder-soon"]').click();
+ await page.waitForTimeout(180);
+ assert.equal(settings.reminderSettings?.daysBefore,5,"Prazo antecipado personalizável");
+ assert.equal(settings.reminderSettings?.dueSoonEnabled,true);
  await page.locator("#reminder-overdue").check();
  await page.locator("#reminder-overdue-audience").selectOption("all");
- await page.locator('[data-do="save-reminder-settings"]').click();
+ assert.equal(await page.locator("#reminder-overdue").evaluate(el=>el.closest(".admin-panel").contains(document.getElementById("reminder-days"))),false,"Prazo vencido é separado da antecedência");
+ await page.locator('[data-do="save-reminder-overdue"]').click();
  await page.waitForTimeout(180);
- assert.equal(settings.reminderSettings?.daysBefore,5,"Prazo personalizável");
- assert.equal(settings.reminderSettings?.dueSoonEnabled,true);
+ assert.equal(settings.reminderSettings?.overdueEnabled,true,"Prazo vencido ativado independentemente");
+ assert.equal(settings.reminderSettings?.daysBefore,5,"Aviso de vencimento não modifica a antecedência");
  assert.equal(settings.reminderSettings?.overdueAudience,"all","Aviso vencido seleciona todos os vinculados");
  // Aviso informativo se fecha sozinho em 3 segundos, sem contador.
  await page.locator("#notice-dialog").waitFor({state:"hidden",timeout:5500});
@@ -808,6 +831,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  // Modelos de prazo ficam em Configurações, não mais na aba E-mails.
  await page.goto(origin+"/#/admin/configuracoes");
+ assert.equal(await page.locator("#overdue-template-form input[name='kind']").inputValue(),"overdue","Editor exclusivo para vencimento");
  await page.locator("#deadline-template-kind").selectOption("due_soon");
  await page.locator('[data-do="mail-preview-deadline"]').click();
  assert.ok((await page.locator("#mail-preview-dialog").innerText()).includes("5 dia(s)"),"Prévia traduz a variável dias");

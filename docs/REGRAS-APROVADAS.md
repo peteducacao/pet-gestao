@@ -235,3 +235,11 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - O manifesto não aponta para aplicativo da Play Store (prefer_related_applications: false). O ícone e o cadastro da instalação permanecem próprios do PET Gestão. Alguns aparelhos e navegadores podem oferecer apenas um atalho.
 - Na tela de abertura, os três pontos sobem e brilham em sequência, com duração de 1,25 s e deslocamentos de 0,19 s. Respeitar a preferência de redução de movimento do sistema.
 - O CI valida manifesto, ícones gerados no pacote do deploy, botões e versão do cache, sem consultar ou alterar usuários, demandas ou banco.
+
+## E-mail de prazo vencido independente — 16/11/2026
+- Em **Admin → Configurações**, o aviso **Prazo vencido** ocupa um bloco separado de **Avisos antecipados de prazo e eventos**. Possui ativação própria, destinatários próprios e botão exclusivo para salvar; ligar/desligar um aviso não altera o outro.
+- **Prazo vencido não possui campo de antecedência**: o Worker verifica cada prazo após seu horário de vencimento na data civil de Sergipe (America/Maceio). O Cron Trigger executa normalmente a cada cinco minutos; isso não garante envio no segundo exato.
+- O aviso vencido tem um **modelo exclusivo com assunto, editor rico, chaves automáticas e pré-visualização**, independente dos modelos de **Prazo vencendo** e **Evento se aproximando**. O modelo não usa a chave `{dias}` como antecedência.
+- O servidor valida as preferências e permite atualização parcial (`PATCH /api/v1/admin/reminder-settings`), preservando as opções não enviadas na requisição. O endpoint antigo `PUT` continua aceito para compatibilidade.
+- Somente etapas válidas ainda abertas em demandas ativas podem gerar avisos. A fila revalida a demanda e a ativação atual antes de enviar, cancela notificações obsoletas e preserva a deduplicação por demanda, etapa, data e tipo. A ativação não deve disparar em massa avisos de demandas antigas.
+- Testar sempre no banco D1 isolado, sem e-mail real de teste e sem mexer em demandas de produção. As modificações do código devem passar pelos workflows antes de serem publicadas.

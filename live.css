@@ -3146,3 +3146,31 @@ body.commission-image-editor-open{overflow:hidden}
 #screen .detail-review-copy{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;flex:0 0 auto}
 #screen .detail-review-copy svg{width:16px;height:16px}
 @media(max-width:430px){#screen .detail-review-heading{align-items:flex-start}#screen .detail-review-copy{font-size:12px;padding:8px 10px}}
+
+/* Desktop: evitar que os campos de Prazos por etapa se estiquem e criem vãos grandes.
+   No celular (até 720px), preservar integralmente o empilhamento aprovado. */
+@media (min-width:721px){
+ #screen .register-deadlines #stage-rows > .register-deadline.live-stage{
+  display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:flex-start;
+  column-gap:10px;row-gap:9px;padding:10px 12px;
+ }
+ #screen .register-deadlines .live-stage > .stage-label-field{
+  flex:0 0 142px;min-width:0;
+ }
+ #screen .register-deadlines .live-stage > .stage-date-fields{
+  flex:0 0 282px;width:282px;max-width:100%;min-width:0;
+ }
+ #screen .register-deadlines .live-stage .stage-date-parts{
+  grid-template-columns:60px 60px 93px 43px;gap:8px;
+  width:max-content;max-width:100%;
+ }
+ #screen .register-deadlines .live-stage > .stage-time-field{
+  flex:0 0 132px;min-width:0;
+ }
+ #screen .register-deadlines .live-stage > .stage-owner-field{
+  flex:0 0 180px;min-width:0;
+ }
+ #screen .register-deadlines .live-stage > .stage-remove-button{
+  flex:0 0 auto;align-self:flex-end;min-height:43px;
+ }
+}

@@ -446,6 +446,19 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  assert.equal(models.due_soon.subject,"Faltam {dias} dias — {demanda}");
  assert.equal(models.overdue.subject,"Atrasou: {demanda}");
  assert.equal(models.create.subject,"Nova: {demanda}","Alerta de prazo não substitui modelo de criação.");
+ // A configuração de vencimento funciona sem informar ou alterar daysBefore.
+ good(await api("/admin/reminder-settings","PATCH",{overdueEnabled:false,overdueAudience:"pending"}));
+ let separately=good(await api("/bootstrap")).settings.reminderSettings;
+ assert.deepEqual(separately,{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false,overdueAudience:"pending"});
+ good(await api("/admin/reminder-settings","PATCH",{overdueEnabled:true,overdueAudience:"all"}));
+ separately=good(await api("/bootstrap")).settings.reminderSettings;
+ assert.equal(separately.overdueEnabled,true);
+ assert.equal(separately.daysBefore,3,"Ativar o vencimento não muda a antecedência");
+ good(await api("/admin/reminder-settings","PATCH",{dueSoonEnabled:false,daysBefore:5}));
+ separately=good(await api("/bootstrap")).settings.reminderSettings;
+ assert.equal(separately.overdueEnabled,true,"Desativar o antecipado não desativa vencido");
+ assert.equal(separately.overdueAudience,"all");
+ assert.equal((await api("/admin/reminder-settings","PATCH",{overdueEnabled:"sim"})).status,400);
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:false,daysBefore:5,overdueEnabled:false}));
  assert.equal(good(await api("/bootstrap")).settings.reminderSettings.overdueAudience,"all","Desativar os alertas preserva o público selecionado.");
 });
