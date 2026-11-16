@@ -937,7 +937,7 @@
         const input={...b};
         if(input.dueSoonEnabled===undefined&&input.eventSoonEnabled!==undefined)input.dueSoonEnabled=input.eventSoonEnabled;
         if(input.daysBefore===undefined&&input.reminderDays!==undefined)input.daysBefore=input.reminderDays;
-        const validBoolean=value=>[true,false,"true","false"].includes(value);
+        const validBoolean=value=>value===true||value===false;
         for(const key of ["dueSoonEnabled","overdueEnabled"]){
           if(input[key]!==undefined&&!validBoolean(input[key]))fail("A opção de envio deve estar habilitada ou desabilitada.");
         }
