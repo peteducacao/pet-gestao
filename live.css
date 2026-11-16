@@ -3179,3 +3179,84 @@ body.commission-image-editor-open{overflow:hidden}
 #screen .viewer-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:980px){#screen .viewer-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){#screen .viewer-stat-grid{grid-template-columns:1fr}}
+
+/* Aprovação visual 16/11/2026: avisos organizados por momento de envio.
+   Mantém os controles, as ações e o público de prazo vencido existentes. */
+#screen .admin-reminder-panel{
+ border-radius:20px;
+}
+#screen .admin-reminder-panel .reminder-panel-heading{
+ display:flex;align-items:center;gap:13px;
+ margin-bottom:14px;min-width:0;
+}
+#screen .admin-reminder-panel .reminder-panel-heading h2{
+ flex:1;min-width:0;margin:0;
+ font-size:20px;font-weight:800;line-height:1.3;
+ color:#211c3e;
+}
+#screen .admin-reminder-panel .reminder-panel-icon{
+ display:grid;place-items:center;flex:none;
+ width:40px;height:40px;
+ border-radius:12px;border:1px solid #e7dcfa;
+ background:#f5efff;color:#6831b0;
+}
+#screen .admin-reminder-panel .reminder-panel-icon svg{
+ width:24px;height:24px;stroke-width:1.9;
+}
+#screen .admin-reminder-panel .reminder-panel-intro{
+ margin:0;padding:13px 15px;
+ border:1px solid #e3d7f5;border-radius:14px;
+ background:#f6f0ff;color:#594679;
+ font-size:13px;font-weight:500;line-height:1.6;
+}
+#screen .admin-reminder-panel .deadline-notice-settings{
+ max-width:none;margin-top:17px;padding:0;
+ gap:15px;border:0;border-radius:0;background:transparent;
+}
+#screen .admin-reminder-panel .deadline-notice-settings .live-toggle{
+ gap:11px;align-items:center;min-height:38px;
+ font-weight:740;line-height:1.45;color:#211c3e;
+}
+#screen .admin-reminder-panel .deadline-notice-settings .live-toggle input{
+ flex:none;
+}
+#screen .admin-reminder-panel .deadline-notice-settings .deadline-days{
+ display:flex;flex-wrap:wrap;align-items:center;
+ gap:8px 10px;font-size:14px;line-height:1.4;
+ color:#211c3e;
+}
+#screen .admin-reminder-panel .deadline-notice-settings .deadline-days input{
+ width:79px;min-height:43px;
+}
+#screen .admin-reminder-panel .deadline-notice-settings>.button{
+ min-height:43px;
+}
+#screen .admin-reminder-panel .deadline-notice-settings .deadline-notice-audience{
+ max-width:560px;
+}
+@media(max-width:620px){
+ #screen .admin-reminder-panel .reminder-panel-heading{
+  gap:10px;margin-bottom:12px;
+ }
+ #screen .admin-reminder-panel .reminder-panel-heading h2{
+  font-size:19px;
+ }
+ #screen .admin-reminder-panel .reminder-panel-icon{
+  width:37px;height:37px;border-radius:11px;
+ }
+ #screen .admin-reminder-panel .reminder-panel-icon svg{
+  width:21px;height:21px;
+ }
+ #screen .admin-reminder-panel .reminder-panel-intro{
+  padding:12px 13px;font-size:13px;
+ }
+ #screen .admin-reminder-panel .deadline-notice-settings{
+  margin-top:14px;gap:14px;
+ }
+ #screen .admin-reminder-panel .deadline-notice-settings .live-toggle{
+  font-size:14px;
+ }
+ #screen .admin-reminder-panel .deadline-notice-settings .deadline-days{
+  font-size:13.5px;
+ }
+}
