@@ -109,10 +109,13 @@ assert.ok(front.includes('if(!canWrite())return renderViewerHome();'),"Visão ge
 assert.ok(!front.slice(front.indexOf("function publicTaskCard(t){"),front.indexOf("function taskCard(t,")).includes('href='),"Card de Usuário sem link");
 console.log("Perfil Usuário: verificação de acesso estático OK.");
  
-// A configuração única de antecedência aceita a interface restaurada e clientes antigos em cache.
-assert.ok(worker.includes("const dueSoonRaw=b.dueSoonEnabled??b.eventSoonEnabled;"),"API aceita o campo legado de evento");
-assert.ok(worker.includes('const daysBefore=Number(b.daysBefore??b.reminderDays);'),"API normaliza a antecedência numérica");
-assert.ok(worker.includes("const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience};"),"API persiste a configuração unificada");
-assert.ok(front.includes('dueSoonEnabled:$("#reminder-soon").checked'),"Interface envia o controle único de prazo/evento");
-assert.ok(front.includes('daysBefore:days'),"Interface envia a antecedência configurada");
+// Controles independentes: PATCH mantém as demais opções e PUT antigo segue válido.
+assert.ok(worker.includes("input.dueSoonEnabled=input.eventSoonEnabled;"),"API aceita o campo legado de evento");
+assert.ok(worker.includes("input.daysBefore=input.reminderDays;"),"API aceita a antecedência legada");
+assert.ok(worker.includes('["PUT","PATCH"].includes(method)'),"API aceita alteração parcial por PATCH");
+assert.ok(worker.includes("const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience};"),"API persiste as configurações preservadas");
+assert.ok(front.includes('data-do="save-reminder-soon"'),"Avisos antecipados possuem salvamento exclusivo");
+assert.ok(front.includes('data-do="save-reminder-overdue"'),"Prazo vencido possui salvamento independente");
+assert.ok(front.includes('dueSoonEnabled:$("#reminder-soon").checked'),"Interface envia controle antecipado");
+assert.ok(front.includes('daysBefore:days'),"Interface envia antecedência somente para avisos antecipados");
 console.log("Compatibilidade e salvamento dos avisos automáticos: OK.");
