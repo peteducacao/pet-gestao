@@ -399,6 +399,13 @@ adminLoginForm.elements.password.value="SenhaDeTeste";
 adminLoginForm.elements.rememberMe.checked=true;
 submit("#login-form");await wait();await wait();await wait();
 assert.equal(window.localStorage.getItem("pet-gestao:session-token"),"admin-token","Login único mantém token do Admin");
+await move("#/admin/usuarios");
+const roleGuide=document.querySelector(".admin-role-guide:not(.admin-notify-guide)");
+const emailGuide=document.querySelector(".admin-notify-guide");
+assert.ok(roleGuide&&emailGuide,"Ambos os avisos da seção Usuários são exibidos");
+assert.ok(roleGuide.classList.contains("field-hint")&&emailGuide.classList.contains("field-hint"),"Avisos usam a mesma estrutura");
+assert.ok(emailGuide.classList.contains("admin-role-guide"),"Notificações reaproveitam exatamente a caixa lilás do aviso de cargo");
+
 await move("#/admin/comissoes");
 assert.equal(document.querySelectorAll('[data-do="save-vagas"]').length,0,"Salvar individual removido");
 assert.equal(document.querySelectorAll('[data-do="save-all-commissions"]').length,1,"Salvar todas aparece no topo");
