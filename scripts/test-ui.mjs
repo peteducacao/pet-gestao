@@ -121,6 +121,8 @@ user.role="usuario";
 await move("#/inicio");
 assert.equal(document.querySelectorAll('.demand-card-cover-link, .activity-details-link, .demand-finish-action, [data-do="clear-activity"]').length,0,"Usuário não interage com Visão geral");
 assert.equal(document.querySelector('.viewer-dashboard a'),null,"Visão geral não oferece links");
+assert.ok(document.querySelector(".stat-grid")?.textContent.includes("Visíveis na Visão geral"),"Indicador descreve a visibilidade e não o andamento da demanda");
+assert.ok(!document.querySelector(".stat-grid")?.textContent.includes("Em acompanhamento"),"Rótulo antigo ambíguo não aparece");
 assert.equal(document.querySelector('a[data-route="reunioes"]').hidden,true,"Atas ocultas no menu Usuário");
 await move("#/demandas");
 selectCompleted();await wait();
