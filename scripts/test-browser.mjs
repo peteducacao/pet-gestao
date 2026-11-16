@@ -694,6 +694,37 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(menuOrder.indexOf("ajuda"),menuOrder.indexOf("comissoes")+1,"Ajuda abaixo de Comissões");
  await page.goto(origin+"/#/comissoes");
  assert.equal(await page.locator(".commission-help-item").count(),0,"Sem Ajuda duplicada em Comissões");
+ // No celular, o nome da comissão precisa ocupar a largura inteira, sem
+ // ser esmagado pela ilustração; métricas e botão aparecem abaixo.
+ for(const width of [320,360,390,414]){
+  await page.setViewportSize({width,height:844});
+  const card=page.locator(".commission-tile-link-v2").first();
+  await card.waitFor();
+  const m=await card.evaluate(link=>{
+   const title=link.querySelector("h3"),art=link.querySelector(".commission-v2-art"),
+    members=link.querySelector(".commission-v2-members"),
+    button=link.querySelector(".commission-v2-view");
+   const original=title.textContent;
+   title.textContent="Comemorações e Impressora 3D";
+   const x=link.getBoundingClientRect(),t=title.getBoundingClientRect(),
+    a=art.getBoundingClientRect(),s=members.getBoundingClientRect(),
+    b=button?.getBoundingClientRect();
+   const computed=getComputedStyle(title),layout=getComputedStyle(link);
+   title.textContent=original;
+   return {width:x.width,titleWidth:t.width,titleRight:t.right,left:x.left,
+    titleBottom:t.bottom,artTop:a.top,artRight:a.right,memberRight:s.right,
+    buttonTop:b?.top,artBottom:a.bottom,display:layout.display,
+    wordBreak:computed.wordBreak,overflowWrap:computed.overflowWrap,
+    scroll:link.scrollWidth,client:link.clientWidth};
+  });
+  assert.equal(m.display,"grid","Cartões de comissões usam composição adaptada em "+width);
+  assert.equal(m.wordBreak,"normal","Não separar letras dentro de palavras em "+width);
+  assert.ok(m.titleWidth>=m.width-80,"Título usa a largura do cartão em "+width+": "+JSON.stringify(m));
+  assert.ok(m.titleBottom<=m.artTop+2,"Imagem fica abaixo do título em "+width+": "+JSON.stringify(m));
+  assert.ok(m.buttonTop>=m.artBottom-2,"Botão não cobre a ilustração em "+width+": "+JSON.stringify(m));
+  assert.ok(m.scroll<=m.client+2,"Cartão não estoura horizontalmente em "+width+": "+JSON.stringify(m));
+ }
+ await page.setViewportSize({width:1280,height:900});
  await page.goto(origin+"/#/comissoes/videos");
  await page.locator('select[data-filter="commissionStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="commissionStatus"] option').count(),3);
@@ -784,6 +815,30 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/reunioes"]').count(),0,"Sem Atas duplicadas no Admin");
  await page.goto(origin+"/#/admin/comissoes");
  await page.locator('.admin-commission-item').first().waitFor();
+ // A explicação e o botão grande não podem dividir a mesma linha no mobile.
+ for(const width of [320,360,390,414]){
+  await page.setViewportSize({width,height:844});
+  const m=await page.locator(".admin-commissions").evaluate(panel=>{
+   const head=panel.querySelector(".admin-section-heading"),
+    desc=head.querySelector("p"),save=head.querySelector(".admin-save-all-button"),
+    row=panel.querySelector(".admin-commission-item"),
+    name=row.querySelector(".admin-commission-title strong");
+   const d=desc.getBoundingClientRect(),b=save.getBoundingClientRect(),
+    p=panel.getBoundingClientRect(),n=name.getBoundingClientRect();
+   return {direction:getComputedStyle(head).flexDirection,
+    descWidth:d.width,buttonWidth:b.width,descBottom:d.bottom,buttonTop:b.top,
+    panelWidth:p.width,nameWordBreak:getComputedStyle(name).wordBreak,
+    itemOverflow:row.scrollWidth-row.clientWidth,buttonRight:b.right,panelRight:p.right,
+    nameWidth:n.width};
+  });
+  assert.equal(m.direction,"column","Cabeçalho Admin usa pilha vertical em "+width);
+  assert.ok(m.buttonTop>=m.descBottom+4,"Texto inteiro acima do botão em "+width+": "+JSON.stringify(m));
+  assert.ok(m.descWidth>=m.panelWidth*.65,"Descrição recebe espaço amplo em "+width+": "+JSON.stringify(m));
+  assert.ok(m.buttonWidth>=m.descWidth*.85,"Botão abaixo usa largura da seção em "+width);
+  assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
+  assert.ok(m.itemOverflow<=2,"Controles administrativos não estouram em "+width+": "+JSON.stringify(m));
+ }
+ await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator('[data-do="save-vagas"]').count(),0,"Botões Salvar individuais removidos");
  assert.equal(await page.locator('[data-do="save-all-commissions"]').count(),1,"Único Salvar todas no topo");
  await page.locator('[data-vagas="videos"]').fill("5");
