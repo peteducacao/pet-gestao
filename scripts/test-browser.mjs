@@ -490,7 +490,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("type"),"text",
   "Título da ata permanece editável");
- assert.equal(await page.locator('#meeting-form input[name="title"]').isRequired(),true,
+ assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("required")!==null,true,
   "Título da ata é obrigatório");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
