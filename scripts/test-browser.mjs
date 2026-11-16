@@ -767,6 +767,18 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".admin-sidebar.open").waitFor({state:"visible",timeout:4000});
  await page.locator('.admin-sidebar a[href="#/admin/usuarios"]').click();
  await page.waitForURL("**/#/admin/usuarios");
+ const guideStyles=await page.locator(".admin-notify-guide").evaluate(notice=>{
+  const first=document.querySelector(".admin-role-guide:not(.admin-notify-guide)");
+  const css=element=>{
+   const s=getComputedStyle(element);
+   return {background:s.backgroundColor,border:s.border,borderRadius:s.borderRadius,
+    padding:s.padding,margin:s.margin,color:s.color,fontSize:s.fontSize,lineHeight:s.lineHeight};
+  };
+  return {first:first?css(first):null,second:css(notice),shared:notice.classList.contains("admin-role-guide")};
+ });
+ assert.equal(guideStyles.shared,true,"Notificações usam mesma classe do aviso sobre Administração");
+ assert.deepEqual(guideStyles.second,guideStyles.first,"Dois avisos idênticos em fundo lilás, borda, cantos, padding e texto no celular");
+
  assert.equal(await page.locator(".admin-sidebar.open").count(),0,"Menu Admin fecha ao navegar para Usuários");
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/demandas"]').count(),0,"Sem Demandas duplicadas no Admin");
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/reunioes"]').count(),0,"Sem Atas duplicadas no Admin");
