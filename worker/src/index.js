@@ -345,7 +345,7 @@
       if(!membersByCommission.has(member.commission_id))membersByCommission.set(member.commission_id,[]);
       membersByCommission.get(member.commission_id).push(member.user_id);
     }
-    const tasks=(await db.prepare("SELECT id,title,assignee_ids,commission_ids,commission_done,user_done,deadlines,archived_at,assignment_scope FROM tasks WHERE archived_at IS NULL").all()).results;
+    const tasks=(await db.prepare("SELECT id,title,assignee_ids,commission_ids,commission_done,user_done,deadlines,archived_at,assignment_scope,created_at FROM tasks WHERE archived_at IS NULL").all()).results;
     const clock=new Date(),today=reminderDateKey(clock),todayUTC=Date.parse(today+"T00:00:00Z");
     let registered=0;
     for(const task of tasks){
@@ -419,8 +419,15 @@
         const diffDays=Math.round((Date.parse(rawDue.slice(0,10)+"T00:00:00Z")-todayUTC)/86400000);
         let kind=null;
         if(config.dueSoonEnabled&&diffDays===daysBefore&&clock.getTime()<dueMs)kind="due_soon";
-        // Avisar ao vencer, sem enviar uma enxurrada de alertas antigos ao habilitar.
-        else if(config.overdueEnabled&&diffDays<=0&&diffDays>=-1&&clock.getTime()>dueMs)kind="overdue";
+        // Prazos vencidos no dia ou no dia seguinte continuam elegíveis.
+        // Uma demanda recém-cadastrada já atrasada também pode avisar,
+        // mesmo com data anterior; o limite de 24h desde a criação impede
+        // disparos retroativos em massa de demandas antigas.
+        const createdMs=Date.parse(String(task.created_at||""));
+        const recentlyCreatedOverdue=Number.isFinite(createdMs)&&createdMs>=dueMs&&
+          clock.getTime()>=createdMs&&clock.getTime()-createdMs<=24*60*60*1000;
+        if(!kind&&config.overdueEnabled&&clock.getTime()>dueMs&&
+          ((diffDays<=0&&diffDays>=-1)||recentlyCreatedOverdue))kind="overdue";
         if(!kind)continue;
         const stageOwners=unique(stage.assigneeIds);
         // O Admin pode enviar o aviso de prazo vencido para TODOS os participantes

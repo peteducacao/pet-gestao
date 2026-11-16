@@ -462,6 +462,38 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:false,daysBefore:5,overdueEnabled:false}));
  assert.equal(good(await api("/bootstrap")).settings.reminderSettings.overdueAudience,"all","Desativar os alertas preserva o público selecionado.");
 });
+await test("demanda recém-cadastrada com prazo vencido recebe aviso único no D1 de teste",async()=>{
+ const account=good(await api("/bootstrap")).session.user;
+ const title="Regressao prazo vencido "+crypto.randomUUID().slice(0,8);
+ const due=new Date(Date.now()-4*86400000).toISOString().slice(0,10)+"T11:00:00";
+ const taskId=good(await api("/tasks","POST",{
+  title,assignmentScope:"usuarios",assigneeIds:[account.id],commissionIds:["videos"],
+  deadlines:[{id:"prazo-expirado-regressao",label:"Prazo",dueAt:due,assigneeIds:[account.id]}],
+  notify:false
+ }),201).id;
+ try{
+  // O PATCH processa o agendador no D1 local, sem ponte Gmail configurada.
+  good(await api("/admin/reminder-settings","PATCH",{overdueEnabled:true,overdueAudience:"all"}));
+  let notices=[];
+  for(let attempt=0;attempt<30;attempt++){
+   notices=good(await api("/mail")).items.filter(item=>item.kind==="overdue"&&item.subject.includes(title));
+   if(notices.length)break;
+   await new Promise(resolve=>setTimeout(resolve,100));
+  }
+  assert.equal(notices.length,1,"Demanda criada agora e já vencida deve gerar um único aviso");
+  assert.ok(notices[0].body.includes("Prazo vencido")||notices[0].body.includes("Prazo vencido em"),
+   "Modelo específico do prazo vencido deve ser utilizado");
+  assert.ok(notices[0].recipientEmails.includes(account.email),"Destinatário da demanda recebe o aviso");
+  // Executar novamente o agendador não pode duplicar a mesma etapa.
+  good(await api("/admin/reminder-settings","PATCH",{overdueEnabled:true}));
+  await new Promise(resolve=>setTimeout(resolve,250));
+  const repeated=good(await api("/mail")).items.filter(item=>item.kind==="overdue"&&item.subject.includes(title));
+  assert.equal(repeated.length,1,"Reexecução não duplica aviso de prazo vencido");
+ }finally{
+  good(await api("/admin/reminder-settings","PATCH",{overdueEnabled:false}));
+  good(await api("/tasks/"+encodeURIComponent(taskId),"DELETE"));
+ }
+});
 await test("Todos(as) exige data única de evento e bloqueia conclusão manual",async()=>{
  const eligible=good(await api("/bootstrap")).users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
  const event={id:"evento-data",label:"Evento",dueAt:dueAt+"T23:59:59",assigneeIds:[]};
