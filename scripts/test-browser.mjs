@@ -826,14 +826,21 @@ await page.locator('a[data-route="reunioes"]').click();
    const head=panel.querySelector(".admin-section-heading"),
     desc=head.querySelector("p"),save=head.querySelector(".admin-save-all-button"),
     row=panel.querySelector(".admin-commission-item"),
-    name=row.querySelector(".admin-commission-title strong");
+    name=row.querySelector(".admin-commission-title strong"),
+    vacancy=row.querySelector(".admin-vacancy-field input"),
+    arrows=row.querySelector(".admin-order-controls"),
+    controls=row.querySelector(".admin-commission-controls");
    const d=desc.getBoundingClientRect(),b=save.getBoundingClientRect(),
-    p=panel.getBoundingClientRect(),n=name.getBoundingClientRect();
+    p=panel.getBoundingClientRect(),n=name.getBoundingClientRect(),
+    v=vacancy.getBoundingClientRect(),o=arrows.getBoundingClientRect(),
+    ctrl=controls.getBoundingClientRect();
    return {direction:getComputedStyle(head).flexDirection,
     descWidth:d.width,buttonWidth:b.width,descBottom:d.bottom,buttonTop:b.top,
     panelWidth:p.width,nameWordBreak:getComputedStyle(name).wordBreak,
     itemOverflow:row.scrollWidth-row.clientWidth,buttonRight:b.right,panelRight:p.right,
-    nameWidth:n.width};
+    nameWidth:n.width,vacancyWidth:v.width,vacancyLeft:v.left,vacancyRight:v.right,
+    arrowsLeft:o.left,arrowsRight:o.right,arrowsBottom:o.bottom,
+    vacancyBottom:v.bottom,controlRight:ctrl.right,controlLeft:ctrl.left};
   });
   assert.equal(m.direction,"column","Cabeçalho Admin usa pilha vertical em "+width);
   assert.ok(m.buttonTop>=m.descBottom+4,"Texto inteiro acima do botão em "+width+": "+JSON.stringify(m));
@@ -841,6 +848,14 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(m.buttonWidth>=m.descWidth*.85,"Botão abaixo usa largura da seção em "+width);
   assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
   assert.ok(m.itemOverflow<=2,"Controles administrativos não estouram em "+width+": "+JSON.stringify(m));
+  assert.ok(m.vacancyWidth>=80&&m.vacancyWidth<=92,
+   "Campo Vagas fica compacto no celular em "+width+": "+JSON.stringify(m));
+  assert.ok(m.vacancyRight+8<=m.arrowsLeft,
+   "Campo Vagas não encosta nas setas em "+width+": "+JSON.stringify(m));
+  assert.ok(m.arrowsRight<=m.controlRight+2&&m.vacancyLeft>=m.controlLeft-2,
+   "Campo e setas permanecem dentro da linha em "+width+": "+JSON.stringify(m));
+  assert.ok(Math.abs(m.vacancyBottom-m.arrowsBottom)<5,
+   "Campo Vagas e setas alinhados na base em "+width+": "+JSON.stringify(m));
  }
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator('[data-do="save-vagas"]').count(),0,"Botões Salvar individuais removidos");
