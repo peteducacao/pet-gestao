@@ -13,6 +13,7 @@ on:
       - 'scripts/test-brand-icons.mjs'
       - 'scripts/test-ui.mjs'
       - 'scripts/test-browser.mjs'
+      - 'scripts/test-vagas-mobile.mjs'
       - 'scripts/test-browser-sessions.mjs'
       - '.github/workflows/smoke.yml'
   pull_request:
@@ -53,6 +54,8 @@ jobs:
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium
+      - name: Validar Vagas em telas pequenas (isolado)
+        run: node scripts/test-vagas-mobile.mjs
       - name: Clicar e verificar telas no navegador
         run: node scripts/test-browser.mjs
       - name: Impedir duas identidades em abas do mesmo navegador
