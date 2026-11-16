@@ -11,14 +11,14 @@ const icon=read("assets/gestao-icon.svg");
 assert.equal(icon,read("assets/favicon.svg"),"Favicon e marca principal precisam ser o mesmo desenho");
 assert.match(icon,/<rect width="512" height="512" rx="112"/);
 assert.match(icon,/<path d="m197 303 44 45 77-79"/,"Prancheta branca com um visto roxo");
-assert.doesNotMatch(icon,/<text\\b/i,"A marca não pode conter texto visual");
+assert.doesNotMatch(icon,/<text\b/i,"A marca não pode conter texto visual");
 
 const html=read("index.html"),manifest=JSON.parse(read("site.webmanifest")),sw=read("sw.js");
-assert.match(html,/<img class="startup-splash-logo" src="assets\\/gestao-icon.svg/);
+assert.match(html,/<img class="startup-splash-logo" src="assets\/gestao-icon.svg/);
 assert.match(html,/class="startup-splash-waves"/);
-assert.match(html,/pet-splash-pulse 1\\.25s/,"Animação de abertura preservada");
+assert.match(html,/pet-splash-pulse 1\.25s/,"Animação de abertura preservada");
 assert.match(html,/rel="apple-touch-icon" sizes="180x180"/);
-assert.match(html,/class="brand-icon brand-mark"[^>]*><img src="assets\\/gestao-icon.svg/);
+assert.match(html,/class="brand-icon brand-mark"[^>]*><img src="assets\/gestao-icon.svg/);
 assert.match(sw,/pet-gestao-public-shell-v20261116-prancheta/);
 assert.ok(manifest.icons.some(i=>i.type==="image/svg+xml"&&i.src.includes("prancheta-20261116")));
 
