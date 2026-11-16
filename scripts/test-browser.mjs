@@ -727,7 +727,8 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(m.pageScroll<=m.viewWidth+2,
    "Página não tem rolagem horizontal visível em "+width+": "+JSON.stringify(m));
  }
- await page.setViewportSize({width:1280,height:900});
+ // Preservar viewport móvel para os testes seguintes de menu e autenticação.
+ await page.setViewportSize({width:390,height:844});
  await page.goto(origin+"/#/comissoes/videos");
  await page.locator('select[data-filter="commissionStatus"]').waitFor();
  assert.equal(await page.locator('select[data-filter="commissionStatus"] option').count(),3);
