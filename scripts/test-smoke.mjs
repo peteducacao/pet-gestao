@@ -492,7 +492,11 @@ await test("aviso no dia do evento é independente, editável e enviado uma úni
    if(notices.length)break;
    await new Promise(resolve=>setTimeout(resolve,100));
   }
-  assert.equal(notices.length,1,"Evento hoje gera um único aviso sem antecedência");
+  assert.equal(notices.length,1,"Evento hoje gera um único aviso sem antecedência. Diagnóstico: "+JSON.stringify({
+   agora:new Date().toISOString(),dataSergipe:today,settings:good(await api("/bootstrap")).settings.reminderSettings,
+   tarefa:good(await api("/bootstrap")).tasks.find(t=>t.id===taskId),
+   fila:good(await api("/mail")).items.slice(0,12).map(x=>({kind:x.kind,status:x.status,subject:x.subject,error:x.error_message}))
+  }));
   assert.match(notices[0].subject,/O evento é hoje/,"Modelo personalizado aplicado no dia do evento");
   assert.equal(new Set(notices[0].recipientEmails).size,notices[0].recipientEmails.length,"Todos recebem uma única cópia");
   good(await api("/admin/reminder-settings","PATCH",{eventTodayEnabled:true}));
