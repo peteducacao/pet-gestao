@@ -52,7 +52,7 @@ await page.route("**/api/v1/**",async route=>{
      result={ok:true,deletedCount:chosen.length};
    }
  }
- else if(p==="/admin/reminder-settings"&&method==="PUT"){settings.reminderSettings=body;result={ok:true};}
+ else if(p==="/admin/reminder-settings"&&["PUT","PATCH"].includes(method)){settings.reminderSettings={...settings.reminderSettings,...body};result={ok:true};}
  else if(p==="/admin/notification-template"&&method==="PUT"){
    settings.notificationTemplates[body.kind]={subject:body.subject,body:body.message};
    result={ok:true};
@@ -791,12 +791,17 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator("#deadline-template-kind option").count(),2,"Modelos de prazo em Configurações");
  await page.locator("#reminder-days").fill("5");
  await page.locator("#reminder-soon").check();
+ await page.locator('[data-do="save-reminder-soon"]').click();
+ await page.waitForTimeout(180);
+ assert.equal(settings.reminderSettings?.daysBefore,5,"Prazo antecipado personalizável");
+ assert.equal(settings.reminderSettings?.dueSoonEnabled,true);
  await page.locator("#reminder-overdue").check();
  await page.locator("#reminder-overdue-audience").selectOption("all");
- await page.locator('[data-do="save-reminder-settings"]').click();
+ assert.equal(await page.locator("#reminder-overdue").evaluate(el=>el.closest(".admin-panel").contains(document.getElementById("reminder-days"))),false,"Prazo vencido é separado da antecedência");
+ await page.locator('[data-do="save-reminder-overdue"]').click();
  await page.waitForTimeout(180);
- assert.equal(settings.reminderSettings?.daysBefore,5,"Prazo personalizável");
- assert.equal(settings.reminderSettings?.dueSoonEnabled,true);
+ assert.equal(settings.reminderSettings?.overdueEnabled,true,"Prazo vencido ativado independentemente");
+ assert.equal(settings.reminderSettings?.daysBefore,5,"Aviso de vencimento não modifica a antecedência");
  assert.equal(settings.reminderSettings?.overdueAudience,"all","Aviso vencido seleciona todos os vinculados");
  // Aviso informativo se fecha sozinho em 3 segundos, sem contador.
  await page.locator("#notice-dialog").waitFor({state:"hidden",timeout:5500});
@@ -808,6 +813,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  // Modelos de prazo ficam em Configurações, não mais na aba E-mails.
  await page.goto(origin+"/#/admin/configuracoes");
+ assert.equal(await page.locator("#overdue-template-form input[name='kind']").inputValue(),"overdue","Editor exclusivo para vencimento");
  await page.locator("#deadline-template-kind").selectOption("due_soon");
  await page.locator('[data-do="mail-preview-deadline"]').click();
  assert.ok((await page.locator("#mail-preview-dialog").innerText()).includes("5 dia(s)"),"Prévia traduz a variável dias");
