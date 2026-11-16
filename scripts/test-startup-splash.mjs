@@ -9,7 +9,7 @@ assert.match(html,/html\.pet-booting #startup-loading\{/);
 assert.match(html,/<div id="startup-loading" role="status"/);
 assert.match(html,/class="startup-splash-waves"/);
 assert.match(html,/class="startup-splash-body"/);
-assert.match(html,/<img class="startup-splash-logo" src="assets\\/gestao-icon.svg/,"A marca da animação precisa vir do SVG comum.");
+assert.match(html,/<img class="startup-splash-logo" src="assets\/gestao-icon.svg/,"A marca da animação precisa vir do SVG comum.");
 assert.match(html,/<h1 class="startup-splash-title">PET Gestão<\/h1>/);
 assert.match(html,/Preparando sua área de trabalho/);
 assert.match(html,/PET Gestão \| PET Educação UFS/);

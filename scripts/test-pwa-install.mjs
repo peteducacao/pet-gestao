@@ -42,7 +42,7 @@ for(const size of [192,512]){
  assert.ok(icons.some(i=>i.sizes===size+"x"+size&&i.purpose.includes("maskable")),"Falta ícone adaptável "+size);
 }
 assert.ok(fs.existsSync(path.join(root,"assets/pet-gestao-180.png")),"Ícone Apple Touch precisa existir.");
-assert.match(html,/<img class="startup-splash-logo" src="assets\\/gestao-icon.svg/,"Tela inicial usa a mesma marca sem alterar animação.");
+assert.match(html,/<img class="startup-splash-logo" src="assets\/gestao-icon.svg/,"Tela inicial usa a mesma marca sem alterar animação.");
 assert.match(html,/animation:pet-splash-pulse 1\.25s/);
 assert.match(html,/startup-splash-dots span:nth-child\(2\).*animation-delay:\.19s/);
 assert.match(html,/startup-splash-dots span:nth-child\(3\).*animation-delay:\.38s/);
