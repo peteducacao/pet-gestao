@@ -24,7 +24,7 @@ assert.match(app,/navigator\.serviceWorker\.register\("\.\/sw\.js"\)/);
 assert.match(app,/Baixar aplicativo/);
 assert.match(app,/Criar atalho/);
 assert.match(app,/Google Chrome/);
-assert.match(sw,/pet-gestao-public-shell-v20261115-icon-roxo/);
+assert.match(sw,/pet-gestao-public-shell-v20261116-prancheta/);
 assert.ok(!sw.includes('"/api/'),"A API não deve ser armazenada no cache.");
 
 const icons=manifest.icons.filter(icon=>icon.type==="image/png");
@@ -41,6 +41,8 @@ for(const size of [192,512]){
  assert.ok(icons.some(i=>i.sizes===size+"x"+size&&i.purpose.includes("any")),"Falta ícone padrão "+size);
  assert.ok(icons.some(i=>i.sizes===size+"x"+size&&i.purpose.includes("maskable")),"Falta ícone adaptável "+size);
 }
+assert.ok(fs.existsSync(path.join(root,"assets/pet-gestao-180.png")),"Ícone Apple Touch precisa existir.");
+assert.match(html,/<img class="startup-splash-logo" src="assets\\/gestao-icon.svg/,"Tela inicial usa a mesma marca sem alterar animação.");
 assert.match(html,/animation:pet-splash-pulse 1\.25s/);
 assert.match(html,/startup-splash-dots span:nth-child\(2\).*animation-delay:\.19s/);
 assert.match(html,/startup-splash-dots span:nth-child\(3\).*animation-delay:\.38s/);

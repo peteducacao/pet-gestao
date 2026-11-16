@@ -243,3 +243,10 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - O servidor valida as preferências e permite atualização parcial (`PATCH /api/v1/admin/reminder-settings`), preservando as opções não enviadas na requisição. O endpoint antigo `PUT` continua aceito para compatibilidade.
 - Somente etapas válidas ainda abertas em demandas ativas podem gerar avisos. A fila revalida a demanda e a ativação atual antes de enviar, cancela notificações obsoletas e preserva a deduplicação por demanda, etapa, data e tipo. A ativação não deve disparar em massa avisos de demandas antigas.
 - Testar sempre no banco D1 isolado, sem e-mail real de teste e sem mexer em demandas de produção. As modificações do código devem passar pelos workflows antes de serem publicadas.
+
+## Identidade do aplicativo — 16/11/2026
+- Marca aprovada: **fundo roxo, prancheta branca sólida com um ✓ roxo** no centro, sem texto dentro do ícone e sem elementos decorativos adicionais.
+- Empregar a mesma marca em favicon SVG, cabeçalho lateral, abertura do site, ícones PNG do PWA Android (192 e 512, incluindo versões adaptáveis), atalho do iPhone (180) e manifesto.
+- A animação de abertura (ondas, pontos e transição) deve permanecer como está: apenas o desenho do ícone é substituído.
+- No lançamento de uma marca nova, atualizar a versão de cache do Service Worker e das URLs do manifesto/ícones; preservar o identificador e o escopo de instalação do aplicativo para não perder vínculos.
+- Arquivo vetorial principal: `assets/gestao-icon.svg`; os PNGs são gerados automaticamente em `scripts/build-pwa-icons.mjs` na publicação. O teste `scripts/test-brand-icons.mjs` verifica a consistência antes do deploy.

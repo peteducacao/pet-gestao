@@ -21,16 +21,26 @@ function segment(x,y,ax,ay,bx,by){
  const dx=bx-ax,dy=by-ay,q=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy)));
  return Math.hypot(x-ax-q*dx,y-ay-q*dy);
 }
+// Mesmo desenho do SVG oficial: prancheta sólida branca, visto roxo e fundo violeta.
+// Renderização interna sem dependências para garantir PNGs idênticos a cada deploy.
 function pixel(x,y,maskable){
+ const t=Math.max(0,Math.min(1,(x+y)/2));
+ const purple=[Math.round(133-67*t),0,Math.round(208-91*t),255];
+ const white=[255,255,255,255],check=[101,0,165,255];
+ if(!maskable&&!rounded(x,y,0,0,1,1,.219))return [0,0,0,0];
+ // A área segura do Android conserva uma folga ao redor do símbolo.
  const scale=maskable?.8:1,px=(x-.5)/scale+.5,py=(y-.5)/scale+.5;
- if(!maskable&&!rounded(x,y,0,0,1,1,.22))return [0,0,0,0];
- const blend=Math.max(0,Math.min(1,(x+y)/2));
- const color=[Math.round(139-57*blend),Math.round(82-38*blend),Math.round(226-67*blend),255];
- const outside=rounded(px,py,.265,.235,.735,.826,.074);
- const inside=rounded(px,py,.329,.299,.671,.762,.019);
- if((outside&&!inside)||rounded(px,py,.382,.195,.618,.310,.036))return [255,255,255,255];
- if(segment(px,py,.381,.573,.473,.659)<.042||segment(px,py,.473,.659,.681,.428)<.042)return [180,247,206,255];
- return color;
+ let result=purple;
+ if(rounded(px,py,.264,.322,.736,.814,.073))result=white;
+ // Presilha separada por um contorno roxo.
+ const outside=rounded(px,py,.291,.285,.709,.457,.066)||Math.hypot(px-.5,py-.289)<=.093;
+ const inside=rounded(px,py,.313,.305,.688,.431,.050)||Math.hypot(px-.5,py-.292)<=.080;
+ if(outside)result=purple;
+ if(inside)result=white;
+ if(Math.hypot(px-.5,py-.295)<=.0254)result=check;
+ if(segment(px,py,.385,.592,.471,.680)<.033||
+    segment(px,py,.471,.680,.621,.525)<.033)result=check;
+ return result;
 }
 function generate(size,maskable){
  const raw=Buffer.alloc((size*4+1)*size);
@@ -54,4 +64,6 @@ export function generatePwaIcons(directory){
   const name="pet-gestao-"+(maskable?"maskable-":"")+dimension+".png";
   fs.writeFileSync(path.join(directory,name),generate(dimension,maskable));
  }
+ // Ícone de 180 px para "Adicionar à Tela de Início" no Safari/iOS.
+ fs.writeFileSync(path.join(directory,"pet-gestao-180.png"),generate(180,false));
 }
