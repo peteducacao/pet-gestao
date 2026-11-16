@@ -6,12 +6,12 @@
   "start_url": "/pet-gestao/#/inicio",
   "scope": "/pet-gestao/",
   "display": "standalone",
-  "background_color": "#592FAF",
-  "theme_color": "#592FAF",
+  "background_color": "#6400A8",
+  "theme_color": "#6400A8",
   "lang": "pt-BR",
   "icons": [
     {
-      "src": "assets/gestao-icon.svg?v=roxo-sem-borda-20261115",
+      "src": "assets/gestao-icon.svg?v=prancheta-20261116",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
