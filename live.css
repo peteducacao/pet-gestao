@@ -3260,3 +3260,86 @@ body.commission-image-editor-open{overflow:hidden}
   font-size:13.5px;
  }
 }
+
+/* Comissões — leitura no celular: priorizar palavras inteiras e largura útil,
+   sem dividir títulos ao lado de ilustrações ou botões administrativos. */
+@media(max-width:680px){
+ #screen .admin-commissions .admin-section-heading{
+  display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+  gap:13px;margin-bottom:17px;
+ }
+ #screen .admin-commissions .admin-section-heading>div{
+  width:100%;min-width:0;
+ }
+ #screen .admin-commissions .admin-section-heading p{
+  max-width:100%;white-space:normal;word-break:normal;overflow-wrap:break-word;
+  line-height:1.6;
+ }
+ #screen .admin-commissions .admin-save-all-button{
+  align-self:stretch;width:100%;max-width:100%;min-height:44px;
+  white-space:normal;text-align:center;justify-content:center;
+ }
+ #screen .admin-commission-identity{
+  min-width:0;width:100%;align-items:flex-start;
+ }
+ #screen .admin-commission-title{
+  flex:1;min-width:0;
+ }
+ #screen .admin-commission-title strong{
+  white-space:normal;word-break:normal;overflow-wrap:break-word;
+  line-height:1.35;
+ }
+}
+/* Cards de comissões: título em largura inteira, detalhes e ilustração
+   em linha própria, ação embaixo — sem cortar palavras ou ocultar imagem. */
+@media(max-width:650px){
+ #screen .commission-tile-link-v2{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(86px,32%);
+  grid-template-rows:auto auto auto auto;
+  align-items:start;column-gap:10px;row-gap:10px;
+  min-height:0;padding:19px 17px 17px;
+ }
+ #screen .commission-v2-copy{
+  display:contents;
+ }
+ #screen .commission-v2-marker{
+  grid-column:1/-1;grid-row:1;
+  position:relative;z-index:2;margin:1px 0 3px;
+ }
+ #screen .commission-v2-copy h3{
+  grid-column:1/-1;grid-row:2;
+  position:relative;z-index:2;min-width:0;max-width:100%;
+  margin:0;padding-right:30px;
+  font-size:clamp(20px,5vw,23px);line-height:1.25;
+  word-break:normal;overflow-wrap:break-word;hyphens:none;
+ }
+ #screen .commission-v2-members{
+  grid-column:1;grid-row:3;align-self:center;
+  position:relative;z-index:2;min-width:0;
+  font-size:12px;line-height:1.5;
+  word-break:normal;overflow-wrap:break-word;
+ }
+ #screen .commission-v2-art{
+  grid-column:2;grid-row:3;
+  position:relative;z-index:1;
+  top:auto;right:auto;bottom:auto;
+  align-self:center;justify-self:end;
+  width:100%;height:100px;
+ }
+ #screen .commission-v2-art-custom img{
+  width:min(100%,105px);max-width:100%;max-height:100%;
+ }
+ #screen .commission-v2-view{
+  grid-column:1/-1;grid-row:4;justify-self:start;
+  position:relative;z-index:2;margin:1px 0 0;
+  font-size:12px;padding:9px 13px;
+ }
+}
+@media(max-width:360px){
+ #screen .commission-tile-link-v2{
+  padding:16px 14px;gap:9px;
+  grid-template-columns:minmax(0,1fr) 86px;
+ }
+ #screen .commission-v2-copy h3{font-size:20px;line-height:1.25}
+ #screen .commission-v2-art{width:86px;height:90px}
+}
