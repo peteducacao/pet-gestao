@@ -436,7 +436,7 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  assert.equal((await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:0,overdueEnabled:true})).status,400);
  assert.equal((await api("/admin/reminder-settings","PUT",{dueSoonEnabled:"true",daysBefore:3,overdueEnabled:true})).status,400);
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false}));
- assert.deepEqual(good(await api("/bootstrap")).settings.reminderSettings,{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false,overdueAudience:"pending"},"Quando não selecionado, preservar somente pendentes.");
+ assert.deepEqual(good(await api("/bootstrap")).settings.reminderSettings,{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false,overdueAudience:"pending",eventTodayEnabled:false},"Quando não selecionado, preservar somente pendentes.");
  assert.equal((await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:3,overdueEnabled:true,overdueAudience:"invalido"})).status,400);
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:true,daysBefore:3,overdueEnabled:true,overdueAudience:"all"}));
  assert.equal(good(await api("/bootstrap")).settings.reminderSettings.overdueAudience,"all","Admin pode selecionar todos(as) os vinculados.");
@@ -445,11 +445,14 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  const models=good(await api("/bootstrap")).settings.notificationTemplates;
  assert.equal(models.due_soon.subject,"Faltam {dias} dias — {demanda}");
  assert.equal(models.overdue.subject,"Atrasou: {demanda}");
+ good(await api("/admin/notification-template","PUT",{kind:"event_today",subject:"O evento é hoje: {demanda}",message:"O evento {demanda} será hoje em {prazo}."}));
+ assert.equal(good(await api("/bootstrap")).settings.notificationTemplates.event_today.subject,"O evento é hoje: {demanda}");
+ assert.equal(good(await api("/bootstrap")).settings.notificationTemplates.create.subject,"Nova: {demanda}","Salvar evento hoje não altera e-mail de criação.");
  assert.equal(models.create.subject,"Nova: {demanda}","Alerta de prazo não substitui modelo de criação.");
  // A configuração de vencimento funciona sem informar ou alterar daysBefore.
  good(await api("/admin/reminder-settings","PATCH",{overdueEnabled:false,overdueAudience:"pending"}));
  let separately=good(await api("/bootstrap")).settings.reminderSettings;
- assert.deepEqual(separately,{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false,overdueAudience:"pending"});
+ assert.deepEqual(separately,{dueSoonEnabled:true,daysBefore:3,overdueEnabled:false,overdueAudience:"pending",eventTodayEnabled:false});
  good(await api("/admin/reminder-settings","PATCH",{overdueEnabled:true,overdueAudience:"all"}));
  separately=good(await api("/bootstrap")).settings.reminderSettings;
  assert.equal(separately.overdueEnabled,true);
@@ -459,8 +462,51 @@ await test("avisos automáticos e modelos de prazo independentes",async()=>{
  assert.equal(separately.overdueEnabled,true,"Desativar o antecipado não desativa vencido");
  assert.equal(separately.overdueAudience,"all");
  assert.equal((await api("/admin/reminder-settings","PATCH",{overdueEnabled:"sim"})).status,400);
+ good(await api("/admin/reminder-settings","PATCH",{eventTodayEnabled:true}));
+ separately=good(await api("/bootstrap")).settings.reminderSettings;
+ assert.equal(separately.eventTodayEnabled,true,"Aviso do próprio dia salva independentemente.");
+ assert.equal(separately.dueSoonEnabled,false,"Evento hoje não ativa antecipados.");
+ assert.equal(separately.overdueEnabled,true,"Evento hoje não altera prazo vencido.");
+ assert.equal((await api("/admin/reminder-settings","PATCH",{eventTodayEnabled:"sim"})).status,400,"Controle do evento hoje exige booleano.");
  good(await api("/admin/reminder-settings","PUT",{dueSoonEnabled:false,daysBefore:5,overdueEnabled:false}));
  assert.equal(good(await api("/bootstrap")).settings.reminderSettings.overdueAudience,"all","Desativar os alertas preserva o público selecionado.");
+ assert.equal(good(await api("/bootstrap")).settings.reminderSettings.eventTodayEnabled,true,"PUT legado preserva o novo controle.");
+ good(await api("/admin/reminder-settings","PATCH",{eventTodayEnabled:false}));
+});
+await test("aviso no dia do evento é independente, editável e enviado uma única vez",async()=>{
+ const bootstrap=good(await api("/bootstrap"));
+ const eligible=bootstrap.users.filter(u=>["petiano","tutor","admin"].includes(u.role)).map(u=>u.id);
+ const localParts=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"America/Maceio",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).filter(p=>p.type!=="literal").map(p=>[p.type,p.value]));
+ const today=localParts.year+"-"+localParts.month+"-"+localParts.day;
+ const title="Evento hoje integração "+crypto.randomUUID().slice(0,8);
+ const futureless={title,assignmentScope:"todos",assigneeIds:eligible,commissionIds:[],deadlines:[{id:"evento-data",label:"Evento",dueAt:today+"T23:59:59"}],notify:false};
+ const taskId=good(await api("/tasks","POST",futureless),201).id;
+ try{
+  const added=good(await api("/bootstrap")).tasks.find(t=>t.id===taskId);
+  assert.equal(added.archivedAt,null,"Evento de hoje permanece ativo até o fim do dia local");
+  // Desativar o aviso antecipado não impede o aviso do dia.
+  good(await api("/admin/reminder-settings","PATCH",{dueSoonEnabled:false,overdueEnabled:false,eventTodayEnabled:true}));
+  let notices=[];
+  for(let attempt=0;attempt<50;attempt++){
+   notices=good(await api("/mail")).items.filter(item=>item.kind==="event_today"&&item.subject.includes(title));
+   if(notices.length)break;
+   await new Promise(resolve=>setTimeout(resolve,100));
+  }
+  assert.equal(notices.length,1,"Evento hoje gera um único aviso sem antecedência. Diagnóstico: "+JSON.stringify({
+   agora:new Date().toISOString(),dataSergipe:today,settings:good(await api("/bootstrap")).settings.reminderSettings,
+   tarefa:good(await api("/bootstrap")).tasks.find(t=>t.id===taskId),
+   fila:good(await api("/mail")).items.slice(0,12).map(x=>({kind:x.kind,status:x.status,subject:x.subject,error:x.error_message}))
+  }));
+  assert.match(notices[0].subject,/O evento é hoje/,"Modelo personalizado aplicado no dia do evento");
+  assert.equal(new Set(notices[0].recipientEmails).size,notices[0].recipientEmails.length,"Todos recebem uma única cópia");
+  good(await api("/admin/reminder-settings","PATCH",{eventTodayEnabled:true}));
+  await new Promise(resolve=>setTimeout(resolve,200));
+  const repeated=good(await api("/mail")).items.filter(item=>item.kind==="event_today"&&item.subject.includes(title));
+  assert.equal(repeated.length,1,"Repetir agendador não duplica evento hoje");
+ }finally{
+  good(await api("/admin/reminder-settings","PATCH",{eventTodayEnabled:false}));
+  good(await api("/tasks/"+taskId,"DELETE"));
+ }
 });
 await test("demanda recém-cadastrada com prazo vencido recebe aviso único no D1 de teste",async()=>{
  const account=good(await api("/bootstrap")).session.user;
