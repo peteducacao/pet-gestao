@@ -9,7 +9,7 @@ assert.match(html,/html\.pet-booting #startup-loading\{/);
 assert.match(html,/<div id="startup-loading" role="status"/);
 assert.match(html,/class="startup-splash-waves"/);
 assert.match(html,/class="startup-splash-body"/);
-assert.match(html,/class="startup-splash-logo"/);
+assert.match(html,/<img class="startup-splash-logo" src="assets\\/gestao-icon.svg/,"A marca da animação precisa vir do SVG comum.");
 assert.match(html,/<h1 class="startup-splash-title">PET Gestão<\/h1>/);
 assert.match(html,/Preparando sua área de trabalho/);
 assert.match(html,/PET Gestão \| PET Educação UFS/);
@@ -22,7 +22,7 @@ const starts=html.match(/id="startup-loading"/g)||[];
 assert.equal(starts.length,1,"Deve existir apenas uma tela de abertura.");
 assert.match(app,/finally\{document\.documentElement\.classList\.remove\("pet-booting"\)\}/,
  "A tela deve sumir mesmo após falha do bootstrap.");
-assert.match(sw,/CACHE_NAME="pet-gestao-public-shell-v20261115-icon-roxo"/,
+assert.match(sw,/CACHE_NAME="pet-gestao-public-shell-v20261116-prancheta"/,
  "A nova versão precisa substituir o cache PWA anterior.");
 assert.match(sw,/\.\/index\.html/,"O index deve ficar disponível no cache offline.");
 const openingTags=html.match(/<svg\b/g)||[];
