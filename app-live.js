@@ -1973,14 +1973,15 @@ function renderAccount(){
     '<button class="button account-delete-confirm" type="submit">'+ico("close")+' Excluir definitivamente</button></div>'+
    '</form></section></div>';
 }
-const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"],["due_soon","Prazo vencendo"],["event_soon","Evento se aproximando"],["overdue","Prazo vencido"]];
+const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"],["due_soon","Prazo vencendo"],["event_soon","Evento se aproximando"],["event_today","No dia do evento"],["overdue","Prazo vencido"]];
 function notificationTemplateFor(kind){
  const fallbacks={
   create:{subject:"PET Gestão — Nova demanda: {demanda}",body:"Olá!\n\n{autor} cadastrou uma nova demanda: {demanda}.\n\nAcesse o PET Gestão para consultar os prazos e os responsáveis.\n\nPET Educação"},
   review:{subject:"PET Gestão — Texto revisado: {demanda}",body:"Olá!\n\n{autor} atualizou o texto para revisão da demanda {demanda}.\n\nAcesse o PET Gestão para consultar as alterações.\n\nPET Educação"},
   due_soon:{subject:"PET Gestão — Prazo vencendo: {demanda}",body:"Olá!\n\nA etapa {etapa} da demanda {demanda} vence em {dias} dia(s), em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
   event_soon:{subject:"PET Gestão — Evento se aproximando: {demanda}",body:"Olá!\n\nLembrete: o evento {demanda} acontecerá em {prazo}, daqui a {dias} dia(s).\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"},
-  overdue:{subject:"PET Gestão — Prazo vencido: {demanda}",body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"}
+  overdue:{subject:"PET Gestão — Prazo vencido: {demanda}",body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
+  event_today:{subject:"PET Gestão — É hoje: {demanda}",body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"}
  };
  return state.templateDrafts?.[kind]||data.settings.notificationTemplates?.[kind]||
   (["create","review"].includes(kind)?data.settings.notificationTemplate:null)||fallbacks[kind]||fallbacks.create;
@@ -1990,7 +1991,7 @@ const templateVariableInfo={
  autor:"Nome de quem cadastrou ou revisou a demanda. Nos avisos de prazo, aparece PET Gestão.",
  acao:"Ação que gerou o e-mail, como cadastrou ou atualizou o texto.",
  demanda:"Título da demanda relacionada à notificação.",
- tipo:"Tipo da mensagem: Nova demanda, Texto para revisão, Prazo vencendo, Evento se aproximando ou Prazo vencido.",
+ tipo:"Tipo da mensagem: Nova demanda, Texto para revisão, Prazo vencendo, Evento se aproximando, Prazo vencido ou Evento hoje.",
  etapa:"Nome da etapa ou prazo vinculado à demanda.",
  prazo:"Data e horário do prazo ou data do evento.",
  dias:"Antecedência configurada, disponível apenas nos avisos de prazo vencendo e evento se aproximando.",
@@ -2000,6 +2001,7 @@ const templateVariables={
  create:["autor","acao","demanda","tipo"],review:["autor","acao","demanda","tipo"],
  due_soon:["autor","acao","tipo","demanda","etapa","prazo","dias","link"],
  event_soon:["autor","acao","tipo","demanda","prazo","dias","link"],
+ event_today:["autor","acao","tipo","demanda","prazo","link"],
  overdue:["autor","acao","tipo","demanda","etapa","prazo","link"]
 };
 function notificationVariableGuide(kind){
@@ -2041,7 +2043,7 @@ function renderAdmin(){
  if(!isAdmin())return header("Sistema","Painel Admin","Acesso exclusivo da Administração.")+
   '<section class="card card-pad live-auth"><p>'+(me?"Seu perfil não possui acesso administrativo.":"Entre com sua conta Admin pela mesma tela de login.")+'</p>'+
   button(me?"Voltar à Visão geral":"Entrar",me?"inicio":"login",true)+'</section>';
-  const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3,overdueAudience:"pending"};
+  const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3,overdueAudience:"pending",eventTodayEnabled:false};
  const adminPanels='<section class="card card-pad admin-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><h2>Usuários</h2><p class="field-hint admin-role-guide">É possível ter mais de uma conta Administração. Somente um(a) administrador(a) pode conceder ou remover esse cargo, e o último administrador permanece protegido. Quem receber o cargo deve entrar novamente na conta para ativar o acesso administrativo.</p><p class="field-hint admin-notify-guide"><strong>Sobre as notificações por e-mail:</strong> esta opção define se a pessoa poderá utilizar o envio de avisos por e-mail ao salvar alterações. Quando ativada, a Tutoria ou Administração poderá escolher entre enviar ou não a notificação. Os destinatários são definidos conforme os responsáveis e as comissões da atividade; marcar esta opção não significa que a pessoa receberá todos os avisos por e-mail.</p><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição. As alterações só serão aplicadas quando você salvar.</p></div><button type="button" class="button primary admin-save-all-button" data-do="save-all-commissions">'+ico("check")+' Salvar todas as alterações</button></div><div class="admin-commission-list">'+
  data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
@@ -2052,17 +2054,13 @@ function renderAdmin(){
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-soon" '+(reminderConfig.dueSoonEnabled?"checked":"")+'> E-mail de prazo vencendo e evento se aproximando</label><label class="deadline-days">Enviar aviso faltando <input type="number" id="reminder-days" min="1" max="30" step="1" value="'+esc(reminderConfig.daysBefore??3)+'"> dia(s) para o prazo</label><button class="button primary" type="button" data-do="save-reminder-soon">Salvar avisos antecipados</button></div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>E-mail de prazo vencido</h2><p class="field-hint">Este aviso é independente dos lembretes antecipados: quando uma etapa vencer e a demanda estiver ativa, o sistema verifica e solicita o envio do e-mail na próxima execução automática (em geral, a cada 5 minutos). Não existe antecedência para configurar. Cada etapa e prazo gera no máximo um aviso; avisos antigos não são enviados em massa ao ativar.</p>'+
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> Enviar e-mail quando o prazo vencer</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas, conforme o público selecionado. Endereços repetidos são unificados por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-overdue">Salvar aviso de prazo vencido</button></div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos dos avisos antecipados</h2><p class="field-hint">Edite e pré-visualize os textos de prazo vencendo e evento se aproximando. Cada tipo tem assunto e mensagem próprios.</p>'+
- '<form id="deadline-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="deadline-template-kind" class="select">'+notificationKinds.filter(([kind])=>["due_soon","event_soon"].includes(kind)).map(([kind,label])=>opt(kind,label,state.deadlineTemplateKind)).join("")+'</select></label>'+
- '<div id="deadline-template-fields">'+notificationTemplateFields(state.deadlineTemplateKind)+'</div>'+
- '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-deadline">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo antecipado</button></div></form></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelo do e-mail de prazo vencido</h2><p class="field-hint">Personalize o assunto e o conteúdo que serão enviados após o vencimento. Utilize {demanda} para o título e {prazo} para a data/hora. A pré-visualização não envia mensagens.</p>'+
- '<form id="overdue-template-form" class="register-form"><input type="hidden" name="kind" value="overdue">'+notificationTemplateFields("overdue")+
- '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-overdue">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo de prazo vencido</button></div></form></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelos de criação e revisão</h2><p class="field-hint">Edite as mensagens de criação e revisão enviadas pela Tutoria. Os modelos de prazo vencendo, evento se aproximando e prazo vencido ficam em Configurações.</p>'+
- '<form id="notification-template-form" class="register-form"><label>Tipo de mensagem<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.filter(([kind])=>["create","review"].includes(kind)).map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>E-mail no dia do evento</h2><p class="field-hint">Envie um aviso a todos os participantes de eventos Todos(as) durante o próprio dia, independentemente do lembrete antecipado. Cada evento recebe no máximo um aviso; eventos antigos não são notificados. O sistema verifica aproximadamente a cada 5 minutos.</p>'+
+ '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-event-today" '+(reminderConfig.eventTodayEnabled?"checked":"")+'> Enviar e-mail no dia do evento</label><button type="button" class="button primary" data-do="save-reminder-event-today">Salvar aviso do dia do evento</button></div></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de todos os e-mails automáticos</h2><p class="field-hint">Selecione qualquer mensagem automática do PET Gestão para personalizar assunto e conteúdo, sem alterar se o aviso está habilitado. Cada modelo é salvo individualmente. Os e-mails de segurança da conta permanecem protegidos.</p>'+
+ '<form id="notification-template-form" class="register-form"><label>Tipo de e-mail<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
- '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo</button></div></form></section>'+
+ '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo de e-mail</button></div></form></section>'+
  '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
@@ -2104,7 +2102,7 @@ function closeMailPreview(){
  mailPreviewReturnFocus=null;
 }
 function showMailPreview(mode){
- const form=$(mode==="template"?"#notification-template-form":mode==="deadline-template"?"#deadline-template-form":mode==="overdue-template"?"#overdue-template-form":"#mail-form");
+ const form=$(mode==="template"?"#notification-template-form":"#mail-form");
  if(!form)return;
  const f=collectRich(form,userFields(form));
  const title=String(f.subject||"").trim(),message=String(f.message||"");
@@ -2112,7 +2110,7 @@ function showMailPreview(mode){
  const days=Number($("#reminder-days")?.value||data.settings.reminderSettings?.daysBefore||3);
  const exampleDate=new Intl.DateTimeFormat("pt-BR",{
    timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"
- }).format(new Date(Date.now()+(mode==="overdue-template"?-1:(Number.isFinite(days)?days:3))*86400000));
+ }).format(new Date(Date.now()+(f.kind==="overdue"?-1:f.kind==="event_today"?0:(Number.isFinite(days)?days:3))*86400000));
  const sample={
    autor:"Equipe PET Educação",acao:"registrou uma atualização",demanda:"Exemplo de demanda",
    tipo:"Notificação",etapa:"Prazo",prazo:exampleDate+" às 17:00",
@@ -2121,6 +2119,7 @@ function showMailPreview(mode){
  if(mode!=="manual"){
    if(f.kind==="due_soon"){sample.tipo="Prazo vencendo";sample.acao="avisa que o prazo está vencendo"}
    if(f.kind==="event_soon"){sample.tipo="Evento se aproximando";sample.acao="lembra que o evento está se aproximando";sample.etapa="Evento"}
+   if(f.kind==="event_today"){sample.tipo="Evento hoje";sample.acao="lembra que o evento acontece hoje";sample.etapa="Evento"}
    if(f.kind==="overdue"){sample.tipo="Prazo vencido";sample.acao="avisa que o prazo venceu"}
    if(f.kind==="create")sample.tipo="Nova demanda";
    if(f.kind==="review")sample.tipo="Texto para revisão";
@@ -2427,8 +2426,6 @@ async function handleClick(e){
  }
  if(action==="mail-preview-close"){closeMailPreview();return}
  if(action==="mail-preview-template"){showMailPreview("template");return}
- if(action==="mail-preview-deadline"){showMailPreview("deadline-template");return}
- if(action==="mail-preview-overdue"){showMailPreview("overdue-template");return}
  if(action==="mail-preview-manual"){showMailPreview("manual");return}
  if(action==="save-reminder-soon"){
    const days=Number($("#reminder-days")?.value);
@@ -2436,6 +2433,12 @@ async function handleClick(e){
    await saveAndReload(()=>request("/admin/reminder-settings","PATCH",{
      dueSoonEnabled:$("#reminder-soon").checked,daysBefore:days
    },"admin"),"Avisos antecipados salvos.");
+   return;
+ }
+ if(action==="save-reminder-event-today"){
+   await saveAndReload(()=>request("/admin/reminder-settings","PATCH",{
+     eventTodayEnabled:$("#reminder-event-today").checked
+   },"admin"),"Aviso no dia do evento salvo.");
    return;
  }
  if(action==="save-reminder-overdue"){
@@ -2888,7 +2891,7 @@ async function handleSubmit(e){
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){const f=collectRich(form,userFields(form));const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
- if(["notification-template-form","deadline-template-form","overdue-template-form"].includes(form.id)){
+ if(form.id==="notification-template-form"){
    const f=collectRich(form,userFields(form));
    if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
    const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",{kind:f.kind,subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
@@ -2976,20 +2979,18 @@ async function handleChange(e){
    }
    return;
  }
- if(t.id==="notification-template-kind"||t.id==="deadline-template-kind"){
-   const deadline=t.id==="deadline-template-kind";
-   const form=t.closest(deadline?"#deadline-template-form":"#notification-template-form");
+ if(t.id==="notification-template-kind"){
+   const form=t.closest("#notification-template-form");
    if(form){
-     const previous=deadline?state.deadlineTemplateKind:state.templateKind;
+     const previous=state.templateKind;
      state.templateDrafts[previous]={subject:form.elements.subject.value,body:safeRich(form.querySelector('[data-rich-input="message"]')?.innerHTML||"")};
-     if(deadline)state.deadlineTemplateKind=t.value;
-     else state.templateKind=t.value;
-     const fields=form.querySelector(deadline?"#deadline-template-fields":"#notification-template-fields");
+     state.templateKind=t.value;
+     const fields=form.querySelector("#notification-template-fields");
      if(fields)fields.innerHTML=notificationTemplateFields(t.value);
    }
    return;
-  }
-  if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
+ }
+ if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
  if(t.id==="account-photo-input"){
    const original=t.files?.[0];t.value="";
