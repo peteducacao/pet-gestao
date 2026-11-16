@@ -1990,17 +1990,17 @@ const templateVariableInfo={
  autor:"Nome de quem cadastrou ou revisou a demanda. Nos avisos de prazo, aparece PET Gestão.",
  acao:"Ação que gerou o e-mail, como cadastrou ou atualizou o texto.",
  demanda:"Título da demanda relacionada à notificação.",
- tipo:"Tipo da mensagem: Nova demanda, Texto para revisão, Prazo vencendo ou Evento se aproximando.",
+ tipo:"Tipo da mensagem: Nova demanda, Texto para revisão, Prazo vencendo, Evento se aproximando ou Prazo vencido.",
  etapa:"Nome da etapa ou prazo vinculado à demanda.",
  prazo:"Data e horário do prazo ou data do evento.",
- dias:"Dias configurados para o aviso antecipado. Em Prazo vencido, não corresponde aos dias em atraso.",
+ dias:"Antecedência configurada, disponível apenas nos avisos de prazo vencendo e evento se aproximando.",
  link:"Endereço para abrir a demanda no PET Gestão."
 };
 const templateVariables={
  create:["autor","acao","demanda","tipo"],review:["autor","acao","demanda","tipo"],
  due_soon:["autor","acao","tipo","demanda","etapa","prazo","dias","link"],
  event_soon:["autor","acao","tipo","demanda","prazo","dias","link"],
- overdue:["autor","acao","tipo","demanda","etapa","prazo","dias","link"]
+ overdue:["autor","acao","tipo","demanda","etapa","prazo","link"]
 };
 function notificationVariableGuide(kind){
  const keys=templateVariables[kind]||templateVariables.create;
@@ -2009,7 +2009,7 @@ function notificationVariableGuide(kind){
   '<h3>Chaves automáticas disponíveis</h3><p>Use estas chaves no assunto ou na mensagem, incluindo { e }. O PET Gestão as substitui automaticamente ao enviar.</p></div></div>'+
   '<div class="mail-template-guide-list">'+keys.map(key=>'<div class="mail-template-guide-item"><code>{'+key+'}</code><span>'+esc(templateVariableInfo[key])+'</span></div>').join("")+'</div>'+
   '<p class="mail-template-guide-example"><strong>Exemplo:</strong> <code>{autor}</code> cadastrou <code>{demanda}</code> → o e-mail mostrará o nome da pessoa e o título da demanda.'+
-  (kind==="overdue"?' <strong>Atenção:</strong> <code>{dias}</code> não indica há quantos dias venceu.':'')+'</p></section>';
+  '</p></section>';
 }
 function notificationTemplateFields(kind){
  const config=notificationTemplateFor(kind);
@@ -2047,12 +2047,18 @@ function renderAdmin(){
  data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática das demandas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<div class="mail-schedule-choice"><button type="button" class="button ghost mail-schedule-toggle" data-do="mail-toggle-schedule" aria-pressed="false">'+ico("calendar")+' Agendar envio</button><small>Escolha um horário somente se quiser enviar depois.</small></div><div id="mail-scheduling"></div><div id="mail-attachments"></div><div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-manual">Pré-visualizar e-mail</button><button class="button primary" type="submit">Enviar</button></div></form></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Avisos automáticos de prazo e eventos</h2><p class="field-hint">Defina a antecedência dos avisos. A opção de prazo vencendo também envia um lembrete aos participantes de demandas marcadas como Todos(as), usando a data do evento. Cada aviso é enviado uma única vez; demandas arquivadas não recebem alertas. Os avisos iniciam desativados para evitar envios inesperados.</p>'+
- '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-soon" '+(reminderConfig.dueSoonEnabled?"checked":"")+'> E-mail de prazo vencendo e evento se aproximando</label><label class="deadline-days">Enviar aviso faltando <input type="number" id="reminder-days" min="1" max="30" step="1" value="'+esc(reminderConfig.daysBefore??3)+'"> dia(s) para o prazo</label><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> E-mail de prazo vencido</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas. Cada endereço recebe um único e-mail por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-settings">Salvar avisos de prazo</button></div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de e-mails automáticos</h2><p class="field-hint">Edite e pré-visualize separadamente as mensagens de prazo vencendo, evento se aproximando e prazo vencido. Cada modelo possui assunto e mensagem próprios.</p>'+
- '<form id="deadline-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="deadline-template-kind" class="select">'+notificationKinds.filter(([kind])=>["due_soon","event_soon","overdue"].includes(kind)).map(([kind,label])=>opt(kind,label,state.deadlineTemplateKind)).join("")+'</select></label>'+
+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Avisos antecipados de prazo e eventos</h2><p class="field-hint">Escolha quantos dias antes do vencimento uma mensagem será enviada. A mesma antecedência vale para eventos de Todos(as). Cada aviso antecipado é enviado uma única vez; demandas concluídas não recebem avisos.</p>'+
+ '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-soon" '+(reminderConfig.dueSoonEnabled?"checked":"")+'> E-mail de prazo vencendo e evento se aproximando</label><label class="deadline-days">Enviar aviso faltando <input type="number" id="reminder-days" min="1" max="30" step="1" value="'+esc(reminderConfig.daysBefore??3)+'"> dia(s) para o prazo</label><button class="button primary" type="button" data-do="save-reminder-soon">Salvar avisos antecipados</button></div></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>E-mail de prazo vencido</h2><p class="field-hint">Este aviso é independente dos lembretes antecipados: quando uma etapa vencer e a demanda estiver ativa, o sistema verifica e solicita o envio do e-mail na próxima execução automática (em geral, a cada 5 minutos). Não existe antecedência para configurar. Cada etapa e prazo gera no máximo um aviso; avisos antigos não são enviados em massa ao ativar.</p>'+
+ '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> Enviar e-mail quando o prazo vencer</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas, conforme o público selecionado. Endereços repetidos são unificados por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-overdue">Salvar aviso de prazo vencido</button></div></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos dos avisos antecipados</h2><p class="field-hint">Edite e pré-visualize os textos de prazo vencendo e evento se aproximando. Cada tipo tem assunto e mensagem próprios.</p>'+
+ '<form id="deadline-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="deadline-template-kind" class="select">'+notificationKinds.filter(([kind])=>["due_soon","event_soon"].includes(kind)).map(([kind,label])=>opt(kind,label,state.deadlineTemplateKind)).join("")+'</select></label>'+
  '<div id="deadline-template-fields">'+notificationTemplateFields(state.deadlineTemplateKind)+'</div>'+
- '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-deadline">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo automático</button></div></form></section>'+
+ '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-deadline">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo antecipado</button></div></form></section>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelo do e-mail de prazo vencido</h2><p class="field-hint">Personalize o assunto e o conteúdo que serão enviados após o vencimento. Utilize {demanda} para o título e {prazo} para a data/hora. A pré-visualização não envia mensagens.</p>'+
+ '<form id="overdue-template-form" class="register-form"><input type="hidden" name="kind" value="overdue">'+notificationTemplateFields("overdue")+
+ '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-overdue">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo de prazo vencido</button></div></form></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>Modelos de criação e revisão</h2><p class="field-hint">Edite as mensagens de criação e revisão enviadas pela Tutoria. Os modelos de prazo vencendo, evento se aproximando e prazo vencido ficam em Configurações.</p>'+
  '<form id="notification-template-form" class="register-form"><label>Tipo de mensagem<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.filter(([kind])=>["create","review"].includes(kind)).map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
@@ -2098,7 +2104,7 @@ function closeMailPreview(){
  mailPreviewReturnFocus=null;
 }
 function showMailPreview(mode){
- const form=$(mode==="template"?"#notification-template-form":mode==="deadline-template"?"#deadline-template-form":"#mail-form");
+ const form=$(mode==="template"?"#notification-template-form":mode==="deadline-template"?"#deadline-template-form":mode==="overdue-template"?"#overdue-template-form":"#mail-form");
  if(!form)return;
  const f=collectRich(form,userFields(form));
  const title=String(f.subject||"").trim(),message=String(f.message||"");
@@ -2106,7 +2112,7 @@ function showMailPreview(mode){
  const days=Number($("#reminder-days")?.value||data.settings.reminderSettings?.daysBefore||3);
  const exampleDate=new Intl.DateTimeFormat("pt-BR",{
    timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"
- }).format(new Date(Date.now()+(Number.isFinite(days)?days:3)*86400000));
+ }).format(new Date(Date.now()+(mode==="overdue-template"?-1:(Number.isFinite(days)?days:3))*86400000));
  const sample={
    autor:"Equipe PET Educação",acao:"registrou uma atualização",demanda:"Exemplo de demanda",
    tipo:"Notificação",etapa:"Prazo",prazo:exampleDate+" às 17:00",
@@ -2422,15 +2428,21 @@ async function handleClick(e){
  if(action==="mail-preview-close"){closeMailPreview();return}
  if(action==="mail-preview-template"){showMailPreview("template");return}
  if(action==="mail-preview-deadline"){showMailPreview("deadline-template");return}
+ if(action==="mail-preview-overdue"){showMailPreview("overdue-template");return}
  if(action==="mail-preview-manual"){showMailPreview("manual");return}
- if(action==="save-reminder-settings"){
+ if(action==="save-reminder-soon"){
    const days=Number($("#reminder-days")?.value);
    if(!Number.isInteger(days)||days<1||days>30)return setToast("Informe uma antecedência entre 1 e 30 dias.");
-   await saveAndReload(()=>request("/admin/reminder-settings","PUT",{
-     dueSoonEnabled:$("#reminder-soon").checked,
-     overdueEnabled:$("#reminder-overdue").checked,daysBefore:days,
+   await saveAndReload(()=>request("/admin/reminder-settings","PATCH",{
+     dueSoonEnabled:$("#reminder-soon").checked,daysBefore:days
+   },"admin"),"Avisos antecipados salvos.");
+   return;
+ }
+ if(action==="save-reminder-overdue"){
+   await saveAndReload(()=>request("/admin/reminder-settings","PATCH",{
+     overdueEnabled:$("#reminder-overdue").checked,
      overdueAudience:$("#reminder-overdue-audience").value
-   },"admin"),"Configurações dos avisos de prazo salvas.");
+   },"admin"),"Aviso de prazo vencido salvo.");
    return;
  }
  if(action==="admin-tab"){
@@ -2876,7 +2888,7 @@ async function handleSubmit(e){
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){const f=collectRich(form,userFields(form));const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
- if(form.id==="notification-template-form"||form.id==="deadline-template-form"){
+ if(["notification-template-form","deadline-template-form","overdue-template-form"].includes(form.id)){
    const f=collectRich(form,userFields(form));
    if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
    const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",{kind:f.kind,subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
