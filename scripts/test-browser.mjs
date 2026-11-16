@@ -867,7 +867,13 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#notification-template-form input[name=subject]").fill("Nova demanda personalizada");
  await page.locator("#notification-template-form button[type=submit]").click();
  await page.waitForTimeout(180);
- assert.equal(settings.notificationTemplates.create?.subject,"Nova demanda personalizada");
+ assert.equal(settings.notificationTemplates.create?.subject,"Nova demanda personalizada","Diagnóstico do salvamento: "+JSON.stringify({
+  lastTemplateCalls:calls.filter(x=>x.p==="/admin/notification-template").slice(-3),
+  currentModel:settings.notificationTemplates.create,
+  formKind:await page.locator("#notification-template-kind").inputValue(),
+  visible:await page.locator("#notification-template-form").isVisible(),
+  formSubject:await page.locator("#notification-template-form input[name=subject]").inputValue()
+ }));
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  await kindSelector.selectOption("due_soon");
  assert.equal(await page.locator("#notification-template-form .mail-template-guide-item").count(),8,"Prazo antecipado tem dias");
