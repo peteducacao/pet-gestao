@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#6d4bd1"/><path d="M20 46V18h12c9 0 14 5 14 13s-5 13-14 13h-4v2h-8Zm8-10h4c4 0 6-2 6-5s-2-5-6-5h-4v10Z" fill="white"/><circle cx="49" cy="17" r="6" fill="#b8eac8"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+<title id="title">PET Gestão — Prancheta com marca de conclusão</title>
+<defs>
+  <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#8E00CC"/><stop offset=".53" stop-color="#6900A9"/><stop offset="1" stop-color="#3D006D"/>
+  </linearGradient>
+</defs>
+<rect width="128" height="128" rx="26" fill="url(#purple)"/>
+<!-- Símbolo único: prancheta clara com check roxo, sem texto. -->
+<path d="M40 38H88C94.6 38 100 43.4 100 50V101C100 108 94.6 113 88 113H40C33.4 113 28 108 28 101V50C28 43.4 33.4 38 40 38Z" fill="#FFF"/>
+<path d="M47 38V33C47 28.5 50.5 25 55 25H55.4C57 18.5 61 15 64 15S71 18.5 72.6 25H73C77.5 25 81 28.5 81 33V38H83C86.3 38 89 40.7 89 44V46C89 50.4 85.4 54 81 54H47C42.6 54 39 50.4 39 46V44C39 40.7 41.7 38 45 38Z" fill="#FFF" stroke="url(#purple)" stroke-width="3" stroke-linejoin="round"/>
+<circle cx="64" cy="27.5" r="4.5" fill="#61009B"/>
+<path d="M45 78L58 91L84 62" fill="none" stroke="#6300A1" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
