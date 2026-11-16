@@ -786,7 +786,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(batch.commissions.find(x=>x.id==="videos").maxMembers,5,"Vagas e ordem salvas juntas");
  await page.goto(origin+"/#/admin/emails");
  await page.locator("#mail-form").waitFor({timeout:10000});
- assert.equal(await page.locator("#notification-template-form").count(),0,"E-mails só contém formulários de envio manual");
+ assert.equal(await page.locator("#notification-template-form").evaluate(el=>el.closest(".admin-panel").hidden),true,"Os editores automáticos ficam ocultos em E-mails");
  assert.equal(await page.locator("#mail-history").count(),1,"Fila e histórico permanecem na aba E-mails");
  assert.equal(await page.locator('#mail-form [data-rich-input="message"]').count(),1);
  assert.equal(await page.locator('#mail-form button[type="submit"]').innerText(),"Enviar");
