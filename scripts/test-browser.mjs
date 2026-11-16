@@ -596,7 +596,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.keyboard.type(" normal");
  assert.equal(await editor.locator("span[data-rich-typed]").last().evaluate(el=>getComputedStyle(el).fontWeight),"400",
   "Texto digitado após desligar B não fica em negrito");
- assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),2,"Formatação agrupada");
+ assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),3,"Formatação agrupada em estilo, listas e alinhamento");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");
  await editor.selectText();
