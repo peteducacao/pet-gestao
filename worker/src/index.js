@@ -223,6 +223,10 @@
     const task=await db.prepare("SELECT archived_at,deadlines FROM tasks WHERE id=?").bind(item.task_id).first();
     if(!task||task.archived_at)return false;
     if(!["due_soon","overdue","event_soon"].includes(item.kind))return true;
+    // Desligar uma modalidade impede que mensagens já enfileiradas sejam enviadas.
+    const settingsRow=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
+    const reminderSettings={dueSoonEnabled:false,overdueEnabled:false,...asJson(settingsRow?.value,{})};
+    if(item.kind==="overdue"?!reminderSettings.overdueEnabled:!reminderSettings.dueSoonEnabled)return false;
     const notice=await db.prepare("SELECT stage_id,stage_due_at FROM deadline_notice_log WHERE queue_id=? AND task_id=?")
       .bind(item.id,item.task_id).first();
     return Boolean(notice&&asJson(task.deadlines,[]).some(stage=>
@@ -328,8 +332,8 @@
     const stored=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
     const config={...defaultReminderSettings,...asJson(stored?.value,{})};
     const daysBefore=Number(config.daysBefore);
-    if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)return;
     if(!config.dueSoonEnabled&&!config.overdueEnabled)return;
+    if(config.dueSoonEnabled&&(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30))return;
     const savedModels=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
     const models=asJson(savedModels?.value,{});
     const people=(await db.prepare("SELECT id,email,role,role_override FROM users").all()).results;
@@ -435,7 +439,7 @@
           autor:"PET Gestão",acao:kind==="due_soon"?"avisa que o prazo está vencendo":"avisa que o prazo venceu",
           tipo:kind==="due_soon"?"Prazo vencendo":"Prazo vencido",
           demanda:task.title,etapa:String(stage.label||"Prazo"),prazo:deadlineText,
-          dias:String(daysBefore),
+          dias:kind==="overdue"?"":String(daysBefore),
           link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)
         };
         const substitute=(txt,html=false)=>String(txt||"").replace(/\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
@@ -924,31 +928,36 @@
         }
         return answer({ok:true});
       }
-      if(path==="/api/v1/admin/reminder-settings"&&method==="PUT"){
+      if(path==="/api/v1/admin/reminder-settings"&&["PUT","PATCH"].includes(method)){
         ensure(user,true);
         const b=await body(req);
-        // Compatibilidade com clientes antigos em cache que ainda enviam
-        // eventSoonEnabled ou valores booleanos serializados como texto.
-        const dueSoonRaw=b.dueSoonEnabled??b.eventSoonEnabled;
-        const overdueRaw=b.overdueEnabled;
-        const validBoolean=value=>[true,false,"true","false"].includes(value);
-        const dueSoonEnabled=dueSoonRaw===true||dueSoonRaw==="true";
-        const overdueEnabled=overdueRaw===true||overdueRaw==="true";
-        const daysBefore=Number(b.daysBefore??b.reminderDays);
-        if(!validBoolean(dueSoonRaw)||!validBoolean(overdueRaw)||
-           !Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)
-          fail("Configure os avisos e a antecedência entre 1 e 30 dias.");
         const existing=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
-        const previously=asJson(existing?.value,{});
-        const overdueAudience=b.overdueAudience??previously.overdueAudience??"pending";
+        const previously={...defaultReminderSettings,...asJson(existing?.value,{})};
+        // PATCH atualiza apenas o aviso escolhido; PUT antigo continua aceito.
+        const input={...b};
+        if(input.dueSoonEnabled===undefined&&input.eventSoonEnabled!==undefined)input.dueSoonEnabled=input.eventSoonEnabled;
+        if(input.daysBefore===undefined&&input.reminderDays!==undefined)input.daysBefore=input.reminderDays;
+        const validBoolean=value=>[true,false,"true","false"].includes(value);
+        for(const key of ["dueSoonEnabled","overdueEnabled"]){
+          if(input[key]!==undefined&&!validBoolean(input[key]))fail("A opção de envio deve estar habilitada ou desabilitada.");
+        }
+        if(method==="PUT"&&(input.dueSoonEnabled===undefined||input.overdueEnabled===undefined))
+          fail("Informe o estado dos dois avisos para substituir as configurações.");
+        const dueSoonEnabled=input.dueSoonEnabled===undefined?Boolean(previously.dueSoonEnabled):
+          input.dueSoonEnabled===true||input.dueSoonEnabled==="true";
+        const overdueEnabled=input.overdueEnabled===undefined?Boolean(previously.overdueEnabled):
+          input.overdueEnabled===true||input.overdueEnabled==="true";
+        // A antecedência não é obrigatória para o aviso de prazo vencido.
+        const daysBefore=input.daysBefore===undefined?Number(previously.daysBefore):Number(input.daysBefore);
+        if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)
+          fail("A antecedência dos avisos antecipados deve ser entre 1 e 30 dias.");
+        const overdueAudience=input.overdueAudience??previously.overdueAudience??"pending";
         if(!["pending","all"].includes(overdueAudience))fail("Escolha destinatários válidos para os avisos de prazo vencido.");
         const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience};
         await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
-        // Aplicar a configuração imediatamente, sem esperar o próximo cron.
-        // A rotina também recupera avisos que ficaram órfãos após limpar o histórico.
         ctx.waitUntil((async()=>{
           try{await queueDeadlineReminders(env);await processQueue(env,15);}
-          catch(error){console.error("PET Gestão — falha ao disparar avisos após salvar configurações:",error.message);}
+          catch(error){console.error("PET Gestão — falha ao processar avisos após salvar configurações:",error.message);}
         })());
         return answer({ok:true,reminderSettings:config});
       }
