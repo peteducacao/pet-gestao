@@ -660,7 +660,7 @@ function renderViewerHome(){
  const next=[...visible].sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b)))).slice(0,6);
  const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length;
  return header("Organização","Visão geral","Acompanhe as demandas da equipe em modo de visualização.")+
-  '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[visible.length,"Visíveis na Visão geral","checklist"],[late,"Prazos vencidos","alert"],[complete,"Concluídas","check"]].map(x=>
+  '<div class="stat-grid viewer-stat-grid">'+[[all.length,"Demandas ativas","list"],[late,"Prazos vencidos","alert"],[complete,"Concluídas","check"]].map(x=>
    '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
   '<div class="dashboard-grid viewer-dashboard"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>Próximas atividades cadastradas para acompanhamento.</p></div></div>'+
   (next.length?next.map(publicTaskCard).join(""):empty("Sem pendências neste momento"))+'</section></div>';
