@@ -848,8 +848,8 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(m.buttonWidth>=m.descWidth*.85,"Botão abaixo usa largura da seção em "+width);
   assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
   assert.ok(m.itemOverflow<=2,"Controles administrativos não estouram em "+width+": "+JSON.stringify(m));
-  assert.ok(m.vacancyWidth>=80&&m.vacancyWidth<=92,
-   "Campo Vagas fica compacto no celular em "+width+": "+JSON.stringify(m));
+  assert.ok(m.vacancyWidth>=63&&m.vacancyWidth<=65,
+   "Campo Vagas deve ter exatamente 64px no celular em "+width+": "+JSON.stringify(m));
   assert.ok(m.vacancyRight+8<=m.arrowsLeft,
    "Campo Vagas não encosta nas setas em "+width+": "+JSON.stringify(m));
   assert.ok(m.arrowsRight<=m.controlRight+2&&m.vacancyLeft>=m.controlLeft-2,
