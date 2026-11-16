@@ -406,7 +406,7 @@ document.querySelector('[data-vagas="videos"]').value="5";
 tap('[data-do="save-all-commissions"]');await wait();await wait();
 assert.equal(committees[0].maxMembers,5,"Salvamento em lote aplica as vagas");
 await move("#/admin/emails");
-assert.equal(document.querySelector("#notification-template-form"),null,"A aba E-mails não deve conter editores de avisos automáticos");
+assert.equal(document.querySelector("#notification-template-form")?.closest(".admin-panel").hidden,true,"Os editores automáticos ficam ocultos na aba E-mails");
 assert.ok(document.querySelector("#mail-form"),"Aba E-mails mantém envio manual e agendado");
 assert.ok(document.querySelector("#mail-history"),"Aba E-mails mantém fila e histórico do Gmail");
 assert.equal(document.querySelector("#reminder-days")?.closest(".admin-panel").hidden,true,"Configurações ficam fora da aba E-mails");
