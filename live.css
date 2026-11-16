@@ -3343,3 +3343,29 @@ body.commission-image-editor-open{overflow:hidden}
  #screen .commission-v2-copy h3{font-size:20px;line-height:1.25}
  #screen .commission-v2-art{width:86px;height:90px}
 }
+
+/* Administração > Comissões: no celular, Vagas recebe só o espaço de
+   um número (até 3 dígitos), sem esticar por toda a coluna disponível. */
+@media(max-width:680px){
+ #screen .admin-commissions .admin-commission-controls{
+  display:grid;
+  grid-template-columns:88px minmax(0,1fr);
+  align-items:end;
+  column-gap:12px;
+ }
+ #screen .admin-commissions .admin-vacancy-field{
+  width:88px!important;
+  min-width:0!important;
+  justify-self:start;
+ }
+ #screen .admin-commissions .admin-vacancy-field input[type="number"]{
+  box-sizing:border-box!important;
+  width:88px!important;
+  max-width:88px!important;
+  min-width:0!important;
+ }
+ #screen .admin-commissions .admin-order-controls{
+  justify-self:end;
+  align-self:end;
+ }
+}
