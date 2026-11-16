@@ -421,6 +421,13 @@ tap('[data-do="mail-preview-manual"]');
 assert.equal(document.querySelector("#mail-preview-dialog").hidden,true,"E-mail manual vazio não mostra prévia");
 await move("#/admin/configuracoes");
 assert.equal(document.querySelector("#notification-template-form")?.closest(".admin-panel").hidden,false,"Todos os modelos ficam na aba Configurações");
+const reminderCards=[...document.querySelectorAll(".admin-reminder-panel")];
+assert.deepEqual(reminderCards.map(card=>card.dataset.reminderCard),["before","today","after"],"Avisos organizados: antes, no dia e após o vencimento");
+assert.deepEqual(reminderCards.map(card=>card.querySelector("h2").textContent),["Avisos antes da data","Aviso no dia do evento","Aviso após o vencimento do prazo"],"Títulos iguais ao layout aprovado");
+assert.ok(reminderCards.every(card=>card.querySelector(".reminder-panel-icon svg")&&card.querySelector(".reminder-panel-intro")),"Cada aviso tem ícone e descrição destacada");
+assert.ok(reminderCards[0].querySelector("#reminder-days")&&reminderCards[1].querySelector("#reminder-event-today")&&reminderCards[2].querySelector("#reminder-overdue-audience"),"Todas as funções originais foram preservadas");
+assert.equal(reminderCards[1].querySelector("#reminder-days"),null,"No próprio dia não exige antecedência");
+
 const select=document.querySelector("#notification-template-kind");
 assert.equal(select.options.length,6,"Todos os seis modelos automáticos ficam em um único seletor");
 assert.deepEqual([...select.options].map(x=>x.value),["create","review","due_soon","event_soon","event_today","overdue"]);

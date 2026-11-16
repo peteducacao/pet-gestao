@@ -259,3 +259,8 @@ Sistema simples, didático e sem duplicidade, voltado à organização do PET Ed
 - A fila deve confirmar novamente a modalidade habilitada, o dia do evento, a existência da demanda e os dados da etapa antes de enviar. Deduplicar por evento/data/tipo, manter confirmação de entrega mesmo ao limpar o histórico e cancelar avisos obsoletos por edição ou exclusão.
 - E-mails transacionais de **segurança de conta** (redefinição de senha, confirmação de novo e-mail e alteração de endereço) continuam gerados pelo Worker com textos fixos e validações de segurança; não se confundem com notificações de demandas e eventos.
 - Validar em testes automatizados de D1 local e navegador. Nenhuma mensagem real deve ser enviada durante testes, nem dados de produção modificados.
+
+## Apresentação dos avisos automáticos — 16/11/2026
+- Em **Administração → Configurações**, apresentar os controles de avisos na ordem temporal **Avisos antes da data → Aviso no dia do evento → Aviso após o vencimento do prazo**.
+- Cada cartão apresenta ícone discreto, título que explica *quando* o e-mail é enviado, descrição em caixa lilás clara e controles próprios. O campo de antecedência aparece **somente** no primeiro cartão.
+- Manter os botões de salvar independentes, a escolha dos destinatários do prazo vencido, as configurações atuais e o seletor único de modelos, sem alterar regras de envio. O layout deve se adaptar à tela do celular sem rolagem horizontal.

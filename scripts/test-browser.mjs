@@ -811,6 +811,27 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#mail-scheduling input[name="sendAt"]').count(),0);
  await page.goto(origin+"/#/admin/configuracoes");
  await page.locator("#notification-template-form").waitFor({timeout:10000});
+ // Layout aprovado: três momentos, descrição lilás, controles preservados e sem estouro horizontal.
+ for(const width of [390,1280]){
+  await page.setViewportSize({width,height:844});
+  const layout=await page.locator(".admin-reminder-panel").evaluateAll(cards=>cards.map(card=>{
+   const heading=card.querySelector(".reminder-panel-heading");
+   const intro=card.querySelector(".reminder-panel-intro");
+   const style=getComputedStyle(intro);
+   return {kind:card.dataset.reminderCard,title:heading?.querySelector("h2")?.textContent,
+    icon:!!heading?.querySelector("svg"),intro:intro?.textContent,
+    background:style.backgroundColor,border:style.borderTopWidth,
+    width:card.clientWidth,scroll:card.scrollWidth,top:card.getBoundingClientRect().top};
+  }));
+  assert.deepEqual(layout.map(card=>card.kind),["before","today","after"],"Ordem temporal dos avisos em "+width);
+  assert.deepEqual(layout.map(card=>card.title),["Avisos antes da data","Aviso no dia do evento","Aviso após o vencimento do prazo"]);
+  assert.ok(layout.every(card=>card.icon&&card.intro&&card.background!=="rgba(0, 0, 0, 0)"&&card.border!=="0px"),
+   "Ícone e descrição em caixa lilás em "+width+": "+JSON.stringify(layout));
+  assert.ok(layout.every((card,i)=>card.scroll<=card.width+2&&(i===0||layout[i-1].top<card.top)),
+   "Sem overflow e com ordem vertical em "+width+": "+JSON.stringify(layout));
+ }
+ await page.setViewportSize({width:390,height:844});
+
  const kindSelector=page.locator("#notification-template-kind");
  assert.equal(await kindSelector.locator("option").count(),6,"Seis modelos em um único seletor de Configurações");
  assert.deepEqual(await kindSelector.locator("option").evaluateAll(items=>items.map(o=>o.value)),
@@ -846,7 +867,13 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#notification-template-form input[name=subject]").fill("Nova demanda personalizada");
  await page.locator("#notification-template-form button[type=submit]").click();
  await page.waitForTimeout(180);
- assert.equal(settings.notificationTemplates.create?.subject,"Nova demanda personalizada");
+ assert.equal(settings.notificationTemplates.create?.subject,"Nova demanda personalizada","Diagnóstico do salvamento: "+JSON.stringify({
+  lastTemplateCalls:calls.filter(x=>x.p==="/admin/notification-template").slice(-3),
+  currentModel:settings.notificationTemplates.create,
+  formKind:await page.locator("#notification-template-kind").inputValue(),
+  visible:await page.locator("#notification-template-form").isVisible(),
+  formSubject:await page.locator("#notification-template-form input[name=subject]").inputValue()
+ }));
  await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  await kindSelector.selectOption("due_soon");
  assert.equal(await page.locator("#notification-template-form .mail-template-guide-item").count(),8,"Prazo antecipado tem dias");
