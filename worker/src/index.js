@@ -222,13 +222,17 @@
     if(!item.task_id)return true;
     const task=await db.prepare("SELECT archived_at,deadlines FROM tasks WHERE id=?").bind(item.task_id).first();
     if(!task||task.archived_at)return false;
-    if(!["due_soon","overdue","event_soon"].includes(item.kind))return true;
+    if(!["due_soon","overdue","event_soon","event_today"].includes(item.kind))return true;
     // Desligar uma modalidade impede que mensagens já enfileiradas sejam enviadas.
     const settingsRow=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
-    const reminderSettings={dueSoonEnabled:false,overdueEnabled:false,...asJson(settingsRow?.value,{})};
-    if(item.kind==="overdue"?!reminderSettings.overdueEnabled:!reminderSettings.dueSoonEnabled)return false;
+    const reminderSettings={dueSoonEnabled:false,overdueEnabled:false,eventTodayEnabled:false,...asJson(settingsRow?.value,{})};
+    if(item.kind==="overdue"&&!reminderSettings.overdueEnabled)return false;
+    if(item.kind==="event_today"&&!reminderSettings.eventTodayEnabled)return false;
+    if(["due_soon","event_soon"].includes(item.kind)&&!reminderSettings.dueSoonEnabled)return false;
     const notice=await db.prepare("SELECT stage_id,stage_due_at FROM deadline_notice_log WHERE queue_id=? AND task_id=?")
       .bind(item.id,item.task_id).first();
+    // Não enviar aviso do dia depois da meia-noite local, mesmo se a fila atrasou.
+    if(item.kind==="event_today"&&String(notice?.stage_due_at||"").slice(0,10)!==reminderDateKey(new Date()))return false;
     return Boolean(notice&&asJson(task.deadlines,[]).some(stage=>
       String(stage.id||"")===String(notice.stage_id)&&
       String(stage.dueAt||"")===String(notice.stage_due_at)&&
@@ -259,7 +263,9 @@
         }
         await authorizedMail(env,asJson(item.recipient_emails,[]),item.subject,item.body);
         await env.DB.prepare("UPDATE email_queue SET status='enviado',sent_at=?,error_message=NULL WHERE id=? AND status='processando'").bind(now(),item.id).run();
-        if(item.kind==="event_soon")await env.DB.prepare("UPDATE deadline_notice_log SET notice_kind='event_soon_sent' WHERE queue_id=? AND notice_kind='event_soon'").bind(item.id).run();
+        if(["event_soon","event_today"].includes(item.kind))
+          await env.DB.prepare("UPDATE deadline_notice_log SET notice_kind=? WHERE queue_id=? AND notice_kind=?")
+            .bind(item.kind+"_sent",item.id,item.kind).run();
       }catch(err){
         await env.DB.prepare("UPDATE email_queue SET status='falhou',error_message=? WHERE id=? AND status='processando'").bind(str(err.message,500),item.id).run();
       }
@@ -270,7 +276,7 @@
 
   // Lembretes automáticos: opção desativada até a Administração habilitar.
   // Usa a data civil de Sergipe (UTC-3) e uma chave única por etapa/prazo/tipo.
-  const defaultReminderSettings={dueSoonEnabled:false,daysBefore:3,overdueEnabled:false,overdueAudience:"pending"};
+  const defaultReminderSettings={dueSoonEnabled:false,daysBefore:3,overdueEnabled:false,overdueAudience:"pending",eventTodayEnabled:false};
   const deadlineMailTemplates={
     due_soon:{
       subject:"PET Gestão — Prazo vencendo: {demanda}",
@@ -283,6 +289,10 @@
     overdue:{
       subject:"PET Gestão — Prazo vencido: {demanda}",
       body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"
+    },
+    event_today:{
+      subject:"PET Gestão — É hoje: {demanda}",
+      body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"
     }
   };
   const reminderDateKey=date=>{
@@ -332,7 +342,7 @@
     const stored=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
     const config={...defaultReminderSettings,...asJson(stored?.value,{})};
     const daysBefore=Number(config.daysBefore);
-    if(!config.dueSoonEnabled&&!config.overdueEnabled)return;
+    if(!config.dueSoonEnabled&&!config.overdueEnabled&&!config.eventTodayEnabled)return;
     if(config.dueSoonEnabled&&(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30))return;
     const savedModels=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
     const models=asJson(savedModels?.value,{});
@@ -355,7 +365,7 @@
       // Eventos coletivos usam a mesma antecedência de "Prazo vencendo",
       // mas avisam todos os participantes de Todos(as), sem exigir etapas de entrega.
       if(task.assignment_scope==="todos"){
-        if(!config.dueSoonEnabled)continue;
+        if(!config.dueSoonEnabled&&!config.eventTodayEnabled)continue;
         const eventIndex=stages.findIndex(stage=>stage&&stage.label==="Evento"&&!stage.completedAt&&stage.dueAt);
         if(eventIndex<0)continue;
         const event=stages[eventIndex],rawDue=String(event.dueAt),eventDay=rawDue.slice(0,10);
@@ -363,22 +373,26 @@
         const dueMs=Date.parse(eventDay+"T23:59:59-03:00");
         if(!Number.isFinite(dueMs))continue;
         const diffDays=Math.round((Date.parse(eventDay+"T00:00:00Z")-todayUTC)/86400000);
-        if(diffDays!==daysBefore||clock.getTime()>=dueMs)continue;
+        // Aviso do dia, sem antecedência, e o antecipado são modalidades independentes.
+        const kind=diffDays===0&&config.eventTodayEnabled&&clock.getTime()<dueMs?"event_today":
+          (diffDays===daysBefore&&config.dueSoonEnabled&&clock.getTime()<dueMs?"event_soon":null);
+        if(!kind)continue;
         const recipients=unique(people.filter(isEligiblePerson).map(person=>person.email).filter(validEmail));
         if(!recipients.length)continue;
-        const template=models?.event_soon||deadlineMailTemplates.event_soon;
+        const template=models?.[kind]||deadlineMailTemplates[kind];
         const dateText=new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(dueMs));
-        const values={autor:"PET Gestão",acao:"lembra que o evento está se aproximando",tipo:"Evento se aproximando",demanda:task.title,etapa:"Evento",prazo:dateText,dias:String(daysBefore),link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
+        const values={autor:"PET Gestão",acao:kind==="event_today"?"lembra que o evento acontece hoje":"lembra que o evento está se aproximando",tipo:kind==="event_today"?"Evento hoje":"Evento se aproximando",demanda:task.title,etapa:"Evento",prazo:dateText,dias:kind==="event_today"?"":String(daysBefore),link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
         const substitute=(txt,html=false)=>String(txt||"").replace(/\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
-        const subject=substitute(template.subject||deadlineMailTemplates.event_soon.subject).slice(0,200);
-        const bodyTemplate=String(template.body||deadlineMailTemplates.event_soon.body).slice(0,10000);
+        const subject=substitute(template.subject||deadlineMailTemplates[kind].subject).slice(0,200);
+        const bodyTemplate=String(template.body||deadlineMailTemplates[kind].body).slice(0,10000);
         const message=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
-        const stageId=String(event.id||"evento-data"),dedupeKey=[task.id,stageId,rawDue,"event_soon"].join("|");
+        const stageId=String(event.id||"evento-data"),dedupeKey=[task.id,stageId,rawDue,kind].join("|");
+        const sentMarker=kind+"_sent";
         const previousNotice=await db.prepare("SELECT l.queue_id,l.notice_kind,q.status FROM deadline_notice_log l LEFT JOIN email_queue q ON q.id=l.queue_id WHERE l.dedupe_key=?").bind(dedupeKey).first();
         if(previousNotice){
           // O histórico pode ser limpo pela Administração. Um aviso já enviado
           // continua deduplicado; falhas ou filas apagadas são recuperadas.
-          if(previousNotice.notice_kind==="event_soon_sent"||previousNotice.status==="enviado")continue;
+          if(previousNotice.notice_kind===sentMarker||previousNotice.status==="enviado")continue;
           if(previousNotice.status==="pendente"||previousNotice.status==="processando")continue;
           if(previousNotice.status==="falhou"||previousNotice.status==="cancelado"){
             await db.prepare("UPDATE email_queue SET status='pendente',scheduled_at=?,error_message=NULL WHERE id=? AND status IN ('falhou','cancelado')").bind(now(),previousNotice.queue_id).run();
@@ -387,12 +401,12 @@
             continue;
           }
           // Registro órfão: o item da fila foi removido sem concluir o envio.
-          await db.prepare("DELETE FROM deadline_notice_log WHERE dedupe_key=? AND notice_kind!='event_soon_sent'").bind(dedupeKey).run();
+          await db.prepare("DELETE FROM deadline_notice_log WHERE dedupe_key=? AND notice_kind!=?").bind(dedupeKey,sentMarker).run();
         }
         const queueId=uid(),stamp=now();
         const noticeBatch=await db.batch([
-          db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)").bind(dedupeKey,task.id,stageId,"event_soon",rawDue,queueId,stamp),
-          db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) SELECT ?,NULL,?,?,?,?,?,'pendente',?,? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)").bind(queueId,"event_soon",JSON.stringify(recipients),subject,message,stamp,stamp,task.id,dedupeKey,queueId)
+          db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)").bind(dedupeKey,task.id,stageId,kind,rawDue,queueId,stamp),
+          db.prepare("INSERT INTO email_queue(id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) SELECT ?,NULL,?,?,?,?,?,'pendente',?,? WHERE EXISTS (SELECT 1 FROM deadline_notice_log WHERE dedupe_key=? AND queue_id=?)").bind(queueId,kind,JSON.stringify(recipients),subject,message,stamp,stamp,task.id,dedupeKey,queueId)
         ]);
         if(noticeBatch[0]?.meta?.changes)registered++;
         if(registered>=30)return;
@@ -927,7 +941,7 @@
           // Compatibilidade com o modelo único anterior.
           await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
         }else{
-          if(!["create","review","due_soon","event_soon","overdue"].includes(b.kind))fail("Tipo de notificação inválido.");
+          if(!["create","review","due_soon","event_soon","event_today","overdue"].includes(b.kind))fail("Tipo de notificação inválido.");
           const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
           const models=asJson(saved?.value,{});
           models[b.kind]={subject,body:message};
@@ -945,22 +959,22 @@
         if(input.dueSoonEnabled===undefined&&input.eventSoonEnabled!==undefined)input.dueSoonEnabled=input.eventSoonEnabled;
         if(input.daysBefore===undefined&&input.reminderDays!==undefined)input.daysBefore=input.reminderDays;
         const validBoolean=value=>value===true||value===false;
-        for(const key of ["dueSoonEnabled","overdueEnabled"]){
+        for(const key of ["dueSoonEnabled","overdueEnabled","eventTodayEnabled"]){
           if(input[key]!==undefined&&!validBoolean(input[key]))fail("A opção de envio deve estar habilitada ou desabilitada.");
         }
         if(method==="PUT"&&(input.dueSoonEnabled===undefined||input.overdueEnabled===undefined))
           fail("Informe o estado dos dois avisos para substituir as configurações.");
         const dueSoonEnabled=input.dueSoonEnabled===undefined?Boolean(previously.dueSoonEnabled):
           input.dueSoonEnabled===true||input.dueSoonEnabled==="true";
-        const overdueEnabled=input.overdueEnabled===undefined?Boolean(previously.overdueEnabled):
-          input.overdueEnabled===true||input.overdueEnabled==="true";
+        const overdueEnabled=input.overdueEnabled===undefined?Boolean(previously.overdueEnabled):input.overdueEnabled===true;
+        const eventTodayEnabled=input.eventTodayEnabled===undefined?Boolean(previously.eventTodayEnabled):input.eventTodayEnabled===true;
         // A antecedência não é obrigatória para o aviso de prazo vencido.
         const daysBefore=input.daysBefore===undefined?Number(previously.daysBefore):Number(input.daysBefore);
         if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>30)
           fail("A antecedência dos avisos antecipados deve ser entre 1 e 30 dias.");
         const overdueAudience=input.overdueAudience??previously.overdueAudience??"pending";
         if(!["pending","all"].includes(overdueAudience))fail("Escolha destinatários válidos para os avisos de prazo vencido.");
-        const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience};
+        const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience,eventTodayEnabled};
         await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
         ctx.waitUntil((async()=>{
           try{await queueDeadlineReminders(env);await processQueue(env,15);}
@@ -1195,7 +1209,7 @@
         t.deadlines=t.deadlines.map(d=>{const previous=oldStages.get(d.id);return previous&&previous.label===d.label&&previous.dueAt===d.dueAt?{...d,completedAt:previous.completedAt||null,commissionCompleted:previous.commissionCompleted||{}}:{...d,completedAt:null,commissionCompleted:{}}});
         const changed=await db.prepare("UPDATE tasks SET title=?,description=?,caption_text=?,assignee_ids=?,commission_ids=?,deadlines=?,overview_visible=?,assignment_scope=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(t.title,t.description,t.captionText,JSON.stringify(t.assigneeIds),JSON.stringify(t.commissionIds),JSON.stringify(t.deadlines),t.overviewVisible?1:0,t.assignmentScope,user.id,stamp,old.id,old.version).run();
         if(!changed.meta.changes)fail("A demanda foi alterada por outra pessoa. Atualize a página e tente novamente.",409);
-        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda ou prazo atualizado; notificação anterior obsoleta' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','overdue','automatica')").bind(old.id).run();
+        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Demanda ou prazo atualizado; notificação anterior obsoleta' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','event_today','overdue','automatica')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
          await audit(db,old.id,user,t.captionText!==old.captionText?"Atualizou texto para revisão":"Atualizou dados, prazos ou responsáveis");
         if(t.assignmentScope==="todos"){
@@ -1265,7 +1279,7 @@
           if(finished)copy.completedAt=stamp;
           return copy;
         });
-        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','overdue')").bind(old.id).run();
+        await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','event_today','overdue')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
          const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
@@ -1334,7 +1348,10 @@
         ensure(user,true);
         // Preservar a marca de avisos automáticos já entregues antes de limpar
         // o histórico; falhas removidas poderão ser reconstruídas pela rotina.
-        await db.prepare("UPDATE deadline_notice_log SET notice_kind='event_soon_sent' WHERE notice_kind='event_soon' AND queue_id IN (SELECT id FROM email_queue WHERE kind='event_soon' AND status='enviado')").run();
+        for(const kind of ["event_soon","event_today"]){
+          await db.prepare("UPDATE deadline_notice_log SET notice_kind=? WHERE notice_kind=? AND queue_id IN (SELECT id FROM email_queue WHERE kind=? AND status='enviado')")
+            .bind(kind+"_sent",kind,kind).run();
+        }
         const res=await db.prepare("DELETE FROM email_queue WHERE status IN ('enviado','falhou')").run();
         return answer({ok:true,deleted:res.meta.changes});
       }
