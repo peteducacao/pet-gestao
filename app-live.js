@@ -134,6 +134,8 @@ function safeRich(value){
 
 const formatIcon={
  bold:"<strong>B</strong>",
+ italic:"<em>I</em>",
+ underline:"<u>U</u>",
  insertUnorderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h11M9 12h11M9 18h11"/></svg>',
  insertOrderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 4h2v6M3 10h4M3 15c0-2 4-2 4 0s-4 2-4 5h4M11 6h10M11 12h10M11 18h10"/></svg>',
  justifyLeft:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></svg>',
@@ -144,7 +146,7 @@ const formatIcon={
 function richEditor(name,value,placeholder="Escreva aqui..."){
  const action=(cmd,label)=>'<button type="button" class="rich-format-button" data-do="rich-format" data-format="'+cmd+'" aria-label="'+esc(label)+'" title="'+esc(label)+'" aria-pressed="false">'+formatIcon[cmd]+'</button>';
  return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" role="toolbar" aria-label="Formatação do texto">'+
- '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+'</div>'+
+ '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+(name==="rawNotes"?action("italic","Itálico")+action("underline","Sublinhado"):"")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<div class="rich-toolbar-group" aria-label="Listas">'+action("insertUnorderedList","Lista com marcadores")+action("insertOrderedList","Lista numerada")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
@@ -2306,13 +2308,44 @@ async function finishTask(t,cid){
 async function saveCommission(form){
  const values=collectRich(form,userFields(form));const ok=await saveAndReload(()=>request("/commissions"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{name:values.name,description:values.description,backgroundColor:values.backgroundColor,imageData:values.imageData}),"Comissão salva.");if(ok)location.hash=workspaceHash("comissoes");
 }
+
+function adminInitials(value){
+ const pieces=String(value||"").trim().split(/\s+/).filter(Boolean);
+ return pieces.length>1?(pieces[0][0]+pieces.at(-1)[0]).toLocaleUpperCase("pt-BR"):
+   (pieces[0]?.slice(0,2)||"?").toLocaleUpperCase("pt-BR");
+}
+function filterAdminUsers(){
+ const filter=String($("#admin-user-search")?.value||"").trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ let count=0;
+ for(const row of $$("#admin-users .live-admin-row")){
+  const text=(row.dataset.search||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  row.hidden=Boolean(filter&&!text.includes(filter));
+  if(!row.hidden)count++;
+ }
+ const empty=$("#admin-user-search-empty");
+ if(empty)empty.hidden=count!==0;
+ const result=$("#admin-user-count");
+ if(result)result.textContent=filter?count+" de "+(state.adminUsers||[]).length+" pessoas":(state.adminUsers||[]).length+" pessoas";
+}
 async function loadAdminUsers(){
  try{
  const {users}=await request("/admin/users"),target=$("#admin-users");if(!target)return;
  state.adminUsers=users;
- target.innerHTML=users.map(u=>'<div class="live-admin-row"><div class="admin-user-identity">'+
- (u.profilePhoto?'<button type="button" class="person-photo-button" data-do="person-photo-open" data-person-id="'+esc(u.id)+'" aria-label="Ampliar foto de '+esc(u.name)+'"><img src="'+esc(u.profilePhoto)+'" alt=""></button>':"")+
- '<span><strong>'+esc(u.name)+'</strong><small>'+esc(u.email)+'</small></span></div><select class="select" data-role="'+esc(u.id)+'">'+[["usuario","Usuário"],["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select><label><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'> Permitir envio de notificações por e-mail</label><button class="button ghost small-action" data-do="save-user" data-id="'+esc(u.id)+'">Salvar</button><button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">Senha temporária</button></div>').join("");
+ const query=String($("#admin-user-search")?.value||"");
+ const userCards=users.map(u=>'<article class="live-admin-row admin-user-card" data-search="'+esc([u.name,u.email].join(" "))+'">'+
+ '<div class="admin-user-identity">'+
+ (u.profilePhoto?'<button type="button" class="person-photo-button" data-do="person-photo-open" data-person-id="'+esc(u.id)+'" aria-label="Ampliar foto de '+esc(u.name)+'"><img src="'+esc(u.profilePhoto)+'" alt=""></button>':
+ '<span class="admin-user-avatar-fallback" aria-hidden="true">'+esc(adminInitials(u.name))+'</span>')+
+ '<span class="admin-user-name"><strong>'+esc(u.name)+'</strong><small>'+esc(u.email)+'</small></span></div>'+
+ '<label class="admin-user-role"><span class="admin-user-field-label">Cargo</span><select class="select" data-role="'+esc(u.id)+'" aria-label="Cargo de '+esc(u.name)+'">'+
+ [["usuario","Usuário"],["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select></label>'+
+ '<label class="admin-user-notify"><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'><span>Permitir envio de notificações por e-mail</span></label>'+
+ '<div class="admin-user-actions"><button class="button primary small-action" data-do="save-user" data-id="'+esc(u.id)+'">'+ico("check")+' Salvar</button>'+
+ '<button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">'+ico("lock")+' Senha temporária</button></div>'+
+ '</article>').join("");
+ target.innerHTML='<div class="admin-user-list-top"><label class="admin-user-search-box"><span class="admin-user-field-label">Buscar usuário</span><input id="admin-user-search" type="search" autocomplete="off" placeholder="Buscar por nome ou e-mail" value="'+esc(query)+'" aria-label="Buscar usuário por nome ou e-mail"></label><span id="admin-user-count" class="admin-user-result-count">'+users.length+' pessoas</span></div>'+
+ '<div class="admin-user-cards">'+userCards+'</div><p id="admin-user-search-empty" class="admin-user-search-empty" hidden>Nenhum usuário encontrado com esse nome ou e-mail.</p>';
+ filterAdminUsers();
  }catch(e){setToast(e.message)}
 }
 const mailQueueStatuses=new Set(["pendente","processando","agendado"]);
@@ -3233,6 +3266,7 @@ function start(){
  document.addEventListener("submit",e=>handleSubmit(e));
  document.addEventListener("input",e=>{
    const el=e.target;
+   if(el?.id==="admin-user-search"){filterAdminUsers();return}
    if(el?.matches?.('#commission-form input[name="name"]')){
      const image=$("#commission-form input[name='imageData']"),preview=$("#commission-image-preview");
      if(image&&!image.value&&preview)preview.innerHTML='<span class="commission-image-placeholder commission-image-default">'+commissionCardArt(el.value)+'<small>Imagem padrão</small></span>';
