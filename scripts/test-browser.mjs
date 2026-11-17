@@ -699,8 +699,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await editor.fill("Revisão 📚 com cores");
  await editor.selectText();
  const toolbar=page.locator('[data-rich="captionText"]');
- assert.equal(await toolbar.locator('[data-format="italic"],[data-format="underline"]').count(),0,
-  "Itálico e sublinhado removidos do editor");
+ assert.equal(await toolbar.locator('[data-format="italic"],[data-format="underline"]').count(),2,
+  "Itálico e sublinhado também aparecem no editor de legendas");
+ assert.equal(await toolbar.locator('[data-rich-highlight]').count(),1,"Marca-texto disponível na legenda");
  await toolbar.locator('[data-format="bold"]').click();
  await toolbar.locator('[data-rich-color]').fill("#dd3344");
  const styledHtml=await editor.innerHTML();
@@ -714,6 +715,17 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(Number(measured.weight)>=600,"Negrito visível");
  assert.equal(measured.color,"rgb(221, 51, 68)","Cor de fonte correta");
  assert.equal(measured.background,"rgb(255, 255, 255)","Fundo branco preservado");
+ await editor.selectText();
+ await toolbar.locator('[data-rich-highlight]').fill("#ffe066");
+ const highlightHtml=await editor.innerHTML();
+ assert.match(highlightHtml,/background-color:\\s*(?:rgb\\(255, 224, 102\\)|#ffe066)/i,
+  "Marca-texto destaca apenas as palavras selecionadas");
+ const highlightVisual=await editor.locator('[style*="background-color"]').first().evaluate(e=>({
+  mark:getComputedStyle(e).backgroundColor,
+  editor:getComputedStyle(e.closest("[contenteditable]")).backgroundColor
+ }));
+ assert.equal(highlightVisual.mark,"rgb(255, 224, 102)","Cor real do marca-texto");
+ assert.equal(highlightVisual.editor,"rgb(255, 255, 255)","Fundo do editor continua branco");
  await editor.fill("");
  await editor.click();
  const boldControl=toolbar.locator('[data-format="bold"]');
@@ -1252,10 +1264,11 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#commission-form [data-rich-input="description"]').count(),1,"Descrição usa editor com formatação");
  assert.equal(await page.locator('#commission-form textarea[name="description"]').count(),0,"Descrição não utiliza textarea sem formatação");
  assert.equal(await page.locator('#commission-form [data-format="bold"]').count(),1);
- assert.equal(await page.locator('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').count(),0);
+ assert.equal(await page.locator('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').count(),2);
+ assert.equal(await page.locator('#commission-form [data-rich-highlight]').count(),1);
  assert.equal(await page.locator('#commission-form [data-format="insertOrderedList"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-rich-color]').count(),1);
- assert.equal(await page.locator('#commission-form input[type="color"]:not([data-rich-color])').count(),0,"RGB não usa seletor de cor nativo para a comissão");
+ assert.equal(await page.locator('#commission-form input[type="color"]:not([data-rich-color]):not([data-rich-highlight])').count(),0,"RGB não usa seletor de cor nativo para a comissão");
  await page.locator('[data-do="commission-preset-gallery"]').click();
  await page.locator("#commission-preset-gallery").waitFor({state:"visible"});
  assert.equal(await page.locator('#commission-preset-gallery .commission-preset-option').count(),12,"Galeria reúne todas as 12 artes");
