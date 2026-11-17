@@ -96,36 +96,20 @@ function submit(selector){
  el.dispatchEvent(new window.Event("submit",{bubbles:true,cancelable:true}));
 }
 window.eval(js);
-// Cada campo construído pelo editor compartilhado oferece as três opções,
-// sem a antiga limitação apenas às atas.
-for(const name of ["description","captionText","rawNotes","message"]){
- const host=document.createElement("section");
- host.innerHTML=window.eval('richEditor('+JSON.stringify(name)+',"Trecho")');
- const tools=host.querySelectorAll('.rich-format-button[data-format="bold"],.rich-format-button[data-format="italic"],.rich-format-button[data-format="underline"]');
- assert.equal(tools.length,3,"B, I e U disponíveis no campo "+name);
- for(const btn of tools)assert.equal(btn.getAttribute("aria-pressed"),"false","Estado inicial acessível em "+name);
- const highlight=host.querySelector('[data-rich-highlight]');
- assert.ok(highlight&&highlight.type==="color","Marca-texto disponível em "+name);
- assert.equal(highlight.value,"#fff176","Cor inicial amarela do marca-texto em "+name);
+function assertRichTools(selector,context){
+ const editor=document.querySelector(selector);
+ assert.ok(editor,"Editor encontrado em "+context);
+ const root=editor.closest(".rich-editor");
+ for(const format of ["bold","italic","underline"]){
+  const button=root.querySelector('[data-format="'+format+'"]');
+  assert.ok(button,"Formato "+format+" existe em "+context);
+  assert.equal(button.getAttribute("aria-pressed"),"false","Formato "+format+" começa desligado em "+context);
+ }
+ assert.ok(root.querySelector("[data-rich-color]"),"Cor da letra disponível em "+context);
+ const marker=root.querySelector("[data-rich-highlight]");
+ assert.ok(marker&&marker.type==="color","Marca-texto disponível em "+context);
+ assert.equal(marker.value,"#fff176","Marca-texto começa amarelo em "+context);
 }
-// Aplicar marca-texto na seleção não modifica cor da fonte e sobrevive à sanitização/salvamento.
-const markHost=document.createElement("div");
-markHost.id="rich-mark-test";
-markHost.innerHTML=window.eval('richEditor("description","Trecho de teste")');
-document.body.append(markHost);
-const markEditor=markHost.querySelector("[data-rich-input]");
-const markRange=document.createRange();
-markRange.selectNodeContents(markEditor);
-const markSelection=window.getSelection();
-markSelection.removeAllRanges();markSelection.addRange(markRange);
-assert.equal(window.eval('applyRichFormat(document.querySelector("#rich-mark-test [data-rich-input]"),"hiliteColor","#ffe066")'),true,
- "Marca-texto aplica cor ao trecho selecionado");
-assert.match(markEditor.innerHTML,/background-color:\s*rgb\(255, 224, 102\)/,
- "Destaque aplicado ao texto selecionado");
-assert.match(window.eval('safeRich(document.querySelector("#rich-mark-test [data-rich-input]").innerHTML)'),/background-color:/,
- "Destaque é preservado na sanitização antes de salvar");
-markHost.remove();
-markSelection.removeAllRanges();
 document.dispatchEvent(new window.Event("DOMContentLoaded",{bubbles:true}));
 await wait();await wait();
 assert.ok(document.querySelector('a[data-route="reunioes"]'),"Atas aparece na navegação");
@@ -212,6 +196,8 @@ await move("#/registrar");
 await move("#/demandas");
 assert.equal(document.querySelector("#notice-dialog").hidden,true,"Sem alteração não há alerta");
 await move("#/registrar");
+assertRichTools('#task-form [data-rich-input="description"]',"descrição de demanda");
+assertRichTools('#task-form [data-rich-input="captionText"]',"legenda para revisão");
 const draftTitle=document.querySelector('#task-form input[name="title"]');
 draftTitle.value="Não quero perder esta demanda";
 draftTitle.dispatchEvent(new window.Event("input",{bubbles:true}));
@@ -277,6 +263,7 @@ memo=document.querySelector('#meeting-form [data-rich-input="rawNotes"]');
 assert.equal(document.querySelector('#meeting-form input[name="title"]').value,initialMeetingTitle,"Reabrir recupera dados gravados");
 
 assert.ok(memo.textContent.includes("Pautas"),"Texto existente recuperado no editor");
+assertRichTools('#meeting-form [data-rich-input="rawNotes"]',"ata da reunião");
 assert.ok(document.querySelector('#meeting-form [data-format="bold"]'),"A ata tem botão negrito");
 assert.ok(document.querySelector('#meeting-form [data-format="italic"]'),"A ata permite itálico");
 assert.ok(document.querySelector('#meeting-form [data-format="underline"]'),"A ata permite sublinhado");
@@ -286,12 +273,22 @@ for(const format of ["bold","italic","underline"]){
 }
 assert.ok(document.querySelector('#meeting-form [data-format="insertUnorderedList"]'),"A ata tem marcadores");
 assert.ok(document.querySelector('#meeting-form [data-rich-color]'),"A ata aceita cor de texto");
+const markerInput=document.querySelector('#meeting-form [data-rich-highlight]');
+const markingRange=document.createRange();markingRange.selectNodeContents(memo);
+const markingSelection=window.getSelection();
+markingSelection.removeAllRanges();markingSelection.addRange(markingRange);
+markerInput.value="#ffe066";markerInput.dispatchEvent(new window.Event("change",{bubbles:true}));
+await wait();
+assert.match(memo.innerHTML,/background-color:\s*(?:rgb\(255, 224, 102\)|#ffe066)/i,
+ "Marca-texto colore a seleção sem pintar o fundo do editor");
+markingSelection.removeAllRanges();
 assert.equal(document.querySelector('#meeting-form input[name="title"]').type,"text","Título da ata é editável");
 assert.equal(document.querySelector('#meeting-form input[name="title"]').required,true,"Título da ata é obrigatório");
 memo.innerHTML+='<p><strong>📚 Poesia no PET</strong></p><ul><li>Responsável: (???)</li></ul>';
 submit("#meeting-form");await wait();await wait();
 assert.ok(meetings[0].rawNotes.includes("📚"),"Emojis preservados nas Atas");
 assert.ok(meetings[0].rawNotes.includes("<strong>"),"Negrito preservado nas Atas");
+assert.ok(meetings[0].rawNotes.includes("background-color:"),"Marca-texto é preservado ao salvar a ata");
 assert.ok(meetings[0].rawNotes.includes("<ul>"),"Marcadores preservados nas Atas");
 assert.ok(meetings[0].rawNotes.includes("<br>"),"Quebras do texto antigo preservadas nas Atas");
 assert.equal(document.querySelector("#notice-dialog").textContent.includes("Sair sem salvar"),false,"Salvar uma ata não pede descarte");
@@ -498,6 +495,7 @@ assert.equal(document.querySelector("#reminder-days")?.closest(".admin-panel").h
 tap('[data-do="mail-preview-manual"]');
 assert.equal(document.querySelector("#mail-preview-dialog").hidden,true,"E-mail manual vazio não mostra prévia");
 await move("#/admin/configuracoes");
+assertRichTools('#notification-template-form [data-rich-input="message"]',"modelo de e-mail no Admin");
 assert.equal(document.querySelector("#notification-template-form")?.closest(".admin-panel").hidden,false,"Todos os modelos ficam na aba Configurações");
 const reminderCards=[...document.querySelectorAll(".admin-reminder-panel")];
 assert.deepEqual(reminderCards.map(card=>card.dataset.reminderCard),["before","today","after"],"Avisos organizados: antes, no dia e após o vencimento");
@@ -563,6 +561,7 @@ document.querySelector("#reminder-event-today").checked=true;
 tap('[data-do="save-reminder-event-today"]');await wait();await wait();
 assert.deepEqual(settings.reminderSettings,{dueSoonEnabled:true,daysBefore:5,overdueEnabled:true,overdueAudience:"all",eventTodayEnabled:true},"Evento hoje pode ser ativado independentemente do vencido e antecipado");
 await move("#/admin/emails");
+assertRichTools('#mail-form [data-rich-input="message"]',"e-mail manual do Admin");
 document.querySelector("#mail-form [data-rich-input='message']").textContent="Olá ✨\n\n#PET";
 document.querySelector("#mail-form input[name='subject']").value="Aviso PET";
 tap('[data-do="mail-preview-manual"]');
@@ -654,6 +653,7 @@ assert.ok(document.querySelector("#commission-image-editor"),"Modal de imagem di
 assert.ok(document.querySelector('#commission-upload[accept="image/png,image/jpeg,image/webp"]'));
 const committeeEditor=document.querySelector('#commission-form [data-rich-input="description"]');
 assert.ok(committeeEditor,"Descrição de comissão tem editor avançado");
+assertRichTools('#commission-form [data-rich-input="description"]',"descrição de comissão");
 assert.ok(document.querySelector('#commission-form [data-format="bold"]'),"Permite negrito na descrição");
 assert.equal(document.querySelector('#commission-form [data-format="italic"],#commission-form [data-format="underline"]'),null,"Itálico e sublinhado removidos da descrição");
 assert.ok(document.querySelector('#commission-form [data-format="insertOrderedList"]'),"Permite lista na descrição");
