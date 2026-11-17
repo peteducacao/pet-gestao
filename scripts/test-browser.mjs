@@ -952,6 +952,9 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#admin-users [data-role="u1"]').inputValue(),"tutor","Cargo real preservado");
  assert.equal(await page.locator('#admin-users [data-notify="u1"]').isChecked(),false,"Preferência preservada");
  await page.locator('#admin-users [data-notify="u1"]').check();
+ assert.equal(await page.locator('#admin-users [data-notify="u1"]').isChecked(),true,
+  "Interruptor altera a preferência editada");
+ await page.waitForTimeout(220); // aguarda transição CSS de 150 ms
  const switchVisual=await page.locator('#admin-users [data-notify="u1"]').evaluate(el=>({
   appearance:getComputedStyle(el).appearance,background:getComputedStyle(el).backgroundColor
  }));
