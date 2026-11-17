@@ -619,6 +619,12 @@ await page.locator('a[data-route="reunioes"]').click();
   "Desligar U preserva o itálico");
  assert.equal(await reopened.locator("strong em u").count(),0,"Substituição remove a marca interna U");
  assert.equal(await reopened.locator("strong em").count(),1,"B e I permanecem combinados");
+ // Salvar a edição antes de seguir: a proteção contra perda de atas impede
+ // corretamente a navegação direta enquanto o novo estilo não foi gravado.
+ await page.locator('#meeting-form button[type="submit"]').click();
+ await page.waitForURL("**/#/reunioes");
+ assert.match(meetings.find(m=>m.id==="m1").rawNotes,/<strong><em>Texto combinado<\/em><\/strong>/i,
+  "Após desligar U, salvar preserva B e I sem reintroduzir sublinhado");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
  assert.equal(await page.locator("select[data-detail-status]").inputValue(),"atrasada","Venceu há poucos minutos: status atrasada");
