@@ -103,7 +103,7 @@ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 
 const richTags=new Set(["B","STRONG","I","EM","U","P","DIV","BR","UL","OL","LI","SPAN","FONT"]);
 function safeRich(value){
- const raw=String(value??"");
+ const raw=String(value??"").replace(/\u200B/g,"");
  if(!/<\/?[a-z][a-z0-9]*\b/i.test(raw))return esc(raw).replace(/\r?\n/g,"<br>");
  const fragment=document.createElement("template");fragment.innerHTML=raw;
  const walk=node=>{
@@ -115,6 +115,7 @@ function safeRich(value){
   if(!richTags.has(tag))return inside;
   if(tag==="BR")return "<br>";
   if(tag==="SPAN"||tag==="FONT"){
+    if(!inside)return "";
     const c=node.style?.color||node.getAttribute("color")||"";
     const style=[];
     if(/^(#[a-f0-9]{3,8}|rgb\([\d\s,.%]+\))$/i.test(c))style.push("color:"+esc(c));
@@ -255,6 +256,38 @@ function unwrapRichSelection(editor,range,tag){
  }
  return false;
 }
+// O Android/Gboard digita por composição: antes da primeira tecla o cursor
+// precisa estar DENTRO de um elemento já formatado. O beforeinput sozinho
+// ignora insertCompositionText e deixava o I roxo com letras normais.
+function richTypingStyle(node,state){
+ node.dataset.richTyped=[state.bold?1:0,state.italic?1:0,state.underline?1:0,state.color||"",state.highlight||""].join(":");
+ node.style.fontWeight=state.bold?"700":"400";
+ node.style.fontStyle=state.italic?"italic":"normal";
+ node.style.textDecoration=state.underline?"underline":"none";
+ if(state.color)node.style.color=state.color;else node.style.removeProperty("color");
+ if(state.highlight)node.style.backgroundColor=state.highlight;else node.style.removeProperty("background-color");
+}
+function placeRichTypingAnchor(editor,state,range){
+ const start=range.startContainer;
+ const element=start.nodeType===3?start.parentElement:start;
+ const existing=element?.closest?.("[data-rich-typing]");
+ // Antes de digitar, alternar B/I/U reaproveita o mesmo cursor, sem lixo extra.
+ if(existing&&editor.contains(existing)&&existing.textContent==="\u200B"){
+  richTypingStyle(existing,state);
+  const textNode=existing.firstChild;
+  const caret=document.createRange();caret.setStart(textNode,textNode.length);caret.collapse(true);
+  setRichSelection(editor,caret);
+  return;
+ }
+ const anchor=document.createElement("span");
+ anchor.dataset.richTyping="true";
+ richTypingStyle(anchor,state);
+ const caretText=document.createTextNode("\u200B");
+ anchor.append(caretText);
+ range.insertNode(anchor);
+ const caret=document.createRange();caret.setStart(caretText,caretText.length);caret.collapse(true);
+ setRichSelection(editor,caret);
+}
 function applyRichFormat(editor,format,color=""){
  if(!editor)return false;
  const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull","foreColor","hiliteColor"]);
@@ -276,6 +309,7 @@ function applyRichFormat(editor,format,color=""){
   else if(format==="hiliteColor")state.highlight=next;
   else state[format]=next;
   state.locked=true;
+  placeRichTypingAnchor(editor,state,range);
   updateRichToolbar(editor);
   return true;
  }
@@ -318,6 +352,10 @@ function insertRichTypedText(event){
  const state=richState(editor);
  if(!state.locked)return;
  const range=getRichRange(editor);
+ const start=range.startContainer.nodeType===3?range.startContainer.parentElement:range.startContainer;
+ // O IME nativo do celular insere e compõe dentro da marca tipográfica;
+ // bloquear o beforeinput aqui faria as letras saírem sem itálico.
+ if(start?.closest?.("[data-rich-typing]"))return;
  event.preventDefault();
  const styleKey=[state.bold?1:0,state.italic?1:0,state.underline?1:0,state.color||"",state.highlight||""].join(":");
  // Anexa novos caracteres ao mesmo trecho, sem criar uma tag para cada tecla.
