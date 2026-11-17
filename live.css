@@ -3542,3 +3542,46 @@ body.commission-image-editor-open{overflow:hidden}
 @media(max-width:340px){
  #screen #admin-users .admin-user-actions{grid-template-columns:1fr}
 }
+
+
+/* Corrige o flex-basis de 150px herdado de .live-admin-row>div:first-child:
+   no cartão vertical o cabeçalho não pode consumir 150px de altura vazia. */
+#screen #admin-users .live-admin-row.admin-user-card>.admin-user-identity{
+ flex:0 0 auto;min-height:0;align-self:stretch;
+}
+#screen #admin-users .live-admin-row.admin-user-card>.admin-user-role{
+ flex:0 0 auto;margin:0;
+}
+@media(max-width:520px){
+ #screen #admin-users .live-admin-row.admin-user-card{gap:11px;padding:15px}
+ #screen #admin-users .admin-user-identity{align-items:center}
+ #screen #admin-users .admin-user-name{min-width:0}
+ #screen #admin-users .admin-user-actions{margin-top:0}
+}
+
+/* Marca-texto dos editores: controla somente o fundo das palavras selecionadas. */
+#screen .rich-toolbar .rich-highlight-label,.rich-toolbar .rich-highlight-label{
+ display:inline-flex;align-items:center;justify-content:center;
+ width:38px;height:38px;flex:0 0 38px;margin:0;padding:0;
+ border:1px solid transparent;border-radius:9px;background:#f7f5fc;
+ position:relative;cursor:pointer;
+}
+#screen .rich-toolbar .rich-highlight-label:hover,
+#screen .rich-toolbar .rich-highlight-label:focus-within{
+ background:#e9e1fa;border-color:#d8c8f4;
+}
+.rich-highlight-symbol{
+ display:flex;align-items:center;justify-content:center;
+ width:27px;height:27px;pointer-events:none;
+ border-bottom:4px solid var(--selected-highlight-color,#fff176);
+ color:#554568;
+}
+.rich-highlight-symbol svg{width:20px;height:20px;display:block}
+#screen .rich-toolbar .rich-highlight-label input[type="color"],
+.rich-toolbar .rich-highlight-label input[type="color"]{
+ position:absolute;inset:0;width:100%;height:100%;
+ opacity:.015;cursor:pointer;margin:0;border:0;
+}
+#screen .rich-toolbar .rich-highlight-label:focus-within{
+ outline:2px solid #7043cc;outline-offset:2px;
+}

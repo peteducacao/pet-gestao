@@ -548,6 +548,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#meeting-form [data-format="italic"],#meeting-form [data-format="underline"]').count(),2,"Ata possui itálico e sublinhado");
  assert.equal(await page.locator('#meeting-form [data-format="insertUnorderedList"]').count(),1,"Ata permite marcadores");
  assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
+ assert.equal(await page.locator('#meeting-form [data-rich-highlight]').count(),1,"Ata permite marca-texto");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("type"),"text",
   "Título da ata permanece editável");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("required")!==null,true,
@@ -698,8 +699,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await editor.fill("Revisão 📚 com cores");
  await editor.selectText();
  const toolbar=page.locator('[data-rich="captionText"]');
- assert.equal(await toolbar.locator('[data-format="italic"],[data-format="underline"]').count(),0,
-  "Itálico e sublinhado removidos do editor");
+ assert.equal(await toolbar.locator('[data-format="italic"],[data-format="underline"]').count(),2,
+  "Itálico e sublinhado também aparecem no editor de legendas");
+ assert.equal(await toolbar.locator('[data-rich-highlight]').count(),1,"Marca-texto disponível na legenda");
  await toolbar.locator('[data-format="bold"]').click();
  await toolbar.locator('[data-rich-color]').fill("#dd3344");
  const styledHtml=await editor.innerHTML();
@@ -713,6 +715,17 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(Number(measured.weight)>=600,"Negrito visível");
  assert.equal(measured.color,"rgb(221, 51, 68)","Cor de fonte correta");
  assert.equal(measured.background,"rgb(255, 255, 255)","Fundo branco preservado");
+ await editor.selectText();
+ await toolbar.locator('[data-rich-highlight]').fill("#ffe066");
+ const highlightHtml=await editor.innerHTML();
+ assert.match(highlightHtml,/background-color:\s*(?:rgb\(255, 224, 102\)|#ffe066)/i,
+  "Marca-texto destaca apenas as palavras selecionadas");
+ const highlightVisual=await editor.locator('[style*="background-color"]').first().evaluate(e=>({
+  mark:getComputedStyle(e).backgroundColor,
+  editor:getComputedStyle(e.closest("[contenteditable]")).backgroundColor
+ }));
+ assert.equal(highlightVisual.mark,"rgb(255, 224, 102)","Cor real do marca-texto");
+ assert.equal(highlightVisual.editor,"rgb(255, 255, 255)","Fundo do editor continua branco");
  await editor.fill("");
  await editor.click();
  const boldControl=toolbar.locator('[data-format="bold"]');
@@ -934,13 +947,18 @@ await page.locator('a[data-route="reunioes"]').click();
   await page.setViewportSize({width,height:844});
   const geometry=await page.locator("#admin-users .admin-user-card").first().evaluate(card=>{
    const cardBox=card.getBoundingClientRect(),name=card.querySelector(".admin-user-name").getBoundingClientRect(),
-    actions=[...card.querySelectorAll(".admin-user-actions .button")].map(b=>b.getBoundingClientRect());
+    actions=[...card.querySelectorAll(".admin-user-actions .button")].map(b=>b.getBoundingClientRect()),
+    identity=card.querySelector(".admin-user-identity").getBoundingClientRect(),
+    role=card.querySelector(".admin-user-role").getBoundingClientRect();
    return {width:cardBox.width,nameRight:name.right,cardRight:cardBox.right,
+    gapBeforeRole:role.top-identity.bottom,cardHeight:cardBox.height,
     actionOverflow:actions.some(r=>r.right>cardBox.right+2),
     scroll:document.documentElement.scrollWidth,viewport:window.innerWidth};
   });
   assert.ok(!geometry.actionOverflow&&geometry.nameRight<=geometry.cardRight+2&&geometry.scroll<=width+2,
    "Cartões de usuários sem textos ou botões cortados em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.gapBeforeRole>=0&&geometry.gapBeforeRole<=32,
+   "Nome e Cargo precisam ficar próximos, sem vazio exagerado em "+width+": "+JSON.stringify(geometry));
  }
  await page.locator("#admin-user-search").fill("admin@local");
  assert.equal(await page.locator("#admin-users .admin-user-card:visible").count(),1,"Filtro busca por e-mail");
@@ -1246,10 +1264,11 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#commission-form [data-rich-input="description"]').count(),1,"Descrição usa editor com formatação");
  assert.equal(await page.locator('#commission-form textarea[name="description"]').count(),0,"Descrição não utiliza textarea sem formatação");
  assert.equal(await page.locator('#commission-form [data-format="bold"]').count(),1);
- assert.equal(await page.locator('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').count(),0);
+ assert.equal(await page.locator('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').count(),2);
+ assert.equal(await page.locator('#commission-form [data-rich-highlight]').count(),1);
  assert.equal(await page.locator('#commission-form [data-format="insertOrderedList"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-rich-color]').count(),1);
- assert.equal(await page.locator('#commission-form input[type="color"]:not([data-rich-color])').count(),0,"RGB não usa seletor de cor nativo para a comissão");
+ assert.equal(await page.locator('#commission-form input[type="color"]:not([data-rich-color]):not([data-rich-highlight])').count(),0,"RGB não usa seletor de cor nativo para a comissão");
  await page.locator('[data-do="commission-preset-gallery"]').click();
  await page.locator("#commission-preset-gallery").waitFor({state:"visible"});
  assert.equal(await page.locator('#commission-preset-gallery .commission-preset-option').count(),12,"Galeria reúne todas as 12 artes");

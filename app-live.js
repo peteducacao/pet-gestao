@@ -124,6 +124,8 @@ function safeRich(value){
     if(/^(normal|italic|oblique)$/.test(italic))style.push("font-style:"+italic);
     const decoration=node.style?.textDecorationLine||node.style?.textDecoration||"";
     if(/^(none|underline)$/.test(decoration))style.push("text-decoration:"+decoration);
+    const background=node.style?.backgroundColor||"";
+    if(/^(#[a-f0-9]{3,8}|rgba?\([\d\s,.%]+\))$/i.test(background))style.push("background-color:"+esc(background));
     return "<span"+(style.length?' style="'+style.join(";")+'"':"")+">"+inside+"</span>";
   }
   const name=tag.toLowerCase();
@@ -146,13 +148,14 @@ const formatIcon={
 function richEditor(name,value,placeholder="Escreva aqui..."){
  const action=(cmd,label)=>'<button type="button" class="rich-format-button" data-do="rich-format" data-format="'+cmd+'" aria-label="'+esc(label)+'" title="'+esc(label)+'" aria-pressed="false">'+formatIcon[cmd]+'</button>';
  return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" role="toolbar" aria-label="Formatação do texto">'+
- '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+(name==="rawNotes"?action("italic","Itálico")+action("underline","Sublinhado"):"")+'</div>'+
+ '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+action("italic","Itálico")+action("underline","Sublinhado")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<div class="rich-toolbar-group" aria-label="Listas">'+action("insertUnorderedList","Lista com marcadores")+action("insertOrderedList","Lista numerada")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<div class="rich-toolbar-group" aria-label="Alinhamento">'+action("justifyLeft","Alinhar à esquerda")+action("justifyCenter","Centralizar")+action("justifyRight","Alinhar à direita")+action("justifyFull","Justificar texto")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<label class="rich-color-label" title="Cor do texto" aria-label="Cor do texto"><span class="rich-color-symbol" aria-hidden="true">A</span><input type="color" data-rich-color value="#5b3bb5" aria-label="Escolher cor do texto"></label>'+
+ '<label class="rich-highlight-label" title="Marca-texto: destacar palavras" aria-label="Marca-texto"><span class="rich-highlight-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m14 3 7 7-9 9-7-7 9-9Z"/><path d="m11 6 7 7"/><path d="M3 21h18"/></svg></span><input type="color" data-rich-highlight value="#fff176" aria-label="Escolher cor do marca-texto"></label>'+
  '</div><div class="rich-content" contenteditable="true" role="textbox" aria-multiline="true" data-rich-input="'+esc(name)+'" data-placeholder="'+esc(placeholder)+'">'+safeRich(value||"")+'</div></div>';
 }
 
@@ -162,7 +165,7 @@ function richEditor(name,value,placeholder="Escreva aqui..."){
 const richStates=new WeakMap();
 function richState(editor){
  let state=richStates.get(editor);
- if(!state){state={bold:false,italic:false,underline:false,color:null,locked:false};richStates.set(editor,state)}
+ if(!state){state={bold:false,italic:false,underline:false,color:null,highlight:null,locked:false};richStates.set(editor,state)}
  return state;
 }
 function richStyleFromCursor(editor){
@@ -191,6 +194,10 @@ function richStyleFromCursor(editor){
  state.italic=css.fontStyle==="italic"||css.fontStyle==="oblique";
  state.underline=underline;
  state.color=color?"#"+color.slice(1,4).map(v=>Number(v).toString(16).padStart(2,"0")).join(""):null;
+ const marked=element.closest?.('span[style*="background-color"]');
+ const markerColor=marked&&editor.contains(marked)?window.getComputedStyle(marked).backgroundColor:"";
+ const markerRgb=markerColor.match(/^rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+ state.highlight=markerRgb?"#"+markerRgb.slice(1,4).map(v=>Number(v).toString(16).padStart(2,"0")).join(""):null;
  state.locked=false;
  updateRichToolbar(editor);
 }
@@ -204,6 +211,9 @@ function updateRichToolbar(editor){
  const input=root.querySelector("[data-rich-color]"),letter=root.querySelector(".rich-color-symbol");
  if(input&&state.color&&/^#[\da-f]{6}$/i.test(state.color))input.value=state.color;
  if(letter)letter.style.setProperty("--selected-text-color",state.color||"#5b3bb5");
+ const highlightInput=root.querySelector("[data-rich-highlight]"),marker=root.querySelector(".rich-highlight-symbol");
+ if(highlightInput&&state.highlight&&/^#[\da-f]{6}$/i.test(state.highlight))highlightInput.value=state.highlight;
+ if(marker)marker.style.setProperty("--selected-highlight-color",state.highlight||"#fff176");
 }
 function getRichRange(editor){
  const selection=window.getSelection();
@@ -247,7 +257,7 @@ function unwrapRichSelection(editor,range,tag){
 }
 function applyRichFormat(editor,format,color=""){
  if(!editor)return false;
- const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull","foreColor"]);
+ const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull","foreColor","hiliteColor"]);
  if(!allowed.has(format))return false;
  const state=richState(editor),range=getRichRange(editor);
  editor.focus({preventScroll:true});
@@ -258,27 +268,34 @@ function applyRichFormat(editor,format,color=""){
   editor.dispatchEvent(new Event("input",{bubbles:true}));
   return result;
  }
- if(format==="foreColor"&&!/^#[a-f0-9]{6}$/i.test(color))return false;
- const next=format==="foreColor"?color:!state[format];
+ const isColorFormat=format==="foreColor"||format==="hiliteColor";
+ if(isColorFormat&&!/^#[a-f0-9]{6}$/i.test(color))return false;
+ const next=isColorFormat?color:!state[format];
  if(range.collapsed){
   if(format==="foreColor")state.color=next;
+  else if(format==="hiliteColor")state.highlight=next;
   else state[format]=next;
   state.locked=true;
   updateRichToolbar(editor);
   return true;
  }
  // Em seleção, aplicar a formatação sem destruir outras marcas já combinadas.
- const tag={bold:"strong",italic:"em",underline:"u",foreColor:"span"}[format];
- const isTurningOff=format!=="foreColor"&&!next;
+ const tag={bold:"strong",italic:"em",underline:"u",foreColor:"span",hiliteColor:"span"}[format];
+ const isTurningOff=!isColorFormat&&!next;
  if(!(isTurningOff&&unwrapRichSelection(editor,range,tag))){
   const wrapper=document.createElement(tag);
   if(format==="foreColor")wrapper.style.color=color;
+  if(format==="hiliteColor")wrapper.style.backgroundColor=color;
   const contents=range.extractContents();
   if(format==="foreColor"){
    for(const node of [...contents.querySelectorAll("[style],font[color]")]){
     if(node.style)node.style.removeProperty("color");
     if(node.tagName==="FONT")node.removeAttribute("color");
    }
+  }
+  if(format==="hiliteColor"){
+   // Reaplicar marca-texto muda apenas o fundo, sem apagar estilos das letras.
+   for(const node of [...contents.querySelectorAll("[style]")])node.style.removeProperty("background-color");
   }
   wrapper.append(contents);
   range.insertNode(wrapper);
@@ -287,6 +304,7 @@ function applyRichFormat(editor,format,color=""){
   setRichSelection(editor,nextRange);
  }
  if(format==="foreColor")state.color=next;
+ else if(format==="hiliteColor")state.highlight=next;
  else state[format]=next;
  state.locked=true;
  updateRichToolbar(editor);
@@ -301,7 +319,7 @@ function insertRichTypedText(event){
  if(!state.locked)return;
  const range=getRichRange(editor);
  event.preventDefault();
- const styleKey=[state.bold?1:0,state.italic?1:0,state.underline?1:0,state.color||""].join(":");
+ const styleKey=[state.bold?1:0,state.italic?1:0,state.underline?1:0,state.color||"",state.highlight||""].join(":");
  // Anexa novos caracteres ao mesmo trecho, sem criar uma tag para cada tecla.
  if(range.collapsed&&range.startContainer.nodeType===3){
   const textNode=range.startContainer,holder=textNode.parentElement;
@@ -320,6 +338,7 @@ function insertRichTypedText(event){
  span.style.fontStyle=state.italic?"italic":"normal";
  span.style.textDecoration=state.underline?"underline":"none";
  if(state.color)span.style.color=state.color;
+ if(state.highlight)span.style.backgroundColor=state.highlight;
  const node=document.createTextNode(event.data);
  span.append(node);range.insertNode(span);
  const cursor=document.createRange();cursor.setStart(node,node.length);cursor.collapse(true);
@@ -3035,6 +3054,11 @@ async function handleChange(e){
    if(t.dataset.filter==="year"){state.year=val;state.week=0}
    if(t.dataset.filter==="week")state.week=val;
    localStorage.setItem("pet-gestao:period",JSON.stringify({year:state.year,month:state.month,week:state.week}));render();return;
+ }
+ if(t.matches?.("[data-rich-highlight]")){
+   const editor=t.closest(".rich-editor")?.querySelector("[data-rich-input]");
+   if(editor)applyRichFormat(editor,"hiliteColor",t.value);
+   return;
  }
  if(t.matches?.("[data-rich-color]")){
    const editor=t.closest(".rich-editor")?.querySelector("[data-rich-input]");

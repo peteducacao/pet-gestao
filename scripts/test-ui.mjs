@@ -96,6 +96,20 @@ function submit(selector){
  el.dispatchEvent(new window.Event("submit",{bubbles:true,cancelable:true}));
 }
 window.eval(js);
+function assertRichTools(selector,context){
+ const editor=document.querySelector(selector);
+ assert.ok(editor,"Editor encontrado em "+context);
+ const root=editor.closest(".rich-editor");
+ for(const format of ["bold","italic","underline"]){
+  const button=root.querySelector('[data-format="'+format+'"]');
+  assert.ok(button,"Formato "+format+" existe em "+context);
+  assert.equal(button.getAttribute("aria-pressed"),"false","Formato "+format+" começa desligado em "+context);
+ }
+ assert.ok(root.querySelector("[data-rich-color]"),"Cor da letra disponível em "+context);
+ const marker=root.querySelector("[data-rich-highlight]");
+ assert.ok(marker&&marker.type==="color","Marca-texto disponível em "+context);
+ assert.equal(marker.value,"#fff176","Marca-texto começa amarelo em "+context);
+}
 document.dispatchEvent(new window.Event("DOMContentLoaded",{bubbles:true}));
 await wait();await wait();
 assert.ok(document.querySelector('a[data-route="reunioes"]'),"Atas aparece na navegação");
@@ -182,6 +196,8 @@ await move("#/registrar");
 await move("#/demandas");
 assert.equal(document.querySelector("#notice-dialog").hidden,true,"Sem alteração não há alerta");
 await move("#/registrar");
+assertRichTools('#task-form [data-rich-input="description"]',"descrição de demanda");
+assertRichTools('#task-form [data-rich-input="captionText"]',"legenda para revisão");
 const draftTitle=document.querySelector('#task-form input[name="title"]');
 draftTitle.value="Não quero perder esta demanda";
 draftTitle.dispatchEvent(new window.Event("input",{bubbles:true}));
@@ -247,6 +263,7 @@ memo=document.querySelector('#meeting-form [data-rich-input="rawNotes"]');
 assert.equal(document.querySelector('#meeting-form input[name="title"]').value,initialMeetingTitle,"Reabrir recupera dados gravados");
 
 assert.ok(memo.textContent.includes("Pautas"),"Texto existente recuperado no editor");
+assertRichTools('#meeting-form [data-rich-input="rawNotes"]',"ata da reunião");
 assert.ok(document.querySelector('#meeting-form [data-format="bold"]'),"A ata tem botão negrito");
 assert.ok(document.querySelector('#meeting-form [data-format="italic"]'),"A ata permite itálico");
 assert.ok(document.querySelector('#meeting-form [data-format="underline"]'),"A ata permite sublinhado");
@@ -256,12 +273,22 @@ for(const format of ["bold","italic","underline"]){
 }
 assert.ok(document.querySelector('#meeting-form [data-format="insertUnorderedList"]'),"A ata tem marcadores");
 assert.ok(document.querySelector('#meeting-form [data-rich-color]'),"A ata aceita cor de texto");
+const markerInput=document.querySelector('#meeting-form [data-rich-highlight]');
+const markingRange=document.createRange();markingRange.selectNodeContents(memo);
+const markingSelection=window.getSelection();
+markingSelection.removeAllRanges();markingSelection.addRange(markingRange);
+markerInput.value="#ffe066";markerInput.dispatchEvent(new window.Event("change",{bubbles:true}));
+await wait();
+assert.match(memo.innerHTML,/background-color:\s*(?:rgb\(255, 224, 102\)|#ffe066)/i,
+ "Marca-texto colore a seleção sem pintar o fundo do editor");
+markingSelection.removeAllRanges();
 assert.equal(document.querySelector('#meeting-form input[name="title"]').type,"text","Título da ata é editável");
 assert.equal(document.querySelector('#meeting-form input[name="title"]').required,true,"Título da ata é obrigatório");
 memo.innerHTML+='<p><strong>📚 Poesia no PET</strong></p><ul><li>Responsável: (???)</li></ul>';
 submit("#meeting-form");await wait();await wait();
 assert.ok(meetings[0].rawNotes.includes("📚"),"Emojis preservados nas Atas");
 assert.ok(meetings[0].rawNotes.includes("<strong>"),"Negrito preservado nas Atas");
+assert.ok(meetings[0].rawNotes.includes("background-color:"),"Marca-texto é preservado ao salvar a ata");
 assert.ok(meetings[0].rawNotes.includes("<ul>"),"Marcadores preservados nas Atas");
 assert.ok(meetings[0].rawNotes.includes("<br>"),"Quebras do texto antigo preservadas nas Atas");
 assert.equal(document.querySelector("#notice-dialog").textContent.includes("Sair sem salvar"),false,"Salvar uma ata não pede descarte");
@@ -468,6 +495,7 @@ assert.equal(document.querySelector("#reminder-days")?.closest(".admin-panel").h
 tap('[data-do="mail-preview-manual"]');
 assert.equal(document.querySelector("#mail-preview-dialog").hidden,true,"E-mail manual vazio não mostra prévia");
 await move("#/admin/configuracoes");
+assertRichTools('#notification-template-form [data-rich-input="message"]',"modelo de e-mail no Admin");
 assert.equal(document.querySelector("#notification-template-form")?.closest(".admin-panel").hidden,false,"Todos os modelos ficam na aba Configurações");
 const reminderCards=[...document.querySelectorAll(".admin-reminder-panel")];
 assert.deepEqual(reminderCards.map(card=>card.dataset.reminderCard),["before","today","after"],"Avisos organizados: antes, no dia e após o vencimento");
@@ -533,6 +561,7 @@ document.querySelector("#reminder-event-today").checked=true;
 tap('[data-do="save-reminder-event-today"]');await wait();await wait();
 assert.deepEqual(settings.reminderSettings,{dueSoonEnabled:true,daysBefore:5,overdueEnabled:true,overdueAudience:"all",eventTodayEnabled:true},"Evento hoje pode ser ativado independentemente do vencido e antecipado");
 await move("#/admin/emails");
+assertRichTools('#mail-form [data-rich-input="message"]',"e-mail manual do Admin");
 document.querySelector("#mail-form [data-rich-input='message']").textContent="Olá ✨\n\n#PET";
 document.querySelector("#mail-form input[name='subject']").value="Aviso PET";
 tap('[data-do="mail-preview-manual"]');
@@ -609,7 +638,7 @@ tasks=tasks.filter(t=>!t.id.startsWith("t-archive-bulk-"));
 user.role="petiano";
 await move("#/comissoes/nova");
 assert.ok(document.querySelector("[data-do='commission-color-toggle']"),"Campo RGB disponível");
-assert.equal(document.querySelector('#commission-form input[type="color"]:not([data-rich-color])'),null,"Sem seletor de cor nativo na comissão");
+assert.equal(document.querySelector('#commission-form input[type="color"]:not([data-rich-color]):not([data-rich-highlight])'),null,"Sem seletor de cor nativo na comissão");
 tap('[data-do="commission-color-toggle"]');await wait();
 assert.equal(document.querySelector("#commission-rgb-panel").hidden,false);
 const redRGB=document.querySelector('[data-commission-rgb-range="r"]');
@@ -624,8 +653,9 @@ assert.ok(document.querySelector("#commission-image-editor"),"Modal de imagem di
 assert.ok(document.querySelector('#commission-upload[accept="image/png,image/jpeg,image/webp"]'));
 const committeeEditor=document.querySelector('#commission-form [data-rich-input="description"]');
 assert.ok(committeeEditor,"Descrição de comissão tem editor avançado");
+assertRichTools('#commission-form [data-rich-input="description"]',"descrição de comissão");
 assert.ok(document.querySelector('#commission-form [data-format="bold"]'),"Permite negrito na descrição");
-assert.equal(document.querySelector('#commission-form [data-format="italic"],#commission-form [data-format="underline"]'),null,"Itálico e sublinhado removidos da descrição");
+assert.equal(document.querySelectorAll('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').length,2,"Itálico e sublinhado disponíveis na descrição");
 assert.ok(document.querySelector('#commission-form [data-format="insertOrderedList"]'),"Permite lista na descrição");
 assert.ok(document.querySelector('#commission-form [data-rich-color]'),"Permite cor na descrição");
 assert.equal(document.querySelector('#commission-form textarea'),null,"Descrição deixa de usar textarea simples");
