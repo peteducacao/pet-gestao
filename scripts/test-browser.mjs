@@ -814,7 +814,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(imeStyled.italic,"italic","Composição Android aparece com a letra inclinada de verdade: "+JSON.stringify(imeStyled));
  assert.ok(Number(imeStyled.weight)>=600,"Composição Android mantém negrito");
  assert.ok(imeStyled.underline.includes("underline"),"Composição Android mantém sublinhado");
- assert.match(imeStyled.html,/font-style:\\s*italic/i,"Itálico presente no HTML salvo");
+ assert.match(imeStyled.html,/font-style:\s*italic/i,"Itálico presente no HTML salvo");
  for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
  await editor.fill("");
  assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),3,"Formatação agrupada em estilo, listas e alinhamento");
