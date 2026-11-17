@@ -559,7 +559,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#notice-dialog").waitFor({state:"visible",timeout:8000});
  assert.equal(new URL(page.url()).hash,"#/reunioes/editar/m1","Rota não muda até escolher sair");
  assert.ok((await page.locator("#notice-dialog").innerText()).includes("Sair sem salvar"));
- await page.locator('#notice-dialog [data-do="notice-cancel"]').click();
+ await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
  assert.equal(await page.locator('#meeting-form input[name="title"]').inputValue(),"Ata editada sem salvar","Continuar preserva título");
  assert.ok((await page.locator('#meeting-form [data-rich-input="rawNotes"]').innerHTML()).includes("Trecho ainda não salvo"),
   "Continuar preserva texto formatado");
