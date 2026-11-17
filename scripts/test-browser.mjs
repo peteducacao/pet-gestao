@@ -52,6 +52,12 @@ await page.route("**/api/v1/**",async route=>{
      result={ok:true,deletedCount:chosen.length};
    }
  }
+ else if(p==="/admin/users"&&method==="GET"){result={users:[user,admin]};}
+ else if(/^\/admin\/users\/[^/]+$/.test(p)&&method==="PATCH"){
+   const person=[user,admin].find(x=>x.id===p.split("/")[3]);
+   if(person)Object.assign(person,body);
+   result={ok:true};
+ }
  else if(p==="/admin/reminder-settings"&&["PUT","PATCH"].includes(method)){settings.reminderSettings={...settings.reminderSettings,...body};result={ok:true};}
  else if(p==="/admin/notification-template"&&method==="PUT"){
    settings.notificationTemplates[body.kind]={subject:body.subject,body:body.message};
@@ -65,6 +71,11 @@ await page.route("**/api/v1/**",async route=>{
    else {tasks=tasks.filter(x=>x.id!==p.split("/")[2]);result={ok:true};}
  }
  else if(p==="/meetings"&&method==="POST"){meetings.push({id:"m"+(meetings.length+1),...body});result={ok:true};}
+ else if(/^\/meetings\/[^/]+$/.test(p)&&method==="PUT"){
+   const saved=meetings.find(m=>m.id===p.split("/")[2]);
+   if(saved)Object.assign(saved,body);
+   result={ok:true};
+ }
  else if(/^\/tasks\/[^/]+\/finish$/.test(p)&&method==="PATCH"){
    const current=tasks.find(t=>t.id===p.split("/")[2]);
    if(current){
@@ -534,7 +545,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.match(await page.locator('#meeting-form [data-rich-input="rawNotes"]').innerText(),/Pauta[\s\S]*Responsável: \(\?\?\?\)/,
   "Atas antigas em texto simples continuam legíveis");
  assert.equal(await page.locator('#meeting-form [data-format="bold"]').count(),1,"Ata permite negrito");
- assert.equal(await page.locator('#meeting-form [data-format="italic"],#meeting-form [data-format="underline"]').count(),0,"Ata não exibe itálico nem sublinhado");
+ assert.equal(await page.locator('#meeting-form [data-format="italic"],#meeting-form [data-format="underline"]').count(),2,"Ata possui itálico e sublinhado");
  assert.equal(await page.locator('#meeting-form [data-format="insertUnorderedList"]').count(),1,"Ata permite marcadores");
  assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("type"),"text",
@@ -568,6 +579,37 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
  await page.waitForURL("**/#/inicio");
  assert.equal(meetings.find(m=>m.id==="m1").title,"Reunião de teste","Sair sem salvar não grava no banco");
+ // Regressão real: seleção + B, I e U simultâneos; salvar e reabrir conserva os três.
+ await page.goto(origin+"/#/reunioes/editar/m1");
+ const richAta=page.locator('#meeting-form [data-rich-input="rawNotes"]');
+ await richAta.fill("Texto combinado");
+ await richAta.selectText();
+ for(const format of ["bold","italic","underline"]){
+  await page.locator('#meeting-form [data-format="'+format+'"]').click();
+  assert.equal(await page.locator('#meeting-form [data-format="'+format+'"]').getAttribute("aria-pressed"),"true",
+   "Botão "+format+" apresenta seleção ativa");
+ }
+ assert.equal(await page.locator('#meeting-form [aria-pressed="true"][data-format]').count(),3,
+  "B, I e U ficam ativos ao mesmo tempo");
+ const allFormatted=await richAta.locator("strong em u").first().evaluate(el=>{
+  const s=getComputedStyle(el);
+  return {weight:s.fontWeight,style:s.fontStyle,decoration:s.textDecorationLine,text:el.textContent};
+ });
+ assert.equal(allFormatted.text,"Texto combinado","Combinação mantém texto integral");
+ assert.ok(Number(allFormatted.weight)>=600&&allFormatted.style==="italic"&&allFormatted.decoration.includes("underline"),
+  "B+I+U visualmente aplicados à mesma seleção: "+JSON.stringify(allFormatted));
+ await page.locator('#meeting-form button[type="submit"]').click();
+ await page.waitForURL("**/#/reunioes");
+ assert.match(meetings.find(m=>m.id==="m1").rawNotes,/<strong><em><u>Texto combinado<\/u><\/em><\/strong>/i,
+  "O banco recebe B, I e U aninhados e preservados");
+ await page.goto(origin+"/#/reunioes/editar/m1");
+ await page.locator('#meeting-form [data-rich-input="rawNotes"] strong em u').waitFor();
+ const reopened=page.locator('#meeting-form [data-rich-input="rawNotes"]');
+ await reopened.selectText();
+ await page.waitForTimeout(70);
+ for(const format of ["bold","italic","underline"])
+  assert.equal(await page.locator('#meeting-form [data-format="'+format+'"]').getAttribute("aria-pressed"),"true",
+   "Selecionar texto salvo recupera destaque ativo de "+format);
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
  assert.equal(await page.locator("select[data-detail-status]").inputValue(),"atrasada","Venceu há poucos minutos: status atrasada");
@@ -871,6 +913,29 @@ await page.locator('a[data-route="reunioes"]').click();
  });
  assert.equal(guideStyles.shared,true,"Notificações usam mesma classe do aviso sobre Administração");
  assert.deepEqual(guideStyles.second,guideStyles.first,"Dois avisos idênticos em fundo lilás, borda, cantos, padding e texto no celular");
+ await page.locator("#admin-user-search").waitFor({state:"visible",timeout:5000});
+ assert.equal(await page.locator("#admin-users .admin-user-card").count(),2,"Lista exibe cartões de usuários reais");
+ for(const width of [320,360,390,414]){
+  await page.setViewportSize({width,height:844});
+  const geometry=await page.locator("#admin-users .admin-user-card").first().evaluate(card=>{
+   const cardBox=card.getBoundingClientRect(),name=card.querySelector(".admin-user-name").getBoundingClientRect(),
+    actions=[...card.querySelectorAll(".admin-user-actions .button")].map(b=>b.getBoundingClientRect());
+   return {width:cardBox.width,nameRight:name.right,cardRight:cardBox.right,
+    actionOverflow:actions.some(r=>r.right>cardBox.right+2),
+    scroll:document.documentElement.scrollWidth,viewport:window.innerWidth};
+  });
+  assert.ok(!geometry.actionOverflow&&geometry.nameRight<=geometry.cardRight+2&&geometry.scroll<=width+2,
+   "Cartões de usuários sem textos ou botões cortados em "+width+": "+JSON.stringify(geometry));
+ }
+ await page.locator("#admin-user-search").fill("admin@local");
+ assert.equal(await page.locator("#admin-users .admin-user-card:visible").count(),1,"Filtro busca por e-mail");
+ await page.locator("#admin-user-search").fill("sem correspondência");
+ assert.equal(await page.locator("#admin-users .admin-user-card:visible").count(),0,"Busca vazia não mostra cartões");
+ assert.equal(await page.locator("#admin-user-search-empty").isVisible(),true,"Mensagem quando nenhum usuário é encontrado");
+ await page.locator("#admin-user-search").fill("");
+ assert.equal(await page.locator("#admin-users .admin-user-card:visible").count(),2,"Limpar busca restaura usuários");
+ assert.equal(await page.locator('#admin-users [data-role="u1"]').inputValue(),"tutor","Cargo real preservado");
+ assert.equal(await page.locator('#admin-users [data-notify="u1"]').isChecked(),false,"Preferência preservada");
 
  assert.equal(await page.locator(".admin-sidebar.open").count(),0,"Menu Admin fecha ao navegar para Usuários");
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/demandas"]').count(),0,"Sem Demandas duplicadas no Admin");
