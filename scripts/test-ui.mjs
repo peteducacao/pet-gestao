@@ -104,7 +104,28 @@ for(const name of ["description","captionText","rawNotes","message"]){
  const tools=host.querySelectorAll('.rich-format-button[data-format="bold"],.rich-format-button[data-format="italic"],.rich-format-button[data-format="underline"]');
  assert.equal(tools.length,3,"B, I e U disponíveis no campo "+name);
  for(const btn of tools)assert.equal(btn.getAttribute("aria-pressed"),"false","Estado inicial acessível em "+name);
+ const highlight=host.querySelector('[data-rich-highlight]');
+ assert.ok(highlight&&highlight.type==="color","Marca-texto disponível em "+name);
+ assert.equal(highlight.value,"#fff176","Cor inicial amarela do marca-texto em "+name);
 }
+// Aplicar marca-texto na seleção não modifica cor da fonte e sobrevive à sanitização/salvamento.
+const markHost=document.createElement("div");
+markHost.id="rich-mark-test";
+markHost.innerHTML=window.eval('richEditor("description","Trecho de teste")');
+document.body.append(markHost);
+const markEditor=markHost.querySelector("[data-rich-input]");
+const markRange=document.createRange();
+markRange.selectNodeContents(markEditor);
+const markSelection=window.getSelection();
+markSelection.removeAllRanges();markSelection.addRange(markRange);
+assert.equal(window.eval('applyRichFormat(document.querySelector("#rich-mark-test [data-rich-input]"),"hiliteColor","#ffe066")'),true,
+ "Marca-texto aplica cor ao trecho selecionado");
+assert.match(markEditor.innerHTML,/background-color:\\s*rgb\\(255, 224, 102\\)/,
+ "Destaque aplicado ao texto selecionado");
+assert.match(window.eval('safeRich(document.querySelector("#rich-mark-test [data-rich-input]").innerHTML)'),/background-color:/,
+ "Destaque é preservado na sanitização antes de salvar");
+markHost.remove();
+markSelection.removeAllRanges();
 document.dispatchEvent(new window.Event("DOMContentLoaded",{bubbles:true}));
 await wait();await wait();
 assert.ok(document.querySelector('a[data-route="reunioes"]'),"Atas aparece na navegação");
