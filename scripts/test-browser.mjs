@@ -548,6 +548,7 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#meeting-form [data-format="italic"],#meeting-form [data-format="underline"]').count(),2,"Ata possui itálico e sublinhado");
  assert.equal(await page.locator('#meeting-form [data-format="insertUnorderedList"]').count(),1,"Ata permite marcadores");
  assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
+ assert.equal(await page.locator('#meeting-form [data-rich-highlight]').count(),1,"Ata permite marca-texto");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("type"),"text",
   "Título da ata permanece editável");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("required")!==null,true,
@@ -934,13 +935,18 @@ await page.locator('a[data-route="reunioes"]').click();
   await page.setViewportSize({width,height:844});
   const geometry=await page.locator("#admin-users .admin-user-card").first().evaluate(card=>{
    const cardBox=card.getBoundingClientRect(),name=card.querySelector(".admin-user-name").getBoundingClientRect(),
-    actions=[...card.querySelectorAll(".admin-user-actions .button")].map(b=>b.getBoundingClientRect());
+    actions=[...card.querySelectorAll(".admin-user-actions .button")].map(b=>b.getBoundingClientRect()),
+    identity=card.querySelector(".admin-user-identity").getBoundingClientRect(),
+    role=card.querySelector(".admin-user-role").getBoundingClientRect();
    return {width:cardBox.width,nameRight:name.right,cardRight:cardBox.right,
+    gapBeforeRole:role.top-identity.bottom,cardHeight:cardBox.height,
     actionOverflow:actions.some(r=>r.right>cardBox.right+2),
     scroll:document.documentElement.scrollWidth,viewport:window.innerWidth};
   });
   assert.ok(!geometry.actionOverflow&&geometry.nameRight<=geometry.cardRight+2&&geometry.scroll<=width+2,
    "Cartões de usuários sem textos ou botões cortados em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.gapBeforeRole>=0&&geometry.gapBeforeRole<=32,
+   "Nome e Cargo precisam ficar próximos, sem vazio exagerado em "+width+": "+JSON.stringify(geometry));
  }
  await page.locator("#admin-user-search").fill("admin@local");
  assert.equal(await page.locator("#admin-users .admin-user-card:visible").count(),1,"Filtro busca por e-mail");
