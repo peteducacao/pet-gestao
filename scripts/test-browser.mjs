@@ -782,6 +782,45 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(Number(combinedRun.weight)>=600&&combinedRun.line.includes("underline"),"B e U combinam com I");
  assert.ok(combinedRun.text.includes("Três estilos juntos"),"Digitação combinada preserva o texto");
  for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
+ // Regredir o defeito real do Android: o IME troca o nó dentro do editor,
+ // colocando as novas letras DEPOIS do span do cursor estilizado.
+ await editor.fill("Texto normal ");
+ await editor.click();
+ for(const mode of ["bold","italic","underline"]){
+  const control=toolbar.locator('[data-format="'+mode+'"]');
+  if(await control.getAttribute("aria-pressed")!=="true")await control.click();
+ }
+ await editor.evaluate(el=>{
+  const marker=el.querySelector("[data-rich-typing]");
+  if(!marker)throw Error("Não criou o trecho tipográfico na seleção");
+  el.dispatchEvent(new CompositionEvent("compositionstart",{bubbles:true,data:""}));
+  const outside=document.createTextNode("AndroidGboard");
+  marker.after(outside);
+  const range=document.createRange();
+  range.setStart(outside,outside.length);range.collapse(true);
+  const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+  el.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertCompositionText",data:"AndroidGboard",isComposing:true}));
+  el.dataset.imePreviewStyle=getComputedStyle(outside.parentElement).fontStyle;
+  el.dispatchEvent(new CompositionEvent("compositionend",{bubbles:true,data:"AndroidGboard"}));
+ });
+ assert.equal(await editor.getAttribute("data-ime-preview-style"),"italic","Durante a composição a letra já aparece inclinada");
+ await page.waitForTimeout(75);
+ const imeStyled=await editor.evaluate(el=>{
+  const span=[...el.querySelectorAll("span")].find(item=>item.textContent==="AndroidGboard");
+  if(!span)return null;
+  const style=getComputedStyle(span);
+  return {text:span.textContent,italic:style.fontStyle,weight:style.fontWeight,
+    underline:style.textDecorationLine,html:el.innerHTML};
+ });
+ assert.ok(imeStyled,"Texto do Gboard foi localizado no editor");
+ assert.equal(imeStyled.italic,"italic","Composição Android aparece com a letra inclinada de verdade: "+JSON.stringify(imeStyled));
+ assert.ok(Number(imeStyled.weight)>=600,"Composição Android mantém negrito");
+ assert.ok(imeStyled.underline.includes("underline"),"Composição Android mantém sublinhado");
+ assert.equal(await editor.locator('span[data-rich-typed]').first().evaluate(el=>getComputedStyle(el).fontStyle),"normal",
+  "Texto anterior volta ao estilo normal após finalizar a palavra");
+ assert.match(imeStyled.html,/font-style:\s*italic/i,"Itálico presente no HTML salvo");
+ for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
+ await editor.fill("");
  assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),3,"Formatação agrupada em estilo, listas e alinhamento");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");

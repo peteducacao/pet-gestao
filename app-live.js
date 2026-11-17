@@ -164,6 +164,45 @@ function richEditor(name,value,placeholder="Escreva aqui..."){
 // Não depende da implementação inconsistente de execCommand em navegadores móveis.
 
 const richStates=new WeakMap();
+const richNativeSnapshots=new WeakMap();
+const richCompositionPreviews=new WeakMap();
+// Enquanto o Gboard compõe uma palavra, mudar a árvore de texto pode
+// interromper a digitação. Uma prévia de estilo (reversível) no elemento que
+// contém o cursor permite ver o itálico/sublinhado imediatamente; na conclusão
+// o texto novo recebe um span permanente, sem alterar o texto anterior.
+function clearRichCompositionPreview(editor){
+ const preview=richCompositionPreviews.get(editor);
+ if(!preview)return;
+ for(const [name,value,priority] of preview.original){
+  if(value)preview.target.style.setProperty(name,value,priority);
+  else preview.target.style.removeProperty(name);
+ }
+ richCompositionPreviews.delete(editor);
+}
+function previewRichNativeComposition(editor){
+ const state=richState(editor);
+ if(!state.locked)return;
+ const selection=window.getSelection(),node=selection?.anchorNode;
+ const element=node?.nodeType===3?node.parentElement:node;
+ const target=element?.nodeType===1&&editor.contains(element)?element:editor;
+ const previous=richCompositionPreviews.get(editor);
+ if(previous?.target!==target)clearRichCompositionPreview(editor);
+ if(!richCompositionPreviews.has(editor)){
+  const props=["font-weight","font-style","text-decoration","color","background-color"];
+  richCompositionPreviews.set(editor,{target,original:props.map(name=>[
+   name,target.style.getPropertyValue(name),target.style.getPropertyPriority(name)
+  ])});
+ }
+ target.style.fontWeight=state.bold?"700":"400";
+ target.style.fontStyle=state.italic?"italic":"normal";
+ target.style.textDecoration=state.underline?"underline":"none";
+ if(state.color)target.style.color=state.color;
+ if(state.highlight)target.style.backgroundColor=state.highlight;
+}
+
+function richVisibleText(editor){return editor.textContent.replace(/\u200B/g,"")}
+function snapshotRichInput(editor){richNativeSnapshots.set(editor,richVisibleText(editor))}
+
 function richState(editor){
  let state=richStates.get(editor);
  if(!state){state={bold:false,italic:false,underline:false,color:null,highlight:null,locked:false};richStates.set(editor,state)}
@@ -288,6 +327,88 @@ function placeRichTypingAnchor(editor,state,range){
  const caret=document.createRange();caret.setStart(caretText,caretText.length);caret.collapse(true);
  setRichSelection(editor,caret);
 }
+// Teclados Android (Gboard, Samsung e outros IMEs) podem inserir o texto
+// FORA do span em que o cursor foi colocado, inclusive após substituições
+// de palavras. Recuperar a faixa de texto alterada após a composição evita
+// que B/I/U fiquem ativos só no botão, sem efeito visual no conteúdo.
+function richTextPosition(editor,logicalOffset){
+ const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);
+ let seen=0,last=null,node;
+ while((node=walker.nextNode())){
+  for(let i=0;i<node.length;i++){
+   if(node.data[i]==="\u200B")continue;
+   if(seen===logicalOffset)return {node,offset:i};
+   seen++;
+   last={node,offset:i+1};
+  }
+ }
+ return last||{node:editor,offset:editor.childNodes.length};
+}
+function richCaretOffset(editor,range){
+ try{
+  const prefix=document.createRange();
+  prefix.selectNodeContents(editor);
+  prefix.setEnd(range.startContainer,range.startOffset);
+  return prefix.toString().replace(/\u200B/g,"").length;
+ }catch{return null}
+}
+function richNativeTextAlreadyStyled(editor,node,state){
+ const element=node.nodeType===3?node.parentElement:node;
+ if(!element||element===editor)return false;
+ const css=window.getComputedStyle(element);
+ const bold=Number(css.fontWeight)>=600||css.fontWeight==="bold";
+ const italic=["italic","oblique"].includes(css.fontStyle);
+ let underline=false,highlight=null;
+ for(let parent=element;parent&&parent!==editor;parent=parent.parentElement){
+  if(parent.style?.textDecorationLine?.includes("underline")||parent.tagName==="U")underline=true;
+  if(!highlight&&parent.style?.backgroundColor)highlight=window.getComputedStyle(parent).backgroundColor;
+ }
+ const color=css.color?.match(/^rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+ const hex=color?"#"+color.slice(1,4).map(v=>Number(v).toString(16).padStart(2,"0")).join(""):null;
+ const highlightRgb=highlight?.match(/^rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+ const highlightHex=highlightRgb?"#"+highlightRgb.slice(1,4).map(v=>Number(v).toString(16).padStart(2,"0")).join(""):null;
+ return bold===Boolean(state.bold)&&italic===Boolean(state.italic)&&underline===Boolean(state.underline)
+  &&(!state.color||state.color.toLowerCase()===hex)
+  &&(!state.highlight||state.highlight.toLowerCase()===highlightHex);
+}
+function reconcileRichNativeInput(editor){
+ const after=richVisibleText(editor),before=richNativeSnapshots.get(editor);
+ const state=richState(editor);
+ if(typeof before!=="string"||!state.locked||before===after){
+  snapshotRichInput(editor);return;
+ }
+ let start=0;
+ while(start<before.length&&start<after.length&&before[start]===after[start])start++;
+ let tail=0;
+ while(tail<before.length-start&&tail<after.length-start&&
+   before[before.length-1-tail]===after[after.length-1-tail])tail++;
+ const end=after.length-tail;
+ if(end<=start){snapshotRichInput(editor);return}
+ const first=richTextPosition(editor,start),last=richTextPosition(editor,end);
+ if(first.node===last.node&&first.offset===last.offset){snapshotRichInput(editor);return}
+ if(richNativeTextAlreadyStyled(editor,first.node,state)){
+  snapshotRichInput(editor);return;
+ }
+ const current=window.getSelection();
+ const currentRange=current?.rangeCount?current.getRangeAt(0):null;
+ const caret=currentRange&&editor.contains(currentRange.commonAncestorContainer)?
+  richCaretOffset(editor,currentRange):null;
+ const selection=document.createRange();
+ selection.setStart(first.node,first.offset);
+ selection.setEnd(last.node,last.offset);
+ const span=document.createElement("span");
+ richTypingStyle(span,state);
+ span.removeAttribute("data-rich-typed");
+ span.removeAttribute("data-rich-typing");
+ span.append(selection.extractContents());
+ selection.insertNode(span);
+ if(caret!==null){
+  const pos=richTextPosition(editor,caret),next=document.createRange();
+  next.setStart(pos.node,pos.offset);next.collapse(true);
+  setRichSelection(editor,next);
+ }
+ snapshotRichInput(editor);
+}
 function applyRichFormat(editor,format,color=""){
  if(!editor)return false;
  const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull","foreColor","hiliteColor"]);
@@ -310,6 +431,7 @@ function applyRichFormat(editor,format,color=""){
   else state[format]=next;
   state.locked=true;
   placeRichTypingAnchor(editor,state,range);
+  snapshotRichInput(editor);
   updateRichToolbar(editor);
   return true;
  }
@@ -341,6 +463,7 @@ function applyRichFormat(editor,format,color=""){
  else if(format==="hiliteColor")state.highlight=next;
  else state[format]=next;
  state.locked=true;
+ snapshotRichInput(editor);
  updateRichToolbar(editor);
  editor.dispatchEvent(new Event("input",{bubbles:true}));
  return true;
@@ -3270,6 +3393,24 @@ function start(){
    }
  });
  document.addEventListener("beforeinput",insertRichTypedText);
+ document.addEventListener("input",e=>{
+  const editor=e.target.closest?.("[data-rich-input]");
+  if(!editor)return;
+  // Não modificar nós enquanto o teclado ainda está compondo a palavra.
+  if(e.isComposing||e.inputType==="insertCompositionText"||e.inputType==="deleteCompositionText"){
+   previewRichNativeComposition(editor);return;
+  }
+  clearRichCompositionPreview(editor);
+  reconcileRichNativeInput(editor);
+ });
+ document.addEventListener("compositionstart",e=>{
+  const editor=e.target.closest?.("[data-rich-input]");
+  if(editor&&!richNativeSnapshots.has(editor))snapshotRichInput(editor);
+ });
+ document.addEventListener("compositionend",e=>{
+  const editor=e.target.closest?.("[data-rich-input]");
+  if(editor)setTimeout(()=>{clearRichCompositionPreview(editor);if(editor.isConnected)reconcileRichNativeInput(editor)},0);
+ });
  document.addEventListener("pointerup",e=>{
    const editor=e.target.closest?.("[data-rich-input]");
    if(editor)richStyleFromCursor(editor);
