@@ -3542,3 +3542,19 @@ body.commission-image-editor-open{overflow:hidden}
 @media(max-width:340px){
  #screen #admin-users .admin-user-actions{grid-template-columns:1fr}
 }
+
+
+/* Corrige o flex-basis de 150px herdado de .live-admin-row>div:first-child:
+   no cartão vertical o cabeçalho não pode consumir 150px de altura vazia. */
+#screen #admin-users .live-admin-row.admin-user-card>.admin-user-identity{
+ flex:0 0 auto;min-height:0;align-self:stretch;
+}
+#screen #admin-users .live-admin-row.admin-user-card>.admin-user-role{
+ flex:0 0 auto;margin:0;
+}
+@media(max-width:520px){
+ #screen #admin-users .live-admin-row.admin-user-card{gap:11px;padding:15px}
+ #screen #admin-users .admin-user-identity{align-items:center}
+ #screen #admin-users .admin-user-name{min-width:0}
+ #screen #admin-users .admin-user-actions{margin-top:0}
+}
