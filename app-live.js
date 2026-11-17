@@ -82,7 +82,7 @@ function hasUnsavedTaskChanges(){
 function resetTaskDraft(){taskFormDraft=null;state.taskFiles=[]}
 // Protege atas novas ou editadas, incluindo conteúdo HTML do editor formatado.
 let meetingFormDraft=null;
-const meetingDraftRoute=hash=>/^#\\/(?:admin\\/)?reunioes\\/(?:nova|editar\\/[^/?#]+)$/.test(String(hash||""));
+const meetingDraftRoute=hash=>/^#\/(?:admin\/)?reunioes\/(?:nova|editar\/[^/?#]+)$/.test(String(hash||""));
 function meetingDraftSnapshot(){
  const form=$("#meeting-form");
  if(!form)return null;
