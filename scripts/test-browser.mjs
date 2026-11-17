@@ -742,6 +742,46 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.keyboard.type(" normal");
  assert.equal(await editor.locator("span[data-rich-typed]").last().evaluate(el=>getComputedStyle(el).fontWeight),"400",
   "Texto digitado após desligar B não fica em negrito");
+ // Regressão Android/Gboard: inserir texto depois de ativar I sem seleção
+ // deve usar uma âncora realmente inclinada, inclusive durante composição.
+ await editor.fill("");
+ await editor.click();
+ const italicControl=toolbar.locator('[data-format="italic"]');
+ await italicControl.click();
+ assert.equal(await italicControl.getAttribute("aria-pressed"),"true","I aparece ativado");
+ const composing=await editor.evaluate(el=>{
+  const selection=window.getSelection();
+  const node=selection.anchorNode;
+  const anchor=node?.nodeType===3?node.parentElement:node;
+  const before=new InputEvent("beforeinput",{bubbles:true,cancelable:true,inputType:"insertCompositionText",data:"Á",isComposing:true});
+  return {inside:Boolean(anchor?.closest?.("[data-rich-typing]")),allowed:el.dispatchEvent(before)};
+ });
+ assert.ok(composing.inside&&composing.allowed,"Composição Android é recebida dentro do trecho itálico");
+ await page.keyboard.insertText("Este trecho é itálico");
+ const firstItalic=editor.locator("[data-rich-typing]").first();
+ await firstItalic.waitFor({timeout:5000});
+ const italicRendered=await firstItalic.evaluate(el=>({
+  text:el.textContent.replace(/\u200B/g,""),style:getComputedStyle(el).fontStyle
+ }));
+ assert.equal(italicRendered.style,"italic","Letras visivelmente inclinadas ao digitar com I ativo");
+ assert.ok(italicRendered.text.includes("Este trecho é itálico"),"Texto entrou dentro do trecho inclinado");
+ await italicControl.click();
+ assert.equal(await italicControl.getAttribute("aria-pressed"),"false","Desativar I funciona");
+ await page.keyboard.insertText(" e este normal");
+ const normalItalic=await editor.locator("[data-rich-typing]").last().evaluate(el=>getComputedStyle(el).fontStyle);
+ assert.equal(normalItalic,"normal","Texto após desligar I fica reto sem modificar o anterior");
+ await editor.fill("");
+ await editor.click();
+ for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
+ await page.keyboard.insertText("Três estilos juntos");
+ const combinedRun=await editor.locator("[data-rich-typing]").last().evaluate(el=>({
+  text:el.textContent.replace(/\u200B/g,""),style:getComputedStyle(el).fontStyle,
+  weight:getComputedStyle(el).fontWeight,line:getComputedStyle(el).textDecorationLine
+ }));
+ assert.equal(combinedRun.style,"italic","B+I+U conserva as letras inclinadas");
+ assert.ok(Number(combinedRun.weight)>=600&&combinedRun.line.includes("underline"),"B e U combinam com I");
+ assert.ok(combinedRun.text.includes("Três estilos juntos"),"Digitação combinada preserva o texto");
+ for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
  assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),3,"Formatação agrupada em estilo, listas e alinhamento");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");
