@@ -120,7 +120,7 @@ const markSelection=window.getSelection();
 markSelection.removeAllRanges();markSelection.addRange(markRange);
 assert.equal(window.eval('applyRichFormat(document.querySelector("#rich-mark-test [data-rich-input]"),"hiliteColor","#ffe066")'),true,
  "Marca-texto aplica cor ao trecho selecionado");
-assert.match(markEditor.innerHTML,/background-color:\\s*rgb\\(255, 224, 102\\)/,
+assert.match(markEditor.innerHTML,/background-color:\s*rgb\(255, 224, 102\)/,
  "Destaque aplicado ao texto selecionado");
 assert.match(window.eval('safeRich(document.querySelector("#rich-mark-test [data-rich-input]").innerHTML)'),/background-color:/,
  "Destaque é preservado na sanitização antes de salvar");
