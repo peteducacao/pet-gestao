@@ -165,6 +165,39 @@ function richEditor(name,value,placeholder="Escreva aqui..."){
 
 const richStates=new WeakMap();
 const richNativeSnapshots=new WeakMap();
+const richCompositionPreviews=new WeakMap();
+// Enquanto o Gboard compõe uma palavra, mudar a árvore de texto pode
+// interromper a digitação. Uma prévia de estilo (reversível) no elemento que
+// contém o cursor permite ver o itálico/sublinhado imediatamente; na conclusão
+// o texto novo recebe um span permanente, sem alterar o texto anterior.
+function clearRichCompositionPreview(editor){
+ const preview=richCompositionPreviews.get(editor);
+ if(!preview)return;
+ for(const [name,value,priority] of preview.original){
+  if(value)preview.target.style.setProperty(name,value,priority);
+  else preview.target.style.removeProperty(name);
+ }
+ richCompositionPreviews.delete(editor);
+}
+function previewRichNativeComposition(editor){
+ const state=richState(editor);
+ if(!state.locked)return;
+ const selection=window.getSelection(),node=selection?.anchorNode;
+ const element=node?.nodeType===3?node.parentElement:node;
+ const target=element?.nodeType===1&&editor.contains(element)?element:editor;
+ const previous=richCompositionPreviews.get(editor);
+ if(previous?.target!==target)clearRichCompositionPreview(editor);
+ if(!richCompositionPreviews.has(editor)){
+  const props=["font-weight","font-style","text-decoration","color","background-color"];
+  richCompositionPreviews.set(editor,{target,original:props.map(name=>[
+   name,target.style.getPropertyValue(name),target.style.getPropertyPriority(name)
+  ])});
+ }
+ richTypingStyle(target,state);
+ // A marca de digitação pertence apenas a spans, não ao editor inteiro.
+ if(target===editor){delete target.dataset.richTyped}
+}
+
 function richVisibleText(editor){return editor.textContent.replace(/\u200B/g,"")}
 function snapshotRichInput(editor){richNativeSnapshots.set(editor,richVisibleText(editor))}
 
@@ -3362,7 +3395,10 @@ function start(){
   const editor=e.target.closest?.("[data-rich-input]");
   if(!editor)return;
   // Não modificar nós enquanto o teclado ainda está compondo a palavra.
-  if(e.isComposing||e.inputType==="insertCompositionText"||e.inputType==="deleteCompositionText")return;
+  if(e.isComposing||e.inputType==="insertCompositionText"||e.inputType==="deleteCompositionText"){
+   previewRichNativeComposition(editor);return;
+  }
+  clearRichCompositionPreview(editor);
   reconcileRichNativeInput(editor);
  });
  document.addEventListener("compositionstart",e=>{
@@ -3371,7 +3407,7 @@ function start(){
  });
  document.addEventListener("compositionend",e=>{
   const editor=e.target.closest?.("[data-rich-input]");
-  if(editor)setTimeout(()=>{if(editor.isConnected)reconcileRichNativeInput(editor)},0);
+  if(editor)setTimeout(()=>{clearRichCompositionPreview(editor);if(editor.isConnected)reconcileRichNativeInput(editor)},0);
  });
  document.addEventListener("pointerup",e=>{
    const editor=e.target.closest?.("[data-rich-input]");
