@@ -174,7 +174,11 @@ function richStyleFromCursor(editor){
  let element=node.nodeType===1?node:node.parentElement;
  if(element===editor&&node.nodeType===1){
   const near=node.childNodes[Math.max(0,Math.min(range.startOffset-1,node.childNodes.length-1))];
-  if(near)element=near.nodeType===1?near:near.parentElement;
+  // Uma seleção de texto já formatado pode começar no editor raiz.
+  // Descer até o caractere efetivo para refletir B, I e U simultaneamente.
+  let leaf=near;
+  while(leaf?.nodeType===1&&leaf.firstChild)leaf=leaf.firstChild;
+  if(leaf)element=leaf.nodeType===1?leaf:leaf.parentElement;
  }
  element=element||editor;
  const css=window.getComputedStyle(element);
@@ -223,19 +227,21 @@ function setRichSelection(editor,range){
 }
 function unwrapRichSelection(editor,range,tag){
  if(range.collapsed)return false;
- let node=range.startContainer.nodeType===3?range.startContainer.parentElement:range.startContainer;
  const selected=range.toString();
- while(node&&node!==editor){
-  if(node.nodeType===1&&node.matches(tag)&&node.textContent===selected){
-   const first=node.firstChild,last=node.lastChild,parent=node.parentNode;
-   if(!first||!last||!parent)return false;
-   const result=document.createRange();
-   result.setStartBefore(first);result.setEndAfter(last);
-   node.replaceWith(...[...node.childNodes]);
-   setRichSelection(editor,result);
-   return true;
-  }
-  node=node.parentElement;
+ let node=range.startContainer.nodeType===3?range.startContainer.parentElement:range.startContainer;
+ const choices=[];
+ while(node&&node!==editor){if(node.nodeType===1&&node.matches(tag))choices.push(node);node=node.parentElement}
+ // Quando a seleção começa na raiz ou abraça uma combinação de estilos,
+ // também procurar a tag interna exata selecionada.
+ for(const match of editor.querySelectorAll(tag))if(range.intersectsNode(match))choices.push(match);
+ for(const match of new Set(choices)){
+  if(match.textContent!==selected||!match.firstChild||!match.lastChild)continue;
+  const first=match.firstChild,last=match.lastChild;
+  match.replaceWith(...[...match.childNodes]);
+  const result=document.createRange();
+  result.setStartBefore(first);result.setEndAfter(last);
+  setRichSelection(editor,result);
+  return true;
  }
  return false;
 }
