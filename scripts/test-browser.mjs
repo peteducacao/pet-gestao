@@ -718,7 +718,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await editor.selectText();
  await toolbar.locator('[data-rich-highlight]').fill("#ffe066");
  const highlightHtml=await editor.innerHTML();
- assert.match(highlightHtml,/background-color:\\s*(?:rgb\\(255, 224, 102\\)|#ffe066)/i,
+ assert.match(highlightHtml,/background-color:\s*(?:rgb\(255, 224, 102\)|#ffe066)/i,
   "Marca-texto destaca apenas as palavras selecionadas");
  const highlightVisual=await editor.locator('[style*="background-color"]').first().evaluate(e=>({
   mark:getComputedStyle(e).backgroundColor,
