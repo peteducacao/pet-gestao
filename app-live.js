@@ -193,9 +193,11 @@ function previewRichNativeComposition(editor){
    name,target.style.getPropertyValue(name),target.style.getPropertyPriority(name)
   ])});
  }
- richTypingStyle(target,state);
- // A marca de digitação pertence apenas a spans, não ao editor inteiro.
- if(target===editor){delete target.dataset.richTyped}
+ target.style.fontWeight=state.bold?"700":"400";
+ target.style.fontStyle=state.italic?"italic":"normal";
+ target.style.textDecoration=state.underline?"underline":"none";
+ if(state.color)target.style.color=state.color;
+ if(state.highlight)target.style.backgroundColor=state.highlight;
 }
 
 function richVisibleText(editor){return editor.textContent.replace(/\u200B/g,"")}
