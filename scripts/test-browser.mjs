@@ -496,6 +496,37 @@ try{
  assert.ok((await page.locator(".demand-activity-card").filter({hasText:"Poesia no PET"}).count())>=1,
   "A opção Visão geral, Demandas e comissões inclui a demanda na listagem");
  await page.goto(origin+"/#/inicio");
+ await page.locator(".dashboard-weekly-card>.section-head").waitFor({state:"visible",timeout:10000});
+ // Pendências semanais: título inteiro em linha própria, subtítulo abaixo
+ // e CTA na linha seguinte, sem rolagem lateral no Android.
+ for(const width of [320,360,390,414]){
+  await page.setViewportSize({width,height:844});
+  const geometry=await page.locator(".dashboard-weekly-card>.section-head").evaluate(head=>{
+   const title=head.querySelector("h2"),description=head.querySelector("p"),button=head.querySelector(".button"),
+    tr=title.getBoundingClientRect(),dr=description.getBoundingClientRect(),
+    br=button.getBoundingClientRect(),hr=head.getBoundingClientRect();
+   return {direction:getComputedStyle(head).flexDirection,
+    width:hr.width,titleWidth:tr.width,titleHeight:tr.height,titleLineHeight:parseFloat(getComputedStyle(title).lineHeight),
+    descriptionBottom:dr.bottom,buttonTop:br.top,buttonWidth:br.width,
+    buttonRight:br.right,headRight:hr.right,pageWidth:document.documentElement.scrollWidth,viewport:window.innerWidth};
+  });
+  assert.equal(geometry.direction,"column","Pendências semanais empilhadas em "+width);
+  assert.ok(geometry.titleHeight<=geometry.titleLineHeight*1.3,
+   "Título inteiro deve caber em uma linha em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.buttonTop>=geometry.descriptionBottom+8,
+   "Descrição aparece inteira acima do botão em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.buttonWidth>=geometry.width*.95,
+   "Botão utiliza toda a largura do cartão em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.buttonRight<=geometry.headRight+2&&geometry.pageWidth<=width+2,
+   "Sem transbordamento horizontal em "+width+": "+JSON.stringify(geometry));
+ }
+ await page.setViewportSize({width:1280,height:900});
+ const desktopWeekly=await page.locator(".dashboard-weekly-card>.section-head").evaluate(head=>({
+  direction:getComputedStyle(head).flexDirection,buttonWidth:head.querySelector(".button").getBoundingClientRect().width
+ }));
+ assert.equal(desktopWeekly.direction,"row","No computador mantém título e botão lado a lado");
+ // Após a validação móvel, restaurar o desktop para que o menu lateral
+ // esteja visível nos fluxos seguintes do teste completo.
 await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".meeting-card-link").waitFor({timeout:5000});
  await page.locator(".meeting-card-link").click();
@@ -510,6 +541,33 @@ await page.locator('a[data-route="reunioes"]').click();
   "Título da ata permanece editável");
  assert.equal(await page.locator('#meeting-form input[name="title"]').getAttribute("required")!==null,true,
   "Título da ata é obrigatório");
+ // Proteção contra perder edição de atas, incluindo texto formatado.
+ await page.goto(origin+"/#/inicio");
+ assert.equal(await page.locator("#notice-dialog").isHidden(),true,"Ata intacta sai sem confirmação");
+ await page.goto(origin+"/#/reunioes/editar/m1");
+ await page.locator("#meeting-form input[name=title]").fill("Ata editada sem salvar");
+ await page.locator('#meeting-form [data-rich-input="rawNotes"]').evaluate(el=>{
+  el.innerHTML+="<p><strong>Trecho ainda não salvo</strong></p>";
+  el.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertText"}));
+ });
+ const closeWarning=await page.evaluate(()=>{
+  const e=new Event("beforeunload",{cancelable:true});window.dispatchEvent(e);
+  return e.defaultPrevented;
+ });
+ assert.equal(closeWarning,true,"Fechar aba deve proteger a ata editada");
+ await page.goto(origin+"/#/inicio");
+ await page.locator("#notice-dialog").waitFor({state:"visible",timeout:8000});
+ assert.equal(new URL(page.url()).hash,"#/reunioes/editar/m1","Rota não muda até escolher sair");
+ assert.ok((await page.locator("#notice-dialog").innerText()).includes("Sair sem salvar"));
+ await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
+ assert.equal(await page.locator('#meeting-form input[name="title"]').inputValue(),"Ata editada sem salvar","Continuar preserva título");
+ assert.ok((await page.locator('#meeting-form [data-rich-input="rawNotes"]').innerHTML()).includes("Trecho ainda não salvo"),
+  "Continuar preserva texto formatado");
+ await page.goto(origin+"/#/inicio");
+ await page.locator("#notice-dialog").waitFor({state:"visible",timeout:8000});
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await page.waitForURL("**/#/inicio");
+ assert.equal(meetings.find(m=>m.id==="m1").title,"Reunião de teste","Sair sem salvar não grava no banco");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
  assert.equal(await page.locator("select[data-detail-status]").inputValue(),"atrasada","Venceu há poucos minutos: status atrasada");
