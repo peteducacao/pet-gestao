@@ -3480,6 +3480,31 @@ body.commission-image-editor-open{overflow:hidden}
  width:18px;height:18px;margin:0;
 }
 #screen #admin-users .admin-user-notify span{min-width:0}
+/* Interruptor fiel ao layout aprovado, preservando o checkbox nativo
+   para teclado, leitores de tela e envio do valor. */
+#screen #admin-users .admin-user-notify input{
+ appearance:none;-webkit-appearance:none;
+ order:2;margin-left:auto;
+ width:40px;height:23px;flex:0 0 40px;
+ border:1px solid #cdbde3;border-radius:999px;
+ background:#ded7eb;position:relative;
+ transition:background .15s ease,border-color .15s ease;
+}
+#screen #admin-users .admin-user-notify input::before{
+ content:"";display:block;position:absolute;
+ top:2px;left:2px;width:17px;height:17px;
+ background:#fff;border-radius:50%;
+ box-shadow:0 1px 3px rgba(30,15,54,.16);
+ transition:transform .15s ease;
+}
+#screen #admin-users .admin-user-notify input:checked{
+ background:#7134c5;border-color:#7134c5;
+}
+#screen #admin-users .admin-user-notify input:checked::before{transform:translateX(17px)}
+#screen #admin-users .admin-user-notify input:focus-visible{
+ outline:3px solid #b99aeb;outline-offset:3px;
+}
+#screen #admin-users .admin-user-notify span{order:1;flex:1;min-width:0}
 #screen #admin-users .admin-user-actions{
  display:grid;grid-template-columns:minmax(85px,.77fr) minmax(0,1.3fr);
  gap:9px;width:100%;
