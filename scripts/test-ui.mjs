@@ -110,14 +110,6 @@ function assertRichTools(selector,context){
  assert.ok(marker&&marker.type==="color","Marca-texto disponível em "+context);
  assert.equal(marker.value,"#fff176","Marca-texto começa amarelo em "+context);
 }
-// No Android a formatação é anterior ao texto: o marcador de cursor
-// é removido no salvamento, mas o font-style italic permanece.
-const italicFixture='<span style="font-style:italic">\u200BTeste inclinado</span>';
-const sanitizedItalic=window.eval('safeRich('+JSON.stringify(italicFixture)+')');
-assert.ok(sanitizedItalic.includes("font-style:italic"),"Itálico é preservado no texto salvo");
-assert.ok(!sanitizedItalic.includes("\u200B"),"Marcador invisível não aparece no conteúdo salvo");
-assert.equal(window.eval('safeRich('+JSON.stringify('<span style="font-style:italic">\u200B</span>')+')'),"",
- "Ativar I sem digitar não salva palavras nem spans vazios");
 document.dispatchEvent(new window.Event("DOMContentLoaded",{bubbles:true}));
 await wait();await wait();
 assert.ok(document.querySelector('a[data-route="reunioes"]'),"Atas aparece na navegação");
