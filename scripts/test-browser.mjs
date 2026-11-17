@@ -610,6 +610,15 @@ await page.locator('a[data-route="reunioes"]').click();
  for(const format of ["bold","italic","underline"])
   assert.equal(await page.locator('#meeting-form [data-format="'+format+'"]').getAttribute("aria-pressed"),"true",
    "Selecionar texto salvo recupera destaque ativo de "+format);
+ await page.locator('#meeting-form [data-format="underline"]').click();
+ assert.equal(await page.locator('#meeting-form [data-format="underline"]').getAttribute("aria-pressed"),"false",
+  "Desligar U remove somente o sublinhado");
+ assert.equal(await page.locator('#meeting-form [data-format="bold"]').getAttribute("aria-pressed"),"true",
+  "Desligar U preserva o negrito");
+ assert.equal(await page.locator('#meeting-form [data-format="italic"]').getAttribute("aria-pressed"),"true",
+  "Desligar U preserva o itálico");
+ assert.equal(await reopened.locator("strong em u").count(),0,"Substituição remove a marca interna U");
+ assert.equal(await reopened.locator("strong em").count(),1,"B e I permanecem combinados");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
  assert.equal(await page.locator("select[data-detail-status]").inputValue(),"atrasada","Venceu há poucos minutos: status atrasada");
@@ -936,6 +945,13 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator("#admin-users .admin-user-card:visible").count(),2,"Limpar busca restaura usuários");
  assert.equal(await page.locator('#admin-users [data-role="u1"]').inputValue(),"tutor","Cargo real preservado");
  assert.equal(await page.locator('#admin-users [data-notify="u1"]').isChecked(),false,"Preferência preservada");
+ await page.locator('#admin-users [data-notify="u1"]').check();
+ const switchVisual=await page.locator('#admin-users [data-notify="u1"]').evaluate(el=>({
+  appearance:getComputedStyle(el).appearance,background:getComputedStyle(el).backgroundColor
+ }));
+ assert.equal(switchVisual.appearance,"none","Permissão de e-mail usa interruptor roxo estilizado");
+ assert.equal(switchVisual.background,"rgb(113, 52, 197)","Interruptor ativo mostra roxo");
+ await page.locator('#admin-users [data-notify="u1"]').uncheck();
 
  assert.equal(await page.locator(".admin-sidebar.open").count(),0,"Menu Admin fecha ao navegar para Usuários");
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/demandas"]').count(),0,"Sem Demandas duplicadas no Admin");
