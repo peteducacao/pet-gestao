@@ -800,8 +800,10 @@ await page.locator('a[data-route="reunioes"]').click();
   range.setStart(outside,outside.length);range.collapse(true);
   const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
   el.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertCompositionText",data:"AndroidGboard",isComposing:true}));
+  el.dataset.imePreviewStyle=getComputedStyle(outside.parentElement).fontStyle;
   el.dispatchEvent(new CompositionEvent("compositionend",{bubbles:true,data:"AndroidGboard"}));
  });
+ assert.equal(await editor.getAttribute("data-ime-preview-style"),"italic","Durante a composição a letra já aparece inclinada");
  await page.waitForTimeout(75);
  const imeStyled=await editor.evaluate(el=>{
   const span=[...el.querySelectorAll("span")].find(item=>item.textContent==="AndroidGboard");
@@ -814,6 +816,8 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(imeStyled.italic,"italic","Composição Android aparece com a letra inclinada de verdade: "+JSON.stringify(imeStyled));
  assert.ok(Number(imeStyled.weight)>=600,"Composição Android mantém negrito");
  assert.ok(imeStyled.underline.includes("underline"),"Composição Android mantém sublinhado");
+ assert.equal(await editor.locator('span[data-rich-typed]').first().evaluate(el=>getComputedStyle(el).fontStyle),"normal",
+  "Texto anterior volta ao estilo normal após finalizar a palavra");
  assert.match(imeStyled.html,/font-style:\s*italic/i,"Itálico presente no HTML salvo");
  for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
  await editor.fill("");
