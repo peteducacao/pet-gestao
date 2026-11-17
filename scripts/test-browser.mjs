@@ -525,7 +525,8 @@ try{
   direction:getComputedStyle(head).flexDirection,buttonWidth:head.querySelector(".button").getBoundingClientRect().width
  }));
  assert.equal(desktopWeekly.direction,"row","No computador mantém título e botão lado a lado");
- await page.setViewportSize({width:390,height:844});
+ // Após a validação móvel, restaurar o desktop para que o menu lateral
+ // esteja visível nos fluxos seguintes do teste completo.
 await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".meeting-card-link").waitFor({timeout:5000});
  await page.locator(".meeting-card-link").click();
