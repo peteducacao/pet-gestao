@@ -96,6 +96,15 @@ function submit(selector){
  el.dispatchEvent(new window.Event("submit",{bubbles:true,cancelable:true}));
 }
 window.eval(js);
+// Cada campo construído pelo editor compartilhado oferece as três opções,
+// sem a antiga limitação apenas às atas.
+for(const name of ["description","captionText","rawNotes","message"]){
+ const host=document.createElement("section");
+ host.innerHTML=window.eval('richEditor('+JSON.stringify(name)+',"Trecho")');
+ const tools=host.querySelectorAll('.rich-format-button[data-format="bold"],.rich-format-button[data-format="italic"],.rich-format-button[data-format="underline"]');
+ assert.equal(tools.length,3,"B, I e U disponíveis no campo "+name);
+ for(const btn of tools)assert.equal(btn.getAttribute("aria-pressed"),"false","Estado inicial acessível em "+name);
+}
 document.dispatchEvent(new window.Event("DOMContentLoaded",{bubbles:true}));
 await wait();await wait();
 assert.ok(document.querySelector('a[data-route="reunioes"]'),"Atas aparece na navegação");
