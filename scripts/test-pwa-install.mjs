@@ -24,7 +24,7 @@ assert.match(app,/navigator\.serviceWorker\.register\("\.\/sw\.js"\)/);
 assert.match(app,/Baixar aplicativo/);
 assert.match(app,/Criar atalho/);
 assert.match(app,/Google Chrome/);
-assert.match(sw,/pet-gestao-public-shell-v20261116-prancheta/);
+assert.match(sw,/pet-gestao-public-shell-v20261117-editor-global-marcador/);
 assert.ok(!sw.includes('"/api/'),"A API não deve ser armazenada no cache.");
 
 const icons=manifest.icons.filter(icon=>icon.type==="image/png");
