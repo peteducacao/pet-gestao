@@ -248,6 +248,12 @@ assert.equal(document.querySelector('#meeting-form input[name="title"]').value,i
 
 assert.ok(memo.textContent.includes("Pautas"),"Texto existente recuperado no editor");
 assert.ok(document.querySelector('#meeting-form [data-format="bold"]'),"A ata tem botão negrito");
+assert.ok(document.querySelector('#meeting-form [data-format="italic"]'),"A ata permite itálico");
+assert.ok(document.querySelector('#meeting-form [data-format="underline"]'),"A ata permite sublinhado");
+for(const format of ["bold","italic","underline"]){
+ const button=document.querySelector('#meeting-form [data-format="'+format+'"]');
+ assert.equal(button.getAttribute("aria-pressed"),"false","Estilo "+format+" começa desligado e informa estado");
+}
 assert.ok(document.querySelector('#meeting-form [data-format="insertUnorderedList"]'),"A ata tem marcadores");
 assert.ok(document.querySelector('#meeting-form [data-rich-color]'),"A ata aceita cor de texto");
 assert.equal(document.querySelector('#meeting-form input[name="title"]').type,"text","Título da ata é editável");
