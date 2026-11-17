@@ -804,7 +804,7 @@ await page.locator('a[data-route="reunioes"]').click();
  });
  await page.waitForTimeout(75);
  const imeStyled=await editor.evaluate(el=>{
-  const span=[...el.querySelectorAll("span")].find(item=>item.textContent.includes("AndroidGboard"));
+  const span=[...el.querySelectorAll("span")].find(item=>item.textContent==="AndroidGboard");
   if(!span)return null;
   const style=getComputedStyle(span);
   return {text:span.textContent,italic:style.fontStyle,weight:style.fontWeight,
