@@ -811,7 +811,7 @@ await page.locator('a[data-route="reunioes"]').click();
     underline:style.textDecorationLine,html:el.innerHTML};
  });
  assert.ok(imeStyled,"Texto do Gboard foi localizado no editor");
- assert.equal(imeStyled.italic,"italic","Composição Android aparece com a letra inclinada de verdade");
+ assert.equal(imeStyled.italic,"italic","Composição Android aparece com a letra inclinada de verdade: "+JSON.stringify(imeStyled));
  assert.ok(Number(imeStyled.weight)>=600,"Composição Android mantém negrito");
  assert.ok(imeStyled.underline.includes("underline"),"Composição Android mantém sublinhado");
  assert.match(imeStyled.html,/font-style:\\s*italic/i,"Itálico presente no HTML salvo");
