@@ -655,7 +655,7 @@ const committeeEditor=document.querySelector('#commission-form [data-rich-input=
 assert.ok(committeeEditor,"Descrição de comissão tem editor avançado");
 assertRichTools('#commission-form [data-rich-input="description"]',"descrição de comissão");
 assert.ok(document.querySelector('#commission-form [data-format="bold"]'),"Permite negrito na descrição");
-assert.equal(document.querySelector('#commission-form [data-format="italic"],#commission-form [data-format="underline"]'),null,"Itálico e sublinhado removidos da descrição");
+assert.equal(document.querySelectorAll('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').length,2,"Itálico e sublinhado disponíveis na descrição");
 assert.ok(document.querySelector('#commission-form [data-format="insertOrderedList"]'),"Permite lista na descrição");
 assert.ok(document.querySelector('#commission-form [data-rich-color]'),"Permite cor na descrição");
 assert.equal(document.querySelector('#commission-form textarea'),null,"Descrição deixa de usar textarea simples");
