@@ -80,6 +80,24 @@ function hasUnsavedTaskChanges(){
   taskFormDraft.route===lastHash&&$("#task-form")&&taskDraftSnapshot()!==taskFormDraft.snapshot);
 }
 function resetTaskDraft(){taskFormDraft=null;state.taskFiles=[]}
+// Protege atas novas ou editadas, incluindo conteúdo HTML do editor formatado.
+let meetingFormDraft=null;
+const meetingDraftRoute=hash=>/^#\\/(?:admin\\/)?reunioes\\/(?:nova|editar\\/[^/?#]+)$/.test(String(hash||""));
+function meetingDraftSnapshot(){
+ const form=$("#meeting-form");
+ if(!form)return null;
+ return JSON.stringify({
+  title:form.elements.title?.value??"",
+  date:form.elements.date?.value??"",
+  rawNotes:form.querySelector('[data-rich-input="rawNotes"]')?.innerHTML??""
+ });
+}
+function hasUnsavedMeetingChanges(){
+ return Boolean(meetingFormDraft&&meetingDraftRoute(lastHash)&&
+  meetingFormDraft.route===lastHash&&$("#meeting-form")&&
+  meetingDraftSnapshot()!==meetingFormDraft.snapshot);
+}
+function resetMeetingDraft(){meetingFormDraft=null}
 
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -2195,6 +2213,9 @@ function render(){
  if(taskFormRoute(location.hash)&&$("#task-form")&&taskFormDraft?.route!==location.hash)
   taskFormDraft={route:location.hash,snapshot:taskDraftSnapshot()};
  else if(!taskFormRoute(location.hash))resetTaskDraft();
+ if(meetingDraftRoute(location.hash)&&$("#meeting-form")&&meetingFormDraft?.route!==location.hash)
+  meetingFormDraft={route:location.hash,snapshot:meetingDraftSnapshot()};
+ else if(!meetingDraftRoute(location.hash))resetMeetingDraft();
  lastStatusSnapshot=statusSnapshot();
  if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
@@ -2890,7 +2911,12 @@ async function handleSubmit(e){
  }
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
- if(form.id==="meeting-form"){const f=collectRich(form,userFields(form));const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");if(ok)location.hash=workspaceHash("reunioes");return}
+ if(form.id==="meeting-form"){
+    const f=collectRich(form,userFields(form));
+    const ok=await saveAndReload(()=>request("/meetings"+(form.dataset.id?"/"+id(form.dataset.id):""),form.dataset.id?"PUT":"POST",{title:f.title,date:f.date,rawNotes:f.rawNotes}),"Ata salva.");
+    if(ok){resetMeetingDraft();location.hash=workspaceHash("reunioes")}
+    return;
+   }
  if(form.id==="notification-template-form"){
    const f=collectRich(form,userFields(form));
    if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
@@ -3050,7 +3076,7 @@ function syncBrowserSession(){
  localSessionRevision=latest;
  sessionStorage.removeItem(tokenKey);
  token=readSessionToken(tokenKey);
- me=null;regularMe=null;resetTaskDraft();
+ me=null;regularMe=null;resetTaskDraft();resetMeetingDraft();
  state.adminMenuOpen=false;state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
  location.hash="#/inicio";
  reload();
@@ -3081,7 +3107,7 @@ function start(){
    $("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;
    closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog();closeMailPreview();
    const destination=location.hash;
-   if(destination!==lastHash&&hasUnsavedTaskChanges()){
+   if(destination!==lastHash&&(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges())){
      // Restaura a URL sem apagar os campos; confirmação só prossegue se aceita.
      history.replaceState(history.state,"",lastHash);
      askConfirm("Deseja sair sem salvar as alterações? As informações não salvas serão perdidas.",{
@@ -3095,7 +3121,7 @@ function start(){
          state.goingBack=false;
          return;
        }
-       resetTaskDraft();state.taskFormId=null;
+       resetTaskDraft();resetMeetingDraft();state.taskFormId=null;
        location.hash=destination;
      });
      return;
@@ -3108,7 +3134,7 @@ function start(){
  // Ao voltar de outra aba, o perfil pode ter sido promovido por outro Admin.
  // Atualiza apenas quando o cargo/escopo mudou, preservando formulários em edição.
  async function refreshPermissionOnFocus(){
-  if(!token||hasUnsavedTaskChanges())return;
+  if(!token||hasUnsavedTaskChanges()||hasUnsavedMeetingChanges())return;
   try{
    const response=await request("/auth/me");
    if(response.user?.role!==me?.role||response.user?.adminSession!==me?.adminSession||
@@ -3117,7 +3143,7 @@ function start(){
  }
  window.addEventListener("focus",()=>{syncBrowserSession();void refreshPermissionOnFocus()});
  window.addEventListener("beforeunload",e=>{
-   if(hasUnsavedTaskChanges()){e.preventDefault();e.returnValue="";}
+   if(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges()){e.preventDefault();e.returnValue="";}
  });
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
    if($("#commission-preset-gallery")){e.preventDefault();closeCommissionPresetGallery();return}
