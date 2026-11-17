@@ -137,7 +137,6 @@ function safeRich(value){
 
 const formatIcon={
  bold:"<strong>B</strong>",
- italic:"<em>I</em>",
  underline:"<u>U</u>",
  insertUnorderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h11M9 12h11M9 18h11"/></svg>',
  insertOrderedList:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 4h2v6M3 10h4M3 15c0-2 4-2 4 0s-4 2-4 5h4M11 6h10M11 12h10M11 18h10"/></svg>',
@@ -149,7 +148,7 @@ const formatIcon={
 function richEditor(name,value,placeholder="Escreva aqui..."){
  const action=(cmd,label)=>'<button type="button" class="rich-format-button" data-do="rich-format" data-format="'+cmd+'" aria-label="'+esc(label)+'" title="'+esc(label)+'" aria-pressed="false">'+formatIcon[cmd]+'</button>';
  return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" role="toolbar" aria-label="Formatação do texto">'+
- '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+action("italic","Itálico")+action("underline","Sublinhado")+'</div>'+
+ '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+action("underline","Sublinhado")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<div class="rich-toolbar-group" aria-label="Listas">'+action("insertUnorderedList","Lista com marcadores")+action("insertOrderedList","Lista numerada")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
@@ -244,7 +243,7 @@ function richStyleFromCursor(editor){
 function updateRichToolbar(editor){
  const state=richState(editor),root=editor.closest(".rich-editor");
  if(!root)return;
- for(const name of ["bold","italic","underline"]){
+ for(const name of ["bold","underline"]){
   const button=root.querySelector('[data-format="'+name+'"]');
   if(button)button.setAttribute("aria-pressed",String(Boolean(state[name])));
  }
@@ -411,7 +410,7 @@ function reconcileRichNativeInput(editor){
 }
 function applyRichFormat(editor,format,color=""){
  if(!editor)return false;
- const allowed=new Set(["bold","italic","underline","insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull","foreColor","hiliteColor"]);
+ const allowed=new Set(["bold","underline","insertUnorderedList","insertOrderedList","justifyLeft","justifyCenter","justifyRight","justifyFull","foreColor","hiliteColor"]);
  if(!allowed.has(format))return false;
  const state=richState(editor),range=getRichRange(editor);
  editor.focus({preventScroll:true});

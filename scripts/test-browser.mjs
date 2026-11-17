@@ -545,7 +545,8 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.match(await page.locator('#meeting-form [data-rich-input="rawNotes"]').innerText(),/Pauta[\s\S]*Responsável: \(\?\?\?\)/,
   "Atas antigas em texto simples continuam legíveis");
  assert.equal(await page.locator('#meeting-form [data-format="bold"]').count(),1,"Ata permite negrito");
- assert.equal(await page.locator('#meeting-form [data-format="italic"],#meeting-form [data-format="underline"]').count(),2,"Ata possui itálico e sublinhado");
+ assert.equal(await page.locator('#meeting-form [data-format="italic"]').count(),0,"Ata sem botão itálico");
+ assert.equal(await page.locator('#meeting-form [data-format="underline"]').count(),1,"Ata mantém sublinhado");
  assert.equal(await page.locator('#meeting-form [data-format="insertUnorderedList"]').count(),1,"Ata permite marcadores");
  assert.equal(await page.locator('#meeting-form [data-rich-color]').count(),1,"Ata permite cor da letra");
  assert.equal(await page.locator('#meeting-form [data-rich-highlight]').count(),1,"Ata permite marca-texto");
@@ -580,52 +581,50 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
  await page.waitForURL("**/#/inicio");
  assert.equal(meetings.find(m=>m.id==="m1").title,"Reunião de teste","Sair sem salvar não grava no banco");
- // Regressão real: seleção + B, I e U simultâneos; salvar e reabrir conserva os três.
+ // Regressão: negrito e sublinhado continuam combináveis; salvar e reabrir preserva ambos.
  await page.goto(origin+"/#/reunioes/editar/m1");
  const richAta=page.locator('#meeting-form [data-rich-input="rawNotes"]');
  await richAta.fill("Texto combinado");
  await richAta.selectText();
- for(const format of ["bold","italic","underline"]){
+ for(const format of ["bold","underline"]){
   await page.locator('#meeting-form [data-format="'+format+'"]').click();
   assert.equal(await page.locator('#meeting-form [data-format="'+format+'"]').getAttribute("aria-pressed"),"true",
    "Botão "+format+" apresenta seleção ativa");
  }
- assert.equal(await page.locator('#meeting-form [aria-pressed="true"][data-format]').count(),3,
-  "B, I e U ficam ativos ao mesmo tempo");
- const allFormatted=await richAta.locator("strong em u").first().evaluate(el=>{
-  const s=getComputedStyle(el);
-  return {weight:s.fontWeight,style:s.fontStyle,decoration:s.textDecorationLine,text:el.textContent};
+ assert.equal(await page.locator('#meeting-form [aria-pressed="true"][data-format]').count(),2,
+  "B e U ficam ativos ao mesmo tempo, sem itálico");
+ const allFormatted=await richAta.locator("strong u").first().evaluate(el=>{
+  const style=getComputedStyle(el);
+  return {weight:style.fontWeight,decoration:style.textDecorationLine,text:el.textContent};
  });
  assert.equal(allFormatted.text,"Texto combinado","Combinação mantém texto integral");
- assert.ok(Number(allFormatted.weight)>=600&&allFormatted.style==="italic"&&allFormatted.decoration.includes("underline"),
-  "B+I+U visualmente aplicados à mesma seleção: "+JSON.stringify(allFormatted));
+ assert.ok(Number(allFormatted.weight)>=600&&allFormatted.decoration.includes("underline"),
+  "B e U visualmente aplicados à seleção");
  await page.locator('#meeting-form button[type="submit"]').click();
  await page.waitForURL("**/#/reunioes");
- assert.match(meetings.find(m=>m.id==="m1").rawNotes,/<strong><em><u>Texto combinado<\/u><\/em><\/strong>/i,
-  "O banco recebe B, I e U aninhados e preservados");
+ assert.match(meetings.find(m=>m.id==="m1").rawNotes,/<strong><u>Texto combinado<\/u><\/strong>/i,
+  "O banco recebe B e U aninhados e preservados");
  await page.goto(origin+"/#/reunioes/editar/m1");
- await page.locator('#meeting-form [data-rich-input="rawNotes"] strong em u').waitFor();
+ await page.locator('#meeting-form [data-rich-input="rawNotes"] strong u').waitFor();
  const reopened=page.locator('#meeting-form [data-rich-input="rawNotes"]');
  await reopened.selectText();
  await page.waitForTimeout(70);
- for(const format of ["bold","italic","underline"])
+ for(const format of ["bold","underline"])
   assert.equal(await page.locator('#meeting-form [data-format="'+format+'"]').getAttribute("aria-pressed"),"true",
-   "Selecionar texto salvo recupera destaque ativo de "+format);
+   "Selecionar texto salvo recupera "+format);
  await page.locator('#meeting-form [data-format="underline"]').click();
  assert.equal(await page.locator('#meeting-form [data-format="underline"]').getAttribute("aria-pressed"),"false",
   "Desligar U remove somente o sublinhado");
  assert.equal(await page.locator('#meeting-form [data-format="bold"]').getAttribute("aria-pressed"),"true",
-  "Desligar U preserva o negrito");
- assert.equal(await page.locator('#meeting-form [data-format="italic"]').getAttribute("aria-pressed"),"true",
-  "Desligar U preserva o itálico");
- assert.equal(await reopened.locator("strong em u").count(),0,"Substituição remove a marca interna U");
- assert.equal(await reopened.locator("strong em").count(),1,"B e I permanecem combinados");
+  "Desligar U preserva negrito");
+ assert.equal(await reopened.locator("strong u").count(),0,"U removido");
+ assert.equal(await reopened.locator("strong").count(),1,"B permanece");
  // Salvar a edição antes de seguir: a proteção contra perda de atas impede
  // corretamente a navegação direta enquanto o novo estilo não foi gravado.
  await page.locator('#meeting-form button[type="submit"]').click();
  await page.waitForURL("**/#/reunioes");
- assert.match(meetings.find(m=>m.id==="m1").rawNotes,/<strong><em>Texto combinado<\/em><\/strong>/i,
-  "Após desligar U, salvar preserva B e I sem reintroduzir sublinhado");
+ assert.match(meetings.find(m=>m.id==="m1").rawNotes,/<strong>Texto combinado<\/strong>/i,
+  "Após desligar U, salvar preserva B sem reintroduzir sublinhado");
  await page.goto(origin+"/#/atividade/t1");
  await page.locator("select[data-detail-status]").waitFor();
  assert.equal(await page.locator("select[data-detail-status]").inputValue(),"atrasada","Venceu há poucos minutos: status atrasada");
@@ -699,8 +698,8 @@ await page.locator('a[data-route="reunioes"]').click();
  await editor.fill("Revisão 📚 com cores");
  await editor.selectText();
  const toolbar=page.locator('[data-rich="captionText"]');
- assert.equal(await toolbar.locator('[data-format="italic"],[data-format="underline"]').count(),2,
-  "Itálico e sublinhado também aparecem no editor de legendas");
+ assert.equal(await toolbar.locator('[data-format="italic"]').count(),0,"Itálico ausente da legenda");
+ assert.equal(await toolbar.locator('[data-format="underline"]').count(),1,"Sublinhado presente na legenda");
  assert.equal(await toolbar.locator('[data-rich-highlight]').count(),1,"Marca-texto disponível na legenda");
  await toolbar.locator('[data-format="bold"]').click();
  await toolbar.locator('[data-rich-color]').fill("#dd3344");
@@ -742,85 +741,10 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.keyboard.type(" normal");
  assert.equal(await editor.locator("span[data-rich-typed]").last().evaluate(el=>getComputedStyle(el).fontWeight),"400",
   "Texto digitado após desligar B não fica em negrito");
- // Regressão Android/Gboard: inserir texto depois de ativar I sem seleção
- // deve usar uma âncora realmente inclinada, inclusive durante composição.
- await editor.fill("");
- await editor.click();
- const italicControl=toolbar.locator('[data-format="italic"]');
- await italicControl.click();
- assert.equal(await italicControl.getAttribute("aria-pressed"),"true","I aparece ativado");
- const composing=await editor.evaluate(el=>{
-  const selection=window.getSelection();
-  const node=selection.anchorNode;
-  const anchor=node?.nodeType===3?node.parentElement:node;
-  const before=new InputEvent("beforeinput",{bubbles:true,cancelable:true,inputType:"insertCompositionText",data:"Á",isComposing:true});
-  return {inside:Boolean(anchor?.closest?.("[data-rich-typing]")),allowed:el.dispatchEvent(before)};
- });
- assert.ok(composing.inside&&composing.allowed,"Composição Android é recebida dentro do trecho itálico");
- await page.keyboard.insertText("Este trecho é itálico");
- const firstItalic=editor.locator("[data-rich-typing]").first();
- await firstItalic.waitFor({timeout:5000});
- const italicRendered=await firstItalic.evaluate(el=>({
-  text:el.textContent.replace(/\u200B/g,""),style:getComputedStyle(el).fontStyle
- }));
- assert.equal(italicRendered.style,"italic","Letras visivelmente inclinadas ao digitar com I ativo");
- assert.ok(italicRendered.text.includes("Este trecho é itálico"),"Texto entrou dentro do trecho inclinado");
- await italicControl.click();
- assert.equal(await italicControl.getAttribute("aria-pressed"),"false","Desativar I funciona");
- await page.keyboard.insertText(" e este normal");
- const normalItalic=await editor.locator("[data-rich-typing]").last().evaluate(el=>getComputedStyle(el).fontStyle);
- assert.equal(normalItalic,"normal","Texto após desligar I fica reto sem modificar o anterior");
- await editor.fill("");
- await editor.click();
- for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
- await page.keyboard.insertText("Três estilos juntos");
- const combinedRun=await editor.locator("[data-rich-typing]").last().evaluate(el=>({
-  text:el.textContent.replace(/\u200B/g,""),style:getComputedStyle(el).fontStyle,
-  weight:getComputedStyle(el).fontWeight,line:getComputedStyle(el).textDecorationLine
- }));
- assert.equal(combinedRun.style,"italic","B+I+U conserva as letras inclinadas");
- assert.ok(Number(combinedRun.weight)>=600&&combinedRun.line.includes("underline"),"B e U combinam com I");
- assert.ok(combinedRun.text.includes("Três estilos juntos"),"Digitação combinada preserva o texto");
- for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
- // Regredir o defeito real do Android: o IME troca o nó dentro do editor,
- // colocando as novas letras DEPOIS do span do cursor estilizado.
- await editor.fill("Texto normal ");
- await editor.click();
- for(const mode of ["bold","italic","underline"]){
-  const control=toolbar.locator('[data-format="'+mode+'"]');
-  if(await control.getAttribute("aria-pressed")!=="true")await control.click();
- }
- await editor.evaluate(el=>{
-  const marker=el.querySelector("[data-rich-typing]");
-  if(!marker)throw Error("Não criou o trecho tipográfico na seleção");
-  el.dispatchEvent(new CompositionEvent("compositionstart",{bubbles:true,data:""}));
-  const outside=document.createTextNode("AndroidGboard");
-  marker.after(outside);
-  const range=document.createRange();
-  range.setStart(outside,outside.length);range.collapse(true);
-  const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
-  el.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertCompositionText",data:"AndroidGboard",isComposing:true}));
-  el.dataset.imePreviewStyle=getComputedStyle(outside.parentElement).fontStyle;
-  el.dispatchEvent(new CompositionEvent("compositionend",{bubbles:true,data:"AndroidGboard"}));
- });
- assert.equal(await editor.getAttribute("data-ime-preview-style"),"italic","Durante a composição a letra já aparece inclinada");
- await page.waitForTimeout(75);
- const imeStyled=await editor.evaluate(el=>{
-  const span=[...el.querySelectorAll("span")].find(item=>item.textContent==="AndroidGboard");
-  if(!span)return null;
-  const style=getComputedStyle(span);
-  return {text:span.textContent,italic:style.fontStyle,weight:style.fontWeight,
-    underline:style.textDecorationLine,html:el.innerHTML};
- });
- assert.ok(imeStyled,"Texto do Gboard foi localizado no editor");
- assert.equal(imeStyled.italic,"italic","Composição Android aparece com a letra inclinada de verdade: "+JSON.stringify(imeStyled));
- assert.ok(Number(imeStyled.weight)>=600,"Composição Android mantém negrito");
- assert.ok(imeStyled.underline.includes("underline"),"Composição Android mantém sublinhado");
- assert.equal(await editor.locator('span[data-rich-typed]').first().evaluate(el=>getComputedStyle(el).fontStyle),"normal",
-  "Texto anterior volta ao estilo normal após finalizar a palavra");
- assert.match(imeStyled.html,/font-style:\s*italic/i,"Itálico presente no HTML salvo");
- for(const mode of ["bold","italic","underline"])await toolbar.locator('[data-format="'+mode+'"]').click();
- await editor.fill("");
+ // Todos os editores deixam de oferecer itálico; B, U e marca-texto permanecem.
+ assert.equal(await toolbar.locator('[data-format="italic"]').count(),0,"Sem itálico na barra de formatação");
+ assert.equal(await toolbar.locator('[data-format="bold"]').count(),1,"Negrito mantido");
+ assert.equal(await toolbar.locator('[data-format="underline"]').count(),1,"Sublinhado mantido");
  assert.equal(await page.locator('[data-rich="captionText"] .rich-toolbar-group').count(),3,"Formatação agrupada em estilo, listas e alinhamento");
  assert.ok(await page.locator('[data-rich="captionText"] button[aria-label="Lista numerada"]').count(),"Lista possui nome legível");
  await editor.fill("Primeira linha\nSegunda linha");
@@ -1343,7 +1267,8 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator('#commission-form [data-rich-input="description"]').count(),1,"Descrição usa editor com formatação");
  assert.equal(await page.locator('#commission-form textarea[name="description"]').count(),0,"Descrição não utiliza textarea sem formatação");
  assert.equal(await page.locator('#commission-form [data-format="bold"]').count(),1);
- assert.equal(await page.locator('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').count(),2);
+ assert.equal(await page.locator('#commission-form [data-format="italic"]').count(),0);
+ assert.equal(await page.locator('#commission-form [data-format="underline"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-rich-highlight]').count(),1);
  assert.equal(await page.locator('#commission-form [data-format="insertOrderedList"]').count(),1);
  assert.equal(await page.locator('#commission-form [data-rich-color]').count(),1);

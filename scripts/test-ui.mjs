@@ -100,11 +100,12 @@ function assertRichTools(selector,context){
  const editor=document.querySelector(selector);
  assert.ok(editor,"Editor encontrado em "+context);
  const root=editor.closest(".rich-editor");
- for(const format of ["bold","italic","underline"]){
+ for(const format of ["bold","underline"]){
   const button=root.querySelector('[data-format="'+format+'"]');
   assert.ok(button,"Formato "+format+" existe em "+context);
   assert.equal(button.getAttribute("aria-pressed"),"false","Formato "+format+" começa desligado em "+context);
  }
+ assert.equal(root.querySelector('[data-format="italic"]'),null,"Itálico removido em "+context);
  assert.ok(root.querySelector("[data-rich-color]"),"Cor da letra disponível em "+context);
  const marker=root.querySelector("[data-rich-highlight]");
  assert.ok(marker&&marker.type==="color","Marca-texto disponível em "+context);
@@ -265,9 +266,9 @@ assert.equal(document.querySelector('#meeting-form input[name="title"]').value,i
 assert.ok(memo.textContent.includes("Pautas"),"Texto existente recuperado no editor");
 assertRichTools('#meeting-form [data-rich-input="rawNotes"]',"ata da reunião");
 assert.ok(document.querySelector('#meeting-form [data-format="bold"]'),"A ata tem botão negrito");
-assert.ok(document.querySelector('#meeting-form [data-format="italic"]'),"A ata permite itálico");
+assert.equal(document.querySelector('#meeting-form [data-format="italic"]'),null,"A ata não apresenta itálico");
 assert.ok(document.querySelector('#meeting-form [data-format="underline"]'),"A ata permite sublinhado");
-for(const format of ["bold","italic","underline"]){
+for(const format of ["bold","underline"]){
  const button=document.querySelector('#meeting-form [data-format="'+format+'"]');
  assert.equal(button.getAttribute("aria-pressed"),"false","Estilo "+format+" começa desligado e informa estado");
 }
@@ -655,7 +656,8 @@ const committeeEditor=document.querySelector('#commission-form [data-rich-input=
 assert.ok(committeeEditor,"Descrição de comissão tem editor avançado");
 assertRichTools('#commission-form [data-rich-input="description"]',"descrição de comissão");
 assert.ok(document.querySelector('#commission-form [data-format="bold"]'),"Permite negrito na descrição");
-assert.equal(document.querySelectorAll('#commission-form [data-format="italic"],#commission-form [data-format="underline"]').length,2,"Itálico e sublinhado disponíveis na descrição");
+assert.equal(document.querySelector('#commission-form [data-format="italic"]'),null,"Itálico removido da descrição");
+assert.ok(document.querySelector('#commission-form [data-format="underline"]'),"Sublinhado disponível na descrição");
 assert.ok(document.querySelector('#commission-form [data-format="insertOrderedList"]'),"Permite lista na descrição");
 assert.ok(document.querySelector('#commission-form [data-rich-color]'),"Permite cor na descrição");
 assert.equal(document.querySelector('#commission-form textarea'),null,"Descrição deixa de usar textarea simples");
