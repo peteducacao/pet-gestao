@@ -146,7 +146,7 @@ const formatIcon={
 function richEditor(name,value,placeholder="Escreva aqui..."){
  const action=(cmd,label)=>'<button type="button" class="rich-format-button" data-do="rich-format" data-format="'+cmd+'" aria-label="'+esc(label)+'" title="'+esc(label)+'" aria-pressed="false">'+formatIcon[cmd]+'</button>';
  return '<div class="rich-editor" data-rich="'+esc(name)+'"><div class="rich-toolbar" role="toolbar" aria-label="Formatação do texto">'+
- '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+(name==="rawNotes"?action("italic","Itálico")+action("underline","Sublinhado"):"")+'</div>'+
+ '<div class="rich-toolbar-group" aria-label="Estilo">'+action("bold","Negrito")+action("italic","Itálico")+action("underline","Sublinhado")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
  '<div class="rich-toolbar-group" aria-label="Listas">'+action("insertUnorderedList","Lista com marcadores")+action("insertOrderedList","Lista numerada")+'</div>'+
  '<span class="rich-toolbar-divider" aria-hidden="true"></span>'+
