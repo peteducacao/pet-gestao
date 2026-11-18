@@ -48,14 +48,14 @@ try{
     inputRight:left.right,arrowsLeft:right.left,arrowsRight:right.right,itemRight:bounds.right,
     value:input.value,pageScroll:document.documentElement.scrollWidth,viewport:window.innerWidth};
   });
-  assert.ok(result.inputWidth>=63&&result.inputWidth<=65,"Campo Vagas deve ter 64 px em "+width+": "+JSON.stringify(result));
-  assert.ok(result.labelWidth<=65,"Rótulo não pode alargar o campo em "+width+": "+JSON.stringify(result));
+  assert.ok(result.inputWidth>=51&&result.inputWidth<=53,"Campo Vagas deve ter 52 px em "+width+": "+JSON.stringify(result));
+  assert.ok(result.labelWidth<=53,"Rótulo não pode alargar o campo em "+width+": "+JSON.stringify(result));
   assert.ok(result.inputRight+8<=result.arrowsLeft,"Separar campo e setas em "+width+": "+JSON.stringify(result));
   assert.ok(result.arrowsRight<=result.itemRight+2,"Setas dentro do cartão em "+width+": "+JSON.stringify(result));
   assert.ok(result.pageScroll<=width+2,"Sem rolagem horizontal em "+width+": "+JSON.stringify(result));
   assert.equal(result.value,"2","Valor de Vagas não deve mudar");
  }
- console.log("OK: Vagas mede 64px em 320/360/390/414; setas intactas, sem overflow.");
+ console.log("OK: Vagas mede 52px em 320/360/390/414; setas intactas, sem overflow.");
 }finally{
  if(browser)await browser.close();
  server.kill();

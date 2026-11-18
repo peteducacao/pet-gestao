@@ -1016,9 +1016,22 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(m.descWidth>=m.panelWidth*.65,"Descrição recebe espaço amplo em "+width+": "+JSON.stringify(m));
   assert.ok(m.buttonWidth>=m.descWidth*.85,"Botão abaixo usa largura da seção em "+width);
   assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
+  const top=await page.locator(".admin-commission-item").first().evaluate(row=>{
+   const summary=row.querySelector(".admin-commission-item-top > .admin-commission-summary-link");
+   const identity=row.querySelector(".admin-commission-identity");
+   const controls=row.querySelector(".admin-commission-controls");
+   const box=summary?.getBoundingClientRect(),person=identity?.getBoundingClientRect(),
+     foot=controls?.getBoundingClientRect();
+   return {present:Boolean(summary),right:box?.right,personRight:person?.right,
+    buttonTop:box?.top,footerTop:foot?.top,width:box?.width,
+    vacancyAlign:getComputedStyle(row.querySelector(".admin-vacancy-field input")).textAlign};
+  });
+  assert.equal(top.present,true,"Ver resumo está na faixa superior do cartão");
+  assert.ok(top.buttonTop<top.footerTop&&top.right>=top.personRight-2,"Resumo no alto à direita sem competir com vagas: "+JSON.stringify(top));
+  assert.equal(top.vacancyAlign,"center","Número de vagas centralizado em "+width);
   assert.ok(m.itemOverflow<=2,"Controles administrativos não estouram em "+width+": "+JSON.stringify(m));
-  assert.ok(m.vacancyWidth>=63&&m.vacancyWidth<=65,
-   "Campo Vagas deve ter exatamente 64px no celular em "+width+": "+JSON.stringify(m));
+  assert.ok(m.vacancyWidth>=51&&m.vacancyWidth<=53,
+   "Campo Vagas compacto (52px) no celular em "+width+": "+JSON.stringify(m));
   assert.ok(m.vacancyRight+8<=m.arrowsLeft,
    "Campo Vagas não encosta nas setas em "+width+": "+JSON.stringify(m));
   assert.ok(m.arrowsRight<=m.controlRight+2&&m.vacancyLeft>=m.controlLeft-2,
