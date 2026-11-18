@@ -827,7 +827,8 @@ function publicTaskCard(t){
  return '<article class="placeholder-row task-list-row demand-activity-card demand-activity-card-readonly status-'+status+'" aria-label="Demanda: '+esc(t.title)+'">'+
   '<div class="demand-activity-identity"><span class="demand-activity-art" aria-hidden="true">'+ico("checklist")+'</span>'+
   '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong></div></div>'+
-  '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
+  '<span class="task-status task-status-'+status+'">'+statusLabel[status]+
+ (status==="concluida"&&taskWasLate(t)?' · Com atraso':"")+'</span>'+
   '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
   '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
  '</article>';
@@ -1900,12 +1901,15 @@ function renderHistory(t){
  '</div></details>';
 }
 function detailStatusSelector(t,status){
- if(t.archivedAt)return '<span class="task-status task-status-concluida detail-status-final">Concluída</span>';
+ if(t.archivedAt)return '<span class="task-status task-status-'+taskStatus(t)+' detail-status-final">'+
+ (t.closureOutcome==="nao_concluida"?"Não concluída":taskWasLate(t)?"Concluída com atraso":"Concluída")+'</span>';
  if(isEveryoneAssigned(t))return '<span class="task-status task-status-pendente detail-status-final" title="Concluído automaticamente após o dia do evento">Evento programado · Conclusão automática</span>';
  return '<label class="detail-status-control detail-status-'+status+'"><span class="detail-status-caption">Status</span>'+
  '<select class="detail-status-select" data-detail-status data-id="'+esc(t.id)+'" aria-label="Status da demanda: '+statusLabel[status]+'">'+
  '<option value="'+status+'" selected>'+statusLabel[status]+'</option>'+
- '<option value="concluir">Concluído</option></select>'+
+ '<option value="concluir">Concluir participações</option>'+
+ (isLate(t)&&taskProgress(t).done>0&&pendingParticipationCount(t)>0?
+ '<option value="encerrar-incompleta">Encerrar como não concluída</option>':"")+'</select>'+
  '<svg class="detail-status-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="18" height="18" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></label>';
 }
 function activitySections(t,readOnly=false){
@@ -3201,6 +3205,13 @@ async function handleChange(e){
    const choice=t.value;
    if(task)t.value=taskStatus(task);
    if(choice==="concluir"&&task&&!task.archivedAt)openFinishDialog(task);
+   if(choice==="encerrar-incompleta"&&task&&!task.archivedAt){
+     if(await askConfirm("Encerrar esta demanda como não concluída? As participações realizadas serão mantidas. As que não foram realizadas continuarão registradas.",{
+       title:"Encerrar como não concluída?",confirmLabel:"Encerrar demanda",cancelLabel:"Manter atrasada"
+     })){
+       await saveAndReload(()=>request("/tasks/"+id(task.id)+"/close-unfinished","PATCH",{}),"Demanda encerrada como não concluída.");
+     }
+   }
    return;
   }
  if(t.dataset.filter==="navigateDemands"){
