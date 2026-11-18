@@ -3635,3 +3635,13 @@ body.commission-image-editor-open{overflow:hidden}
  #screen .admin-summary-task{flex-wrap:wrap}
  #screen .admin-summary-task .button{width:100%}
 }
+
+
+/* Cenários de simulação: informação discreta, em harmonia com o Admin existente. */
+#screen .admin-test-scenarios{padding:15px 17px;margin:12px 0 16px;border:1px dashed #d9cce7;border-radius:13px;background:#fcfbff;color:#433951}
+#screen .admin-test-scenarios strong{display:block;font-size:14px}
+#screen .admin-test-scenarios p{margin:5px 0 11px;font-size:12px;line-height:1.55;color:#746b81}
+#screen .admin-test-scenarios-actions{display:flex;gap:9px;flex-wrap:wrap}
+#screen .admin-test-scenarios-actions .button{white-space:normal;min-height:37px;font-size:12px}
+#screen .admin-test-account-label{display:inline-block;margin:4px 0;font-size:11px;font-weight:800;color:#8054aa}
+@media(max-width:420px){#screen .admin-test-scenarios{padding:12px}#screen .admin-test-scenarios-actions .button{flex:1 1 140px;text-align:center}}
