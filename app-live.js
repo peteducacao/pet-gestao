@@ -753,6 +753,13 @@ function showNotice(message,{title="",kind="info",confirm=false,danger=false,sec
 }
 function setToast(message,kind="auto"){
  const text=String(message||"");
+ // Falhas de rede do fetch não devem aparecer em inglês no aplicativo.
+ // A mesma mensagem também cobre indisponibilidade temporária do servidor,
+ // sem afirmar que o usuário certamente está sem internet.
+ if(/\b(?:failed to fetch|network request failed|networkerror when attempting to fetch a resource|load failed)\b/i.test(text))
+  return showNotice("Não foi possível conectar ao PET Gestão. Verifique sua conexão com a internet e tente novamente.",{
+   title:"Problema de conexão",kind:"warning"
+  });
  const error=/\b(erro|falha|falhou|recusad|inválid|indisponível|obrigatóri|não foi possível|não pode|não é possível|não encontrou|preencha|informe|selecione|corrija|atenção|ausente|excede)\b/i.test(text);
  const success=/\b(salv|conclu|criad|atualiz|autorizad|enviad|removid|registrad|desbloquead|copiad|sucesso)\w*/i.test(text);
  return showNotice(text,{kind:kind==="auto"?(error?"warning":success?"success":"info"):kind});
