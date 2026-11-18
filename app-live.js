@@ -956,7 +956,7 @@ function renderDemandas(){
  const done=["concluida","nao_concluida"].includes(state.statusFilter)||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
  let list=data.tasks.filter(t=>done?Boolean(t.archivedAt)&&
-  (state.statusFilter==="nao_concluida"?t.closureOutcome==="nao_concluida":t.closureOutcome!=="nao_concluida"):
+  (state.statusFilter==="nao_concluida"?taskStatus(t)==="nao_concluida":taskStatus(t)==="concluida"):
   filtered(t,displayMode));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
