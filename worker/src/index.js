@@ -109,7 +109,7 @@
       const parsed=new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59":raw);
       return Number.isFinite(parsed.getTime())&&parsed.getTime()<Date.now();
     });
-    return {id:t.id,title:t.title,registeredAt:t.registered_at,displayDate,publicStatus:t.archived_at?"concluida":late?"atrasada":"pendente",overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at};
+    return {id:t.id,title:t.title,registeredAt:t.registered_at,displayDate,publicStatus:t.archived_at?(t.closure_outcome==="nao_concluida"?"nao_concluida":"concluida"):late?"atrasada":"pendente",completedLate:t.archived_at&&t.completed_late===1,overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at};
   };
   async function bootstrap(db,user){
     const committees=(await db.prepare("SELECT c.*, (SELECT COUNT(*) FROM commission_members m WHERE m.commission_id=c.id) AS member_count FROM commissions c ORDER BY sort_order,name").all()).results;
