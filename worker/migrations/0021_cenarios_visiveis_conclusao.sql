@@ -76,3 +76,23 @@ WHERE id IN (
  'pet-cenario-20261117-18','pet-cenario-20261117-20',
  'pet-cenario-20261117-21'
 ) AND created_at>archived_at;
+
+
+-- Coerência temporal: as participações de teste jamais antecedem seu cadastro.
+UPDATE tasks SET created_at='2026-11-08T10:00:00Z',registered_at='2026-11-08'
+WHERE id IN (
+ 'pet-cenario-20261117-02','pet-cenario-20261117-03',
+ 'pet-cenario-20261117-07','pet-cenario-20261117-13',
+ 'pet-cenario-20261117-19','pet-cenario-20261117-22',
+ 'pet-cenario-20261117-23','pet-cenario-20261117-24'
+) AND created_at>'2026-11-14T15:00:00Z';
+
+-- Uma comissão já inteiramente concluída deve estar arquivada.
+UPDATE tasks SET
+ status='concluida',
+ archived_at='2026-11-16T16:00:00Z',
+ closure_outcome='concluida',
+ completed_late=0,
+ updated_at='2026-11-16T16:00:00Z',
+ deadlines=json_set(deadlines,'$[0].completedAt','2026-11-16T16:00:00Z')
+WHERE id='pet-cenario-20261117-24' AND archived_at IS NULL;
