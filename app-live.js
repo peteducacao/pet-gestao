@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let taskFormDraft=null;
@@ -536,7 +536,7 @@ const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)"
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 // PETianos(as), tutores(as) e Administração podem excluir demandas
 // ativas ou concluídas; a API valida novamente a autorização.
-const canDeleteTask=t=>Boolean(t&&canWrite());
+const canDeleteTask=t=>Boolean(t&&canWrite()&&t.closureOutcome!=="nao_concluida");
 const stageDueAt=value=>{
  const raw=String(value||"");
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
@@ -547,8 +547,15 @@ const isLate=t=>t.publicStatus?active(t)&&t.publicStatus==="atrasada":active(t)&
  const due=stageDueAt(s.dueAt);
  return !!due&&due.getTime()<Date.now();
 });
-const taskStatus=(t,cid="")=>t.publicStatus||(t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente");
-const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída"};
+const taskStatus=(t,cid="")=>t.archivedAt?((t.closureOutcome==="nao_concluida"||t.publicStatus==="nao_concluida")?"nao_concluida":"concluida"):
+ (t.publicStatus||(cid&&t.commissionDone?.[cid]?"concluida":isLate(t)?"atrasada":"pendente"));
+const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída",nao_concluida:"Não concluída"};
+const taskWasLate=t=>{
+ if(!t.archivedAt||t.closureOutcome==="nao_concluida")return false;
+ if(t.completedLate!==null&&t.completedLate!==undefined)return Boolean(t.completedLate);
+ return stages(t).some(stage=>stage.label!=="Evento"&&stage.dueAt&&
+   stageDueAt(stage.dueAt)&&stageDueAt(stage.dueAt)<dt(stage.completedAt||t.archivedAt));
+};
 const stateBadge=t=>'<span class="task-status task-status-'+taskStatus(t)+'">'+statusLabel[taskStatus(t)]+'</span>';
 const completedCount=t=>Object.keys(t.commissionDone||{}).length;
 const isUserDone=(task,uid)=>Boolean(task.userDone?.[uid]);
@@ -580,8 +587,63 @@ function setConnecting(show,label="Conectando ao PET Gestão..."){
  modal.hidden=!show;
 }
 function workspaceHash(route){return routeParts().page==="admin"?"#/admin/"+route:"#/"+route;}
+
+function renderAdminCommissionSummary(cid){
+ if(!isAdmin())return empty("Acesso restrito","Somente a Administração consulta este resumo.");
+ const c=committee(cid);if(!c)return empty("Comissão não encontrada");
+ const from=state.summaryFrom||current.getFullYear()+"-01-01",to=state.summaryTo||dateKey(current);
+ return header("Administração","Resumo · "+c.name,"Consulta privada de participações e atividades.")+
+ '<section class="card card-pad admin-summary"><a href="#/admin/comissoes" class="button ghost">Voltar às comissões</a>'+
+ '<form id="admin-summary-form" class="admin-summary-filters" data-commission-id="'+esc(cid)+'">'+
+ '<label>De<input type="date" name="from" value="'+esc(from)+'" required></label>'+
+ '<label>Até<input type="date" name="to" value="'+esc(to)+'" required></label>'+
+ '<button type="submit" class="button primary">Consultar período</button></form>'+
+ '<div id="admin-summary-results" aria-live="polite">Carregando pessoas e demandas reais...</div></section>';
+}
+function renderAdminSummaryResults(result){
+ const metrics=[["Cadastradas",result.registered],["Concluídas",result.concluded],
+ ["Com atraso",result.concludedLate],["Não concluídas",result.notConcluded],
+ ["Entradas",result.entered],["Saídas",result.exited]];
+ const members=result.members||[];
+ const chosen=members.find(p=>p.id===state.summaryPerson);
+ const memberList=members.length?members.map(p=>'<button type="button" data-do="admin-summary-person" data-person-id="'+esc(p.id)+'" class="admin-summary-person'+(chosen?.id===p.id?' active':'')+'">'+
+ '<strong>'+esc(p.name)+'</strong><small>'+p.periods.map(x=>textDate(x.joinedAt)+' a '+(x.leftAt?textDate(x.leftAt):'atualmente')).join('; ')+'</small></button>').join(""):
+ '<p class="admin-muted">Nenhum vínculo registrado neste período.</p>';
+ const personInfo=chosen?'<h3>'+esc(chosen.name)+'</h3><div class="admin-summary-mini">'+
+ [['Atribuídas',chosen.assigned],['Realizadas',chosen.completed],['Não realizadas',chosen.notCompleted],['Atrasos individuais identificáveis',chosen.completedLate]]
+ .map(([label,n])=>'<span>'+label+': <strong>'+n+'</strong></span>').join("")+'</div>'+
+ (chosen.items.length?chosen.items.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
+ (t.completedAt?'Realizada em '+textDate(t.completedAt):t.notCompleted?'Não realizada':'Pendente')+
+ (t.late?' · Atraso individual':'')+'</small></div><a class="button ghost" href="#/admin/atividade/'+id(t.id)+'">Ver detalhes</a></div>').join(""):
+ '<p class="admin-muted">Nenhuma responsabilidade individual no período.</p>'):
+ '<p class="admin-muted">Selecione um integrante para conferir suas responsabilidades.</p>';
+ const closed=(result.tasks||[]).filter(t=>t.outcome);
+ return '<div class="admin-summary-metrics">'+metrics.map(([label,n])=>
+ '<div class="admin-summary-metric"><strong>'+Number(n||0)+'</strong><span>'+label+'</span></div>').join("")+'</div>'+
+ '<p class="admin-summary-note">Consulta restrita ao Admin, usando contas reais. O histórico anterior ao início do registro de saídas não pode ser reconstruído automaticamente.</p>'+
+ '<h2>Participação dos integrantes</h2><div class="admin-summary-split"><div class="admin-summary-members">'+memberList+'</div>'+
+ '<div class="admin-summary-detail">'+personInfo+'</div></div>'+
+ '<h2>Demandas finalizadas</h2>'+
+ (closed.length?closed.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
+ (t.outcome==="nao_concluida"?'Não concluída':t.late?'Concluída com atraso':'Concluída')+
+ ' · '+textDate(t.archivedAt)+'</small></div><a class="button ghost" href="#/admin/atividade/'+id(t.id)+'">Ver detalhes</a></div>').join(""):
+ '<p class="admin-muted">Nenhuma finalização neste período.</p>');
+}
+async function loadAdminCommissionSummary(cid){
+ if(!isAdmin())return;
+ const target=$("#admin-summary-results");if(!target)return;
+ target.textContent="Consultando registros reais...";
+ try{
+  const from=state.summaryFrom||current.getFullYear()+"-01-01",to=state.summaryTo||dateKey(current);
+  const result=await request("/admin/commission-summary/"+id(cid)+"?from="+encodeURIComponent(from)+"&to="+encodeURIComponent(to));
+  if(target.isConnected&&routeParts().parts[0]==="resumo"&&routeParts().parts[1]===cid){
+   state.summaryData=result;target.innerHTML=renderAdminSummaryResults(result);
+  }
+ }catch(e){if(target.isConnected)target.textContent=e.message;}
+}
 function adminEmbeddedView(parts){
  const [page,...args]=parts,route=args.join("/");
+ if(page==="resumo")return renderAdminCommissionSummary(args[0]||"");
  if(page==="demandas")return renderDemandas();
  if(page==="cronograma")return renderDemandas();
  if(page==="comissoes")return !route?renderComissoes():args[0]==="nova"?renderCommitteeEdit(""):args[0]==="editar"?renderCommitteeEdit(args.slice(1).join("/")):renderCommittee(route);
@@ -820,7 +882,8 @@ function publicTaskCard(t){
  return '<article class="placeholder-row task-list-row demand-activity-card demand-activity-card-readonly status-'+status+'" aria-label="Demanda: '+esc(t.title)+'">'+
   '<div class="demand-activity-identity"><span class="demand-activity-art" aria-hidden="true">'+ico("checklist")+'</span>'+
   '<div class="demand-activity-heading"><strong class="demand-activity-title">'+esc(t.title)+'</strong></div></div>'+
-  '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
+  '<span class="task-status task-status-'+status+'">'+statusLabel[status]+
+ (status==="concluida"&&taskWasLate(t)?' · Com atraso':"")+'</span>'+
   '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
   '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
  '</article>';
@@ -841,7 +904,8 @@ function taskCard(t,commissionId,withFinishAction=false){
  (selectors?'<div class="demand-card-people-rows">'+selectors+'</div>':"")+
  (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+
  '</div></div>'+
- '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
+ '<span class="task-status task-status-'+status+'">'+statusLabel[status]+
+ (status==="concluida"&&taskWasLate(t)?' · Com atraso':"")+'</span>'+
  '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
  '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
  (me?'<div class="demand-card-actions"><a class="activity-details-link demand-activity-action" href="'+taskHref+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>'+
@@ -882,7 +946,7 @@ function renderHome(){
  '</div>'+(recentEvents.length?recentEvents.map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 
-const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
+const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"],["nao_concluida","Não concluídas"]];
 function visualizationSelect(filter,value,options=VISUALIZATIONS){
  return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
  '<span class="visualization-select-wrap"><span class="visualization-symbol" aria-hidden="true">'+ico("list")+'</span>'+
@@ -890,18 +954,22 @@ function visualizationSelect(filter,value,options=VISUALIZATIONS){
  '<span class="visualization-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></span></label>';
 }
 function renderDemandas(){
- const done=state.statusFilter==="concluida"||state.mode==="arquivo";
+ const done=["concluida","nao_concluida"].includes(state.statusFilter)||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
- let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
+ let list=data.tasks.filter(t=>done?Boolean(t.archivedAt)&&
+  (state.statusFilter==="nao_concluida"?taskStatus(t)==="nao_concluida":taskStatus(t)==="concluida"):
+  filtered(t,displayMode));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
   return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&(!state.week||displayMode!=="semanal"||weekFor(date)===state.week);
  });
  else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
+ if(done&&state.statusFilter==="concluida"&&state.conclusionKind!=="todas")
+   list=list.filter(t=>state.conclusionKind==="atraso"?taskWasLate(t):!taskWasLate(t));
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
  [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
- const canBulkDelete=done&&canWrite();
+ const canBulkDelete=done&&state.statusFilter!=="nao_concluida"&&canWrite();
  if(!canBulkDelete){state.archiveDeleteMode=false;state.archiveSelectedIds.clear();}
  // Seleções só podem incluir as demandas concluídas visíveis no período atual.
  const visibleIds=new Set(list.map(t=>t.id));
@@ -926,7 +994,9 @@ function renderDemandas(){
    '</div></div>':"";
  return header("Acompanhamento","Demandas","",actions)+
  '<section class="card card-pad demand-management-panel">'+
- '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+periodSelect+'</div>'+
+ '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+
+ (state.statusFilter==="concluida"?'<label class="filter-item period-mode-filter"><span>CONCLUSÃO</span><select class="select" data-filter="conclusionKind" aria-label="Tipo de conclusão">'+
+ [["todas","Todas as concluídas"],["prazo","No prazo"],["atraso","Com atraso"]].map(([v,l])=>opt(v,l,state.conclusionKind)).join("")+'</select></label>':"")+periodSelect+'</div>'+
  '<div class="list-toolbar">'+period()+'</div><hr class="divider">'+
  toolbar+
  (list.length?list.map(t=>'<div class="live-task-card'+(picking?' archive-select-row':'')+'">'+
@@ -1887,12 +1957,15 @@ function renderHistory(t){
  '</div></details>';
 }
 function detailStatusSelector(t,status){
- if(t.archivedAt)return '<span class="task-status task-status-concluida detail-status-final">Concluída</span>';
+ if(t.archivedAt)return '<span class="task-status task-status-'+taskStatus(t)+' detail-status-final">'+
+ (t.closureOutcome==="nao_concluida"?"Não concluída":taskWasLate(t)?"Concluída com atraso":"Concluída")+'</span>';
  if(isEveryoneAssigned(t))return '<span class="task-status task-status-pendente detail-status-final" title="Concluído automaticamente após o dia do evento">Evento programado · Conclusão automática</span>';
  return '<label class="detail-status-control detail-status-'+status+'"><span class="detail-status-caption">Status</span>'+
  '<select class="detail-status-select" data-detail-status data-id="'+esc(t.id)+'" aria-label="Status da demanda: '+statusLabel[status]+'">'+
  '<option value="'+status+'" selected>'+statusLabel[status]+'</option>'+
- '<option value="concluir">Concluído</option></select>'+
+ '<option value="concluir">Concluído</option>'+
+ (isLate(t)&&taskProgress(t).done>0&&pendingParticipationCount(t)>0?
+ '<option value="encerrar-incompleta">Encerrar como não concluída</option>':"")+'</select>'+
  '<svg class="detail-status-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="18" height="18" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></label>';
 }
 function activitySections(t,readOnly=false){
@@ -2251,7 +2324,7 @@ function renderAdmin(){
   const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3,overdueAudience:"pending",eventTodayEnabled:false};
  const adminPanels='<section class="card card-pad admin-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><h2>Usuários</h2><p class="field-hint admin-role-guide">É possível ter mais de uma conta Administração. Somente um(a) administrador(a) pode conceder ou remover esse cargo, e o último administrador permanece protegido. Quem receber o cargo deve entrar novamente na conta para ativar o acesso administrativo.</p><p class="field-hint admin-role-guide admin-notify-guide"><strong>Sobre as notificações por e-mail:</strong> esta opção define se a pessoa poderá utilizar o envio de avisos por e-mail ao salvar alterações. Quando ativada, a Tutoria ou Administração poderá escolher entre enviar ou não a notificação. Os destinatários são definidos conforme os responsáveis e as comissões da atividade; marcar esta opção não significa que a pessoa receberá todos os avisos por e-mail.</p><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição. As alterações só serão aplicadas quando você salvar.</p></div><button type="button" class="button primary admin-save-all-button" data-do="save-all-commissions">'+ico("check")+' Salvar todas as alterações</button></div><div class="admin-commission-list">'+
- data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
+ data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small><a class="button ghost admin-commission-summary-link" href="#/admin/resumo/'+id(c.id)+'">'+ico("list")+' Ver resumo</a></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática das demandas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<div class="mail-schedule-choice"><button type="button" class="button ghost mail-schedule-toggle" data-do="mail-toggle-schedule" aria-pressed="false">'+ico("calendar")+' Agendar envio</button><small>Escolha um horário somente se quiser enviar depois.</small></div><div id="mail-scheduling"></div><div id="mail-attachments"></div><div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-manual">Pré-visualizar e-mail</button><button class="button primary" type="submit">Enviar</button></div></form></section>'+
 
@@ -2397,6 +2470,8 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
+ if(page==="admin"&&isAdmin()&&parts[0]==="resumo"&&parts[1])
+   loadAdminCommissionSummary(parts[1]);
  if(taskFormRoute(location.hash)&&$("#task-form")&&taskFormDraft?.route!==location.hash)
   taskFormDraft={route:location.hash,snapshot:taskDraftSnapshot()};
  else if(!taskFormRoute(location.hash))resetTaskDraft();
@@ -2612,6 +2687,12 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="admin-summary-person"){
+   state.summaryPerson=b.dataset.personId||"";
+   const el=$("#admin-summary-results");
+   if(el&&state.summaryData)el.innerHTML=renderAdminSummaryResults(state.summaryData);
+   return;
+ }
  if(action==="install-pet-app"){await installPetApp();return}
  if(action==="collective-pick-date"||action==="stage-pick-date"){
    const picker=action==="stage-pick-date"?b.closest(".live-stage")?.querySelector('[data-stage="day"]'):$("#collective-event-day");
@@ -3127,6 +3208,15 @@ async function handleSubmit(e){
    }finally{if(submit?.isConnected)submit.disabled=false}
    return;
  }
+ if(form.id==="admin-summary-form"){
+   const cid=form.dataset.commissionId;
+   state.summaryFrom=form.elements.from.value;
+   state.summaryTo=form.elements.to.value;
+   if(state.summaryFrom>state.summaryTo)return setToast("A data inicial deve ser anterior à final.");
+   state.summaryPerson="";state.summaryData=null;
+   await loadAdminCommissionSummary(cid);
+   return;
+ }
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){
@@ -3188,12 +3278,19 @@ async function handleChange(e){
    const choice=t.value;
    if(task)t.value=taskStatus(task);
    if(choice==="concluir"&&task&&!task.archivedAt)openFinishDialog(task);
+   if(choice==="encerrar-incompleta"&&task&&!task.archivedAt){
+     if(await askConfirm("Encerrar esta demanda como não concluída? As participações realizadas serão mantidas. As que não foram realizadas continuarão registradas.",{
+       title:"Encerrar como não concluída?",confirmLabel:"Encerrar demanda",cancelLabel:"Manter atrasada"
+     })){
+       await saveAndReload(()=>request("/tasks/"+id(task.id)+"/close-unfinished","PATCH",{}),"Demanda encerrada como não concluída.");
+     }
+   }
    return;
   }
  if(t.dataset.filter==="navigateDemands"){
    state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
    state.statusFilter=t.value;
-   if(t.value==="concluida")state.mode="arquivo";
+   if(["concluida","nao_concluida"].includes(t.value))state.mode="arquivo";
    else if(state.mode==="arquivo")state.mode="mensal";
    location.hash=workspaceHash("demandas");return;
  }
@@ -3201,11 +3298,12 @@ async function handleChange(e){
  if(t.dataset.filter==="mineStatus"){state.mineStatusFilter=t.value;render();return}
  if(t.dataset.filter==="meetings"){state.meetingView=t.value;render();return}
  if(t.dataset.filter==="periodMode"){state.mode=t.value;render();return}
+ if(t.dataset.filter==="conclusionKind"){state.conclusionKind=t.value;render();return}
  if(t.dataset.filter){
    state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
    if(t.dataset.filter==="status"){
     state.statusFilter=t.value;
-    if(t.value==="concluida")state.mode="arquivo";
+    if(["concluida","nao_concluida"].includes(t.value))state.mode="arquivo";
     else if(state.mode==="arquivo")state.mode="mensal";
     render();return;
    }

@@ -218,7 +218,7 @@ await move("#/demandas");
 assert.ok(document.querySelector('select[data-filter="status"]'),"Seletor de status");
 assert.equal(document.querySelectorAll('button[data-do="mode"]').length,0,"Período mensal/semanal usa seletor");
 assert.ok(document.querySelector('select[data-filter="periodMode"]'),"Seletor de período disponível");
-assert.equal(document.querySelector('select[data-filter="status"]').options.length,4,"Todas as demandas, Pendentes, Atrasadas, Concluídas");
+assert.equal(document.querySelector('select[data-filter="status"]').options.length,5,"Todas, Pendentes, Atrasadas, Concluídas e Não concluídas");
 
 assert.equal(document.querySelector('input[placeholder*="Buscar demanda"]'),null,"Sem pesquisa textual duplicada");
 await move("#/reunioes");

@@ -95,7 +95,7 @@
   }
   const privateTask=t=>{
     const o={...t,commissionIds:asJson(t.commission_ids,[]),assigneeIds:asJson(t.assignee_ids,[]),commissionDone:asJson(t.commission_done,{}),userDone:asJson(t.user_done,{}),deadlines:asJson(t.deadlines,[])};
-    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,assignmentScope:o.assignment_scope||null,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
+    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,assignmentScope:o.assignment_scope||null,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version,closureOutcome:o.closure_outcome||null,completedLate:o.completed_late===null||o.completed_late===undefined?null:Boolean(o.completed_late)};
   };
   // Endpoints públicos nunca enviam campos internos das tarefas.
   const publicTask=t=>{
@@ -109,7 +109,7 @@
       const parsed=new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59":raw);
       return Number.isFinite(parsed.getTime())&&parsed.getTime()<Date.now();
     });
-    return {id:t.id,title:t.title,registeredAt:t.registered_at,displayDate,publicStatus:t.archived_at?"concluida":late?"atrasada":"pendente",overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at};
+    return {id:t.id,title:t.title,registeredAt:t.registered_at,displayDate,publicStatus:t.archived_at?(t.closure_outcome==="nao_concluida"?"nao_concluida":"concluida"):late?"atrasada":"pendente",completedLate:t.archived_at&&t.completed_late===1,overviewVisible:t.overview_visible!==0,archivedAt:t.archived_at};
   };
   async function bootstrap(db,user){
     const committees=(await db.prepare("SELECT c.*, (SELECT COUNT(*) FROM commission_members m WHERE m.commission_id=c.id) AS member_count FROM commissions c ORDER BY sort_order,name").all()).results;
@@ -448,8 +448,10 @@
         // (incluindo integrantes de comissões concluídas), sem duplicar e-mails.
         // Os demais avisos preservam o comportamento de apenas pendências.
         const notifyEveryone=kind==="overdue"&&config.overdueAudience==="all";
-        const recipientIds=notifyEveryone?[...new Set([...allPeople,...stageOwners])]:
-          stageOwners.length?stageOwners.filter(id=>!donePeople[id]):[...activePeople];
+        // A fila existente não é modificada. Novos avisos ignoram quem já fez sua parte.
+        const candidates=notifyEveryone?[...new Set([...allPeople,...stageOwners])]:
+          stageOwners.length?stageOwners:[...activePeople];
+        const recipientIds=candidates.filter(id=>!donePeople[id]&&(activePeople.has(id)||!allPeople.has(id)));
         const recipients=unique(recipientIds.map(id=>peopleById.get(id)?.email).filter(validEmail));
         if(!recipients.length)continue;
         const template=models?.[kind]||deadlineMailTemplates[kind];
@@ -901,6 +903,87 @@
         await db.prepare("UPDATE users SET notification_enabled=?,updated_at=? WHERE id=?").bind(b.notificationEnabled?1:0,now(),user.id).run();
         return answer({ok:true});
       }
+
+      // Somente a Administração acessa a análise nominal; os dados reais
+      // são consultados em leitura, sem qualquer alteração de cadastro.
+      const summaryMatch=path.match(/^\/api\/v1\/admin\/commission-summary\/([^/]+)$/);
+      if(summaryMatch&&method==="GET"){
+        ensure(user,true);
+        const commissionId=decodeURIComponent(summaryMatch[1]);
+        const commission=await db.prepare("SELECT id,name FROM commissions WHERE id=?").bind(commissionId).first();
+        if(!commission)fail("Comissão não encontrada.",404);
+        const today=now().slice(0,10);
+        const from=str(url.searchParams.get("from")||today.slice(0,4)+"-01-01",10);
+        const to=str(url.searchParams.get("to")||today,10);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||from>to)
+          fail("Informe um período válido.",400);
+        const validPeriod=value=>Boolean(value&&String(value).slice(0,10)>=from&&String(value).slice(0,10)<=to);
+        const periods=(await db.prepare(
+          "SELECT p.id,p.user_id,p.joined_at,p.left_at,u.name FROM commission_membership_periods p JOIN users u ON u.id=p.user_id WHERE p.commission_id=? AND p.joined_at<=? AND (p.left_at IS NULL OR p.left_at>=?) ORDER BY u.name,p.joined_at"
+        ).bind(commissionId,to+"T23:59:59",from+"T00:00:00").all()).results;
+        const rows=(await db.prepare("SELECT id,title,registered_at,archived_at,closure_outcome,completed_late,commission_ids,assignee_ids,user_done,commission_done,deadlines FROM tasks ORDER BY created_at DESC").all()).results;
+        const parseDue=value=>{
+          const x=String(value||"");
+          return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(x)?x+"T23:59:59-03:00":
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(x)?x+(x.length===16?":00":"")+"-03:00":x);
+        };
+        const finalLate=task=>{
+          if(task.completed_late!==null&&task.completed_late!==undefined)return Boolean(task.completed_late);
+          return asJson(task.deadlines,[]).some(st=>st.dueAt&&st.label!=="Evento"&&
+            Number.isFinite(parseDue(st.dueAt))&&parseDue(st.dueAt)<Date.parse(st.completedAt||task.archived_at));
+        };
+        const items=rows.filter(t=>asJson(t.commission_ids,[]).includes(commissionId))
+          .filter(t=>validPeriod(t.registered_at)||validPeriod(t.archived_at)||
+            Object.values(asJson(t.user_done,{})).some(v=>validPeriod(v?.at))||
+            Object.values(asJson(t.commission_done,{})).some(v=>validPeriod(v?.at)))
+          .map(t=>({
+            id:t.id,title:t.title,registeredAt:t.registered_at,archivedAt:t.archived_at,
+            outcome:t.archived_at?(t.closure_outcome||"concluida"):null,
+            late:t.archived_at&&t.closure_outcome!=="nao_concluida"?finalLate(t):false,
+            assigned:asJson(t.assignee_ids,[]),done:asJson(t.user_done,{}),
+            commissionDone:asJson(t.commission_done,{}),deadlines:asJson(t.deadlines,[])
+          }));
+        const byId=new Map();
+        for(const p of periods){
+          if(!byId.has(p.user_id))
+            byId.set(p.user_id,{id:p.user_id,name:p.name,periods:[],assigned:0,completed:0,notCompleted:0,completedLate:0,items:[]});
+          byId.get(p.user_id).periods.push({joinedAt:p.joined_at,leftAt:p.left_at});
+        }
+        for(const person of byId.values()){
+          for(const task of items){
+            if(!task.assigned.includes(person.id))continue;
+            // Não atribuir demanda registrada depois da saída da pessoa:
+            // o período do vínculo prevalece sobre a equipe atual.
+            if(!person.periods.some(p=>{
+              const d=String(task.registeredAt||"").slice(0,10);
+              return d>=String(p.joinedAt).slice(0,10)&&
+                (!p.leftAt||d<=String(p.leftAt).slice(0,10));
+            }))continue;
+            // Responsabilidade individual é distinta da coletiva: nunca se atribui
+            // atraso individual apenas porque a comissão ou outra pessoa atrasou.
+            person.assigned++;
+            const done=task.done[person.id];
+            const assignedStages=task.deadlines.filter(st=>(st.assigneeIds||[]).includes(person.id)&&st.dueAt);
+            const individualLate=Boolean(done&&assignedStages.some(st=>parseDue(st.dueAt)<Date.parse(done.at||"")));
+            if(done&&validPeriod(done.at))person.completed++;
+            if(!done&&task.outcome==="nao_concluida")person.notCompleted++;
+            if(individualLate)person.completedLate++;
+            person.items.push({id:task.id,title:task.title,completedAt:done?.at||null,
+              notCompleted:!done&&task.outcome==="nao_concluida",late:individualLate,
+              outcome:task.outcome});
+          }
+        }
+        return answer({commission,from,to,
+          entered:periods.filter(p=>validPeriod(p.joined_at)).length,
+          exited:periods.filter(p=>validPeriod(p.left_at)).length,
+          registered:items.filter(t=>validPeriod(t.registeredAt)).length,
+          concluded:items.filter(t=>t.outcome==="concluida"&&validPeriod(t.archivedAt)).length,
+          concludedLate:items.filter(t=>t.outcome==="concluida"&&t.late&&validPeriod(t.archivedAt)).length,
+          notConcluded:items.filter(t=>t.outcome==="nao_concluida"&&validPeriod(t.archivedAt)).length,
+          members:[...byId.values()],
+          tasks:items.map(({assigned,done,commissionDone,deadlines,...publicItem})=>publicItem)
+        });
+      }
       if(path==="/api/v1/admin/users"&&method==="GET"){
         ensure(user,true);return answer({users:(await db.prepare("SELECT id,name,email,role,role_override,notification_enabled,must_change_password,profile_photo,created_at FROM users ORDER BY name").all()).results.map(userPublic)});
       }
@@ -1053,7 +1136,11 @@
       if(match&&method==="POST"){
         ensure(user);const c=await db.prepare("SELECT * FROM commissions WHERE id=?").bind(match[1]).first();
         if(!c)fail("Comissão não encontrada.",404);
-        if(match[2]==="leave"){await db.prepare("DELETE FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).run();return answer({ok:true})}
+        if(match[2]==="leave"){
+          const removed=await db.prepare("DELETE FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).run();
+          if(removed.meta.changes)await db.prepare("UPDATE commission_membership_periods SET left_at=? WHERE commission_id=? AND user_id=? AND left_at IS NULL").bind(now(),c.id,user.id).run();
+          return answer({ok:true});
+        }
         const existing=await db.prepare("SELECT 1 AS n FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).first();
         if(existing)return answer({ok:true});
         // 0 significa que a Administração ainda NÃO definiu as vagas; jamais tratar como ilimitado.
@@ -1061,6 +1148,8 @@
         // Condição atômica: respeita as vagas mesmo com duas inscrições simultâneas.
         const result=await db.prepare("INSERT OR IGNORE INTO commission_members(commission_id,user_id,created_at) SELECT ?,?,? WHERE (SELECT max_members FROM commissions WHERE id=?)>0 AND (SELECT COUNT(*) FROM commission_members WHERE commission_id=?) < (SELECT max_members FROM commissions WHERE id=?)").bind(c.id,user.id,now(),c.id,c.id,c.id).run();
         if(!result.meta.changes)fail("Esta comissão está com todas as vagas preenchidas.",409);
+        await db.prepare("INSERT INTO commission_membership_periods(id,commission_id,user_id,joined_at) VALUES(?,?,?,?)")
+          .bind(uid(),c.id,user.id,now()).run();
         return answer({ok:true});
       }
       // Anexos de demandas: sem rota pública, autenticação exigida inclusive para download.
@@ -1166,10 +1255,12 @@
           fail("A seleção contém demandas repetidas.",400);
         const placeholders=ids.map(()=>"?").join(",");
         // Nenhuma remoção ocorre caso haja demandas pendentes, inexistentes ou alteradas.
-        const rows=(await db.prepare("SELECT id,archived_at FROM tasks WHERE id IN ("+placeholders+")")
+        const rows=(await db.prepare("SELECT id,archived_at,closure_outcome FROM tasks WHERE id IN ("+placeholders+")")
           .bind(...ids).all()).results;
         if(rows.length!==ids.length||rows.some(t=>!t.archived_at))
           fail("A seleção contém uma demanda que não está concluída. Atualize a listagem e tente novamente.",409);
+        if(rows.some(t=>t.closure_outcome==="nao_concluida"))
+          fail("Demandas encerradas como não concluídas não podem ser excluídas.",409);
         await db.batch([
           db.prepare("UPDATE email_queue SET status=\'cancelado\',error_message=\'Demanda excluída\' WHERE task_id IN ("+placeholders+") AND status IN (\'pendente\',\'falhou\')").bind(...ids),
            db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id IN ("+placeholders+"))").bind(...ids),
@@ -1227,6 +1318,8 @@
         // Concluídas e ativas: PETiano(a), Tutor(a) e Administração.
         if(!["petiano","tutor","admin"].includes(user.role))
           fail("Somente PETianos(as), Tutoria ou Administração podem excluir demandas.",403);
+        if(old.closureOutcome==="nao_concluida")
+          fail("Não é permitido excluir demandas encerradas como não concluídas.",409);
         // Apagar de forma atômica, inclusive os avisos de prazo pendentes e o histórico.
         // A autorização é validada no Worker, não por campos enviados pelo navegador.
         await db.batch([
@@ -1237,6 +1330,35 @@
           db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id)
         ]);
         return answer({ok:true});
+      }
+
+      // Encerramento definitivo parcial, sem atribuir conclusão a quem não realizou.
+      match=path.match(/^\/api\/v1\/tasks\/([^/]+)\/close-unfinished$/);
+      if(match&&method==="PATCH"){
+        ensure(user);
+        const old=await readTask(db,match[1]),stamp=now();
+        if(old.archivedAt)fail("A demanda já foi encerrada.",409);
+        if(old.assignmentScope==="todos")fail("Eventos para Todos(as) têm finalização automática própria.",409);
+        const total=(old.assigneeIds||[]).length+(old.commissionIds||[]).length;
+        const doneUsers=(old.assigneeIds||[]).filter(id=>Boolean(old.userDone?.[id])).length;
+        const doneGroups=(old.commissionIds||[]).filter(id=>Boolean(old.commissionDone?.[id])).length;
+        const completed=doneUsers+doneGroups;
+        if(!total||!completed)fail("Sem participação realizada: a demanda permanece pendente ou atrasada.",409);
+        if(completed===total)fail("Todas as participações já foram concluídas.",409);
+        const parseDue=value=>{
+          const date=String(value||"");
+          return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(date)?date+"T23:59:59-03:00":
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(date)?date+(date.length===16?":00":"")+"-03:00":date);
+        };
+        const overdue=old.deadlines.some(stage=>
+          stage.dueAt&&stage.label!=="Evento"&&!stage.completedAt&&
+          Number.isFinite(parseDue(stage.dueAt))&&parseDue(stage.dueAt)<Date.parse(stamp));
+        if(!overdue)fail("Somente uma demanda atrasada pode ser encerrada como não concluída.",409);
+        const result=await db.prepare("UPDATE tasks SET archived_at=?,closure_outcome='nao_concluida',completed_late=0,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND archived_at IS NULL AND version=?")
+          .bind(stamp,user.id,stamp,old.id,old.version).run();
+        if(!result.meta.changes)fail("Outra pessoa atualizou a demanda. Atualize e tente novamente.",409);
+        await audit(db,old.id,user,"Encerrou como não concluída","As conclusões individuais e coletivas já registradas foram preservadas.");
+        return answer({ok:true,archived:true,closureOutcome:"nao_concluida"});
       }
       match=path.match(/^\/api\/v1\/tasks\/([^/]+)\/(status|notes|finish)$/);
       if(match&&method==="PATCH"){
@@ -1273,6 +1395,16 @@
         for(const id of selectedUsers)if(!userDone[id]){userDone[id]={at:stamp,by:user.id,byName:user.name};changedUsers.push(id);}
         if(!changedCommissions.length&&!changedUsers.length)return answer({ok:true,alreadyDone:true,archived:false});
         const finished=commissionIds.every(id=>Boolean(done[id]))&&assigneeIds.every(id=>Boolean(userDone[id]));
+        const parseDeadline=value=>{
+          const date=String(value||"");
+          return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(date)?date+"T23:59:59-03:00":
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(date)?date+(date.length===16?":00":"")+"-03:00":date);
+        };
+        const completedLate=finished&&old.deadlines.some(stage=>{
+          if(!stage.dueAt||stage.label==="Evento")return false;
+          const due=parseDeadline(stage.dueAt),doneAt=Date.parse(stage.completedAt||stamp);
+          return Number.isFinite(due)&&Number.isFinite(doneAt)&&doneAt>due;
+        });
         const stages=old.deadlines.map(d=>{
           const copy={...d,commissionCompleted:{...(d.commissionCompleted||{})}};
           for(const id of changedCommissions)copy.commissionCompleted[id]={at:stamp,by:user.id};
@@ -1281,7 +1413,10 @@
         });
         await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','event_today','overdue')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
-         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
+         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,closure_outcome=?,completed_late=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?")
+          .bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,
+            finished?stamp:null,finished?"concluida":null,finished?(completedLate?1:0):null,
+            user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
         const names=[];
         for(const id of changedUsers){const row=await db.prepare("SELECT name FROM users WHERE id=?").bind(id).first();names.push(row?.name||"Usuário");}
