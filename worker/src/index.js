@@ -950,6 +950,13 @@
         for(const person of byId.values()){
           for(const task of items){
             if(!task.assigned.includes(person.id))continue;
+            // Não atribuir demanda registrada depois da saída da pessoa:
+            // o período do vínculo prevalece sobre a equipe atual.
+            if(!person.periods.some(p=>{
+              const d=String(task.registeredAt||"").slice(0,10);
+              return d>=String(p.joinedAt).slice(0,10)&&
+                (!p.leftAt||d<=String(p.leftAt).slice(0,10));
+            }))continue;
             // Responsabilidade individual é distinta da coletiva: nunca se atribui
             // atraso individual apenas porque a comissão ou outra pessoa atrasou.
             person.assigned++;
