@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let taskFormDraft=null;
@@ -536,7 +536,7 @@ const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)"
 const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
 // PETianos(as), tutores(as) e Administração podem excluir demandas
 // ativas ou concluídas; a API valida novamente a autorização.
-const canDeleteTask=t=>Boolean(t&&canWrite());
+const canDeleteTask=t=>Boolean(t&&canWrite()&&t.closureOutcome!=="nao_concluida");
 const stageDueAt=value=>{
  const raw=String(value||"");
  const parsed=dt(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+"T23:59:59.999":raw);
@@ -547,8 +547,15 @@ const isLate=t=>t.publicStatus?active(t)&&t.publicStatus==="atrasada":active(t)&
  const due=stageDueAt(s.dueAt);
  return !!due&&due.getTime()<Date.now();
 });
-const taskStatus=(t,cid="")=>t.publicStatus||(t.archivedAt||(cid&&t.commissionDone?.[cid])?"concluida":isLate(t)?"atrasada":"pendente");
-const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída"};
+const taskStatus=(t,cid="")=>t.archivedAt?(t.closureOutcome==="nao_concluida"?"nao_concluida":"concluida"):
+ (t.publicStatus||(cid&&t.commissionDone?.[cid]?"concluida":isLate(t)?"atrasada":"pendente"));
+const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída",nao_concluida:"Não concluída"};
+const taskWasLate=t=>{
+ if(!t.archivedAt||t.closureOutcome==="nao_concluida")return false;
+ if(t.completedLate!==null&&t.completedLate!==undefined)return Boolean(t.completedLate);
+ return stages(t).some(stage=>stage.label!=="Evento"&&stage.dueAt&&
+   stageDueAt(stage.dueAt)&&stageDueAt(stage.dueAt)<dt(stage.completedAt||t.archivedAt));
+};
 const stateBadge=t=>'<span class="task-status task-status-'+taskStatus(t)+'">'+statusLabel[taskStatus(t)]+'</span>';
 const completedCount=t=>Object.keys(t.commissionDone||{}).length;
 const isUserDone=(task,uid)=>Boolean(task.userDone?.[uid]);
@@ -882,7 +889,7 @@ function renderHome(){
  '</div>'+(recentEvents.length?recentEvents.map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
 }
 
-const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"]];
+const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"],["nao_concluida","Não concluídas"]];
 function visualizationSelect(filter,value,options=VISUALIZATIONS){
  return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
  '<span class="visualization-select-wrap"><span class="visualization-symbol" aria-hidden="true">'+ico("list")+'</span>'+
@@ -890,18 +897,22 @@ function visualizationSelect(filter,value,options=VISUALIZATIONS){
  '<span class="visualization-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></span></label>';
 }
 function renderDemandas(){
- const done=state.statusFilter==="concluida"||state.mode==="arquivo";
+ const done=["concluida","nao_concluida"].includes(state.statusFilter)||state.mode==="arquivo";
  const displayMode=state.mode==="arquivo"?"mensal":state.mode;
- let list=data.tasks.filter(t=>done?Boolean(t.archivedAt):filtered(t,displayMode));
+ let list=data.tasks.filter(t=>done?Boolean(t.archivedAt)&&
+  (state.statusFilter==="nao_concluida"?t.closureOutcome==="nao_concluida":t.closureOutcome!=="nao_concluida"):
+  filtered(t,displayMode));
  if(done)list=list.filter(t=>{
   const date=dt(t.archivedAt);
   return date&&date.getFullYear()===state.year&&date.getMonth()===state.month&&(!state.week||displayMode!=="semanal"||weekFor(date)===state.week);
  });
  else if(state.statusFilter!=="todas")list=list.filter(t=>taskStatus(t)===state.statusFilter);
+ if(done&&state.statusFilter==="concluida"&&state.conclusionKind!=="todas")
+   list=list.filter(t=>state.conclusionKind==="atraso"?taskWasLate(t):!taskWasLate(t));
  list.sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const periodSelect='<label class="filter-item period-mode-filter"><span>PERÍODO</span><select class="select" data-filter="periodMode" aria-label="Período">'+
  [["mensal","Mensal"],["semanal","Semanal"]].map(([v,l])=>opt(v,l,displayMode)).join("")+'</select></label>';
- const canBulkDelete=done&&canWrite();
+ const canBulkDelete=done&&state.statusFilter!=="nao_concluida"&&canWrite();
  if(!canBulkDelete){state.archiveDeleteMode=false;state.archiveSelectedIds.clear();}
  // Seleções só podem incluir as demandas concluídas visíveis no período atual.
  const visibleIds=new Set(list.map(t=>t.id));
@@ -926,7 +937,9 @@ function renderDemandas(){
    '</div></div>':"";
  return header("Acompanhamento","Demandas","",actions)+
  '<section class="card card-pad demand-management-panel">'+
- '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+periodSelect+'</div>'+
+ '<div class="demand-visual-toolbar">'+visualizationSelect("status",state.statusFilter)+
+ (state.statusFilter==="concluida"?'<label class="filter-item period-mode-filter"><span>CONCLUSÃO</span><select class="select" data-filter="conclusionKind" aria-label="Tipo de conclusão">'+
+ [["todas","Todas as concluídas"],["prazo","No prazo"],["atraso","Com atraso"]].map(([v,l])=>opt(v,l,state.conclusionKind)).join("")+'</select></label>':"")+periodSelect+'</div>'+
  '<div class="list-toolbar">'+period()+'</div><hr class="divider">'+
  toolbar+
  (list.length?list.map(t=>'<div class="live-task-card'+(picking?' archive-select-row':'')+'">'+
@@ -3193,7 +3206,7 @@ async function handleChange(e){
  if(t.dataset.filter==="navigateDemands"){
    state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
    state.statusFilter=t.value;
-   if(t.value==="concluida")state.mode="arquivo";
+   if(["concluida","nao_concluida"].includes(t.value))state.mode="arquivo";
    else if(state.mode==="arquivo")state.mode="mensal";
    location.hash=workspaceHash("demandas");return;
  }
@@ -3201,11 +3214,12 @@ async function handleChange(e){
  if(t.dataset.filter==="mineStatus"){state.mineStatusFilter=t.value;render();return}
  if(t.dataset.filter==="meetings"){state.meetingView=t.value;render();return}
  if(t.dataset.filter==="periodMode"){state.mode=t.value;render();return}
+ if(t.dataset.filter==="conclusionKind"){state.conclusionKind=t.value;render();return}
  if(t.dataset.filter){
    state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
    if(t.dataset.filter==="status"){
     state.statusFilter=t.value;
-    if(t.value==="concluida")state.mode="arquivo";
+    if(["concluida","nao_concluida"].includes(t.value))state.mode="arquivo";
     else if(state.mode==="arquivo")state.mode="mensal";
     render();return;
    }
