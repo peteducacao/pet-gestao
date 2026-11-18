@@ -95,7 +95,7 @@
   }
   const privateTask=t=>{
     const o={...t,commissionIds:asJson(t.commission_ids,[]),assigneeIds:asJson(t.assignee_ids,[]),commissionDone:asJson(t.commission_done,{}),userDone:asJson(t.user_done,{}),deadlines:asJson(t.deadlines,[])};
-    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,assignmentScope:o.assignment_scope||null,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version};
+    return {id:o.id,title:o.title,description:o.description,captionText:o.caption_text,registeredAt:o.registered_at,assigneeIds:o.assigneeIds,commissionIds:o.commissionIds,commissionDone:o.commissionDone,userDone:o.userDone,deadlines:o.deadlines,status:o.status,overviewVisible:o.overview_visible!==0,assignmentScope:o.assignment_scope||null,createdBy:o.created_by,archivedAt:o.archived_at,createdAt:o.created_at,updatedAt:o.updated_at,updatedBy:o.updated_by,version:o.version,closureOutcome:o.closure_outcome||null,completedLate:o.completed_late===null||o.completed_late===undefined?null:Boolean(o.completed_late)};
   };
   // Endpoints públicos nunca enviam campos internos das tarefas.
   const publicTask=t=>{
@@ -448,8 +448,10 @@
         // (incluindo integrantes de comissões concluídas), sem duplicar e-mails.
         // Os demais avisos preservam o comportamento de apenas pendências.
         const notifyEveryone=kind==="overdue"&&config.overdueAudience==="all";
-        const recipientIds=notifyEveryone?[...new Set([...allPeople,...stageOwners])]:
-          stageOwners.length?stageOwners.filter(id=>!donePeople[id]):[...activePeople];
+        // A fila existente não é modificada. Novos avisos ignoram quem já fez sua parte.
+        const candidates=notifyEveryone?[...new Set([...allPeople,...stageOwners])]:
+          stageOwners.length?stageOwners:[...activePeople];
+        const recipientIds=candidates.filter(id=>!donePeople[id]&&(activePeople.has(id)||!allPeople.has(id)));
         const recipients=unique(recipientIds.map(id=>peopleById.get(id)?.email).filter(validEmail));
         if(!recipients.length)continue;
         const template=models?.[kind]||deadlineMailTemplates[kind];
@@ -1053,7 +1055,11 @@
       if(match&&method==="POST"){
         ensure(user);const c=await db.prepare("SELECT * FROM commissions WHERE id=?").bind(match[1]).first();
         if(!c)fail("Comissão não encontrada.",404);
-        if(match[2]==="leave"){await db.prepare("DELETE FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).run();return answer({ok:true})}
+        if(match[2]==="leave"){
+          const removed=await db.prepare("DELETE FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).run();
+          if(removed.meta.changes)await db.prepare("UPDATE commission_membership_periods SET left_at=? WHERE commission_id=? AND user_id=? AND left_at IS NULL").bind(now(),c.id,user.id).run();
+          return answer({ok:true});
+        }
         const existing=await db.prepare("SELECT 1 AS n FROM commission_members WHERE commission_id=? AND user_id=?").bind(c.id,user.id).first();
         if(existing)return answer({ok:true});
         // 0 significa que a Administração ainda NÃO definiu as vagas; jamais tratar como ilimitado.
@@ -1061,6 +1067,8 @@
         // Condição atômica: respeita as vagas mesmo com duas inscrições simultâneas.
         const result=await db.prepare("INSERT OR IGNORE INTO commission_members(commission_id,user_id,created_at) SELECT ?,?,? WHERE (SELECT max_members FROM commissions WHERE id=?)>0 AND (SELECT COUNT(*) FROM commission_members WHERE commission_id=?) < (SELECT max_members FROM commissions WHERE id=?)").bind(c.id,user.id,now(),c.id,c.id,c.id).run();
         if(!result.meta.changes)fail("Esta comissão está com todas as vagas preenchidas.",409);
+        await db.prepare("INSERT INTO commission_membership_periods(id,commission_id,user_id,joined_at) VALUES(?,?,?,?)")
+          .bind(uid(),c.id,user.id,now()).run();
         return answer({ok:true});
       }
       // Anexos de demandas: sem rota pública, autenticação exigida inclusive para download.
@@ -1273,6 +1281,16 @@
         for(const id of selectedUsers)if(!userDone[id]){userDone[id]={at:stamp,by:user.id,byName:user.name};changedUsers.push(id);}
         if(!changedCommissions.length&&!changedUsers.length)return answer({ok:true,alreadyDone:true,archived:false});
         const finished=commissionIds.every(id=>Boolean(done[id]))&&assigneeIds.every(id=>Boolean(userDone[id]));
+        const parseDeadline=value=>{
+          const date=String(value||"");
+          return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(date)?date+"T23:59:59-03:00":
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(date)?date+(date.length===16?":00":"")+"-03:00":date);
+        };
+        const completedLate=finished&&old.deadlines.some(stage=>{
+          if(!stage.dueAt||stage.label==="Evento")return false;
+          const due=parseDeadline(stage.dueAt),doneAt=Date.parse(stage.completedAt||stamp);
+          return Number.isFinite(due)&&Number.isFinite(doneAt)&&doneAt>due;
+        });
         const stages=old.deadlines.map(d=>{
           const copy={...d,commissionCompleted:{...(d.commissionCompleted||{})}};
           for(const id of changedCommissions)copy.commissionCompleted[id]={at:stamp,by:user.id};
@@ -1281,7 +1299,10 @@
         });
         await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','event_today','overdue')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
-         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?").bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,finished?stamp:null,user.id,stamp,old.id,old.version).run();
+         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,closure_outcome=?,completed_late=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?")
+          .bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,
+            finished?stamp:null,finished?"concluida":null,finished?(completedLate?1:0):null,
+            user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
         const names=[];
         for(const id of changedUsers){const row=await db.prepare("SELECT name FROM users WHERE id=?").bind(id).first();names.push(row?.name||"Usuário");}
