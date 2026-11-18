@@ -3637,16 +3637,6 @@ body.commission-image-editor-open{overflow:hidden}
 }
 
 
-/* Cenários de simulação: informação discreta, em harmonia com o Admin existente. */
-#screen .admin-test-scenarios{padding:15px 17px;margin:12px 0 16px;border:1px dashed #d9cce7;border-radius:13px;background:#fcfbff;color:#433951}
-#screen .admin-test-scenarios strong{display:block;font-size:14px}
-#screen .admin-test-scenarios p{margin:5px 0 11px;font-size:12px;line-height:1.55;color:#746b81}
-#screen .admin-test-scenarios-actions{display:flex;gap:9px;flex-wrap:wrap}
-#screen .admin-test-scenarios-actions .button{white-space:normal;min-height:37px;font-size:12px}
-#screen .admin-test-account-label{display:inline-block;margin:4px 0;font-size:11px;font-weight:800;color:#8054aa}
-@media(max-width:420px){#screen .admin-test-scenarios{padding:12px}#screen .admin-test-scenarios-actions .button{flex:1 1 140px;text-align:center}}
-
-
 /* Polimento aprovado: ação de resumo acima, vagas compactas e alinhamento limpo. */
 #screen .admin-commissions .admin-commission-item{
  display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:stretch;
@@ -3687,38 +3677,6 @@ body.commission-image-editor-open{overflow:hidden}
  width:40px;min-width:40px;height:40px;min-height:40px;
 }
 #screen .admin-summary-navigation{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-#screen .admin-summary-demo-access,#screen .admin-summary-demo-tag{
- display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;
- border-radius:10px;font-size:12px;line-height:1.4;
-}
-#screen .admin-summary-demo-access{background:#f2ecff;color:#593494;border:1px solid #ded1f3}
-#screen .admin-summary-demo-tag{background:#f5eeff;color:#6844a6;font-weight:800}
-#screen .admin-summary-demo-panel{
- min-width:0;display:grid;align-content:start;gap:11px;padding:16px;
- border:1px solid #e8dcf5;border-radius:15px;background:#fcfaff;
-}
-#screen .admin-summary-demo-intro h2{font-size:17px;margin:0 0 5px}
-#screen .admin-summary-demo-intro p{margin:0;color:#736880;font-size:12px;line-height:1.6}
-#screen .admin-summary-demo-preview{
- display:flex;align-items:end;flex-wrap:wrap;gap:10px;padding:12px;
- border-radius:12px;background:#fff;border:1px solid #e8e1ee;
-}
-#screen .admin-summary-demo-preview label{
- display:grid;gap:6px;flex:1 1 190px;min-width:0;
- font-size:12px;font-weight:700;color:#57486c;
-}
-#screen .admin-summary-demo-preview select{min-width:0;width:100%;max-width:100%;min-height:39px}
-#screen .admin-summary-demo-preview .button{min-height:39px;white-space:normal;font-size:12px}
-#screen .admin-summary-demo-toolbar{
- display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;
- font-size:12px;font-weight:800;color:#5e4b77;
-}
-#screen .admin-summary-demo-toolbar label{display:grid;gap:5px;min-width:160px;font-size:11px;color:#746888}
-#screen .admin-summary-demo-toolbar select{min-width:0;width:100%;min-height:37px}
-#screen .admin-summary-self-note{
- margin:0;font-size:12px;line-height:1.6;color:#655087;
- border-radius:10px;padding:11px;background:#f3edff;
-}
 @media(max-width:680px){
  #screen .admin-commissions .admin-commission-item{
   padding:13px!important;gap:12px!important;flex-direction:initial!important;
@@ -3732,9 +3690,6 @@ body.commission-image-editor-open{overflow:hidden}
  #screen .admin-commissions .admin-commission-item .admin-vacancy-field input[type=number]{
   width:52px!important;min-width:52px!important;max-width:52px!important;
  }
- #screen .admin-summary-demo-preview{display:grid;grid-template-columns:minmax(0,1fr)}
- #screen .admin-summary-demo-preview .button{width:100%}
- #screen .admin-summary-demo-panel{padding:12px}
 }
 @media(max-width:360px){
  #screen .admin-commissions .admin-commission-item-top{column-gap:5px}
