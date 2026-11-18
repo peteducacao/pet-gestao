@@ -587,8 +587,63 @@ function setConnecting(show,label="Conectando ao PET Gestão..."){
  modal.hidden=!show;
 }
 function workspaceHash(route){return routeParts().page==="admin"?"#/admin/"+route:"#/"+route;}
+
+function renderAdminCommissionSummary(cid){
+ if(!isAdmin())return empty("Acesso restrito","Somente a Administração consulta este resumo.");
+ const c=committee(cid);if(!c)return empty("Comissão não encontrada");
+ const from=state.summaryFrom||current.getFullYear()+"-01-01",to=state.summaryTo||dateKey(current);
+ return header("Administração","Resumo · "+c.name,"Consulta privada de participações e atividades.")+
+ '<section class="card card-pad admin-summary"><a href="#/admin/comissoes" class="button ghost">Voltar às comissões</a>'+
+ '<form id="admin-summary-form" class="admin-summary-filters" data-commission-id="'+esc(cid)+'">'+
+ '<label>De<input type="date" name="from" value="'+esc(from)+'" required></label>'+
+ '<label>Até<input type="date" name="to" value="'+esc(to)+'" required></label>'+
+ '<button type="submit" class="button primary">Consultar período</button></form>'+
+ '<div id="admin-summary-results" aria-live="polite">Carregando pessoas e demandas reais...</div></section>';
+}
+function renderAdminSummaryResults(result){
+ const metrics=[["Cadastradas",result.registered],["Concluídas",result.concluded],
+ ["Com atraso",result.concludedLate],["Não concluídas",result.notConcluded],
+ ["Entradas",result.entered],["Saídas",result.exited]];
+ const members=result.members||[];
+ const chosen=members.find(p=>p.id===state.summaryPerson);
+ const memberList=members.length?members.map(p=>'<button type="button" data-do="admin-summary-person" data-person-id="'+esc(p.id)+'" class="admin-summary-person'+(chosen?.id===p.id?' active':'')+'">'+
+ '<strong>'+esc(p.name)+'</strong><small>'+p.periods.map(x=>textDate(x.joinedAt)+' a '+(x.leftAt?textDate(x.leftAt):'atualmente')).join('; ')+'</small></button>').join(""):
+ '<p class="admin-muted">Nenhum vínculo registrado neste período.</p>';
+ const personInfo=chosen?'<h3>'+esc(chosen.name)+'</h3><div class="admin-summary-mini">'+
+ [['Atribuídas',chosen.assigned],['Realizadas',chosen.completed],['Não realizadas',chosen.notCompleted],['Atrasos individuais identificáveis',chosen.completedLate]]
+ .map(([label,n])=>'<span>'+label+': <strong>'+n+'</strong></span>').join("")+'</div>'+
+ (chosen.items.length?chosen.items.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
+ (t.completedAt?'Realizada em '+textDate(t.completedAt):t.notCompleted?'Não realizada':'Pendente')+
+ (t.late?' · Atraso individual':'')+'</small></div><a class="button ghost" href="#/admin/atividade/'+id(t.id)+'">Ver detalhes</a></div>').join(""):
+ '<p class="admin-muted">Nenhuma responsabilidade individual no período.</p>'):
+ '<p class="admin-muted">Selecione um integrante para conferir suas responsabilidades.</p>';
+ const closed=(result.tasks||[]).filter(t=>t.outcome);
+ return '<div class="admin-summary-metrics">'+metrics.map(([label,n])=>
+ '<div class="admin-summary-metric"><strong>'+Number(n||0)+'</strong><span>'+label+'</span></div>').join("")+'</div>'+
+ '<p class="admin-summary-note">Consulta restrita ao Admin, usando contas reais. O histórico anterior ao início do registro de saídas não pode ser reconstruído automaticamente.</p>'+
+ '<h2>Participação dos integrantes</h2><div class="admin-summary-split"><div class="admin-summary-members">'+memberList+'</div>'+
+ '<div class="admin-summary-detail">'+personInfo+'</div></div>'+
+ '<h2>Demandas finalizadas</h2>'+
+ (closed.length?closed.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
+ (t.outcome==="nao_concluida"?'Não concluída':t.late?'Concluída com atraso':'Concluída')+
+ ' · '+textDate(t.archivedAt)+'</small></div><a class="button ghost" href="#/admin/atividade/'+id(t.id)+'">Ver detalhes</a></div>').join(""):
+ '<p class="admin-muted">Nenhuma finalização neste período.</p>');
+}
+async function loadAdminCommissionSummary(cid){
+ if(!isAdmin())return;
+ const target=$("#admin-summary-results");if(!target)return;
+ target.textContent="Consultando registros reais...";
+ try{
+  const from=state.summaryFrom||current.getFullYear()+"-01-01",to=state.summaryTo||dateKey(current);
+  const result=await request("/admin/commission-summary/"+id(cid)+"?from="+encodeURIComponent(from)+"&to="+encodeURIComponent(to));
+  if(target.isConnected&&routeParts().parts[0]==="resumo"&&routeParts().parts[1]===cid){
+   state.summaryData=result;target.innerHTML=renderAdminSummaryResults(result);
+  }
+ }catch(e){if(target.isConnected)target.textContent=e.message;}
+}
 function adminEmbeddedView(parts){
  const [page,...args]=parts,route=args.join("/");
+ if(page==="resumo")return renderAdminCommissionSummary(args[0]||"");
  if(page==="demandas")return renderDemandas();
  if(page==="cronograma")return renderDemandas();
  if(page==="comissoes")return !route?renderComissoes():args[0]==="nova"?renderCommitteeEdit(""):args[0]==="editar"?renderCommitteeEdit(args.slice(1).join("/")):renderCommittee(route);
