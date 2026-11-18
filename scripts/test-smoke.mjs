@@ -996,6 +996,135 @@ await test("comissão e pessoa podem concluir independentemente na mesma demanda
 await test("criar memória",async()=>{good(await api("/meetings","POST",{title:"Memória Teste",date:dueAt,rawNotes:"Responsável: teste"}));meeting=good(await api("/bootstrap")).meetings.find(x=>x.title==="Memória Teste").id});
 await test("editar e excluir memória",async()=>{good(await api("/meetings/"+meeting,"PUT",{title:"Memória Editada",date:dueAt}));good(await api("/meetings/"+meeting,"DELETE"))});
 await test("excluir comissões",async()=>{good(await api("/commissions/"+a,"DELETE"));good(await api("/commissions/"+b,"DELETE"))});
+
+/* Matriz isolada: cria contas e demandas SOMENTE no D1 local de testes.
+   Contas reais de produção são consultadas pelo resumo Admin, sem seeding. */
+await test("matriz de encerramento: contas PETianas e participação histórica por comissão",async()=>{
+ const original=token,idSuffix=Date.now(),password="SenhaMatrizSegura123!";
+ const admin=good(await api("/auth/me")).user;
+ const accounts=[];
+ for(const i of [1,2]){
+  const email="matriz-"+i+"-"+idSuffix+"@pet.local";
+  good(await api("/auth/register","POST",{name:"[TESTE] Integrante "+i,email,password}),201);
+  const person=good(await api("/admin/users")).users.find(u=>u.email===email);
+  assert.ok(person?.id);
+  good(await api("/admin/users/"+person.id,"PATCH",{role:"petiano",notificationEnabled:false}));
+  accounts.push({...person,email,session:good(await api("/auth/login","POST",{email,password})).token});
+ }
+ const name="[TESTE] Matriz de comissão "+idSuffix;
+ good(await api("/commissions","POST",{name}));
+ const c=good(await api("/bootstrap")).committees.find(c=>c.name===name);
+ assert.ok(c?.id);
+ good(await api("/commissions/"+c.id,"PUT",{name,maxMembers:5}));
+ token=accounts[0].session;good(await api("/commissions/"+c.id+"/join","POST",{}));
+ token=accounts[1].session;good(await api("/commissions/"+c.id+"/join","POST",{}));
+ token=original;
+ const year=new Date().getUTCFullYear(),from=year+"-01-01";
+ const today=new Date().toISOString().slice(0,10);
+ const summary=good(await api("/admin/commission-summary/"+c.id+"?from="+from+"&to="+today));
+ assert.equal(summary.commission.id,c.id);
+ assert.ok(summary.members.some(x=>x.id===accounts[0].id&&x.name.includes("[TESTE]")));
+ assert.ok(summary.members.some(x=>x.id===accounts[1].id));
+ assert.ok(summary.entered>=2);
+ token=accounts[0].session;
+ assert.equal((await api("/admin/commission-summary/"+c.id+"?from="+from+"&to="+today)).status,403,"Consulta nominal não acessível a PETianos");
+ token=original;
+ // Persistir esta matriz apenas no ambiente isolado deste teste.
+ globalThis.__summaryMatrix={accounts,commissionId:c.id,token:original,from,today};
+});
+await test("matriz: última conclusão individual arquiva automaticamente, no prazo",async()=>{
+ const m=globalThis.__summaryMatrix;
+ const future=new Date(Date.now()+5*86400000).toISOString().slice(0,10)+"T22:00:00";
+ const id=good(await api("/tasks","POST",{
+  title:"[TESTE] Duas pessoas, ambas no prazo",
+  assigneeIds:m.accounts.map(x=>x.id),commissionIds:[],
+  deadlines:[{id:"prazo-matriz-a",label:"Prazo",dueAt:future}]
+ }),201).id;
+ token=m.accounts[0].session;
+ const first=good(await api("/tasks/"+id+"/finish","PATCH",{early:true}));
+ assert.equal(first.archived,false);
+ token=m.accounts[1].session;
+ const last=good(await api("/tasks/"+id+"/finish","PATCH",{early:true}));
+ assert.equal(last.archived,true);
+ token=m.token;
+ const row=good(await api("/bootstrap")).tasks.find(x=>x.id===id);
+ assert.equal(row.closureOutcome,"concluida");
+ assert.equal(row.completedLate,false);
+ assert.ok(row.userDone[m.accounts[0].id]&&row.userDone[m.accounts[1].id]);
+ good(await api("/tasks/"+id,"DELETE"));
+});
+await test("matriz: duas pessoas concluem após o prazo, arquivamento com atraso",async()=>{
+ const m=globalThis.__summaryMatrix;
+ const past=new Date(Date.now()-2*86400000).toISOString().slice(0,10)+"T12:00:00";
+ const id=good(await api("/tasks","POST",{
+  title:"[TESTE] Duas pessoas concluíram com atraso",
+  assigneeIds:m.accounts.map(x=>x.id),commissionIds:[],
+  deadlines:[{id:"prazo-matriz-b",label:"Prazo",dueAt:past}]
+ }),201).id;
+ token=m.accounts[0].session;
+ assert.equal(good(await api("/tasks/"+id+"/finish","PATCH",{})).archived,false);
+ token=m.accounts[1].session;
+ assert.equal(good(await api("/tasks/"+id+"/finish","PATCH",{})).archived,true);
+ token=m.token;
+ const saved=good(await api("/bootstrap")).tasks.find(x=>x.id===id);
+ assert.equal(saved.closureOutcome,"concluida");
+ assert.equal(saved.completedLate,true);
+ good(await api("/tasks/"+id,"DELETE"));
+});
+await test("matriz: parcial atrasada não atribui conclusão ao ausente e não permite apagar",async()=>{
+ const m=globalThis.__summaryMatrix,past=new Date(Date.now()-2*86400000).toISOString().slice(0,10)+"T12:00:00";
+ const taskId=good(await api("/tasks","POST",{
+  title:"[TESTE] Parcial atrasada com comissão",
+  assigneeIds:m.accounts.map(x=>x.id),commissionIds:[m.commissionId],
+  deadlines:[{id:"prazo-matriz-c",label:"Prazo",dueAt:past}]
+ }),201).id;
+ assert.equal((await api("/tasks/"+taskId+"/close-unfinished","PATCH",{})).status,409,"Zero realização nunca encerra");
+ token=m.accounts[0].session;
+ good(await api("/tasks/"+taskId+"/finish","PATCH",{}));
+ token=m.token;
+ const partial=good(await api("/tasks/"+taskId+"/close-unfinished","PATCH",{}));
+ assert.equal(partial.closureOutcome,"nao_concluida");
+ const saved=good(await api("/bootstrap")).tasks.find(x=>x.id===taskId);
+ assert.equal(saved.closureOutcome,"nao_concluida");
+ assert.ok(saved.archivedAt);
+ assert.ok(saved.userDone[m.accounts[0].id]);
+ assert.ok(!saved.userDone[m.accounts[1].id]);
+ assert.equal((await api("/tasks/"+taskId,"DELETE")).status,409,"Histórico parcial protegido");
+ assert.equal((await api("/tasks/bulk-delete","POST",{taskIds:[taskId]})).status,409,"Lote não apaga incompletas");
+ const summary=good(await api("/admin/commission-summary/"+m.commissionId+"?from="+m.from+"&to="+m.today));
+ assert.ok(summary.notConcluded>=1);
+ const done=summary.members.find(x=>x.id===m.accounts[0].id),pending=summary.members.find(x=>x.id===m.accounts[1].id);
+ assert.ok(done.completed>=1&&!done.items.find(x=>x.id===taskId).notCompleted);
+ assert.ok(pending.notCompleted>=1&&pending.items.find(x=>x.id===taskId).notCompleted);
+});
+await test("matriz: sem realização permanece atrasada; conclusão parcial antes do prazo não encerra",async()=>{
+ const m=globalThis.__summaryMatrix;
+ const old=new Date(Date.now()-86400000).toISOString().slice(0,10)+"T12:00:00";
+ const future=new Date(Date.now()+5*86400000).toISOString().slice(0,10)+"T12:00:00";
+ for(const [label,due] of [["ninguém fez",old],["conclusão parcial antecipada",future]]){
+  const id=good(await api("/tasks","POST",{
+   title:"[TESTE] "+label,
+   commissionIds:[m.commissionId],assigneeIds:m.accounts.map(x=>x.id),
+   deadlines:[{id:"matrix-step-"+idSuffixForTest(label),label:"Prazo",dueAt:due}]
+  }),201).id;
+  if(due===future){token=m.accounts[0].session;good(await api("/tasks/"+id+"/finish","PATCH",{early:true}));token=m.token;}
+  assert.equal((await api("/tasks/"+id+"/close-unfinished","PATCH",{})).status,409);
+  assert.ok(!good(await api("/bootstrap")).tasks.find(x=>x.id===id).archivedAt);
+  good(await api("/tasks/"+id,"DELETE"));
+ }
+});
+function idSuffixForTest(label){return label.replace(/[^a-z]+/gi,"-").slice(0,25)}
+await test("matriz: pessoa que sai continua no período anterior e some no posterior",async()=>{
+ const m=globalThis.__summaryMatrix;
+ token=m.accounts[1].session;good(await api("/commissions/"+m.commissionId+"/leave","POST",{}));
+ token=m.token;
+ const historical=good(await api("/admin/commission-summary/"+m.commissionId+"?from="+m.from+"&to="+m.today));
+ assert.ok(historical.members.some(x=>x.id===m.accounts[1].id));
+ assert.ok(historical.exited>=1);
+ const later=new Date(Date.now()+2*86400000).toISOString().slice(0,10);
+ const next=good(await api("/admin/commission-summary/"+m.commissionId+"?from="+later+"&to="+later));
+ assert.ok(!next.members.some(x=>x.id===m.accounts[1].id),"Quem saiu não aparece fora do período de vínculo");
+});
 await test("senha administrativa temporária pode ser trocada sem login comum",async()=>{
  const admin=good(await api("/admin/users")).users.find(u=>u.role==="admin");
  assert.ok(admin?.id);
