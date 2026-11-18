@@ -42,7 +42,7 @@ SET deadlines=(
   json((SELECT coalesce(json_group_array(owner.value),'[]')
         FROM json_each(stage.value,'$.assigneeIds') AS owner
         WHERE owner.value NOT IN ('pet-demo-ana-20261117','pet-demo-bruno-20261117','pet-demo-carla-20261117','pet-demo-davi-20261117'))
- )),'[]')
+ ))),'[]')
  FROM json_each(tasks.deadlines) AS stage
 )
 WHERE id NOT LIKE 'pet-cenario-20261117-%'
