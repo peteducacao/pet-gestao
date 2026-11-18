@@ -1174,10 +1174,12 @@
           fail("A seleção contém demandas repetidas.",400);
         const placeholders=ids.map(()=>"?").join(",");
         // Nenhuma remoção ocorre caso haja demandas pendentes, inexistentes ou alteradas.
-        const rows=(await db.prepare("SELECT id,archived_at FROM tasks WHERE id IN ("+placeholders+")")
+        const rows=(await db.prepare("SELECT id,archived_at,closure_outcome FROM tasks WHERE id IN ("+placeholders+")")
           .bind(...ids).all()).results;
         if(rows.length!==ids.length||rows.some(t=>!t.archived_at))
           fail("A seleção contém uma demanda que não está concluída. Atualize a listagem e tente novamente.",409);
+        if(rows.some(t=>t.closure_outcome==="nao_concluida"))
+          fail("Demandas encerradas como não concluídas não podem ser excluídas.",409);
         await db.batch([
           db.prepare("UPDATE email_queue SET status=\'cancelado\',error_message=\'Demanda excluída\' WHERE task_id IN ("+placeholders+") AND status IN (\'pendente\',\'falhou\')").bind(...ids),
            db.prepare("DELETE FROM email_queue WHERE id IN (SELECT queue_id FROM deadline_notice_log WHERE task_id IN ("+placeholders+"))").bind(...ids),
@@ -1235,6 +1237,8 @@
         // Concluídas e ativas: PETiano(a), Tutor(a) e Administração.
         if(!["petiano","tutor","admin"].includes(user.role))
           fail("Somente PETianos(as), Tutoria ou Administração podem excluir demandas.",403);
+        if(old.closureOutcome==="nao_concluida")
+          fail("Não é permitido excluir demandas encerradas como não concluídas.",409);
         // Apagar de forma atômica, inclusive os avisos de prazo pendentes e o histórico.
         // A autorização é validada no Worker, não por campos enviados pelo navegador.
         await db.batch([
@@ -1245,6 +1249,35 @@
           db.prepare("DELETE FROM tasks WHERE id=?").bind(old.id)
         ]);
         return answer({ok:true});
+      }
+
+      // Encerramento definitivo parcial, sem atribuir conclusão a quem não realizou.
+      match=path.match(/^\/api\/v1\/tasks\/([^/]+)\/close-unfinished$/);
+      if(match&&method==="PATCH"){
+        ensure(user);
+        const old=await readTask(db,match[1]),stamp=now();
+        if(old.archivedAt)fail("A demanda já foi encerrada.",409);
+        if(old.assignmentScope==="todos")fail("Eventos para Todos(as) têm finalização automática própria.",409);
+        const total=(old.assigneeIds||[]).length+(old.commissionIds||[]).length;
+        const doneUsers=(old.assigneeIds||[]).filter(id=>Boolean(old.userDone?.[id])).length;
+        const doneGroups=(old.commissionIds||[]).filter(id=>Boolean(old.commissionDone?.[id])).length;
+        const completed=doneUsers+doneGroups;
+        if(!total||!completed)fail("Sem participação realizada: a demanda permanece pendente ou atrasada.",409);
+        if(completed===total)fail("Todas as participações já foram concluídas.",409);
+        const parseDue=value=>{
+          const date=String(value||"");
+          return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(date)?date+"T23:59:59-03:00":
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(date)?date+(date.length===16?":00":"")+"-03:00":date);
+        };
+        const overdue=old.deadlines.some(stage=>
+          stage.dueAt&&stage.label!=="Evento"&&!stage.completedAt&&
+          Number.isFinite(parseDue(stage.dueAt))&&parseDue(stage.dueAt)<Date.parse(stamp));
+        if(!overdue)fail("Somente uma demanda atrasada pode ser encerrada como não concluída.",409);
+        const result=await db.prepare("UPDATE tasks SET archived_at=?,closure_outcome='nao_concluida',completed_late=0,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND archived_at IS NULL AND version=?")
+          .bind(stamp,user.id,stamp,old.id,old.version).run();
+        if(!result.meta.changes)fail("Outra pessoa atualizou a demanda. Atualize e tente novamente.",409);
+        await audit(db,old.id,user,"Encerrou como não concluída","As conclusões individuais e coletivas já registradas foram preservadas.");
+        return answer({ok:true,archived:true,closureOutcome:"nao_concluida"});
       }
       match=path.match(/^\/api\/v1\/tasks\/([^/]+)\/(status|notes|finish)$/);
       if(match&&method==="PATCH"){
