@@ -86,7 +86,13 @@ jobs:
                   kept=c.execute("SELECT title,assignee_ids FROM tasks WHERE id='demanda-equipe-preservar'").fetchone()
                   assert kept and kept[0]=='[TESTE] Criada pelo usuário', 'Não apagar dados fora da bateria criada'
                   assert json.loads(kept[1])==['admin-teste-ci'], 'Não deixar atribuição ao perfil falso'
-          assert c.execute('SELECT COUNT(*) FROM commissions').fetchone()[0]==10
+          # A nova bateria é visível no PET Gestão; as contas reais não são modificadas.
+          assert c.execute("SELECT COUNT(*) FROM tasks WHERE id LIKE 'pet-cenario-20261117-%'").fetchone()[0]==24, 'Faltam cenários de conclusão'
+          assert c.execute("SELECT COUNT(*) FROM users WHERE id LIKE 'pet-demo-%-20261117'").fetchone()[0]==4, 'Faltam contas de teste'
+          assert c.execute("SELECT COUNT(*) FROM commissions WHERE id LIKE 'pet-demo-comissao-%-20261117'").fetchone()[0]==2, 'Faltam comissões de teste'
+          assert c.execute("SELECT COUNT(*) FROM users WHERE email LIKE '%@example.invalid' AND pass_hash='ACESSO_DE_TESTE_DESATIVADO'").fetchone()[0]>=4
+          assert c.execute("SELECT COUNT(*) FROM email_queue WHERE task_id LIKE 'pet-cenario-20261117-%'").fetchone()[0]==0
+          assert c.execute("SELECT COUNT(*) FROM commissions").fetchone()[0]==12
           assert c.execute("SELECT COUNT(*) FROM users WHERE id='admin-teste-ci'").fetchone()[0]==1
           assert c.execute('PRAGMA foreign_key_check').fetchall()==[], 'Integridade referencial'
           print('Migrações verificadas:', len(paths), 'arquivos; dados reais preservados; testes removidos.')
