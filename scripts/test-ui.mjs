@@ -75,6 +75,13 @@ window.fetch=async (url,options={})=>{
  settings.notificationTemplates={...settings.notificationTemplates,[body.kind]:{subject:body.subject,body:body.message}};
  return reply({ok:true});
 }
+ if(path.startsWith("/admin/commission-summary/")&&method==="GET"&&path.endsWith("pet-demo-comissao-20261117"))return reply({
+ commission:{id:"pet-demo-comissao-20261117",name:"[TESTE] Simulações de demandas"},
+ members:[{id:"pet-demo-ana-20261117",name:"[TESTE] Ana · PETiana",
+  periods:[{joinedAt:"2026-01-08T12:00:00Z",leftAt:null}],assigned:1,completed:1,notCompleted:0,completedLate:0,
+  items:[{id:"pet-cenario-20261117-01",title:"[TESTE] 01 · Caso ilustrativo",completedAt:"2026-11-14T15:00:00Z",late:false}]}],
+ registered:1,concluded:0,concludedLate:0,notConcluded:0,entered:1,exited:0,tasks:[]
+ });
  if(path==="/mail"&&method==="POST"){lastMail=body;return reply({ok:true,status:"pendente"});}
  if(path==="/mail"&&method==="GET")return reply({items:[]});
  if(path==="/mail/status")return reply({connected:true,message:"Simulação"});
@@ -516,6 +523,29 @@ await move("#/admin/resumo/videos");await wait();
 assert.ok(document.querySelector("#admin-summary-results"),"Resumo administrativo está disponível por comissão.");
 assert.equal([...document.querySelectorAll("#admin-summary-results h2")].some(h=>h.textContent==="Demandas finalizadas"),false,
  "A seção redundante de demandas finalizadas foi removida.");
+// Teste end-to-end da consulta em simulação sem contaminar a conta real.
+const demoCommittee={id:"pet-demo-comissao-20261117",name:"[TESTE] Simulações de demandas",
+ memberIds:[],memberCount:0,maxMembers:3};
+const demoTask={id:"pet-cenario-20261117-01",title:"[TESTE] 01 · Caso ilustrativo",
+ assigneeIds:["pet-demo-ana-20261117"],commissionIds:["pet-demo-comissao-20261117"],
+ commissionDone:{},userDone:{},deadlines:[],registeredAt:"2026-11-17",
+ status:"pendente",archivedAt:null,version:1};
+committees.push(demoCommittee);tasks.push(demoTask);
+await move("#/admin/resumo/pet-demo-comissao-20261117");await wait();await wait();
+assert.ok(document.querySelector(".admin-summary-demo-tag"),"Resumo dos testes sinaliza dados fictícios.");
+assert.ok(document.querySelector(".admin-summary-demo-panel"),"Admin vê catálogo de cenários de teste.");
+assert.ok(document.querySelector(".admin-summary-demo-panel [data-filter='summaryDemoFilter']"),
+ "Filtros do catálogo de testes estão disponíveis.");
+tap('[data-do="admin-summary-self"]');await wait();
+assert.ok(document.querySelector(".admin-summary-self-note"),"Prévia da conta real sinaliza que não grava dados.");
+assert.ok(document.querySelector(".admin-summary-detail h3")?.textContent.includes("simulação [TESTE]"),
+ "Prévia de desempenho não altera o histórico real.");
+const accountSelector=document.querySelector("[data-filter='summaryDemoUser']");
+accountSelector.value="u1";accountSelector.dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.ok(document.querySelector(".admin-summary-detail h3")?.textContent.includes(user.name),
+ "É possível escolher uma conta cadastrada para visualizar a prévia do teste.");
+committees.splice(committees.findIndex(c=>c.id===demoCommittee.id),1);
+tasks.splice(tasks.findIndex(t=>t.id===demoTask.id),1);
 await move("#/admin/comissoes");
 document.querySelector('[data-vagas="videos"]').value="5";
 tap('[data-do="save-all-commissions"]');await wait();await wait();
