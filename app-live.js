@@ -1962,7 +1962,7 @@ function detailStatusSelector(t,status){
  return '<label class="detail-status-control detail-status-'+status+'"><span class="detail-status-caption">Status</span>'+
  '<select class="detail-status-select" data-detail-status data-id="'+esc(t.id)+'" aria-label="Status da demanda: '+statusLabel[status]+'">'+
  '<option value="'+status+'" selected>'+statusLabel[status]+'</option>'+
- '<option value="concluir">Concluir participações</option>'+
+ '<option value="concluir">Concluído</option>'+
  (isLate(t)&&taskProgress(t).done>0&&pendingParticipationCount(t)>0?
  '<option value="encerrar-incompleta">Encerrar como não concluída</option>':"")+'</select>'+
  '<svg class="detail-status-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="18" height="18" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></label>';
