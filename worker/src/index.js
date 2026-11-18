@@ -933,7 +933,9 @@
             Number.isFinite(parseDue(st.dueAt))&&parseDue(st.dueAt)<Date.parse(st.completedAt||task.archived_at));
         };
         const items=rows.filter(t=>asJson(t.commission_ids,[]).includes(commissionId))
-          .filter(t=>validPeriod(t.registered_at)||validPeriod(t.archived_at))
+          .filter(t=>validPeriod(t.registered_at)||validPeriod(t.archived_at)||
+            Object.values(asJson(t.user_done,{})).some(v=>validPeriod(v?.at))||
+            Object.values(asJson(t.commission_done,{})).some(v=>validPeriod(v?.at)))
           .map(t=>({
             id:t.id,title:t.title,registeredAt:t.registered_at,archivedAt:t.archived_at,
             outcome:t.archived_at?(t.closure_outcome||"concluida"):null,
