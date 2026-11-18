@@ -9,7 +9,7 @@ async function test(name,fn){await fn();console.log("PASS",++tests,name)}
 const good=(r,status=200)=>{assert.equal(r.status,status,JSON.stringify(r));return r};
 const dueAt=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
 await test("saúde",async()=>{assert.equal(good(await api("/health")).database,true)});
-await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,12,"Comissões reais e duas comissões [TESTE]");assert.equal(r.session,null)});
+await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,10,"Dez comissões reais preservadas");assert.equal(r.session,null)});
 await test("controle de acesso",async()=>{assert.equal((await api("/admin/users")).status,401)});
 await test("login único da Administração",async()=>{
  const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD}));
@@ -18,29 +18,12 @@ await test("login único da Administração",async()=>{
  assert.equal(r.user.adminSession,true,"Admin autenticado pela entrada comum recebe escopo legítimo");
  assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
-await test("cenários [TESTE] disponíveis com usuários fictícios sem login e dados reais intactos",async()=>{
+await test("cenários fictícios removidos, preservando as dez comissões reais",async()=>{
  const publicData=good(await api("/bootstrap"));
- const realCommissions=publicData.committees.filter(x=>!x.id.startsWith("pet-demo-comissao-"));
- assert.equal(realCommissions.length,10,"Dez comissões institucionais preservadas");
- const demoTasks=publicData.tasks.filter(x=>x.id.startsWith("pet-cenario-20261117-"));
- assert.equal(demoTasks.length,24);
- assert.ok(demoTasks.every(x=>x.title.startsWith("[TESTE")));
- assert.ok(publicData.committees.some(x=>x.id==="pet-demo-comissao-20261117"));
- assert.ok(publicData.committees.some(x=>x.id==="pet-demo-comissao-apoio-20261117"));
- const registered=good(await api("/admin/users")).users.filter(u=>u.id.startsWith("pet-demo-"));
- assert.equal(registered.length,4);
- assert.ok(registered.every(u=>u.mustChangePassword&&u.email.endsWith("@example.invalid")));
- const fake=await api("/auth/login","POST",{email:"pet-demo-ana-20261117@example.invalid",password:"qualquer"});
- assert.equal(fake.status,401,"Perfis fictícios sem credenciais válidas");
- const base="/admin/commission-summary/pet-demo-comissao-20261117";
- const annual=good(await api(base+"?from=2026-01-01&to=2026-12-31"));
- assert.ok(annual.members.length===4,"O resumo anual recupera inclusive ex-integrantes e reentradas");
- assert.ok(annual.members.some(x=>x.name.includes("Carla")));
- assert.ok(annual.concluded>0&&annual.concludedLate>0&&annual.notConcluded>0);
- const autumn=good(await api(base+"?from=2026-09-01&to=2026-11-30"));
- assert.ok(!autumn.members.some(x=>x.name.includes("Carla")),"Ex-integrante não aparece fora do vínculo");
- assert.ok(autumn.members.some(x=>x.name.includes("Ana")));
- assert.ok(good(await api("/bootstrap")).tasks.some(x=>x.id==="pet-cenario-20261117-07"));
+ assert.equal(publicData.committees.length,10,"As dez comissões institucionais permanecem intactas");
+ assert.ok(!publicData.committees.some(c=>c.id.startsWith("pet-demo-comissao-")),"Sem comissões de teste");
+ assert.ok(!publicData.tasks.some(t=>t.id.startsWith("pet-cenario-20261117-")),"Sem tarefas fictícias");
+ assert.ok(!good(await api("/admin/users")).users.some(u=>u.id.startsWith("pet-demo-")),"Sem contas fictícias");
 });
 await test("carga enviada pelo navegador não define o escopo administrativo",async()=>{
  const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD,role:"usuario",adminScope:false}));
