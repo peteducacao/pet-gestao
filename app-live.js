@@ -547,7 +547,7 @@ const isLate=t=>t.publicStatus?active(t)&&t.publicStatus==="atrasada":active(t)&
  const due=stageDueAt(s.dueAt);
  return !!due&&due.getTime()<Date.now();
 });
-const taskStatus=(t,cid="")=>t.archivedAt?(t.closureOutcome==="nao_concluida"?"nao_concluida":"concluida"):
+const taskStatus=(t,cid="")=>t.archivedAt?((t.closureOutcome==="nao_concluida"||t.publicStatus==="nao_concluida")?"nao_concluida":"concluida"):
  (t.publicStatus||(cid&&t.commissionDone?.[cid]?"concluida":isLate(t)?"atrasada":"pendente"));
 const statusLabel={pendente:"Pendente",atrasada:"Atrasada",concluida:"Concluída",nao_concluida:"Não concluída"};
 const taskWasLate=t=>{
