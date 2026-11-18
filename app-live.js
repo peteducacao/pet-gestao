@@ -592,8 +592,14 @@ function renderAdminCommissionSummary(cid){
  if(!isAdmin())return empty("Acesso restrito","Somente a Administração consulta este resumo.");
  const c=committee(cid);if(!c)return empty("Comissão não encontrada");
  const from=state.summaryFrom||current.getFullYear()+"-01-01",to=state.summaryTo||dateKey(current);
- return header("Administração","Resumo · "+c.name,"Consulta privada de participações e atividades.")+
- '<section class="card card-pad admin-summary"><a href="#/admin/comissoes" class="button ghost">Voltar às comissões</a>'+
+ const demo=cid.startsWith("pet-demo-comissao-");
+ return header("Administração","Resumo · "+c.name,demo?"Ambiente de conferência com exemplos [TESTE].":"Consulta privada de participações e atividades.")+
+ '<section class="card card-pad admin-summary">'+
+ '<div class="admin-summary-navigation"><a href="#/admin/comissoes" class="button ghost">Voltar às comissões</a>'+
+ (demo?'<span class="admin-summary-demo-tag">Simulações [TESTE]</span>':
+ (data.committees||[]).some(x=>x.id==="pet-demo-comissao-20261117")?
+ '<a class="button ghost admin-summary-demo-access" href="#/admin/resumo/pet-demo-comissao-20261117">Conferir 24 testes</a>':"")+
+ '</div>'+
  '<form id="admin-summary-form" class="admin-summary-filters" data-commission-id="'+esc(cid)+'">'+
  '<label>De<input type="date" name="from" value="'+esc(from)+'" required></label>'+
  '<label>Até<input type="date" name="to" value="'+esc(to)+'" required></label>'+
@@ -601,33 +607,66 @@ function renderAdminCommissionSummary(cid){
  '<div id="admin-summary-results" aria-live="polite">Carregando pessoas e demandas reais...</div></section>';
 }
 function renderAdminSummaryResults(result){
+ const isDemo=String(result.commission?.id||"").startsWith("pet-demo-comissao-");
  const metrics=[["Cadastradas",result.registered],["Concluídas",result.concluded],
  ["Com atraso",result.concludedLate],["Não concluídas",result.notConcluded],
  ["Entradas",result.entered],["Saídas",result.exited]];
  const members=result.members||[];
- const chosen=members.find(p=>p.id===state.summaryPerson);
- const memberList=members.length?members.map(p=>'<button type="button" data-do="admin-summary-person" data-person-id="'+esc(p.id)+'" class="admin-summary-person'+(chosen?.id===p.id?' active':'')+'">'+
+ const member=members.find(p=>p.id===state.summaryPerson);
+ const realUsers=[...new Map([me,...(data.users||[]),...(state.adminUsers||[])]
+  .filter(u=>u?.id&&!String(u.id).startsWith("pet-demo-"))
+  .map(u=>[u.id,u])).values()].sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+ const selectedAccount=realUsers.find(u=>u.id===state.summaryDemoUser)||me;
+ const asDemoUser=isDemo&&state.summaryDemoAsMe&&member?.id==="pet-demo-ana-20261117";
+ const memberName=asDemoUser?(selectedAccount?.name||"Minha conta")+" · simulação [TESTE]":member?.name||"";
+ const memberList=members.length?members.map(p=>'<button type="button" data-do="admin-summary-person" data-person-id="'+esc(p.id)+'" class="admin-summary-person'+(member?.id===p.id?' active':'')+'">'+
  '<strong>'+esc(p.name)+'</strong><small>'+p.periods.map(x=>textDate(x.joinedAt)+' a '+(x.leftAt?textDate(x.leftAt):'atualmente')).join('; ')+'</small></button>').join(""):
  '<p class="admin-muted">Nenhum vínculo registrado neste período.</p>';
- const personInfo=chosen?'<h3>'+esc(chosen.name)+'</h3><div class="admin-summary-mini">'+
- [['Atribuídas',chosen.assigned],['Realizadas',chosen.completed],['Não realizadas',chosen.notCompleted],['Atrasos individuais identificáveis',chosen.completedLate]]
+ const personInfo=member?'<h3>'+esc(memberName)+'</h3>'+
+ (asDemoUser?'<p class="admin-summary-self-note">Prévia ilustrativa: as responsabilidades de Ana [TESTE] são exibidas com o nome escolhido. Nenhuma demanda ou conclusão é atribuída à conta real.</p>':"")+
+ '<div class="admin-summary-mini">'+
+ [['Atribuídas',member.assigned],['Realizadas',member.completed],['Não realizadas',member.notCompleted],['Atrasos individuais identificáveis',member.completedLate]]
  .map(([label,n])=>'<span>'+label+': <strong>'+n+'</strong></span>').join("")+'</div>'+
- (chosen.items.length?chosen.items.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
+ (member.items.length?member.items.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
  (t.completedAt?'Realizada em '+textDate(t.completedAt):t.notCompleted?'Não realizada':'Pendente')+
  (t.late?' · Atraso individual':'')+'</small></div><a class="button ghost" href="#/admin/atividade/'+id(t.id)+'">Ver detalhes</a></div>').join(""):
  '<p class="admin-muted">Nenhuma responsabilidade individual no período.</p>'):
  '<p class="admin-muted">Selecione um integrante para conferir suas responsabilidades.</p>';
- const closed=(result.tasks||[]).filter(t=>t.outcome);
+ const allTests=(data.tasks||[]).filter(t=>String(t.id).startsWith("pet-cenario-20261117-"))
+  .sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+ const testFilter=state.summaryDemoFilter||"todos";
+ const matchingTests=allTests.filter(t=>{
+  if(testFilter==="todos")return true;
+  if(testFilter==="abertas")return !t.archivedAt;
+  if(testFilter==="no_prazo")return Boolean(t.archivedAt)&&taskStatus(t)==="concluida"&&!taskWasLate(t);
+  if(testFilter==="com_atraso")return Boolean(t.archivedAt)&&taskStatus(t)==="concluida"&&taskWasLate(t);
+  if(testFilter==="nao_concluidas")return taskStatus(t)==="nao_concluida";
+  return true;
+ });
+ const demoFilters=[["todos","Todos os cenários"],["abertas","Ainda abertas"],["no_prazo","Concluídas no prazo"],["com_atraso","Concluídas com atraso"],["nao_concluidas","Não concluídas"]];
+ const demoPanel=isDemo?
+ '<section class="admin-summary-demo-panel">'+
+ '<div class="admin-summary-demo-intro"><h2>Conferir cenários de teste</h2><p>Veja todos os 24 exemplos, inclusive os que não pertencem a esta comissão. Os registros institucionais não são modificados.</p></div>'+
+ '<div class="admin-summary-demo-preview"><label>Simular com uma conta real (somente visualização)<select class="select" data-filter="summaryDemoUser" aria-label="Conta para prévia">'+
+ realUsers.map(p=>opt(p.id,p.name,state.summaryDemoUser||me?.id)).join("")+'</select></label>'+
+ '<button class="button ghost" type="button" data-do="admin-summary-self">Visualizar como esta pessoa</button></div>'+
+ '<div class="admin-summary-demo-toolbar"><span>'+matchingTests.length+' de '+allTests.length+' cenários</span>'+
+ '<label>Mostrar<select class="select" data-filter="summaryDemoFilter" aria-label="Filtrar cenários de teste">'+
+ demoFilters.map(([v,l])=>opt(v,l,testFilter)).join("")+'</select></label></div>'+
+ (allTests.length?matchingTests.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
+ (taskStatus(t)==="nao_concluida"?"Não concluída":t.archivedAt?(taskWasLate(t)?"Concluída com atraso":"Concluída"):
+ taskStatus(t)==="atrasada"?"Atrasada":"Pendente")+'</small></div>'+
+ '<a class="button ghost" href="#/admin/atividade/'+id(t.id)+'">Ver detalhes</a></div>').join("")||
+ '<p class="admin-muted">Nenhum cenário corresponde a este filtro.</p>':
+ '<p class="admin-summary-self-note">Os 24 cenários ainda não foram carregados nesta instalação. Confira se a migração dos testes foi publicada no banco.</p>')+
+ '</section>':"";
  return '<div class="admin-summary-metrics">'+metrics.map(([label,n])=>
  '<div class="admin-summary-metric"><strong>'+Number(n||0)+'</strong><span>'+label+'</span></div>').join("")+'</div>'+
- '<p class="admin-summary-note">Consulta restrita ao Admin, usando contas reais. O histórico anterior ao início do registro de saídas não pode ser reconstruído automaticamente.</p>'+
+ '<p class="admin-summary-note">'+(isDemo?
+ 'Estes dados são simulações [TESTE]. Não representam o desempenho real de ninguém.':
+ 'Resumo exclusivo do Admin. As entradas e saídas anteriores ao registro histórico não podem ser reconstruídas automaticamente.')+'</p>'+
  '<h2>Participação dos integrantes</h2><div class="admin-summary-split"><div class="admin-summary-members">'+memberList+'</div>'+
- '<div class="admin-summary-detail">'+personInfo+'</div></div>'+
- '<h2>Demandas finalizadas</h2>'+
- (closed.length?closed.map(t=>'<div class="admin-summary-task"><div><strong>'+esc(t.title)+'</strong><small>'+
- (t.outcome==="nao_concluida"?'Não concluída':t.late?'Concluída com atraso':'Concluída')+
- ' · '+textDate(t.archivedAt)+'</small></div><a class="button ghost" href="#/admin/atividade/'+id(t.id)+'">Ver detalhes</a></div>').join(""):
- '<p class="admin-muted">Nenhuma finalização neste período.</p>');
+ '<div class="admin-summary-detail">'+personInfo+'</div></div>'+demoPanel;
 }
 async function loadAdminCommissionSummary(cid){
  if(!isAdmin())return;
@@ -2335,11 +2374,19 @@ function renderAdmin(){
  const adminPanels='<section class="card card-pad admin-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><h2>Usuários</h2><p class="field-hint admin-role-guide">É possível ter mais de uma conta Administração. Somente um(a) administrador(a) pode conceder ou remover esse cargo, e o último administrador permanece protegido. Quem receber o cargo deve entrar novamente na conta para ativar o acesso administrativo.</p><p class="field-hint admin-role-guide admin-notify-guide"><strong>Sobre as notificações por e-mail:</strong> esta opção define se a pessoa poderá utilizar o envio de avisos por e-mail ao salvar alterações. Quando ativada, a Tutoria ou Administração poderá escolher entre enviar ou não a notificação. Os destinatários são definidos conforme os responsáveis e as comissões da atividade; marcar esta opção não significa que a pessoa receberá todos os avisos por e-mail.</p><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div></section>'+
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição. As alterações só serão aplicadas quando você salvar.</p></div><button type="button" class="button primary admin-save-all-button" data-do="save-all-commissions">'+ico("check")+' Salvar todas as alterações</button></div>'+
  (data.committees.some(c=>c.id==="pet-demo-comissao-20261117")?
- '<div class="admin-test-scenarios"><strong>Cenários de teste disponíveis</strong><p>As duas comissões e as 24 demandas identificadas com [TESTE] são simulações. As comissões e os integrantes reais permanecem cadastrados normalmente.</p>'+
+ '<div class="admin-test-scenarios"><strong>Conferir os cenários [TESTE]</strong><p>24 exemplos de demandas e quatro integrantes fictícios para validar conclusões, atrasos e entradas/saídas. Os dados reais não são alterados.</p>'+
  '<div class="admin-test-scenarios-actions"><a class="button ghost" href="#/admin/resumo/pet-demo-comissao-20261117">Ver resumo dos testes</a>'+
  '<a class="button ghost" href="#/demandas">Conferir demandas</a></div></div>':"")+
  '<div class="admin-commission-list">'+
- data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+'</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small><a class="button ghost admin-commission-summary-link" href="#/admin/resumo/'+id(c.id)+'">'+ico("list")+' Ver resumo</a></div></div><div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span><input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label><div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button><button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
+ data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'">'+
+ '<div class="admin-commission-item-top"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+
+ (c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
+ '</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div>'+
+ '<a class="button ghost admin-commission-summary-link" href="#/admin/resumo/'+id(c.id)+'">'+ico("list")+' Ver resumo</a></div>'+
+ '<div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span>'+
+ '<input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label>'+
+ '<div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button>'+
+ '<button class="button ghost admin-order-button" title="Descer" aria-label="Descer '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="1" '+(i===data.committees.length-1?"disabled":"")+'>↓</button></div></div></div>').join("")+'</div></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Navegação automática das demandas</h2><label class="live-toggle"><input type="checkbox" id="setting-month" '+(data.settings.autoMonth?"checked":"")+'> Atualizar o mês automaticamente</label><label class="live-toggle"><input type="checkbox" id="setting-week" '+(data.settings.autoWeek?"checked":"")+'> Atualizar a semana automaticamente</label><button class="button primary" data-do="save-settings">Salvar configurações</button></section>'+
  '<section class="card card-pad admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><h2>E-mails manuais e agendados</h2><form id="mail-form" class="register-form"><label>Destinatários<select id="mail-audience" name="audience" class="select">'+[["todos","Todos(as)"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,state.mailAudience)).join("")+'</select></label><div id="mail-recipients"></div><label>Assunto<input name="subject" required maxlength="200"></label><label class="rich-label">Mensagem</label>'+richEditor("message","")+'<div class="mail-schedule-choice"><button type="button" class="button ghost mail-schedule-toggle" data-do="mail-toggle-schedule" aria-pressed="false">'+ico("calendar")+' Agendar envio</button><small>Escolha um horário somente se quiser enviar depois.</small></div><div id="mail-scheduling"></div><div id="mail-attachments"></div><div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-manual">Pré-visualizar e-mail</button><button class="button primary" type="submit">Enviar</button></div></form></section>'+
 
@@ -2706,6 +2753,14 @@ async function handleClick(e){
  const action=b.dataset.do,tid=b.dataset.id;
  if(action==="admin-summary-person"){
    state.summaryPerson=b.dataset.personId||"";
+   state.summaryDemoAsMe=false;
+   const el=$("#admin-summary-results");
+   if(el&&state.summaryData)el.innerHTML=renderAdminSummaryResults(state.summaryData);
+   return;
+ }
+ if(action==="admin-summary-self"){
+   state.summaryPerson="pet-demo-ana-20261117";
+   state.summaryDemoAsMe=true;
    const el=$("#admin-summary-results");
    if(el&&state.summaryData)el.innerHTML=renderAdminSummaryResults(state.summaryData);
    return;
@@ -3316,6 +3371,20 @@ async function handleChange(e){
  if(t.dataset.filter==="meetings"){state.meetingView=t.value;render();return}
  if(t.dataset.filter==="periodMode"){state.mode=t.value;render();return}
  if(t.dataset.filter==="conclusionKind"){state.conclusionKind=t.value;render();return}
+ if(t.dataset.filter==="summaryDemoFilter"){
+   state.summaryDemoFilter=t.value;
+   const el=$("#admin-summary-results");
+   if(el&&state.summaryData)el.innerHTML=renderAdminSummaryResults(state.summaryData);
+   return;
+ }
+ if(t.dataset.filter==="summaryDemoUser"){
+   state.summaryDemoUser=t.value;
+   if(state.summaryDemoAsMe){
+    const el=$("#admin-summary-results");
+    if(el&&state.summaryData)el.innerHTML=renderAdminSummaryResults(state.summaryData);
+   }
+   return;
+ }
  if(t.dataset.filter){
    state.archiveDeleteMode=false;state.archiveSelectedIds.clear();
    if(t.dataset.filter==="status"){
