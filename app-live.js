@@ -924,10 +924,13 @@ document.addEventListener("keydown",e=>{
   for(const el of document.querySelectorAll(".demand-card-picker[open]"))el.open=false;
  }
 });
+// Os cenários didáticos continuam em Demandas/Comissões, mas não alteram
+// os indicadores reais nem a lista de prioridades da Visão geral.
+const isScenarioTest=t=>String(t?.id||"").startsWith("pet-cenario-20261117-");
 function renderViewerHome(){
- const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false);
+ const all=data.tasks.filter(t=>active(t)&&!isScenarioTest(t)),visible=all.filter(t=>t.overviewVisible!==false);
  const next=[...visible].sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b)))).slice(0,6);
- const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length;
+ const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt&&!isScenarioTest(t)).length;
  return header("Organização","Visão geral","Acompanhe as demandas da equipe em modo de visualização.")+
   '<div class="stat-grid viewer-stat-grid">'+[[all.length,"Demandas ativas","list"],[late,"Prazos vencidos","alert"],[complete,"Concluídas","check"]].map(x=>
    '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
@@ -936,10 +939,10 @@ function renderViewerHome(){
 }
 function renderHome(){
  if(!canWrite())return renderViewerHome();
- const all=data.tasks.filter(active),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
+ const all=data.tasks.filter(t=>active(t)&&!isScenarioTest(t)),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
  const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4);
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt&&!isScenarioTest(t)).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
  '<div class="dashboard-grid"><section class="card card-pad dashboard-weekly-card"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
  (me&&recentEvents.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':ico("bell"))+
