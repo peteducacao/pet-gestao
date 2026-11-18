@@ -904,7 +904,8 @@ function taskCard(t,commissionId,withFinishAction=false){
  (selectors?'<div class="demand-card-people-rows">'+selectors+'</div>':"")+
  (progress.done&&progress.total&&!t.archivedAt?'<small class="demand-activity-progress">'+progress.done+'/'+progress.total+' participações concluídas</small>':"")+
  '</div></div>'+
- '<span class="task-status task-status-'+status+'">'+statusLabel[status]+'</span>'+
+ '<span class="task-status task-status-'+status+'">'+statusLabel[status]+
+ (status==="concluida"&&taskWasLate(t)?' · Com atraso':"")+'</span>'+
  '<div class="demand-activity-fact demand-activity-date"><span class="demand-activity-fact-icon">'+ico("calendar")+'</span>'+
  '<div><span class="demand-activity-label">Data</span><strong>'+esc(textDate(taskDate(t)))+'</strong></div></div>'+
  (me?'<div class="demand-card-actions"><a class="activity-details-link demand-activity-action" href="'+taskHref+'" aria-label="Ver detalhes de '+esc(t.title)+'">Ver detalhes '+ico("arrow")+'</a>'+
