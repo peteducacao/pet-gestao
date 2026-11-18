@@ -90,9 +90,9 @@ WHERE id IN (
 -- Uma comissão já inteiramente concluída deve estar arquivada.
 UPDATE tasks SET
  status='concluida',
- archived_at='2026-11-16T16:00:00Z',
+ archived_at='2026-11-14T15:00:00Z',
  closure_outcome='concluida',
  completed_late=0,
- updated_at='2026-11-16T16:00:00Z',
- deadlines=json_set(deadlines,'$[0].completedAt','2026-11-16T16:00:00Z')
+ updated_at='2026-11-14T15:00:00Z',
+ deadlines=json_set(deadlines,'$[0].completedAt','2026-11-14T15:00:00Z')
 WHERE id='pet-cenario-20261117-24' AND archived_at IS NULL;
