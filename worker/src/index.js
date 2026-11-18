@@ -903,6 +903,78 @@
         await db.prepare("UPDATE users SET notification_enabled=?,updated_at=? WHERE id=?").bind(b.notificationEnabled?1:0,now(),user.id).run();
         return answer({ok:true});
       }
+
+      // Somente a Administração acessa a análise nominal; os dados reais
+      // são consultados em leitura, sem qualquer alteração de cadastro.
+      const summaryMatch=path.match(/^\/api\/v1\/admin\/commission-summary\/([^/]+)$/);
+      if(summaryMatch&&method==="GET"){
+        ensure(user,true);
+        const commissionId=decodeURIComponent(summaryMatch[1]);
+        const commission=await db.prepare("SELECT id,name FROM commissions WHERE id=?").bind(commissionId).first();
+        if(!commission)fail("Comissão não encontrada.",404);
+        const today=now().slice(0,10);
+        const from=str(url.searchParams.get("from")||today.slice(0,4)+"-01-01",10);
+        const to=str(url.searchParams.get("to")||today,10);
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||from>to)
+          fail("Informe um período válido.",400);
+        const validPeriod=value=>Boolean(value&&String(value).slice(0,10)>=from&&String(value).slice(0,10)<=to);
+        const periods=(await db.prepare(
+          "SELECT p.id,p.user_id,p.joined_at,p.left_at,u.name FROM commission_membership_periods p JOIN users u ON u.id=p.user_id WHERE p.commission_id=? AND p.joined_at<=? AND (p.left_at IS NULL OR p.left_at>=?) ORDER BY u.name,p.joined_at"
+        ).bind(commissionId,to+"T23:59:59",from+"T00:00:00").all()).results;
+        const rows=(await db.prepare("SELECT id,title,registered_at,archived_at,closure_outcome,completed_late,commission_ids,assignee_ids,user_done,commission_done,deadlines FROM tasks ORDER BY created_at DESC").all()).results;
+        const parseDue=value=>{
+          const x=String(value||"");
+          return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(x)?x+"T23:59:59-03:00":
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(x)?x+(x.length===16?":00":"")+"-03:00":x);
+        };
+        const finalLate=task=>{
+          if(task.completed_late!==null&&task.completed_late!==undefined)return Boolean(task.completed_late);
+          return asJson(task.deadlines,[]).some(st=>st.dueAt&&st.label!=="Evento"&&
+            Number.isFinite(parseDue(st.dueAt))&&parseDue(st.dueAt)<Date.parse(st.completedAt||task.archived_at));
+        };
+        const items=rows.filter(t=>asJson(t.commission_ids,[]).includes(commissionId))
+          .filter(t=>validPeriod(t.registered_at)||validPeriod(t.archived_at))
+          .map(t=>({
+            id:t.id,title:t.title,registeredAt:t.registered_at,archivedAt:t.archived_at,
+            outcome:t.archived_at?(t.closure_outcome||"concluida"):null,
+            late:t.archived_at&&t.closure_outcome!=="nao_concluida"?finalLate(t):false,
+            assigned:asJson(t.assignee_ids,[]),done:asJson(t.user_done,{}),
+            commissionDone:asJson(t.commission_done,{}),deadlines:asJson(t.deadlines,[])
+          }));
+        const byId=new Map();
+        for(const p of periods){
+          if(!byId.has(p.user_id))
+            byId.set(p.user_id,{id:p.user_id,name:p.name,periods:[],assigned:0,completed:0,notCompleted:0,completedLate:0,items:[]});
+          byId.get(p.user_id).periods.push({joinedAt:p.joined_at,leftAt:p.left_at});
+        }
+        for(const person of byId.values()){
+          for(const task of items){
+            if(!task.assigned.includes(person.id))continue;
+            // Responsabilidade individual é distinta da coletiva: nunca se atribui
+            // atraso individual apenas porque a comissão ou outra pessoa atrasou.
+            person.assigned++;
+            const done=task.done[person.id];
+            const assignedStages=task.deadlines.filter(st=>(st.assigneeIds||[]).includes(person.id)&&st.dueAt);
+            const individualLate=Boolean(done&&assignedStages.some(st=>parseDue(st.dueAt)<Date.parse(done.at||"")));
+            if(done&&validPeriod(done.at))person.completed++;
+            if(!done&&task.outcome==="nao_concluida")person.notCompleted++;
+            if(individualLate)person.completedLate++;
+            person.items.push({id:task.id,title:task.title,completedAt:done?.at||null,
+              notCompleted:!done&&task.outcome==="nao_concluida",late:individualLate,
+              outcome:task.outcome});
+          }
+        }
+        return answer({commission,from,to,
+          entered:periods.filter(p=>validPeriod(p.joined_at)).length,
+          exited:periods.filter(p=>validPeriod(p.left_at)).length,
+          registered:items.filter(t=>validPeriod(t.registeredAt)).length,
+          concluded:items.filter(t=>t.outcome==="concluida"&&validPeriod(t.archivedAt)).length,
+          concludedLate:items.filter(t=>t.outcome==="concluida"&&t.late&&validPeriod(t.archivedAt)).length,
+          notConcluded:items.filter(t=>t.outcome==="nao_concluida"&&validPeriod(t.archivedAt)).length,
+          members:[...byId.values()],
+          tasks:items.map(({assigned,done,commissionDone,deadlines,...publicItem})=>publicItem)
+        });
+      }
       if(path==="/api/v1/admin/users"&&method==="GET"){
         ensure(user,true);return answer({users:(await db.prepare("SELECT id,name,email,role,role_override,notification_enabled,must_change_password,profile_photo,created_at FROM users ORDER BY name").all()).results.map(userPublic)});
       }
