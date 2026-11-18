@@ -113,10 +113,15 @@ function assertRichTools(selector,context){
 }
 document.dispatchEvent(new window.Event("DOMContentLoaded",{bubbles:true}));
 await wait();await wait();
-// Sem rede: exibir aviso compreensível, preservando outros erros da API.
+// Exercitar o fluxo real de login com e sem rede, sem acessar funções internas.
 const fetchWhileOnline=window.fetch;
+await move("#/login");
+const connectionTestForm=document.querySelector("#login-form");
+assert.ok(connectionTestForm,"Formulário para teste de falha de rede existe.");
+connectionTestForm.elements.email.value="teste@example.test";
+connectionTestForm.elements.password.value="senha-teste";
 window.fetch=async()=>{throw new window.TypeError("Failed to fetch")};
-await window.eval('request("/bootstrap").catch(error=>setToast(error.message))');
+submit("#login-form");await wait();await wait();
 assert.equal(document.querySelector("#notice-title")?.textContent,"Problema de conexão",
  "Falha de rede recebe título em português.");
 assert.match(document.querySelector("#notice-description")?.textContent||"",/Verifique sua conexão com a internet/,
@@ -124,11 +129,13 @@ assert.match(document.querySelector("#notice-description")?.textContent||"",/Ver
 assert.ok(!document.querySelector("#notice-dialog")?.textContent.includes("Failed to fetch"),
  "Mensagem técnica em inglês não é exibida.");
 tap('#notice-dialog [data-do="notice-cancel"]');
-window.fetch=fetchWhileOnline;
-window.eval('setToast("Senha inválida.")');
+window.fetch=async()=>reply({error:"Senha inválida."},401);
+submit("#login-form");await wait();await wait();
 assert.equal(document.querySelector("#notice-description")?.textContent,"Senha inválida.",
- "Erros de autenticação não são confundidos com falta de conexão.");
+ "Erros de autenticação não são confundidos com falhas de rede.");
 tap('#notice-dialog [data-do="notice-cancel"]');
+window.fetch=fetchWhileOnline;
+await move("#/inicio");
 assert.ok(document.querySelector('a[data-route="reunioes"]'),"Atas aparece na navegação");
 assert.equal(document.querySelector('#account-button'),null,"Sem perfil duplicado no topo");
 assert.equal(document.querySelector('a[data-route="conta"]').getAttribute("href"),"#/conta","Perfil acessível no menu lateral");
