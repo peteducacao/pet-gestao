@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
@@ -827,32 +827,44 @@ async function loadPushPreferencesForActiveUser(){
  }catch(error){console.warn("PET Gestão: preferências de notificações indisponíveis:",error.message)}
  void registerNativePush();
  void loadWebPushState();
+ void loadNotificationPreferences();
 }
 function renderPushPreferences(){
- const prefs=state.pushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
  const count=Number(state.pushData?.registeredDevices||0);
- const connected=!!androidPush&&!!registeredPushFor&&registeredPushFor.startsWith(String(me?.id||"")+"|");
- const status=connected
-  ?"Aparelho vinculado à sua conta. Faça o teste abaixo para conferir o recebimento."
-  :androidPush
-    ?"Conectando este aparelho ao PET Gestão. Se não concluir, feche e abra o aplicativo."
-    :count>0
-      ?"Você tem "+count+" aparelho(s) cadastrado(s). Para testar neste celular, abra o APK atualizado."
-      :"Para receber avisos na barra do celular, instale o APK atualizado e permita as notificações.";
- return '<section class="account-push-panel" aria-labelledby="profile-push-title">'+
-  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-push-title">Notificações no celular</h3>'+
-  '<p>Escolha os avisos que deseja receber no aplicativo Android. As notificações por e-mail são configuradas separadamente.</p></div></div>'+
-  '<p class="account-push-status">'+esc(status)+'</p>'+
-  '<div class="account-push-options">'+
-  '<label><input type="checkbox" data-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
-  '<label><input type="checkbox" data-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
-  '<label><input type="checkbox" data-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label>'+
-  '</div><div class="account-push-actions"><button type="button" class="button primary account-push-save" data-do="save-push-settings">'+
-  ico("check")+' Salvar preferências</button>'+
-  '<button type="button" class="button ghost account-push-test" data-do="test-push" '+(connected?"":'disabled title="Abra o aplicativo Android com notificações permitidas"')+'>'+
-  ico("bell")+' Enviar notificação de teste</button></div></section>';
+ const connected=!!androidPush&&registeredPushFor.startsWith(String(me?.id||"")+"|");
+ const status=connected?"Este celular está conectado e pronto para receber avisos.":
+  count>0?count+" celular(es) vinculado(s) à sua conta. Abra o aplicativo para ativar neste aparelho.":
+  "Para receber no celular, instale o APK e permita as notificações.";
+ return '<section class="account-push-panel account-channel-card"><div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3>Celular Android</h3><p>'+esc(status)+'</p></div></div></section>';
 }
-
+const NOTICE_KINDS_UI=[["create","Nova demanda","Quando uma demanda é cadastrada"],
+ ["review","Revisão de texto","Quando há revisão ou correção"],
+ ["due_soon","Prazo vencendo","Aviso antecipado de uma etapa"],
+ ["overdue","Prazo vencido","Uma etapa ultrapassou seu prazo"],
+ ["event_soon","Evento se aproximando","Aviso antecipado de evento"],
+ ["event_today","Evento hoje","Lembrete no próprio dia do evento"]];
+async function loadNotificationPreferences(){
+ const userId=me?.id;if(!userId||me?.mustChangePassword)return;
+ try{
+  const result=await request("/notification-preferences");
+  if(me?.id!==userId)return;
+  state.noticePrefs=result.preferences;
+  if(!state.noticeDirty)state.noticeDraft=JSON.parse(JSON.stringify(result.preferences));
+  if(routeParts().page==="conta"&&state.accountTab==="notificacoes")render();
+ }catch(error){console.warn("PET Gestão: central de notificações indisponível:",error.message)}
+}
+function renderNotificationMatrix(){
+ const prefs=state.noticeDraft||state.noticePrefs;
+ if(!prefs)return '<section class="card card-pad">Carregando suas preferências de avisos...</section>';
+ const names=[["email","E-mail","mail"],["android","Celular","bell"],["pc","PC","monitor"]];
+ return '<section class="card card-pad account-notification-matrix"><div class="section-head"><div><h3>Quais avisos quero receber?</h3><p>Marque os tipos e os canais que deseja. Você pode desligar todos.</p></div></div>'+
+  '<div class="notice-matrix-scroller"><table class="notice-matrix"><thead><tr><th scope="col">Tipo de aviso</th>'+
+  names.map(([,label,iconName])=>'<th scope="col">'+ico(iconName)+'<span>'+label+'</span></th>').join("")+'</tr></thead><tbody>'+
+  NOTICE_KINDS_UI.map(([kind,label,desc])=>'<tr><th scope="row"><strong>'+label+'</strong><small>'+desc+'</small></th>'+
+   names.map(([channel,label])=>'<td><label class="notice-cell-switch" aria-label="'+label+' por '+channel+'"><input type="checkbox" data-notice-kind="'+kind+'" data-notice-channel="'+channel+'" '+(prefs?.[kind]?.[channel]?"checked":"")+'><span aria-hidden="true"></span></label></td>').join("")+'</tr>').join("")+
+  '</tbody></table></div><p class="field-hint">Os três canais são independentes. Se o Gmail atingir a cota diária, celular e PC continuam funcionando.</p>'+
+  '<div class="notice-matrix-actions"><button type="button" class="button primary" data-do="save-notice-matrix">'+ico("check")+' Salvar todas as preferências</button></div></section>';
+}
 async function desktopSubscription(){
  if(!("serviceWorker" in navigator)||!("PushManager" in window))return null;
  const registration=await navigator.serviceWorker.getRegistration("./sw.js");
@@ -876,32 +888,20 @@ function webPushSupported(){
  return window.isSecureContext&&"Notification" in window&&"serviceWorker" in navigator&&"PushManager" in window;
 }
 function renderWebPushPreferences(){
- const prefs=state.webPushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
  const count=Number(state.webPushData?.registeredComputers||0);
- const connected=!!state.webPushHere;
- const supported=webPushSupported();
+ const connected=!!state.webPushHere,supported=webPushSupported();
  const blocked=supported&&Notification.permission==="denied";
- const status=!supported?"Este navegador não oferece notificações Push compatíveis. Experimente Chrome ou Edge no computador.":
-  blocked?"O navegador bloqueou os avisos. Permita notificações nas configurações do site para continuar.":
-  connected?"Este computador está vinculado à sua conta. Você pode testar o recebimento agora.":
-  count>0?"Você tem "+count+" computador(es) vinculado(s). Ative este navegador para receber avisos aqui.":
-  "Ative para receber avisos do PET Gestão no computador, inclusive quando a janela do aplicativo estiver fechada (se o sistema permitir).";
- return '<section class="account-web-push-panel account-channel-card" aria-labelledby="profile-web-push-title">'+
-  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div>'+
-  '<h3 id="profile-web-push-title">Notificações no computador</h3>'+
-  '<p>Avisos do sistema no Windows, macOS ou Linux, com permissões do navegador.</p></div></div>'+
-  '<p class="account-push-status" role="status">'+esc(status)+'</p>'+
-  '<div class="account-push-options">'+
-  '<label><input type="checkbox" data-web-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
-  '<label><input type="checkbox" data-web-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
-  '<label><input type="checkbox" data-web-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label></div>'+
+ const status=!supported?"Este navegador não suporta Web Push. Use Chrome ou Edge.":
+  blocked?"Permita as notificações nas configurações do navegador.":
+  connected?"Este computador está conectado e pronto para receber avisos.":
+  count>0?count+" computador(es) conectado(s) à sua conta.":
+  "Ative para receber avisos também neste PC.";
+ return '<section class="account-web-push-panel account-channel-card">'+
+  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3>Computador (PC)</h3><p>'+esc(status)+'</p></div></div>'+
   '<div class="account-push-actions">'+
   (connected?'<button type="button" class="button ghost" data-do="disable-web-push">Desativar neste PC</button>':
-  '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+
-   ico("bell")+' Ativar neste PC</button>')+
-  '<button type="button" class="button ghost" data-do="save-web-push-settings">'+ico("check")+' Salvar preferências</button>'+
-  '<button type="button" class="button ghost" data-do="test-web-push" '+(connected?"":'disabled title="Ative as notificações neste PC"')+'>'+
-  ico("bell")+' Enviar teste ao PC</button></div></section>';
+    '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+ico("bell")+' Ativar neste PC</button>')+
+  '</div></section>';
 }
 function renderDesktopInstall(){
  const installed=window.matchMedia?.("(display-mode: standalone)")?.matches||window.navigator.standalone===true;
@@ -2375,13 +2375,13 @@ function renderAccount(){
   '<span class="account-push-icon">'+ico("mail")+'</span><div><h3 id="account-email-notifications">Notificações por e-mail</h3>'+
   '<p>Mensagens enviadas para o seu e-mail cadastrado.</p></div></div>'+
   (["tutor","admin"].includes(me.role)?
-    '<label class="account-email-notify-option"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'><span>Ao cadastrar ou revisar uma demanda, perguntar se desejo notificar os responsáveis por e-mail.</span></label>':
+    '<label class="account-email-notify-option"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'><span>Ao salvar uma demanda, permitir escolher se quero avisar os responsáveis pelos canais que eles ativaram.</span></label>':
     '<p class="account-push-status">Os avisos destinados ao seu e-mail são enviados de acordo com as regras do sistema.</p>')+
   '<p class="field-hint">E-mails essenciais, como confirmação de endereço e recuperação de senha, permanecem ativos por segurança.</p></section>';
  const notificationContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEUS AVISOS</span><h2>Central de notificações</h2>'+
-  '<p>Configure e teste cada canal separadamente. As alterações no computador não modificam as preferências do celular.</p></div>'+
-  '<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
+  '<p>Escolha quais dos seis avisos recebe por e-mail, Android ou PC. Salve todas as opções de uma só vez.</p></div>'+
+  renderNotificationMatrix()+'<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
  const appContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">INSTALAÇÃO</span><h2>Aplicativos PET Gestão</h2>'+
   '<p>Escolha onde deseja usar o PET Gestão. O acesso e seus dados continuam sincronizados.</p></div>'+
