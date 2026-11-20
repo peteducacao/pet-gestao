@@ -17,5 +17,4 @@
 </g>
 <g fill="url(#violet)"><rect x="221" y="213" width="132" height="14" rx="7"/><rect x="221" y="261" width="132" height="14" rx="7"/><rect x="221" y="309" width="100" height="14" rx="7"/></g>
 <g fill="url(#paper)"><rect x="259" y="350" width="34" height="45" rx="9"/><rect x="301" y="324" width="34" height="71" rx="9"/><rect x="343" y="293" width="34" height="102" rx="9"/></g>
-<path d="M169 411 Q269 439 380 355 Q428 317 426 253" fill="none" stroke="url(#paper)" stroke-width="14" stroke-linecap="round"/>
 </svg>

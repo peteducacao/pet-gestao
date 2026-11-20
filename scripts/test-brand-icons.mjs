@@ -12,6 +12,7 @@ assert.equal(icon,read("assets/favicon.svg"),"Favicon e marca principal precisam
 assert.match(icon,/<rect width="512" height="512" rx="106"/);
 assert.match(icon,/<path d="m156 217 15 15 25-28"/,"Checklist aprovado sem robótica");
 assert.match(icon,/<rect x="259" y="350"/,"Barras de acompanhamento presentes");
+assert.doesNotMatch(icon,/M169 411 Q269 439 380 355/,"O traço curvo branco não deve aparecer na logo.");
 assert.doesNotMatch(icon,/<text\b/i,"A marca não pode conter texto visual");
 
 const html=read("index.html"),manifest=JSON.parse(read("site.webmanifest")),sw=read("sw.js");
@@ -20,8 +21,8 @@ assert.match(html,/class="startup-splash-waves"/);
 assert.match(html,/pet-splash-pulse 1\.25s/,"Animação de abertura preservada");
 assert.match(html,/rel="apple-touch-icon" sizes="180x180"/);
 assert.match(html,/class="brand-icon brand-mark"[^>]*><img src="assets\/gestao-icon.svg/);
-assert.match(sw,/pet-gestao-public-shell-v20261120-splash-premium-apk-v1/);
-assert.ok(manifest.icons.some(i=>i.type==="image/svg+xml"&&i.src.includes("gestao-premium-20261120")));
+assert.match(sw,/pet-gestao-public-shell-v20261120-icone-sem-traco-v2/);
+assert.ok(manifest.icons.some(i=>i.type==="image/svg+xml"&&i.src.includes("gestao-premium-sem-traco-20261120")));
 
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),"pet-gestao-icons-"));
 try {

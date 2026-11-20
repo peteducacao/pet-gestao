@@ -24,6 +24,4 @@
         android:pathData="M268,350 L284,350 C289,350 293,354 293,359 L293,395 L259,395 L259,359 C259,354 263,350 268,350 Z
         M310,324 L326,324 C331,324 335,328 335,333 L335,395 L301,395 L301,333 C301,328 305,324 310,324 Z
         M352,293 L368,293 C373,293 377,297 377,302 L377,395 L343,395 L343,302 C343,297 347,293 352,293 Z"/>
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="14"
-        android:strokeLineCap="round" android:pathData="M169,411 Q269,439 380,355 Q428,317 426,253"/>
 </vector>

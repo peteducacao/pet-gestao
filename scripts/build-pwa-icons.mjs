@@ -26,21 +26,6 @@ function segment(x,y,ax,ay,bx,by){
 function pointStroke(x,y,ax,ay,bx,by,w){
  return segment(x,y,ax,ay,bx,by)<=w;
 }
-const swooshSegments=[];
-for(const [a,c,b] of [
- [[.330,.803],[.525,.857],[.742,.693]],
- [[.742,.693],[.836,.619],[.832,.494]]
-]){
- let previous=a;
- for(let i=1;i<=14;i++){
-  const t=i/14,u=1-t,p=[u*u*a[0]+2*u*t*c[0]+t*t*b[0],u*u*a[1]+2*u*t*c[1]+t*t*b[1]];
-  swooshSegments.push([previous,p]);previous=p;
- }
-}
-function onSwoosh(x,y){
- if(x<.30||x>.90||y<.46||y>.87)return false;
- return swooshSegments.some(([a,b])=>pointStroke(x,y,a[0],a[1],b[0],b[1],.0137));
-}
 function pixel(x,y,maskable){
  if(!maskable&&!rounded(x,y,0,0,1,1,.207))return [0,0,0,0];
  const scale=maskable?.8:1,px=(x-.5)/scale+.5,py=(y-.5)/scale+.5;
@@ -70,7 +55,6 @@ function pixel(x,y,maskable){
  if(rounded(px,py,.506,.684,.572,.773,.018)||
     rounded(px,py,.588,.633,.654,.773,.018)||
     rounded(px,py,.670,.572,.736,.773,.018))rgb=white;
- if(onSwoosh(px,py))rgb=white;
  return rgb;
 }
 function generate(size,maskable){
