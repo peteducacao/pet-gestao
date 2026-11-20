@@ -7,6 +7,7 @@ on:
       - 'worker/src/index.js'
       - 'worker/migrations/0026_notification_center_reminders.sql'
       - 'scripts/test-notification-center.mjs'
+      - 'scripts/test-six-event-delivery.mjs'
       - '.github/workflows/test-notification-center.yml'
   workflow_dispatch:
 permissions:
@@ -26,6 +27,8 @@ jobs:
           node --check --input-type=module < worker/src/personal-reminders.js
       - name: Testar preferências e lembretes
         run: node scripts/test-notification-center.mjs
+      - name: Simular entregas dos seis avisos no FCM e no PC
+        run: node scripts/test-six-event-delivery.mjs
       - name: Simular migração do D1 e exclusão em cascata
         run: |
           python3 - <<'PY'
