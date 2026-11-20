@@ -5,7 +5,9 @@ import {generateKeyPairSync,webcrypto} from "node:crypto";
 // Teste 100% local: chaves, token e dispositivos fictícios. Nunca envia push real.
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const source=await readFile(new URL("../worker/src/push.js",import.meta.url),"utf8");
-const moduleUrl="data:text/javascript;charset=utf-8,"+encodeURIComponent(source);
+const webPushSource=await readFile(new URL("../worker/src/web-push.js",import.meta.url),"utf8");
+const webPushUrl="data:text/javascript;charset=utf-8,"+encodeURIComponent(webPushSource);
+const moduleUrl="data:text/javascript;charset=utf-8,"+encodeURIComponent(source.replace('from "./web-push.js"','from "'+webPushUrl+'"'));
 const {registerPushDevice,unregisterPushDevice,getPushPreferences,savePushPreferences,sendPushTest}=await import(moduleUrl);
 
 const user={id:"integrante-local",must_change_password:0};
