@@ -2419,7 +2419,7 @@ function notificationTemplateFor(kind){
   overdue:{subject:"PET Gestão — Prazo vencido: {demanda}",body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
   event_today:{subject:"PET Gestão — É hoje: {demanda}",body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"}
  };
- return state.templateDrafts?.[kind]||data.settings.notificationTemplates?.[kind]||
+ return state.templateDrafts?.["email:"+kind]||data.settings.notificationTemplates?.[kind]||
   (["create","review"].includes(kind)?data.settings.notificationTemplate:null)||fallbacks[kind]||fallbacks.create;
 }
 
@@ -2449,10 +2449,27 @@ function notificationVariableGuide(kind){
   '<p class="mail-template-guide-example"><strong>Exemplo:</strong> <code>{autor}</code> cadastrou <code>{demanda}</code> → o e-mail mostrará o nome da pessoa e o título da demanda.'+
   '</p></section>';
 }
-function notificationTemplateFields(kind){
+const pushTemplateFallbacks={
+ create:{title:"Nova demanda atribuída",body:"{demanda}"},
+ review:{title:"Texto para revisão",body:"{demanda} foi atualizado para revisão."},
+ due_soon:{title:"Prazo vencendo",body:"{demanda} · {etapa} · {prazo}"},
+ overdue:{title:"Prazo vencido",body:"{demanda} · {etapa} · {prazo}"},
+ event_soon:{title:"Evento se aproximando",body:"{demanda} · {prazo}"},
+ event_today:{title:"Evento hoje",body:"{demanda}"}
+};
+function notificationPushTemplateFor(kind){
+ return state.templateDrafts?.["app:"+kind]||data.settings.notificationPushTemplates?.[kind]||pushTemplateFallbacks[kind]||pushTemplateFallbacks.create;
+}
+function notificationTemplateFields(kind,channel=state.templateChannel){
+ if(channel==="app"){
+  const item=notificationPushTemplateFor(kind);
+  return '<p class="field-hint">Esta mensagem será usada no Android e no PC. Título até 90 caracteres, corpo até 220. Os campos entre chaves são preenchidos ao enviar.</p>'+
+   '<label>Título da notificação<input type="text" name="title" maxlength="90" required value="'+esc(item.title||"")+'"></label>'+
+   '<label>Mensagem curta<textarea name="message" maxlength="220" rows="3" required>'+esc(item.body||"")+'</textarea></label>'+notificationVariableGuide(kind);
+ }
  const config=notificationTemplateFor(kind);
  return '<label>Assunto<input type="text" name="subject" maxlength="200" required value="'+esc(config.subject||"")+'"></label>'+
-  '<label class="rich-label">Mensagem</label>'+
+  '<label class="rich-label">Mensagem do e-mail</label>'+
   richEditor("message",config.body||"")+notificationVariableGuide(kind);
 }
 function closeAdminMenu(){
@@ -2502,10 +2519,11 @@ function renderAdmin(){
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-event-today" '+(reminderConfig.eventTodayEnabled?"checked":"")+'> Enviar aviso no dia do evento</label><button type="button" class="button primary" data-do="save-reminder-event-today">Salvar aviso do dia do evento</button></div></section>'+
  '<section class="card card-pad admin-panel admin-reminder-panel" data-reminder-card="after" '+(state.adminTab==="configuracoes"?"":'hidden')+'><div class="reminder-panel-heading"><span class="reminder-panel-icon" aria-hidden="true">'+ico("clock")+'</span><h2>Aviso após o vencimento do prazo</h2></div><p class="field-hint reminder-panel-intro">Envie um aviso automático quando uma etapa vencer e a demanda ainda estiver ativa. Esse envio acontece depois do vencimento, sem antecedência.</p>'+
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> Enviar aviso quando o prazo vencer</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas, conforme o público selecionado. Endereços repetidos são unificados por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-overdue">Salvar aviso de prazo vencido</button></div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de todos os e-mails automáticos</h2><p class="field-hint">Selecione qualquer mensagem automática do PET Gestão para personalizar assunto e conteúdo, sem alterar se o aviso está habilitado. Cada modelo é salvo individualmente. Os e-mails de segurança da conta permanecem protegidos.</p>'+
- '<form id="notification-template-form" class="register-form"><label>Tipo de e-mail<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de notificações</h2><p class="field-hint">Edite os seis tipos de avisos por e-mail ou por notificação do aplicativo (celular e PC). Os e-mails de segurança permanecem protegidos.</p>'+
+ '<form id="notification-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
+ '<label>Canal<select name="channel" id="notification-template-channel" class="select">'+[["email","E-mail"],["app","Aplicativo (celular e PC)"]].map(([v,l])=>opt(v,l,state.templateChannel)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
- '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo de e-mail</button></div></form></section>'+
+ '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo</button></div></form></section>'+
  '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
@@ -3530,10 +3548,13 @@ async function handleSubmit(e){
     return;
    }
  if(form.id==="notification-template-form"){
-   const f=collectRich(form,userFields(form));
-   if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
-   const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",{kind:f.kind,subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
-   if(ok)delete state.templateDrafts[f.kind];
+   const f=state.templateChannel==="app"?userFields(form):collectRich(form,userFields(form));
+   if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva a mensagem da notificação.");
+   if(state.templateChannel==="app"&&!String(f.title||"").trim())return setToast("Informe o título da notificação.");
+   const payload=state.templateChannel==="app"?{kind:f.kind,channel:"app",title:f.title,message:f.message}:
+    {kind:f.kind,channel:"email",subject:f.subject,message:f.message};
+   const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",payload,"admin"),"Modelo de notificação salvo.");
+   if(ok)delete state.templateDrafts[state.templateChannel+":"+f.kind];
    return;
  }
  if(form.id==="mail-form"){await sendMail(form);return}
@@ -3630,14 +3651,17 @@ async function handleChange(e){
    }
    return;
  }
- if(t.id==="notification-template-kind"){
+ if(t.id==="notification-template-kind"||t.id==="notification-template-channel"){
    const form=t.closest("#notification-template-form");
    if(form){
-     const previous=state.templateKind;
-     state.templateDrafts[previous]={subject:form.elements.subject.value,body:safeRich(form.querySelector('[data-rich-input="message"]')?.innerHTML||"")};
-     state.templateKind=t.value;
+     const previous=state.templateChannel+":"+state.templateKind;
+     state.templateDrafts[previous]=state.templateChannel==="app"?
+      {title:form.elements.title?.value||"",body:form.elements.message?.value||""}:
+      {subject:form.elements.subject?.value||"",body:safeRich(form.querySelector('[data-rich-input="message"]')?.innerHTML||"")};
+     if(t.id==="notification-template-kind")state.templateKind=t.value;
+     else state.templateChannel=t.value;
      const fields=form.querySelector("#notification-template-fields");
-     if(fields)fields.innerHTML=notificationTemplateFields(t.value);
+     if(fields)fields.innerHTML=notificationTemplateFields(state.templateKind);
    }
    return;
  }
