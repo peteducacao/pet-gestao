@@ -1,6 +1,6 @@
 // PET Gestão — alarmes pessoais; somente o titular acessa e programa seus avisos.
 // Datas civis calculadas para Sergipe (UTC-3). Reprocessamentos não repetem horários concluídos.
-import {pushNotificationToChannels} from "./push.js";
+import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 const now=()=>new Date().toISOString();
 const asJson=(v,f)=>{try{return JSON.parse(v||"")}catch{return f}};
 const fail=(message,status=400)=>{const e=new Error(message);e.status=status;throw e};
@@ -68,10 +68,12 @@ export async function savePersonalReminder(db,user,input,id=null){
  const title=String(input.title||task?.title||"").trim().slice(0,120);
  if(!title)fail("Informe o título do lembrete pessoal.");
  const message=String(input.message||"").trim().slice(0,200);
- const channels=input.channels;
- if(!channels||typeof channels!=="object"||["email","android","pc"].some(k=>typeof channels[k]!=="boolean"))
-  fail("Escolha os canais do lembrete.");
- if(!channels.email&&!channels.android&&!channels.pc)fail("Ative pelo menos um canal para receber o lembrete.");
+ const requestedChannels=input.channels;
+ if(!requestedChannels||typeof requestedChannels!=="object"||["android","pc"].some(k=>typeof requestedChannels[k]!=="boolean"))
+  fail("Escolha celular e/ou PC para o lembrete.");
+ // E-mail não é um canal disponível nos alarmes pessoais, mesmo em registros antigos.
+ const channels={email:false,android:requestedChannels.android,pc:requestedChannels.pc};
+ if(!channels.android&&!channels.pc)fail("Ative o celular ou o PC para receber o lembrete.");
  if(typeof input.autoDelete!=="boolean")fail("Escolha se deseja excluir o lembrete após notificar.");
  const recurrence=String(input.recurrence||"once");
  if(!["once","daily","weekly"].includes(recurrence))fail("Repetição inválida.");
@@ -126,13 +128,13 @@ export async function deletePersonalReminder(db,user,id){
  if(!result.meta?.changes)fail("Lembrete não encontrado.",404);
  return {ok:true};
 }
-export async function processPersonalReminders(env,sendEmail){
+export async function processPersonalReminders(env){
  const db=env.DB;
  await prunePersonalReminders(db);
  // Recuperar uma execução interrompida após 15 minutos, sem prender alarmes para sempre.
  await db.prepare("UPDATE personal_reminder_times SET status='pendente' WHERE status='processando' AND updated_at<?").bind(new Date(Date.now()-900000).toISOString()).run();
  // Há uma única cobrança por horário. Cron concorrente não pode ocupar a mesma linha.
- const pending=(await db.prepare("SELECT t.*,r.user_id,r.task_id,r.title,r.message,r.channels,r.auto_delete,r.recurrence,r.repeat_until,r.id AS parent_id,u.email FROM personal_reminder_times t JOIN personal_reminders r ON r.id=t.reminder_id JOIN users u ON u.id=r.user_id WHERE t.status='pendente' AND t.next_at<=? AND (t.retry_after IS NULL OR t.retry_after<=?) ORDER BY t.next_at LIMIT 20").bind(now(),now()).all()).results;
+ const pending=(await db.prepare("SELECT t.*,r.user_id,r.task_id,r.title,r.message,r.channels,r.auto_delete,r.recurrence,r.repeat_until,r.id AS parent_id FROM personal_reminder_times t JOIN personal_reminders r ON r.id=t.reminder_id JOIN users u ON u.id=r.user_id WHERE t.status='pendente' AND t.next_at<=? AND (t.retry_after IS NULL OR t.retry_after<=?) ORDER BY t.next_at LIMIT 20").bind(now(),now()).all()).results;
  for(const slot of pending){
   const claim=await db.prepare("UPDATE personal_reminder_times SET status='processando',attempts=attempts+1,updated_at=? WHERE id=? AND status='pendente'").bind(now(),slot.id).run();
   if(!claim.meta?.changes)continue;
@@ -146,22 +148,19 @@ export async function processPersonalReminders(env,sendEmail){
    const channels=asJson(slot.channels,{}),title="PET Gestão • "+slot.title.slice(0,70);
    const message=slot.message||"Lembrete: "+slot.title+". Confira suas atividades no PET Gestão.";
    const route=slot.task_id?"/atividade/"+slot.task_id:"/meus-lembretes";
-   const results={email:false,android:0,pc:0};
-   if(channels.email){
-    try{await sendEmail([slot.email],title,message);results.email=true}
-    catch(error){console.error("PET Gestão — lembrete por e-mail indisponível:",String(error?.message||error).slice(0,150));}
-   }
+   const results={android:0,pc:0,skipped:{android:0,pc:0}};
    if(channels.android||channels.pc){
-    const push=await pushNotificationToChannels(env,{
+    const push=await pushWithoutMinuteDuplicates(env,{
      android:channels.android?[slot.user_id]:[],pc:channels.pc?[slot.user_id]:[]
     },{title,body:message.slice(0,220),route,kind:"personal",taskId:slot.task_id||slot.parent_id,noticeId:slot.id},
     "personal|"+slot.id+"|"+slot.next_at);
-    results.android=push.android;results.pc=push.pc;
+    Object.assign(results,push);
    }
-   const success=results.email||results.android>0||results.pc>0;
+   // Colisão no mesmo minuto já implica que houve uma notificação aceita.
+   const success=results.android>0||results.pc>0||results.skipped.android>0||results.skipped.pc>0;
    if(!success){
-    // Sem dispositivo conectado, cota Gmail esgotada ou falha temporária:
-    // nunca marcar como enviado, nem excluir; aguardar nova tentativa.
+    // Sem dispositivo conectado ou falha temporária: manter e tentar novamente.
+    // Não usar Gmail para alarmes pessoais.
     await db.prepare("UPDATE personal_reminder_times SET status='pendente',retry_after=?,updated_at=? WHERE id=? AND status='processando'").bind(new Date(Date.now()+Math.min(360,10*Math.max(1,slot.attempts+1))*60000).toISOString(),now(),slot.id).run();
     continue;
    }
