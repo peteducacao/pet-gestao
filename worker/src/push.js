@@ -1,4 +1,5 @@
-// PET Gestão — notificações nativas Android. Nunca recebe senhas/sessões pelo FCM.
+// PET Gestão — notificações Android e integração com Web Push do computador.
+import {notifyBrowserUsers} from "./web-push.js";
 const maxTokens=300;
 const now=()=>new Date().toISOString();
 const ids=x=>[...new Set(Array.isArray(x)?x.map(String).filter(Boolean):[])];
@@ -111,7 +112,11 @@ async function devicesFor(db,userIds,preference){
  return rows.filter(x=>Number(x[column])===1);
 }
 async function notifyMany(env,userIds,message,preference,dedupeForUser=null){
- if(!fcmConfiguration(env)||!userIds.length)return;
+ if(!userIds.length)return;
+ // Browser e Android compartilham destinatários, mas NÃO as preferências ou inscrições.
+ await notifyBrowserUsers(env,userIds,message,preference,dedupeForUser)
+  .catch(error=>console.error("PET Gestão — envio para PC indisponível:",String(error.message||error).slice(0,160)));
+ if(!fcmConfiguration(env))return;
  const db=env.DB,devices=await devicesFor(db,userIds,preference);
  for(const device of devices){
    try{
@@ -184,7 +189,6 @@ async function assignedUsers(db,task){
  return [...chosen];
 }
 export async function pushTaskCreated(env,taskId,authorId){
- if(!fcmConfiguration(env))return;
  const task=await env.DB.prepare("SELECT * FROM tasks WHERE id=? AND archived_at IS NULL").bind(taskId).first();
  if(!task||String(task.title||"").startsWith("[TESTE]"))return;
  const members=(await assignedUsers(env.DB,task)).filter(id=>id!==authorId);
@@ -202,9 +206,11 @@ function dueMoment(raw){
  return Number.isFinite(n)?n:null;
 }
 export async function pushDeadlineReminders(env){
- if(!fcmConfiguration(env))return;
- const hasDevices=await env.DB.prepare("SELECT 1 FROM push_devices LIMIT 1").first();
- if(!hasDevices)return;
+ const [hasAndroid,hasDesktop]=await Promise.all([
+  env.DB.prepare("SELECT 1 FROM push_devices LIMIT 1").first(),
+  env.DB.prepare("SELECT 1 FROM web_push_subscriptions LIMIT 1").first()
+ ]);
+ if(!hasAndroid&&!hasDesktop)return;
  const tasks=(await env.DB.prepare("SELECT * FROM tasks WHERE archived_at IS NULL ORDER BY updated_at DESC LIMIT 250").all()).results;
  const instant=Date.now(),today=dateKey(new Date(instant));
  const todayUTC=Date.parse(today+"T00:00:00Z");
