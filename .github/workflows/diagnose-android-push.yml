@@ -87,6 +87,20 @@ jobs:
             SELECT COUNT(*) AS demandas_recentes,
              SUM(aceita_pelo_fcm) AS demandas_com_push_aceito,
              SUM(aceita_pelo_gmail) AS demandas_com_email_enviado FROM status;"
+      - name: Conferir quem cadastrou as demandas sem nomes nem endereços
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT COALESCE(u.role_override,u.role,'nao_identificado') AS cargo_do_criador,
+             COUNT(*) AS demandas_recentes,
+             SUM(CASE WHEN t.assignment_scope='todos' THEN 1 ELSE 0 END) AS coletivas
+            FROM tasks t LEFT JOIN users u ON u.id=t.created_by
+            WHERE datetime(t.created_at)>=datetime('now','-3 hours')
+            GROUP BY cargo_do_criador;"
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT kind,status,COUNT(*) AS quantidade
+            FROM email_queue
+            WHERE datetime(created_at)>=datetime('now','-3 hours')
+            GROUP BY kind,status ORDER BY kind,status;"
       - name: Quantificar registro e falhas do FCM sem expor tokens
         run: |
           wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
