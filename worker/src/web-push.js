@@ -186,7 +186,7 @@ export async function notifyBrowserUsers(env,userIds,message,preference,dedupe){
     if(!claim.meta?.changes)continue;
    }
    const result=await deliverWebPush(env.DB,sub,message);
-   if(result.status==="sent")delivered++;
+   if(result.status==="accepted")delivered++;
    if(result.status==="invalid"){
     await env.DB.prepare("DELETE FROM web_push_subscriptions WHERE id=?").bind(sub.id).run();
    }
