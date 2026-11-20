@@ -4446,3 +4446,139 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 #screen .account-push-actions .button{min-height:48px;min-width:0;flex:1 1 220px;padding:10px 14px;line-height:1.4}
 #screen .account-push-actions .account-push-test:disabled{opacity:.56;cursor:not-allowed}
 @media(max-width:680px){#screen .account-push-actions{flex-direction:column}#screen .account-push-actions .button{width:100%;flex:0 0 auto}}
+
+
+/* Minha conta: painel com navegação por categoria, sem empilhar tudo na mesma página. */
+#screen .account-hub{
+ display:grid;grid-template-columns:minmax(205px,245px) minmax(0,1fr);
+ gap:20px;align-items:start;width:100%;max-width:1320px;
+}
+#screen .account-hub-sidebar{
+ position:sticky;top:86px;min-width:0;display:grid;gap:7px;
+ padding:15px;border:1px solid #e8e1f0;border-radius:20px;background:#fff;
+ box-shadow:0 5px 18px rgba(42,27,77,.035);
+}
+#screen .account-hub-side-title{padding:7px 12px 9px;color:#8b7c9f;font-size:10px;font-weight:850;letter-spacing:.1em}
+#screen .account-hub-nav-btn{
+ display:flex;align-items:center;gap:11px;min-height:61px;width:100%;
+ padding:12px;border:1px solid transparent;border-radius:13px;
+ background:transparent;color:#4f4260;text-align:left;cursor:pointer;
+ font:inherit;transition:background .16s,border-color .16s,color .16s;
+}
+#screen .account-hub-nav-btn:hover{background:#f9f6fe}
+#screen .account-hub-nav-btn.is-active{
+ color:#6334b4;background:#f2ebff;border-color:#dfccfa;
+ box-shadow:inset 3px 0 0 #8754db;
+}
+#screen .account-hub-nav-btn:focus-visible{outline:3px solid #9b79df;outline-offset:2px}
+#screen .account-hub-nav-icon{
+ width:35px;height:35px;flex:none;display:grid;place-items:center;
+ border-radius:10px;background:#f3eef9;color:#7552ab;
+}
+#screen .account-hub-nav-btn.is-active .account-hub-nav-icon{background:#e6d9ff;color:#673ac2}
+#screen .account-hub-nav-icon svg{width:19px;height:19px}
+#screen .account-hub-nav-text{display:grid;gap:3px;min-width:0}
+#screen .account-hub-nav-text strong{font-size:14px;line-height:1.3;font-weight:800}
+#screen .account-hub-nav-text small{font-size:11px;line-height:1.4;color:#877b96;font-weight:550}
+#screen .account-hub-main{min-width:0}
+#screen .account-hub-pane{
+ min-width:0;min-height:250px;padding:clamp(16px,2.5vw,27px);
+ border:1px solid #e9e3ef;border-radius:22px;background:#fff;
+ box-shadow:0 6px 22px rgba(38,20,77,.035);
+}
+#screen .account-hub-pane[hidden]{display:none!important}
+#screen .account-hub-pane.account-profile{max-width:none;width:100%;margin:0}
+#screen .account-hub-pane .profile-commissions{margin-bottom:0}
+#screen .account-pane-intro{margin:1px 0 22px}
+#screen .account-pane-intro h2{
+ margin:5px 0 6px;color:#302342;font-size:clamp(21px,2.5vw,26px);
+ font-weight:850;letter-spacing:-.03em;
+}
+#screen .account-pane-intro p{margin:0;color:#766b81;font-size:13px;line-height:1.6}
+#screen .account-settings-two-col,
+#screen .account-channel-grid,
+#screen .account-download-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;align-items:start;
+}
+#screen .account-setting-card,#screen .account-channel-card{
+ display:grid;gap:13px;min-width:0;padding:19px;
+ background:#fff;border:1px solid #e8e1ef;border-radius:17px;
+ box-shadow:0 3px 12px rgba(35,17,74,.025);
+}
+#screen .account-setting-card .account-email-management{
+ margin:0;padding:0;border:0;background:transparent;border-radius:0;
+}
+#screen .account-setting-card.profile-security-panel{
+ display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+ margin:0;
+}
+#screen .account-setting-card.profile-security-panel>.button{align-self:flex-start}
+#screen .account-setting-card.profile-security-panel form{width:100%}
+#screen .account-hub-pane .account-danger-zone{margin-top:17px}
+#screen .account-hub-pane .account-profile-actions{
+ display:flex;justify-content:flex-end;margin-top:18px;
+}
+#screen .account-channel-grid>.account-push-panel{
+ grid-column:1/-1;margin:0;padding:19px;
+}
+#screen .account-web-push-panel .account-push-options{margin-bottom:0}
+#screen .account-web-push-panel .account-push-actions{margin-top:0}
+#screen .account-web-push-panel .button:disabled{opacity:.56;cursor:not-allowed}
+#screen .account-channel-email .account-email-notify-option{
+ display:flex;align-items:flex-start;gap:12px;min-height:65px;
+ padding:13px;border:1px solid #e9e2ef;border-radius:12px;
+ font-size:13px;font-weight:650;line-height:1.55;color:#40334f;
+}
+#screen .account-channel-email .account-email-notify-option input{
+ flex:none;width:20px;height:20px;accent-color:#7443c8;margin-top:1px;
+}
+#screen .account-channel-email .field-hint{margin:0;font-size:12px;line-height:1.65}
+#screen .account-download-grid .account-app-install{
+ margin:0;min-width:0;align-content:start;min-height:100%;
+ border-radius:17px;
+}
+#screen .account-download-grid .account-desktop-install{
+ border-color:#c9e0fa;background:linear-gradient(135deg,#f7faff,#eef5ff);
+}
+#screen .account-download-grid .account-desktop-install .account-app-install-icon{
+ color:#3564aa;background:#e2eefe;
+}
+#screen .account-download-grid .account-app-install-button{
+ width:100%;min-width:0;min-height:46px;white-space:normal;
+}
+@media(max-width:1090px){
+ #screen .account-hub{grid-template-columns:minmax(175px,210px) minmax(0,1fr);gap:14px}
+ #screen .account-settings-two-col,#screen .account-channel-grid{grid-template-columns:minmax(0,1fr)}
+ #screen .account-channel-grid>.account-push-panel{grid-column:auto}
+}
+@media(max-width:800px){
+ #screen .account-hub{grid-template-columns:minmax(0,1fr)}
+ #screen .account-hub-sidebar{
+  position:static;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;
+  padding:9px;border-radius:16px;
+ }
+ #screen .account-hub-side-title{display:none}
+ #screen .account-hub-nav-btn{
+  flex-direction:column;justify-content:center;gap:6px;
+  padding:9px 5px;min-height:70px;text-align:center;
+ }
+ #screen .account-hub-nav-btn.is-active{box-shadow:inset 0 -3px 0 #8754db}
+ #screen .account-hub-nav-text strong{font-size:12px;line-height:1.25}
+ #screen .account-hub-nav-text small{display:none}
+ #screen .account-hub-nav-icon{width:31px;height:31px}
+ #screen .account-hub-pane{border-radius:17px}
+}
+@media(max-width:560px){
+ #screen .account-hub-sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #screen .account-hub-nav-btn{min-height:52px;flex-direction:row;gap:7px}
+ #screen .account-hub-nav-btn .account-hub-nav-text{min-width:0}
+ #screen .account-hub-nav-btn .account-hub-nav-text strong{font-size:12px;overflow-wrap:anywhere}
+ #screen .account-hub-pane{padding:14px}
+ #screen .account-download-grid{grid-template-columns:minmax(0,1fr)}
+ #screen .account-channel-card,#screen .account-setting-card,#screen .account-channel-grid>.account-push-panel{
+  padding:15px;
+ }
+ #screen .account-channel-grid .account-push-options label{font-size:13px}
+ #screen .account-push-actions .button{width:100%;min-width:0}
+ #screen .account-hub-pane .profile-hero .account-profile-info{min-width:0}
+}

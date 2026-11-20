@@ -58,9 +58,12 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={pushData:null,webPushData:null,webPushHere:false,accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
+let desktopInstallPrompt=null;
+window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();desktopInstallPrompt=event;});
+window.addEventListener("appinstalled",()=>{desktopInstallPrompt=null;if(routeParts().page==="conta"&&state.accountTab==="aplicativos")render();});
 let taskFormDraft=null;
 const taskFormRoute=hash=>/^#\/(?:registrar(?:\/|$)|admin\/registrar(?:\/|$))/.test(String(hash||""));
 function taskDraftSnapshot(){
@@ -815,7 +818,7 @@ async function registerNativePush(){
 }
 async function loadPushPreferencesForActiveUser(){
  const userId=me?.id;
- if(!userId||me.mustChangePassword){state.pushData=null;return}
+ if(!userId||me.mustChangePassword){state.pushData=null;state.webPushData=null;state.webPushHere=false;return}
  try{
   const result=await request("/push/preferences");
   if(me?.id!==userId)return;
@@ -823,6 +826,7 @@ async function loadPushPreferencesForActiveUser(){
   if(routeParts().page==="conta")render();
  }catch(error){console.warn("PET Gestão: preferências de notificações indisponíveis:",error.message)}
  void registerNativePush();
+ void loadWebPushState();
 }
 function renderPushPreferences(){
  const prefs=state.pushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
@@ -847,6 +851,68 @@ function renderPushPreferences(){
   ico("check")+' Salvar preferências</button>'+
   '<button type="button" class="button ghost account-push-test" data-do="test-push" '+(connected?"":'disabled title="Abra o aplicativo Android com notificações permitidas"')+'>'+
   ico("bell")+' Enviar notificação de teste</button></div></section>';
+}
+
+async function desktopSubscription(){
+ if(!("serviceWorker" in navigator)||!("PushManager" in window))return null;
+ const registration=await navigator.serviceWorker.getRegistration("./sw.js");
+ return registration?.pushManager?.getSubscription()||null;
+}
+async function loadWebPushState(){
+ const userId=me?.id;
+ if(!userId||me.mustChangePassword){state.webPushData=null;state.webPushHere=false;return}
+ try{
+  const status=await request("/web-push/status");
+  if(me?.id!==userId)return;
+  state.webPushData=status;
+  const subscription=await desktopSubscription();
+  const own=subscription?await request("/web-push/check","POST",{endpoint:subscription.endpoint}):{connected:false};
+  if(me?.id!==userId)return;
+  state.webPushHere=!!own.connected&&window.Notification?.permission==="granted";
+  if(routeParts().page==="conta"&&state.accountTab==="notificacoes")render();
+ }catch(error){console.warn("PET Gestão: notificações do computador indisponíveis:",error.message)}
+}
+function webPushSupported(){
+ return window.isSecureContext&&"Notification" in window&&"serviceWorker" in navigator&&"PushManager" in window;
+}
+function renderWebPushPreferences(){
+ const prefs=state.webPushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
+ const count=Number(state.webPushData?.registeredComputers||0);
+ const connected=!!state.webPushHere;
+ const supported=webPushSupported();
+ const blocked=supported&&Notification.permission==="denied";
+ const status=!supported?"Este navegador não oferece notificações Push compatíveis. Experimente Chrome ou Edge no computador.":
+  blocked?"O navegador bloqueou os avisos. Permita notificações nas configurações do site para continuar.":
+  connected?"Este computador está vinculado à sua conta. Você pode testar o recebimento agora.":
+  count>0?"Você tem "+count+" computador(es) vinculado(s). Ative este navegador para receber avisos aqui.":
+  "Ative para receber avisos do PET Gestão no computador, inclusive quando a janela do aplicativo estiver fechada (se o sistema permitir).";
+ return '<section class="account-web-push-panel account-channel-card" aria-labelledby="profile-web-push-title">'+
+  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div>'+
+  '<h3 id="profile-web-push-title">Notificações no computador</h3>'+
+  '<p>Avisos do sistema no Windows, macOS ou Linux, com permissões do navegador.</p></div></div>'+
+  '<p class="account-push-status" role="status">'+esc(status)+'</p>'+
+  '<div class="account-push-options">'+
+  '<label><input type="checkbox" data-web-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
+  '<label><input type="checkbox" data-web-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
+  '<label><input type="checkbox" data-web-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label></div>'+
+  '<div class="account-push-actions">'+
+  (connected?'<button type="button" class="button ghost" data-do="disable-web-push">Desativar neste PC</button>':
+  '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+
+   ico("bell")+' Ativar neste PC</button>')+
+  '<button type="button" class="button ghost" data-do="save-web-push-settings">'+ico("check")+' Salvar preferências</button>'+
+  '<button type="button" class="button ghost" data-do="test-web-push" '+(connected?"":'disabled title="Ative as notificações neste PC"')+'>'+
+  ico("bell")+' Enviar teste ao PC</button></div></section>';
+}
+function renderDesktopInstall(){
+ const installed=window.matchMedia?.("(display-mode: standalone)")?.matches||window.navigator.standalone===true;
+ return '<section class="account-app-install account-desktop-install" aria-label="Instalar PET Gestão no computador">'+
+  '<div class="account-app-install-head"><span class="account-app-install-icon">'+ico("download")+'</span><div>'+
+  '<h3>Aplicativo PET Gestão para computador</h3>'+
+  '<p>Instale no Windows, macOS ou Linux como um aplicativo independente, com ícone próprio e atualizações automáticas do site.</p></div></div>'+
+  '<button type="button" class="button primary account-app-install-button" data-do="install-desktop-app" '+(installed?"disabled":"")+'>'+
+  ico("download")+' '+(installed?"Já instalado neste computador":"Instalar aplicativo no PC")+'</button>'+
+  '<p class="account-app-install-help">No Chrome ou Edge, a instalação pode ser feita diretamente pelo botão acima. Se o navegador não oferecer instalação automática, use o menu do navegador → Instalar PET Gestão. Não é necessário baixar um arquivo .exe.</p>'+
+  '</section>';
 }
 
 async function reload(){
@@ -2275,24 +2341,62 @@ function renderAccount(){
   '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
   (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
   '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
- return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+
- '<section class="card card-pad live-auth account-profile"><div class="profile-hero">'+
- '<div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span></div>'+
- '<div class="account-profile-info">'+profilePhoto+
- '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
- '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
- (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
- (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
- '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
- '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
- (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
- commissionsHtml+'<div class="profile-settings-heading"><h3>Configurações da conta</h3><p>Gerencie seus dados de acesso e a instalação do aplicativo.</p></div>'+
- '<div class="profile-settings-grid">'+emailManagement+renderAppInstall()+'</div>'+
- renderPushPreferences()+
- '<div class="profile-security-panel"><div><h3>Segurança da conta</h3><p>Atualize sua senha sempre que precisar.</p></div>'+
- '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">'+ico("lock")+' Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required ><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form></div><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
- '<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
- '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section></section>'+
+ const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos"].includes(state.accountTab)?state.accountTab:"perfil");
+ const tabButton=(key,name,description,iconName)=>
+  '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
+  '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
+ const panel=(key,content)=>
+  '<section class="account-hub-pane '+(key==="perfil"?"account-profile":"")+'" id="account-pane-'+key+'" role="tabpanel" aria-labelledby="account-tab-'+key+'" '+(tab!==key?"hidden":"")+'>'+content+'</section>';
+ const profileContent=
+  '<div class="profile-hero"><div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span></div>'+
+  '<div class="account-profile-info">'+profilePhoto+
+  '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
+  '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
+  (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
+    '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
+    '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
+  commissionsHtml;
+ const passwordManagement=
+  '<section class="profile-security-panel account-setting-card"><div><h3>Senha de acesso</h3><p>Altere sua senha com segurança sempre que precisar.</p></div>'+
+  '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">'+ico("lock")+' Alterar senha</button>'+
+  '<form id="change-password-form" class="register-form" hidden>'+
+  '<label>Senha atual<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label>'+
+  '<label>Nova senha<span class="password-control"><input type="password" name="newPassword" required autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label>'+
+  '<button type="submit" class="button primary">Alterar senha</button></form></section>';
+ const securityContent=
+  '<div class="account-pane-intro"><span class="profile-section-eyebrow">PROTEÇÃO DA CONTA</span><h2>Segurança e acesso</h2><p>Gerencie suas credenciais sem misturar com notificações.</p></div>'+
+  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
+  '<div class="account-settings-two-col"><div class="account-setting-card">'+emailManagement+'</div>'+passwordManagement+'</div>'+
+  '<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
+  '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section>'+
+  '<div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>';
+ const emailNotifications=
+  '<section class="account-channel-card account-channel-email" aria-labelledby="account-email-notifications"><div class="account-push-heading">'+
+  '<span class="account-push-icon">'+ico("mail")+'</span><div><h3 id="account-email-notifications">Notificações por e-mail</h3>'+
+  '<p>Mensagens enviadas para o seu e-mail cadastrado.</p></div></div>'+
+  (["tutor","admin"].includes(me.role)?
+    '<label class="account-email-notify-option"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'><span>Ao cadastrar ou revisar uma demanda, perguntar se desejo notificar os responsáveis por e-mail.</span></label>':
+    '<p class="account-push-status">Os avisos destinados ao seu e-mail são enviados de acordo com as regras do sistema.</p>')+
+  '<p class="field-hint">E-mails essenciais, como confirmação de endereço e recuperação de senha, permanecem ativos por segurança.</p></section>';
+ const notificationContent=
+  '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEUS AVISOS</span><h2>Central de notificações</h2>'+
+  '<p>Configure e teste cada canal separadamente. As alterações no computador não modificam as preferências do celular.</p></div>'+
+  '<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
+ const appContent=
+  '<div class="account-pane-intro"><span class="profile-section-eyebrow">INSTALAÇÃO</span><h2>Aplicativos PET Gestão</h2>'+
+  '<p>Escolha onde deseja usar o PET Gestão. O acesso e seus dados continuam sincronizados.</p></div>'+
+  '<div class="account-download-grid">'+renderDesktopInstall()+renderAppInstall()+'</div>';
+ return header("Pessoal","Minha conta","Seu espaço pessoal, organizado por categoria.")+
+  '<div class="account-hub"><nav class="account-hub-sidebar" role="tablist" aria-label="Configurações da conta">'+
+  '<div class="account-hub-side-title">CONFIGURAÇÕES</div>'+
+  tabButton("perfil","Meu perfil","Dados e comissões","user")+
+  tabButton("seguranca","Segurança","E-mail, senha e exclusão","lock")+
+  tabButton("notificacoes","Notificações","E-mail, PC e celular","bell")+
+  tabButton("aplicativos","Aplicativos","Instalar no PC ou Android","download")+
+  '</nav><div class="account-hub-main">'+
+  panel("perfil",profileContent)+panel("seguranca",securityContent)+
+  panel("notificacoes",notificationContent)+panel("aplicativos",appContent)+
+  '</div></div>'+
  '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
   '<div class="account-delete-backdrop" data-do="account-delete-close"></div>'+
   '<section class="account-delete-card" role="dialog" aria-modal="true" aria-labelledby="account-delete-heading">'+
@@ -2765,6 +2869,102 @@ async function handleClick(e){
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
  }
+ if(action==="account-tab"){
+  const name=b.dataset.tab;
+  if(!["perfil","seguranca","notificacoes","aplicativos"].includes(name))return;
+  if(me?.mustChangePassword&&name!=="seguranca")return setToast("Altere a senha temporária antes de continuar.");
+  state.accountTab=name;
+  document.querySelectorAll(".account-hub-nav-btn").forEach(button=>{
+   const active=button.dataset.tab===name;
+   button.classList.toggle("is-active",active);
+   button.setAttribute("aria-selected",String(active));
+   button.tabIndex=0;
+  });
+  document.querySelectorAll(".account-hub-pane").forEach(pane=>{pane.hidden=pane.id!=="account-pane-"+name;});
+  if(name==="notificacoes")void loadWebPushState();
+  return;
+ }
+ if(action==="install-desktop-app"){
+  if(window.matchMedia?.("(display-mode: standalone)")?.matches)
+   return setToast("O PET Gestão já está aberto como aplicativo instalado.");
+  if(desktopInstallPrompt){
+   const prompt=desktopInstallPrompt;desktopInstallPrompt=null;
+   await prompt.prompt();
+   const choice=await prompt.userChoice;
+   if(choice?.outcome==="accepted")setToast("Instalação solicitada. Confira os aplicativos do seu computador.");
+   else setToast("Instalação cancelada. Você pode tentar novamente pelo menu do navegador.");
+  }else{
+   showNotice("No Google Chrome, abra o menu ⋮ e escolha Transmitir, salvar e compartilhar → Instalar página como app. No Microsoft Edge, abra ⋯ → Aplicativos → Instalar este site como aplicativo. A instalação cria um aplicativo para o PC, sem precisar de arquivo .exe.",{
+    title:"Instalar PET Gestão no computador",kind:"info"});
+  }
+  return;
+ }
+ if(action==="enable-web-push"){
+  if(!webPushSupported())return setToast("Este navegador não oferece notificações Push compatíveis.");
+  if(Notification.permission==="denied")return setToast("Permita as notificações nas configurações do navegador.");
+  // Solicita a permissão durante o clique, antes de chamadas à rede.
+  const permission=Notification.permission==="granted"?"granted":await Notification.requestPermission();
+  if(permission!=="granted")return setToast("Ative a permissão de notificações para receber avisos.");
+  b.disabled=true;
+  try{
+   const response=await request("/web-push/key");
+   const raw=response.publicKey.replace(/-/g,"+").replace(/_/g,"/");
+   const decoded=atob(raw+"=".repeat((4-raw.length%4)%4));
+   const vapidKey=Uint8Array.from(decoded,c=>c.charCodeAt(0));
+   const reg=await navigator.serviceWorker.ready;
+   let sub=await reg.pushManager.getSubscription();
+   if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidKey});
+   await request("/web-push/subscribe","POST",sub.toJSON());
+   state.webPushHere=true;
+   state.webPushData=await request("/web-push/status");
+   setToast("Notificações do computador ativadas. Faça o teste de recebimento.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="disable-web-push"){
+  if(!await askConfirm("Desativar os avisos neste computador? As notificações dos demais aparelhos continuarão funcionando.",{
+   title:"Desativar notificações neste PC?",confirmLabel:"Desativar neste PC",cancelLabel:"Manter ativadas"}))return;
+  b.disabled=true;
+  try{
+   const sub=await desktopSubscription();
+   if(sub){
+    await request("/web-push/unsubscribe","POST",{endpoint:sub.endpoint});
+    await sub.unsubscribe();
+   }
+   state.webPushHere=false;
+   state.webPushData=await request("/web-push/status");
+   setToast("Notificações desativadas neste computador.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="test-web-push"){
+  const sub=await desktopSubscription();
+  if(!sub||!state.webPushHere)return setToast("Ative as notificações neste computador antes de testar.");
+  b.disabled=true;
+  try{
+   const result=await request("/web-push/test","POST",{endpoint:sub.endpoint});
+   if(result.acceptedByService)setToast("Teste aceito pelo serviço do navegador. Confira as notificações do computador.");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="save-web-push-settings"){
+  const card=b.closest(".account-web-push-panel");if(!card)return;
+  const settings={};
+  for(const name of ["newDemands","deadlines","overdue"]){
+   const check=card.querySelector('[data-web-push-setting="'+name+'"]');
+   if(!check)return setToast("Preferência do computador indisponível.");
+   settings[name]=check.checked;
+  }
+  b.disabled=true;
+  try{
+   state.webPushData=await request("/web-push/preferences","PUT",settings);
+   setToast("Preferências do computador salvas.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
  if(action==="test-push"){
    if(!androidPush||!me||!registeredPushFor.startsWith(me.id+"|"))
      return setToast("Abra o APK atualizado, entre na conta e permita notificações.");
@@ -3070,6 +3270,13 @@ async function handleClick(e){
   }))return;
   // Desvincular este dispositivo ANTES de revogar a sessão, sem afetar outros aparelhos.
   if(androidPush)try{await request("/push/unregister","POST",{deviceId:androidPush.deviceId})}catch{}
+  // Remover apenas a inscrição deste navegador antes de encerrar a sessão.
+  const browserSubscription=await desktopSubscription().catch(()=>null);
+  if(browserSubscription){
+   try{await request("/web-push/unsubscribe","POST",{endpoint:browserSubscription.endpoint})}catch{}
+   try{await browserSubscription.unsubscribe()}catch{}
+  }
+  state.webPushHere=false;state.webPushData=null;
   registeredPushFor="";state.pushData=null;
   try{await request("/auth/logout","POST",{},"user")}catch{}
   token="";me=null;regularMe=null;
