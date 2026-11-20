@@ -43,14 +43,12 @@ export async function noticeAudience(db,task){
  return [...ids];
 }
 export function noticeSendPolicy(actor,kind,notify){
- const hasPrompt=["tutor","admin"].includes(actor?.role)&&Boolean(actor?.notification_enabled);
- const approved=hasPrompt&&notify===true;
- return {
-  email:approved,
-  // PETianos não veem a pergunta. Para eles, os pushes novos já consentidos
-  // na conta são automáticos. Se houve pergunta e a pessoa recusou, não enviar.
-  push:approved||(kind==="create"&&!hasPrompt)
- };
+ // Apenas Tutoria e Administração podem disparar avisos ao criar/revisar.
+ // PETianos nunca disparam avisos de criação; a pergunta do autor também
+ // controla ambos os canais, sem disparo adicional independente.
+ const approved=["tutor","admin"].includes(actor?.role)&&
+  Boolean(actor?.notification_enabled)&&notify===true;
+ return {email:approved,push:approved};
 }
 export async function notificationRecipients(db,rawIds,kind){
  if(!NOTICE_KINDS.includes(kind))fail("Tipo de aviso inválido.");
