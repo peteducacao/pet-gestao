@@ -1588,7 +1588,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       }
       if(path==="/api/v1/mail"&&method==="GET"){
         ensure(user,true);
-        const items=(await db.prepare("SELECT id,kind,recipient_emails,subject,body,scheduled_at,status,attempts,error_message,created_at,sent_at FROM email_queue ORDER BY created_at DESC LIMIT 250").all()).results;
+        const items=(await db.prepare("SELECT id,kind,recipient_emails,subject,body,scheduled_at,status,attempts,error_message,created_at,sent_at,task_id AS taskId FROM email_queue ORDER BY created_at DESC LIMIT 250").all()).results;
         return answer({items:items.map(x=>({...x,recipientEmails:asJson(x.recipient_emails,[])}))});
       }
       if(path==="/api/v1/mail"&&method==="POST"){
