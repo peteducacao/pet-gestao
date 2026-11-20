@@ -39,12 +39,29 @@ export async function notificationRecipients(db,rawIds,kind){
  if(!NOTICE_KINDS.includes(kind))fail("Tipo de aviso inválido.");
  const ids=unique(rawIds);
  if(!ids.length)return {email:[],android:[],pc:[],users:[]};
- const list=(await db.prepare("SELECT id,email,role,role_override FROM users WHERE id IN ("+ids.map(()=>"?").join(",")+")").bind(...ids).all()).results;
+ // Uma consulta com JOINs substitui três consultas por participante e evita
+ // sobrecarga do D1 ao rodar alarmes a cada minuto.
+ const column=mapping[kind],sql="SELECT u.id,u.email,u.role,u.role_override,"+
+  "np.email_enabled,np.android_enabled,np.pc_enabled,"+
+  "ap."+column+" AS legacy_android,wp."+column+" AS legacy_pc "+
+  "FROM users u "+
+  "LEFT JOIN notification_preferences np ON np.user_id=u.id AND np.kind=? "+
+  "LEFT JOIN push_preferences ap ON ap.user_id=u.id "+
+  "LEFT JOIN web_push_preferences wp ON wp.user_id=u.id "+
+  "WHERE u.id IN ("+ids.map(()=>"?").join(",")+")";
+ const list=(await db.prepare(sql).bind(kind,...ids).all()).results;
  const recipients={email:[],android:[],pc:[],users:list};
- for(const user of list){
-  if(!["petiano","tutor","admin"].includes(user.role_override||user.role))continue;
-  const preferences=await preferencesForUser(db,user.id);
-  for(const channel of ["email","android","pc"])if(preferences[kind][channel])recipients[channel].push(user);
+ for(const person of list){
+  if(!["petiano","tutor","admin"].includes(person.role_override||person.role))continue;
+  const rowPresent=person.email_enabled!==null&&person.email_enabled!==undefined;
+  const allowed={
+   email:rowPresent?flag(person.email_enabled):true,
+   android:rowPresent?flag(person.android_enabled):
+    person.legacy_android===null||person.legacy_android===undefined||flag(person.legacy_android),
+   pc:rowPresent?flag(person.pc_enabled):
+    person.legacy_pc===null||person.legacy_pc===undefined||flag(person.legacy_pc)
+  };
+  for(const channel of ["email","android","pc"])if(allowed[channel])recipients[channel].push(person);
  }
  return recipients;
 }
