@@ -39,6 +39,29 @@ const make=(sql,args=[])=>({
  }
 });
 const db={prepare(sql){return make(sql)},async batch(ops){statements=ops;return Promise.all(ops.map(s=>s.run()))}};
+// Mesma regra de disparo do e-mail: apenas tutor ou Admin com confirmação.
+for(const role of ["petiano","usuario"]){
+ for(const kind of ["create","review"]){
+  assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},kind,true),
+   {email:false,push:false},"PETiano(a) não dispara avisos ao criar ou revisar");
+ }
+}
+for(const role of ["tutor","admin"]){
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},"create",true),
+  {email:true,push:true},"Tutor/Admin dispara ambos os canais ao confirmar");
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},"create",false),
+  {email:false,push:false},"Recusar aviso bloqueia ambos os canais");
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:false},"create",true),
+  {email:false,push:false},"Permissão de enviar desativada bloqueia ambos os canais");
+}
+const audienceDb={prepare(sql){
+ assert.ok(sql.includes("FROM commission_members"),"Busca integrantes das comissões selecionadas");
+ return {bind(id){return {async all(){return {results:id==="videos"?
+  [{user_id:"a"},{user_id:"b"}]:[{user_id:"b"}]}}}}};
+}};
+const audience=await api.noticeAudience(audienceDb,
+ {assigneeIds:["a"],commissionIds:["videos","textos"]});
+assert.deepEqual(audience,["a","b"],"Autor que faz parte da comissão também recebe; não duplica");
 const defaults=await api.preferencesForUser(db,"a");
 assert.equal(Object.keys(defaults).length,6);
 assert.deepEqual(defaults.create,{email:false,android:false,pc:false},"Sem escolha explícita, todos os canais começam desligados");
