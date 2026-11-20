@@ -58,9 +58,12 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={pushData:null,webPushData:null,webPushHere:false,accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
+let desktopInstallPrompt=null;
+window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();desktopInstallPrompt=event;});
+window.addEventListener("appinstalled",()=>{desktopInstallPrompt=null;if(routeParts().page==="conta"&&state.accountTab==="aplicativos")render();});
 let taskFormDraft=null;
 const taskFormRoute=hash=>/^#\/(?:registrar(?:\/|$)|admin\/registrar(?:\/|$))/.test(String(hash||""));
 function taskDraftSnapshot(){
@@ -815,7 +818,7 @@ async function registerNativePush(){
 }
 async function loadPushPreferencesForActiveUser(){
  const userId=me?.id;
- if(!userId||me.mustChangePassword){state.pushData=null;return}
+ if(!userId||me.mustChangePassword){state.pushData=null;state.webPushData=null;state.webPushHere=false;return}
  try{
   const result=await request("/push/preferences");
   if(me?.id!==userId)return;
@@ -823,6 +826,7 @@ async function loadPushPreferencesForActiveUser(){
   if(routeParts().page==="conta")render();
  }catch(error){console.warn("PET Gestão: preferências de notificações indisponíveis:",error.message)}
  void registerNativePush();
+ void loadWebPushState();
 }
 function renderPushPreferences(){
  const prefs=state.pushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
@@ -847,6 +851,68 @@ function renderPushPreferences(){
   ico("check")+' Salvar preferências</button>'+
   '<button type="button" class="button ghost account-push-test" data-do="test-push" '+(connected?"":'disabled title="Abra o aplicativo Android com notificações permitidas"')+'>'+
   ico("bell")+' Enviar notificação de teste</button></div></section>';
+}
+
+async function desktopSubscription(){
+ if(!("serviceWorker" in navigator)||!("PushManager" in window))return null;
+ const registration=await navigator.serviceWorker.getRegistration("./sw.js");
+ return registration?.pushManager?.getSubscription()||null;
+}
+async function loadWebPushState(){
+ const userId=me?.id;
+ if(!userId||me.mustChangePassword){state.webPushData=null;state.webPushHere=false;return}
+ try{
+  const status=await request("/web-push/status");
+  if(me?.id!==userId)return;
+  state.webPushData=status;
+  const subscription=await desktopSubscription();
+  const own=subscription?await request("/web-push/check","POST",{endpoint:subscription.endpoint}):{connected:false};
+  if(me?.id!==userId)return;
+  state.webPushHere=!!own.connected&&window.Notification?.permission==="granted";
+  if(routeParts().page==="conta"&&state.accountTab==="notificacoes")render();
+ }catch(error){console.warn("PET Gestão: notificações do computador indisponíveis:",error.message)}
+}
+function webPushSupported(){
+ return window.isSecureContext&&"Notification" in window&&"serviceWorker" in navigator&&"PushManager" in window;
+}
+function renderWebPushPreferences(){
+ const prefs=state.webPushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
+ const count=Number(state.webPushData?.registeredComputers||0);
+ const connected=!!state.webPushHere;
+ const supported=webPushSupported();
+ const blocked=supported&&Notification.permission==="denied";
+ const status=!supported?"Este navegador não oferece notificações Push compatíveis. Experimente Chrome ou Edge no computador.":
+  blocked?"O navegador bloqueou os avisos. Permita notificações nas configurações do site para continuar.":
+  connected?"Este computador está vinculado à sua conta. Você pode testar o recebimento agora.":
+  count>0?"Você tem "+count+" computador(es) vinculado(s). Ative este navegador para receber avisos aqui.":
+  "Ative para receber avisos do PET Gestão no computador, inclusive quando a janela do aplicativo estiver fechada (se o sistema permitir).";
+ return '<section class="account-web-push-panel account-channel-card" aria-labelledby="profile-web-push-title">'+
+  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div>'+
+  '<h3 id="profile-web-push-title">Notificações no computador</h3>'+
+  '<p>Avisos do sistema no Windows, macOS ou Linux, com permissões do navegador.</p></div></div>'+
+  '<p class="account-push-status" role="status">'+esc(status)+'</p>'+
+  '<div class="account-push-options">'+
+  '<label><input type="checkbox" data-web-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
+  '<label><input type="checkbox" data-web-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
+  '<label><input type="checkbox" data-web-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label></div>'+
+  '<div class="account-push-actions">'+
+  (connected?'<button type="button" class="button ghost" data-do="disable-web-push">Desativar neste PC</button>':
+  '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+
+   ico("bell")+' Ativar neste PC</button>')+
+  '<button type="button" class="button ghost" data-do="save-web-push-settings">'+ico("check")+' Salvar preferências</button>'+
+  '<button type="button" class="button ghost" data-do="test-web-push" '+(connected?"":'disabled title="Ative as notificações neste PC"')+'>'+
+  ico("bell")+' Enviar teste ao PC</button></div></section>';
+}
+function renderDesktopInstall(){
+ const installed=window.matchMedia?.("(display-mode: standalone)")?.matches||window.navigator.standalone===true;
+ return '<section class="account-app-install account-desktop-install" aria-label="Instalar PET Gestão no computador">'+
+  '<div class="account-app-install-head"><span class="account-app-install-icon">'+ico("download")+'</span><div>'+
+  '<h3>Aplicativo PET Gestão para computador</h3>'+
+  '<p>Instale no Windows, macOS ou Linux como um aplicativo independente, com ícone próprio e atualizações automáticas do site.</p></div></div>'+
+  '<button type="button" class="button primary account-app-install-button" data-do="install-desktop-app" '+(installed?"disabled":"")+'>'+
+  ico("download")+' '+(installed?"Já instalado neste computador":"Instalar aplicativo no PC")+'</button>'+
+  '<p class="account-app-install-help">No Chrome ou Edge, a instalação pode ser feita diretamente pelo botão acima. Se o navegador não oferecer instalação automática, use o menu do navegador → Instalar PET Gestão. Não é necessário baixar um arquivo .exe.</p>'+
+  '</section>';
 }
 
 async function reload(){
