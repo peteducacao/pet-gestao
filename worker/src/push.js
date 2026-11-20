@@ -135,7 +135,7 @@ async function notifyMany(env,userIds,message,preference,dedupeForUser=null){
 export async function sendPushTest(env,user,payload){
  if(!fcmConfiguration(env))reject("Firebase ainda não está configurado no Cloudflare.",503);
  const deviceId=String(payload.deviceId||"").trim();
- if(!/^[a-f\\d]{8}-[a-f\\d]{4}-[a-f\\d]{4}-[a-f\\d]{4}-[a-f\\d]{12}$/i.test(deviceId))
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deviceId))
    reject("Identificador do aparelho inválido.");
  const device=await env.DB.prepare("SELECT device_id,token FROM push_devices WHERE user_id=? AND device_id=?")
    .bind(user.id,deviceId).first();
