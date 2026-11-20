@@ -536,7 +536,7 @@ const hasAdminRole=u=>Boolean(u&&u.role==="admin");
 const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
 const isAdmin=()=>Boolean(routeParts().page==="admin"&&adminRole(me));
 const roleLabel=role=>({usuario:"Usuário",petiano:"PETiano(a)",tutor:"Tutor(a)",admin:"Administração"}[role]||"Usuário");
-const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role)&&me.notificationEnabled;
+const canNotify=()=>canWrite()&&["tutor","admin"].includes(me.role);
 // PETianos(as), tutores(as) e Administração podem excluir demandas
 // ativas ou concluídas; a API valida novamente a autorização.
 const canDeleteTask=t=>Boolean(t&&canWrite()&&t.closureOutcome!=="nao_concluida");
@@ -2502,8 +2502,8 @@ function renderAccount(){
   '<span class="account-push-icon">'+ico("mail")+'</span><div><h3 id="account-email-notifications">Notificações por e-mail</h3>'+
   '<p>Mensagens enviadas para o seu e-mail cadastrado.</p></div></div>'+
   (["tutor","admin"].includes(me.role)?
-    '<label class="account-email-notify-option"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'><span>Ao salvar uma demanda, permitir escolher se quero avisar os responsáveis pelos canais que eles ativaram.</span></label>':
-    '<p class="account-push-status">Os avisos destinados ao seu e-mail são enviados de acordo com as regras do sistema.</p>')+
+    '<p class="account-push-status">Ao criar ou revisar uma demanda, você pode escolher <strong>Salvar e enviar</strong>. O sistema respeita os canais que cada responsável ativou, inclusive os seus.</p>':
+    '<p class="account-push-status">Os avisos destinados ao seu e-mail são enviados conforme suas preferências.</p>')+
   '<p class="field-hint">E-mails essenciais, como confirmação de endereço e recuperação de senha, permanecem ativos por segurança.</p></section>';
  const notificationContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEUS AVISOS</span><h2>Central de notificações</h2>'+
@@ -2801,9 +2801,7 @@ function render(){
 }
 async function askNotification(participants=null){
  if(!canNotify())return false;
- // Sem outros destinatários, o próprio responsável ainda pode receber push se ativou Nova demanda.
- if(participants&&participants.users.length===1&&participants.users[0]===me.id&&!participants.commissions.length)return true;
- return Boolean(await askConfirm("Deseja avisar os(as) responsáveis sobre esta alteração? Seu próprio e-mail não receberá cópia.",{
+ return Boolean(await askConfirm("Deseja enviar avisos desta demanda aos responsáveis (inclusive você, se estiver vinculado)? Cada pessoa recebe somente os canais ativados em sua conta.",{
   title:"Notificar os(as) responsáveis?",
   cancelLabel:"Salvar sem enviar",
   confirmLabel:"Salvar e enviar"
@@ -2916,8 +2914,7 @@ async function loadAdminUsers(){
  '<small>'+esc(u.email)+'</small></span></div>'+
  '<label class="admin-user-role"><span class="admin-user-field-label">Cargo</span><select class="select" data-role="'+esc(u.id)+'" aria-label="Cargo de '+esc(u.name)+'">'+
  [["usuario","Usuário"],["petiano","PETiano(a)"],["tutor","Tutor(a)"],["admin","Administração"]].map(([v,l])=>opt(v,l,u.role)).join("")+'</select></label>'+
- '<label class="admin-user-notify"><input type="checkbox" data-notify="'+esc(u.id)+'" '+(u.notificationEnabled?"checked":"")+'><span>Permitir envio de notificações por e-mail</span></label>'+
- '<div class="admin-user-actions"><button class="button primary small-action" data-do="save-user" data-id="'+esc(u.id)+'">'+ico("check")+' Salvar</button>'+
+  '<div class="admin-user-actions"><button class="button primary small-action" data-do="save-user" data-id="'+esc(u.id)+'">'+ico("check")+' Salvar</button>'+
  '<button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">'+ico("lock")+' Senha temporária</button></div>'+
  '</article>').join("");
  target.innerHTML='<div class="admin-user-list-top" role="search" aria-label="Pesquisar integrantes"><label class="admin-user-search-box"><span class="admin-user-field-label">Buscar integrante</span><input id="admin-user-search" type="search" autocomplete="off" placeholder="Digite nome ou e-mail" value="'+esc(query)+'" aria-label="Buscar integrante por nome ou e-mail" aria-controls="admin-user-cards"></label></div>'+
@@ -3539,7 +3536,7 @@ async function handleClick(e){
  }
  if(action==="save-settings"){await saveAndReload(()=>request("/admin/settings","PUT",{autoMonth:$("#setting-month").checked,autoWeek:$("#setting-week").checked}),"Preferências atualizadas.");return}
  if(action==="save-user"){
-   const role=$('[data-role="'+CSS.escape(tid)+'"]').value,notificationEnabled=$('[data-notify="'+CSS.escape(tid)+'"]').checked;
+   const role=$('[data-role="'+CSS.escape(tid)+'"]').value;
    const person=(state.adminUsers||[]).find(u=>u.id===tid);
    if(person&&person.role!==role&&(person.role==="admin"||role==="admin")){
      const granting=role==="admin";
@@ -3550,7 +3547,7 @@ async function handleClick(e){
         confirmLabel:granting?"Conceder acesso":"Remover acesso",cancelLabel:"Cancelar",danger:!granting});
      if(!confirmed)return;
    }
-   await saveAndReload(()=>request("/admin/users/"+id(tid),"PATCH",{role,notificationEnabled}),
+   await saveAndReload(()=>request("/admin/users/"+id(tid),"PATCH",{role}),
      role==="admin"&&person?.role!=="admin"?"Cargo Administração concedido. A pessoa precisa entrar novamente.":"Perfil atualizado.");
    return;
  }
@@ -3916,7 +3913,7 @@ async function handleChange(e){
    }
    return;
  }
- if(t.id==="account-notify"){await saveAndReload(()=>request("/account","PATCH",{notificationEnabled:t.checked}),"Preferência de notificações salva.");return}
+
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
  if(t.id==="account-photo-input"){
    const original=t.files?.[0];t.value="";
