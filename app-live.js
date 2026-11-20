@@ -2343,7 +2343,7 @@ function renderAccount(){
   '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
  const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos"].includes(state.accountTab)?state.accountTab:"perfil");
  const tabButton=(key,name,description,iconName)=>
-  '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="'+(tab===key?"0":"-1")+'">'+
+  '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
   '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
  const panel=(key,content)=>
   '<section class="account-hub-pane '+(key==="perfil"?"account-profile":"")+'" id="account-pane-'+key+'" role="tabpanel" aria-labelledby="account-tab-'+key+'" '+(tab!==key?"hidden":"")+'>'+content+'</section>';
@@ -2874,13 +2874,13 @@ async function handleClick(e){
   if(!["perfil","seguranca","notificacoes","aplicativos"].includes(name))return;
   if(me?.mustChangePassword&&name!=="seguranca")return setToast("Altere a senha temporária antes de continuar.");
   state.accountTab=name;
-  $(".account-hub-nav-btn").forEach(button=>{
+  document.querySelectorAll(".account-hub-nav-btn").forEach(button=>{
    const active=button.dataset.tab===name;
    button.classList.toggle("is-active",active);
    button.setAttribute("aria-selected",String(active));
-   button.tabIndex=active?0:-1;
+   button.tabIndex=0;
   });
-  $(".account-hub-pane").forEach(pane=>{pane.hidden=pane.id!=="account-pane-"+name;});
+  document.querySelectorAll(".account-hub-pane").forEach(pane=>{pane.hidden=pane.id!=="account-pane-"+name;});
   if(name==="notificacoes")void loadWebPushState();
   return;
  }
