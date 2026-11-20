@@ -919,7 +919,12 @@ async function reload(){
  try{
    // Toda a aplicação compartilha o mesmo perfil e token de autenticação.
    const b=await request("/bootstrap","GET");
+   const beforeUser=me?.id||"";
    data=b;me=b.session?.user||null;regularMe=me;
+   if(beforeUser!==(me?.id||"")){
+    state.noticePrefs=null;state.noticeDraft=null;state.noticeDirty=false;
+    state.reminderItems=[];state.reminderLoadedFor=null;state.reminderEditing=false;
+   }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
 
@@ -2986,6 +2991,70 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="save-notice-matrix"){
+  if(!state.noticeDraft)return setToast("Aguarde o carregamento das suas preferências.");
+  const settings=JSON.parse(JSON.stringify(state.noticeDraft));
+  for(const input of $(".account-notification-matrix [data-notice-kind]")){
+   if(!settings[input.dataset.noticeKind])return setToast("Preferência inválida.");
+   settings[input.dataset.noticeKind][input.dataset.noticeChannel]=input.checked;
+  }
+  b.disabled=true;
+  try{
+   const result=await request("/notification-preferences","PUT",settings);
+   state.noticePrefs=result.preferences;
+   state.noticeDraft=JSON.parse(JSON.stringify(result.preferences));
+   state.noticeDirty=false;
+   setToast("Todas as preferências de notificação foram salvas.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="reminder-new"){openReminderEditor();return}
+ if(action==="reminder-close"){
+  state.reminderEditing=false;state.reminderDraft=null;state.reminderSchedules=[];render();return;
+ }
+ if(action==="reminder-add-time"){
+  captureReminderEditor();
+  if(state.reminderSchedules.length>=20)return setToast("O máximo é 20 horários por lembrete.");
+  const mode=state.reminderRecurrence,slot=reminderDefaultSlot(mode);
+  const count=state.reminderSchedules.length;
+  if(mode==="once")slot.at=reminderLocalValue((count+1)*3600000);
+  if(mode==="daily")slot.time=String(9+count%14).padStart(2,"0")+":00";
+  if(mode==="weekly"){slot.weekday=count%7;slot.time=String(9+Math.floor(count/7)).padStart(2,"0")+":00";}
+  state.reminderSchedules.push(slot);
+  render();return;
+ }
+ if(action==="reminder-remove-time"){
+  captureReminderEditor();
+  if(state.reminderSchedules.length<=1)return;
+  const idx=Number(b.dataset.index);
+  state.reminderSchedules=state.reminderSchedules.filter((_,i)=>i!==idx);
+  render();return;
+ }
+ if(action==="reminder-edit"){
+  const item=state.reminderItems.find(x=>x.id===tid);
+  if(!item)return setToast("Este lembrete não está mais disponível.");
+  openReminderEditor(item);return;
+ }
+ if(action==="reminder-delete"){
+  if(!await askConfirm("Excluir este lembrete e seus horários? Os avisos futuros serão cancelados.",{
+   title:"Excluir lembrete?",confirmLabel:"Excluir lembrete",cancelLabel:"Manter lembrete"}))return;
+  b.disabled=true;
+  try{
+   await request("/personal-reminders/"+id(tid),"DELETE");
+   if(state.reminderEditing===tid){state.reminderEditing=false;state.reminderDraft=null;}
+   state.reminderLoadedFor=null;await loadPersonalReminders();
+   setToast("Lembrete excluído.");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="mail-preview-template"&&state.templateChannel==="app"){
+  const f=$("#notification-template-form");
+  if(!f)return;
+  const title=f.elements.title?.value||"",message=f.elements.message?.value||"";
+  showNotice(esc(title)+"\n"+esc(message),{title:"Prévia da notificação do aplicativo"});
+  return;
+ }
  if(action==="admin-summary-person"){
    state.summaryPerson=b.dataset.personId||"";
    const el=$("#admin-summary-results");
@@ -3658,6 +3727,30 @@ async function handleSubmit(e){
     if(ok){resetMeetingDraft();location.hash=workspaceHash("reunioes")}
     return;
    }
+ if(form.id==="personal-reminder-form"){
+   const f=userFields(form),type=f.reminderType||"task";
+   const task=type==="task"?data.tasks.find(t=>t.id===f.taskId&&isMyPending(t)):null;
+   if(type==="task"&&!task)return setToast("Selecione uma pendência que ainda pertença a você.");
+   const schedules=readReminderSlots(form).map(slot=>
+    f.recurrence==="once"?{at:slot.at}:
+    f.recurrence==="daily"?{time:slot.time}:{weekday:slot.weekday,time:slot.time});
+   const payload={taskId:type==="task"?task.id:null,title:type==="task"?task.title:String(f.title||"").trim(),
+    message:f.message||"",recurrence:f.recurrence,repeatUntil:f.repeatUntil||null,
+    channels:{email:form.elements.email.checked,android:form.elements.android.checked,pc:form.elements.pc.checked},
+    autoDelete:form.elements.autoDelete.checked,schedules};
+   if(!payload.channels.email&&!payload.channels.android&&!payload.channels.pc)
+    return setToast("Escolha pelo menos um canal para o lembrete.");
+   const button=form.querySelector('button[type="submit"]');
+   if(button)button.disabled=true;
+   try{
+    const updating=state.reminderEditing!=="new";
+    await request("/personal-reminders"+(updating?"/"+id(state.reminderEditing):""),updating?"PUT":"POST",payload);
+    state.reminderEditing=false;state.reminderDraft=null;state.reminderSchedules=[];
+    state.reminderLoadedFor=null;await loadPersonalReminders();
+    setToast(updating?"Lembrete atualizado.":"Lembrete criado.");
+   }finally{if(button?.isConnected)button.disabled=false}
+   return;
+ }
  if(form.id==="notification-template-form"){
    const f=state.templateChannel==="app"?userFields(form):collectRich(form,userFields(form));
    if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva a mensagem da notificação.");
@@ -3761,6 +3854,24 @@ async function handleChange(e){
      if(symbol)symbol.style.setProperty("--selected-text-color",t.value);
    }
    return;
+ }
+ if(t?.matches?.("[data-notice-kind][data-notice-channel]")){
+  if(state.noticeDraft?.[t.dataset.noticeKind]){
+   state.noticeDraft[t.dataset.noticeKind][t.dataset.noticeChannel]=t.checked;
+   state.noticeDirty=true;
+  }
+  return;
+ }
+ if(t.id==="reminder-type"){
+  captureReminderEditor();
+  state.reminderDraft.reminderType=t.value;
+  render();return;
+ }
+ if(t.id==="reminder-recurrence"){
+  captureReminderEditor();
+  state.reminderRecurrence=t.value;
+  state.reminderSchedules=[reminderDefaultSlot(t.value)];
+  render();return;
  }
  if(t.id==="notification-template-kind"||t.id==="notification-template-channel"){
    const form=t.closest("#notification-template-form");
