@@ -42,6 +42,22 @@ export async function noticeAudience(db,task){
  }
  return [...ids];
 }
+// A antecedência e o vencimento de cada etapa/evento são decididos uma vez
+// e compartilhados pelo e-mail e pelo push — nunca há cronogramas separados.
+export function noticeKindForDeadline({isEvent=false,daysUntil,dueTimestamp,nowTimestamp,createdAt,settings}){
+ const clock=Number(nowTimestamp),due=Number(dueTimestamp),days=Number(daysUntil);
+ const advance=Number(settings?.daysBefore);
+ if(!Number.isFinite(clock)||!Number.isFinite(due)||!Number.isFinite(days))return null;
+ if(isEvent){
+  if(days===0&&settings?.eventTodayEnabled&&clock<due)return "event_today";
+  if(settings?.dueSoonEnabled&&Number.isInteger(advance)&&advance>=1&&advance<=30&&days===advance&&clock<due)return "event_soon";
+  return null;
+ }
+ if(settings?.dueSoonEnabled&&Number.isInteger(advance)&&advance>=1&&advance<=30&&days===advance&&clock<due)return "due_soon";
+ const created=Date.parse(String(createdAt||""));
+ const recentlyCreated=Number.isFinite(created)&&created>=due&&clock>=created&&clock-created<=86400000;
+ return settings?.overdueEnabled&&clock>due&&((days<=0&&days>=-1)||recentlyCreated)?"overdue":null;
+}
 export function noticeSendPolicy(actor,kind,notify){
  // A pergunta "Salvar e enviar" é a autorização de disparo do Tutor/Admin.
  // Não depender de um segundo checkbox legado da conta do remetente:
