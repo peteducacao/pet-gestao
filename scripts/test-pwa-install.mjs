@@ -1,4 +1,4 @@
-// Testa se a versão PUBLICADA pode ser instalada pelo Chrome no Android.
+// Testa recursos PWA remanescentes e o download direto do APK oficial no site.
 // Executar depois de scripts/prepare-deploy.mjs, usando somente arquivos locais.
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -18,12 +18,15 @@ assert.ok(manifest.name&&manifest.short_name,"A identificação do app deve exis
 assert.ok(html.includes('rel="manifest" href="site.webmanifest?'),"Manifesto deve ser anunciado ao Chrome.");
 assert.ok(html.includes('name="theme-color"'),"Tema do Android ausente.");
 assert.ok(html.includes('name="mobile-web-app-capable"'),"Suporte ao modo aplicativo ausente.");
-assert.match(app,/beforeinstallprompt/);
-assert.match(app,/appinstalled/);
 assert.match(app,/navigator\.serviceWorker\.register\("\.\/sw\.js"\)/);
-assert.match(app,/Baixar aplicativo/);
-assert.match(app,/Criar atalho/);
-assert.match(app,/Google Chrome/);
+assert.ok(app.includes('href="./downloads/PET-Gestao.apk"'),"Botão deve baixar o APK direto do próprio site.");
+assert.ok(app.includes('download="PET-Gestao.apk"'),"Download deve ter nome .apk.");
+assert.match(app,/Baixar APK para Android/);
+assert.ok(!app.includes('install-pet-app'),"A tela não deve acionar a instalação PWA.");
+const apkFile=path.join(root,"downloads","PET-Gestao.apk");
+assert.ok(fs.existsSync(apkFile),"APK não foi incluído no site.");
+const apk=fs.readFileSync(apkFile);
+assert.ok(apk.length>10000 && apk.subarray(0,4).equals(Buffer.from([0x50,0x4B,0x03,0x04])),"Arquivo Android inválido.");
 assert.match(sw,/pet-gestao-public-shell-v20261118-limpeza-testes-v5/);
 assert.ok(!sw.includes('"/api/'),"A API não deve ser armazenada no cache.");
 
@@ -49,4 +52,4 @@ assert.match(html,/startup-splash-dots span:nth-child\(3\).*animation-delay:\.38
 assert.match(html,/translateY\(-10px\)/);
 assert.match(html,/@media\(prefers-reduced-motion:reduce\)/);
 
-console.log("OK: manifesto, ícones PNG de 192/512, instalação Android, cache e pontos animados em sequência.");
+console.log("OK: ícones, APK Android hospedado no site, cache e tela inicial.");

@@ -97,6 +97,14 @@ jobs:
           PY
       - name: Preparar configurações e arquivos públicos
         run: node scripts/prepare-deploy.mjs
+      - name: Disponibilizar APK oficial para download no próprio site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p _site/downloads
+          gh release download android-apk --pattern 'PET-Gestao.apk' --dir _site/downloads --clobber
+          test -s _site/downloads/PET-Gestao.apk
+          unzip -tqq _site/downloads/PET-Gestao.apk
       - name: Validar instalação Android e ícones PWA gerados
         run: node scripts/test-pwa-install.mjs
       - name: Conferir URL publica gerada e fallback do site

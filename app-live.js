@@ -2148,50 +2148,16 @@ function renderConfirmEmail(tokenPart){
   (valid?'<button type="button" class="button primary" data-do="confirm-account-email">Confirmar meu e-mail</button>':'<a href="#/login" class="button primary">Entrar</a>')+
   '</section>';
 }
-let pwaInstallPrompt=null,pwaInstalled=false;
-function isPwaInstalled(){
- return pwaInstalled||Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches)||navigator.standalone===true;
-}
-// O WebAPK (aplicativo na gaveta do Android) é criado pelo Chrome/Google Play Services.
-// Não é possível obrigar o navegador a produzir um WebAPK via JavaScript.
-// Orientar a instalação pelo Chrome, sem confundir atalho de página com aplicativo.
-function pwaInstallInstructions(){
- const agent=navigator.userAgent||"";
- if(/iPhone|iPad|iPod/i.test(agent))
-  return "No iPhone/iPad, abra o PET Gestão no Safari, toque em Compartilhar e escolha Adicionar à Tela de Início.";
- if(/Android/i.test(agent))
-  return "Para aparecer na lista de aplicativos do Android, abra https://peteducacao.github.io/pet-gestao/ diretamente no Google Chrome (fora do navegador interno de outros aplicativos). Toque em ⋮ → Instalar aplicativo e confirme Instalar. Se aparecer apenas Criar atalho, o Android criará somente um atalho; atualize o Chrome e tente novamente.";
- return "No computador, abra o PET Gestão no Chrome ou Microsoft Edge e use a opção Instalar aplicativo do menu ou da barra de endereços.";
-}
-function showPwaInstallHelp(message){
- const hint=$("#pet-install-help");
- if(hint){hint.textContent=message;hint.hidden=false;}
-}
+// Download direto do APK Android pelo próprio domínio do PET Gestão.
 function renderAppInstall(){
- const installed=isPwaInstalled();
- return '<section class="account-app-install" aria-label="Instalar aplicativo PET Gestão">'+
+ return '<section class="account-app-install" aria-label="Baixar APK do PET Gestão">'+
   '<div class="account-app-install-head"><span class="account-app-install-icon">'+ico("download")+'</span><div>'+
-  '<h3>Aplicativo PET Gestão</h3><p>Instale pelo Google Chrome para abrir o PET Gestão com seu próprio ícone. No Android compatível, o aplicativo aparece também na lista de apps. Os dados continuam sincronizados pela internet.</p></div></div>'+
-  '<button type="button" class="button primary account-app-install-button" data-do="install-pet-app" '+(installed?'disabled aria-disabled="true"':'')+'>'+
-  ico(installed?"check":"download")+(installed?" Aplicativo instalado":" Baixar aplicativo")+'</button>'+
-  '<p id="pet-install-help" class="account-app-install-help" role="status" aria-live="polite" hidden></p></section>';
-}
-async function installPetApp(){
- if(isPwaInstalled()){setToast("O PET Gestão já está aberto como aplicativo.");return;}
- if(pwaInstallPrompt){
-  const event=pwaInstallPrompt;pwaInstallPrompt=null;
-  try{
-   await event.prompt();
-   const choice=await event.userChoice;
-   if(choice?.outcome==="accepted"){
-    showPwaInstallHelp("Instalação solicitada. O Chrome pode precisar concluir a instalação pelo sistema Android. Confira a lista de aplicativos.");
-   }else showPwaInstallHelp(pwaInstallInstructions());
-  }catch{
-   showPwaInstallHelp(pwaInstallInstructions());
-  }
-  return;
- }
- showPwaInstallHelp(pwaInstallInstructions());
+  '<h3>Aplicativo PET Gestão para Android</h3>'+
+  '<p>Instale o aplicativo no celular, sem depender da Play Store. Ele acompanha as atualizações do site e acessa as mesmas contas e dados do PET.</p></div></div>'+
+  '<a class="button primary account-app-install-button" href="./downloads/PET-Gestao.apk" download="PET-Gestao.apk" aria-label="Baixar APK do PET Gestão para Android">'+
+  ico("download")+' Baixar APK para Android</a>'+
+  '<p class="account-app-install-help">Arquivo APK para Android 8 ou superior. Depois de baixar, abra o arquivo e autorize a instalação dessa fonte, se o Android solicitar. É necessária internet para sincronizar os dados.</p>'+
+  '</section>';
 }
 function renderAccount(){
  if(!me)return authRequired();
@@ -2706,7 +2672,6 @@ async function handleClick(e){
    if(el&&state.summaryData)el.innerHTML=renderAdminSummaryResults(state.summaryData);
    return;
  }
- if(action==="install-pet-app"){await installPetApp();return}
  if(action==="collective-pick-date"||action==="stage-pick-date"){
    const picker=action==="stage-pick-date"?b.closest(".live-stage")?.querySelector('[data-stage="day"]'):$("#collective-event-day");
    if(!picker)return;
@@ -3418,16 +3383,7 @@ function syncBrowserSession(){
 function start(){
  if(hasStarted)return;
  hasStarted=true;
- if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(err=>console.warn("Não foi possível ativar a instalação do aplicativo:",err));
- window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();pwaInstallPrompt=event;});
- window.addEventListener("appinstalled",()=>{
-   pwaInstalled=true;pwaInstallPrompt=null;
-    const help=$("#pet-install-help");
-    if(help){help.hidden=false;help.textContent="Aplicativo instalado. Ele pode aparecer na lista de aplicativos do Android.";}
-   const btn=$('[data-do="install-pet-app"]');
-   if(btn){btn.disabled=true;btn.setAttribute("aria-disabled","true");btn.innerHTML=ico("check")+" Aplicativo já instalado";}
-   const hint=$("#pet-install-help");if(hint)hint.hidden=true;
- });
+ if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(err=>console.warn("Não foi possível iniciar o cache público do site:",err));
  state.navStack=[lastHash];
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
  
