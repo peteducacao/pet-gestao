@@ -1,5 +1,5 @@
 import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushNotificationToChannels} from "./push.js";
-import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel,noticeAudience,noticeSendPolicy} from "./notification-center.js";
+import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel,noticeAudience,noticeSendPolicy,noticeKindForDeadline} from "./notification-center.js";
 import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
 import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
@@ -417,8 +417,10 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         if(!Number.isFinite(dueMs))continue;
         const diffDays=Math.round((Date.parse(eventDay+"T00:00:00Z")-todayUTC)/86400000);
         // Aviso do dia, sem antecedência, e o antecipado são modalidades independentes.
-        const kind=diffDays===0&&config.eventTodayEnabled&&clock.getTime()<dueMs?"event_today":
-          (diffDays===daysBefore&&config.dueSoonEnabled&&clock.getTime()<dueMs?"event_soon":null);
+        const kind=noticeKindForDeadline({
+          isEvent:true,daysUntil:diffDays,dueTimestamp:dueMs,nowTimestamp:clock.getTime(),
+          createdAt:task.created_at,settings:config
+        });
         if(!kind)continue;
         const targets=await notificationRecipients(db,people.filter(isEligiblePerson).map(person=>person.id),kind);
         const recipients=unique(targets.email.map(person=>person.email).filter(validEmail));
@@ -482,17 +484,11 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const dueMs=Date.parse(isoDue+"-03:00");
         if(!Number.isFinite(dueMs))continue;
         const diffDays=Math.round((Date.parse(rawDue.slice(0,10)+"T00:00:00Z")-todayUTC)/86400000);
-        let kind=null;
-        if(config.dueSoonEnabled&&diffDays===daysBefore&&clock.getTime()<dueMs)kind="due_soon";
-        // Prazos vencidos no dia ou no dia seguinte continuam elegíveis.
-        // Uma demanda recém-cadastrada já atrasada também pode avisar,
-        // mesmo com data anterior; o limite de 24h desde a criação impede
-        // disparos retroativos em massa de demandas antigas.
-        const createdMs=Date.parse(String(task.created_at||""));
-        const recentlyCreatedOverdue=Number.isFinite(createdMs)&&createdMs>=dueMs&&
-          clock.getTime()>=createdMs&&clock.getTime()-createdMs<=24*60*60*1000;
-        if(!kind&&config.overdueEnabled&&clock.getTime()>dueMs&&
-          ((diffDays<=0&&diffDays>=-1)||recentlyCreatedOverdue))kind="overdue";
+        // A mesma elegibilidade alimenta os dois canais de entrega.
+        const kind=noticeKindForDeadline({
+          isEvent:false,daysUntil:diffDays,dueTimestamp:dueMs,nowTimestamp:clock.getTime(),
+          createdAt:task.created_at,settings:config
+        });
         if(!kind)continue;
         const stageOwners=unique(stage.assigneeIds);
         // O Admin pode enviar o aviso de prazo vencido para TODOS os participantes
