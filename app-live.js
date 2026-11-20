@@ -1571,9 +1571,7 @@ function renderCommitteeEdit(cid){
 }
 // Lembretes do próprio usuário, separados da criação rápida de demandas.
 const reminderLocalValue=(offset=3600000)=>{
- const d=new Date(Date.now()+offset);
- const pad=x=>String(x).padStart(2,"0");
- return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+ return new Date(Date.now()+offset-3*3600000).toISOString().slice(0,16);
 };
 const reminderDefaultSlot=mode=>mode==="once"?{at:reminderLocalValue()}:
  mode==="daily"?{time:"09:00"}:{weekday:1,time:"09:00"};
@@ -1640,7 +1638,7 @@ function renderPersonalReminders(){
  const custom=draft.reminderType==="custom",mode=state.reminderRecurrence;
  const headerHtml=header("Pessoal","Meus lembretes","Seus alarmes pessoais, sem alterar o cadastro das demandas.");
  const formHtml=!editing?"":'<section class="card card-pad reminder-editor">'+
-  '<div class="section-head"><div><h2>'+(state.reminderEditing==="new"?"Novo lembrete":"Editar lembrete")+'</h2><p>Escolha vários dias e horários para ser avisado.</p></div>'+
+  '<div class="section-head"><div><h2>'+(state.reminderEditing==="new"?"Novo lembrete":"Editar lembrete")+'</h2><p>Escolha vários dias e horários para ser avisado (horário de Sergipe).</p></div>'+
   '<button type="button" class="button ghost" data-do="reminder-close">Fechar</button></div>'+
   '<form id="personal-reminder-form" class="register-form">'+
   '<label>Tipo de lembrete<select class="select" name="reminderType" id="reminder-type">'+
