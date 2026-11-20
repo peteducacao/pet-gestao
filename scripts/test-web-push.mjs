@@ -20,6 +20,10 @@ const subscriptions=new Map(),preferences=new Map(),logs=new Set();
 const db={
  prepare(sql){
   return {
+   async first(){
+    if(sql.startsWith("SELECT public_key,private_key FROM web_push_vapid"))return vapid;
+    throw Error("Consulta direta inesperada: "+sql);
+   },
    bind(...args){
     return {
      async first(){
