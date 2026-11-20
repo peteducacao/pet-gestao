@@ -1,0 +1,58 @@
+name: PET Gestão — diagnóstico real da fila de avisos
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-notifications.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      MAIL_BRIDGE_URL: ${{ secrets.MAIL_BRIDGE_URL }}
+      MAIL_BRIDGE_TOKEN: ${{ secrets.MAIL_BRIDGE_TOKEN }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Configurar acesso à leitura de D1
+        run: |
+          npm install -g wrangler@4
+          node scripts/prepare-deploy.mjs
+      - name: Diagnóstico agregado sem expor endereços nem dados das demandas
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT kind,status,COUNT(*) AS quantidade,
+            CASE
+              WHEN error_message IS NULL THEN 'sem-erro'
+              WHEN lower(error_message) LIKE '%quota%' OR lower(error_message) LIKE '%limite diário%' THEN 'quota'
+              WHEN lower(error_message) LIKE '%autoriz%' OR lower(error_message) LIKE '%token%' THEN 'autorizacao'
+              WHEN lower(error_message) LIKE '%configurad%' THEN 'configuracao'
+              WHEN lower(error_message) LIKE '%desativ%' THEN 'preferencias'
+              WHEN lower(error_message) LIKE '%interrompid%' THEN 'interrompido'
+              ELSE 'outro'
+            END AS motivo
+            FROM email_queue
+            WHERE datetime(created_at)>=datetime('now','-3 hours')
+            GROUP BY kind,status,motivo ORDER BY kind,status,motivo;"
+      - name: Verificar canais cadastrados (apenas contagens)
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT kind,COUNT(*) AS usuarios_com_escolhas,
+              SUM(email_enabled) AS emails_ativos,
+              SUM(android_enabled) AS android_ativos,
+              SUM(pc_enabled) AS pc_ativos
+            FROM notification_preferences GROUP BY kind ORDER BY kind;"
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT (SELECT COUNT(*) FROM push_devices) AS android_conectados,
+                   (SELECT COUNT(*) FROM web_push_subscriptions) AS pc_conectados;"
+      - name: Verificar autenticação da ponte Gmail
+        run: node scripts/check-mail-bridge.mjs
+      - name: Enviar um único e-mail de teste à conta administrativa
+        run: node scripts/test-mail-once.mjs
