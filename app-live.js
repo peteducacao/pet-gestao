@@ -858,7 +858,7 @@ function renderNotificationMatrix(){
  if(!prefs)return '<section class="card card-pad">Carregando suas preferências de avisos...</section>';
  const names=[["email","E-mail","mail"],["android","Celular","bell"],["pc","PC","monitor"]];
  return '<section class="card card-pad account-notification-matrix"><div class="section-head"><div><h3>Quais avisos quero receber?</h3><p>Marque os tipos e os canais que deseja. Você pode desligar todos.</p></div></div>'+
-  '<div class="notice-matrix-scroller"><table class="notice-matrix"><thead><tr><th scope="col">Tipo de aviso</th>'+
+  '<p class="field-hint notice-optin-hint">Os avisos começam desativados. Ative os que deseja receber e clique em Salvar todas as preferências.</p><div class="notice-matrix-scroller"><table class="notice-matrix"><thead><tr><th scope="col">Tipo de aviso</th>'+
   names.map(([,label,iconName])=>'<th scope="col">'+ico(iconName)+'<span>'+label+'</span></th>').join("")+'</tr></thead><tbody>'+
   NOTICE_KINDS_UI.map(([kind,label,desc])=>'<tr><th scope="row"><strong>'+label+'</strong><small>'+desc+'</small></th>'+
    names.map(([channel,label])=>'<td><label class="notice-cell-switch" aria-label="'+label+' por '+channel+'"><input type="checkbox" data-notice-kind="'+kind+'" data-notice-channel="'+channel+'" '+(prefs?.[kind]?.[channel]?"checked":"")+'><span aria-hidden="true"></span></label></td>').join("")+'</tr>').join("")+
@@ -1573,7 +1573,22 @@ function renderCommitteeEdit(cid){
 const reminderLocalValue=(offset=3600000)=>{
  return new Date(Date.now()+offset-3*3600000).toISOString().slice(0,16);
 };
-const reminderDefaultSlot=mode=>mode==="once"?{at:reminderLocalValue()}:
+// O prazo é apenas uma sugestão inicial. O usuário pode editar livremente a data e a mensagem.
+function reminderSuggestedAt(t){
+ const nowMs=Date.now();
+ const rawDates=[...stages(t||{}).filter(stage=>stage.dueAt&&!stage.completedAt).map(stage=>stage.dueAt),
+  t?.displayDate].filter(Boolean);
+ const next=rawDates.map(raw=>{
+  const value=String(raw),date=value.slice(0,10);
+  const hasTime=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return null;
+  const local=hasTime?value.slice(0,16):date+"T09:00";
+  const instant=Date.parse(local+":00-03:00");
+  return Number.isFinite(instant)&&instant>nowMs?{local,instant}:null;
+ }).filter(Boolean).sort((a,b)=>a.instant-b.instant)[0];
+ return next?.local||reminderLocalValue();
+}
+const reminderDefaultSlot=(mode,task=null)=>mode==="once"?{at:task?reminderSuggestedAt(task):reminderLocalValue()}:
  mode==="daily"?{time:"09:00"}:{weekday:1,time:"09:00"};
 async function loadPersonalReminders(){
  const id=me?.id;
@@ -1602,7 +1617,7 @@ function captureReminderEditor(){
   taskId:form.elements.taskId?.value||"",
   title:form.elements.title?.value||"",
   message:form.elements.message?.value||"",
-  channels:{email:form.elements.email?.checked===true,android:form.elements.android?.checked===true,pc:form.elements.pc?.checked===true},
+  channels:{email:false,android:form.elements.android?.checked===true,pc:form.elements.pc?.checked===true},
   autoDelete:form.elements.autoDelete?.checked===true,
   repeatUntil:form.elements.repeatUntil?.value||""
  };
@@ -1614,7 +1629,7 @@ function openReminderEditor(item=null){
  state.reminderRecurrence=item?.recurrence||"once";
  state.reminderDraft={reminderType:item?(item.taskId?"task":"custom"):"task",
   taskId:item?.taskId||"",title:item?.title||"",message:item?.message||"",
-  channels:item?.channels||{email:true,android:true,pc:true},
+  channels:item?.channels||{email:false,android:true,pc:true},
   autoDelete:item?.autoDelete??true,repeatUntil:item?.repeatUntil||""};
  state.reminderSchedules=item?.schedules?.map(x=>item.recurrence==="once"?{at:x.at}:{time:x.at,weekday:x.weekday})||
   [reminderDefaultSlot(state.reminderRecurrence)];
@@ -1644,7 +1659,7 @@ function renderPersonalReminders(){
   '<label>Tipo de lembrete<select class="select" name="reminderType" id="reminder-type">'+
   opt("task","Uma das minhas pendências",custom?"custom":"task")+opt("custom","Personalizado (assunto pessoal)",custom?"custom":"task")+'</select></label>'+
   (custom?'<label>Título do lembrete<input name="title" maxlength="120" required placeholder="Ex.: Ligar para alguém" value="'+esc(draft.title||"")+'"></label>':
-   '<label>Minha demanda<select class="select" name="taskId" required><option value="">Selecione a demanda</option>'+
+   '<label>Minha demanda<select class="select" name="taskId" id="reminder-task" required><option value="">Selecione a demanda</option>'+
    pending.map(t=>opt(t.id,t.title,draft.taskId||"")).join("")+'</select></label>'+
    (!pending.length?'<p class="field-hint">Você não possui pendências ativas. Use Personalizado para criar um aviso pessoal.</p>':""))+
   '<label>Repetir<select class="select" name="recurrence" id="reminder-recurrence">'+
@@ -1653,10 +1668,10 @@ function renderPersonalReminders(){
   (mode==="once"?"":'<label>Repetir até (opcional)<input type="date" name="repeatUntil" value="'+esc(draft.repeatUntil||"")+'"></label>')+
   '<label>Mensagem (opcional)<textarea name="message" maxlength="200" rows="2" placeholder="Se ficar vazio, o PET Gestão usa a mensagem padrão.">'+esc(draft.message||"")+'</textarea></label>'+
   '<fieldset class="reminder-channels"><legend>Receber por</legend>'+
-  [["email","E-mail"],["android","Celular"],["pc","PC"]].map(([key,label])=>
+  [["android","Celular"],["pc","PC"]].map(([key,label])=>
    '<label><input type="checkbox" name="'+key+'" '+(draft.channels?.[key]?"checked":"")+'> '+label+'</label>').join("")+'</fieldset>'+
-  '<label class="reminder-auto-delete"><input type="checkbox" name="autoDelete" '+(draft.autoDelete?"checked":"")+'> Excluir automaticamente após notificar</label>'+
-  '<p class="field-hint">Um horário único é removido quando o aviso é aceito por algum canal. Alarmes recorrentes permanecem até a data final, se houver, ou até você excluir.</p>'+
+  '<div class="reminder-auto-card"><label class="reminder-auto-toggle"><input type="checkbox" name="autoDelete" '+(draft.autoDelete?"checked":"")+'><span>Excluir automaticamente após notificar</span></label>'+
+  '<p class="field-hint">Ativado: remove os horários após avisar e apaga o lembrete quando terminar. Desativado: mantém o histórico para você excluir manualmente.</p></div>'+
   '<div class="reminder-form-actions"><button type="button" class="button ghost" data-do="reminder-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar lembrete</button></div>'+
   '</form></section>';
  const items=state.reminderItems||[];
@@ -1945,9 +1960,9 @@ function taskFilePendingList(){
 function taskFileForm(t){
  if(!canSeeTaskPhotos())return "";
  return '<section class="task-files-section"><h3>'+ico("folder")+' Fotos da demanda</h3>'+
- '<p class="field-hint">Anexe até 8 fotos (JPG, PNG ou WebP, até 25 MB cada). Os arquivos são guardados na qualidade original, sem recorte nem compactação, para baixar e publicar depois. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail.</p>'+
+ '<p class="field-hint task-file-help">Anexe até 8 fotos (JPG, PNG ou WebP, até 25 MB cada). Mantemos a qualidade original, sem recortes ou compactação. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail.</p>'+
  ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Fotos armazenadas</h4>'+taskFileList(t)+'</div>':"")+
- '<label class="task-file-picker">Selecionar fotos<input id="task-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>'+
+ '<label class="task-file-picker"><span class="task-file-picker-label">Selecionar fotos</span><span class="task-file-picker-button" aria-hidden="true">Escolher arquivos</span><input id="task-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="Escolher fotos da demanda"></label>'+
  '<div id="task-file-selection">'+taskFilePendingList()+'</div>'+
  '<p class="field-hint task-file-progress" id="task-file-progress" role="status" aria-live="polite" hidden></p></section>';
 }
@@ -3016,7 +3031,13 @@ async function handleClick(e){
   if(state.reminderSchedules.length>=20)return setToast("O máximo é 20 horários por lembrete.");
   const mode=state.reminderRecurrence,slot=reminderDefaultSlot(mode);
   const count=state.reminderSchedules.length;
-  if(mode==="once")slot.at=reminderLocalValue((count+1)*3600000);
+  if(mode==="once"){
+   const last=state.reminderSchedules.at(-1)?.at;
+   const previous=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(last||"")?Date.parse(last+":00-03:00"):NaN;
+   slot.at=Number.isFinite(previous)?
+    new Date(previous+3600000-3*3600000).toISOString().slice(0,16):
+    reminderLocalValue((count+1)*3600000);
+  }
   if(mode==="daily")slot.time=String(9+count%14).padStart(2,"0")+":00";
   if(mode==="weekly"){slot.weekday=count%7;slot.time=String(9+Math.floor(count/7)).padStart(2,"0")+":00";}
   state.reminderSchedules.push(slot);
@@ -3734,10 +3755,10 @@ async function handleSubmit(e){
     f.recurrence==="daily"?{time:slot.time}:{weekday:slot.weekday,time:slot.time});
    const payload={taskId:type==="task"?task.id:null,title:type==="task"?task.title:String(f.title||"").trim(),
     message:f.message||"",recurrence:f.recurrence,repeatUntil:f.repeatUntil||null,
-    channels:{email:form.elements.email.checked,android:form.elements.android.checked,pc:form.elements.pc.checked},
+    channels:{email:false,android:form.elements.android.checked,pc:form.elements.pc.checked},
     autoDelete:form.elements.autoDelete.checked,schedules};
-   if(!payload.channels.email&&!payload.channels.android&&!payload.channels.pc)
-    return setToast("Escolha pelo menos um canal para o lembrete.");
+   if(!payload.channels.android&&!payload.channels.pc)
+    return setToast("Escolha celular ou PC para o lembrete.");
    const button=form.querySelector('button[type="submit"]');
    if(button)button.disabled=true;
    try{
@@ -3865,10 +3886,19 @@ async function handleChange(e){
   state.reminderDraft.reminderType=t.value;
   render();return;
  }
+ if(t.id==="reminder-task"){
+  captureReminderEditor();
+  if(state.reminderEditing==="new"&&state.reminderRecurrence==="once"&&state.reminderSchedules.length===1){
+   const selected=data.tasks.find(task=>task.id===t.value&&isMyPending(task));
+   if(selected)state.reminderSchedules=[reminderDefaultSlot("once",selected)];
+  }
+  render();return;
+ }
  if(t.id==="reminder-recurrence"){
   captureReminderEditor();
   state.reminderRecurrence=t.value;
-  state.reminderSchedules=[reminderDefaultSlot(t.value)];
+  const selected=data.tasks.find(task=>task.id===state.reminderDraft?.taskId&&isMyPending(task));
+  state.reminderSchedules=[reminderDefaultSlot(t.value,selected)];
   render();return;
  }
  if(t.id==="notification-template-kind"||t.id==="notification-template-channel"){

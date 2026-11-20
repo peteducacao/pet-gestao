@@ -24,7 +24,7 @@ const settings={autoMonth:true,autoWeek:true,notificationTemplates:{}};
  const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user,admin],committees,tasks,meetings,events:[],history,settings});
 const calls=[];
 const notificationKinds=["create","review","due_soon","overdue","event_soon","event_today"];
-let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:true,android:true,pc:true}]));
+let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:false,android:false,pc:false}]));
 let personalMockItems=[];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
@@ -138,13 +138,13 @@ try{
  await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator('.notice-matrix tbody tr').count(),6,"Seis tipos de notificações por três canais");
  assert.equal(await page.locator('[data-do="save-notice-matrix"]').count(),1,"Um só botão para salvar todos os avisos");
- await page.locator('[data-notice-kind="create"][data-notice-channel="email"]').uncheck();
- await page.locator('[data-notice-kind="create"][data-notice-channel="pc"]').uncheck();
+ assert.equal(await page.locator('.notice-matrix input:checked').count(),0,"Avisos iniciais desligados até escolha do usuário");
+ await page.locator('[data-notice-kind="create"][data-notice-channel="android"]').check();
  const preferencesSaved=page.waitForResponse(r=>r.url().endsWith("/notification-preferences")&&r.request().method()==="PUT");
  await page.locator('[data-do="save-notice-matrix"]').click();
  await preferencesSaved;
  assert.deepEqual(noticeMatrix.create,{email:false,android:true,pc:false},"Opções por canal persistidas independentemente");
- assert.equal(noticeMatrix.review.email,true,"Salvar uma preferência não altera outro tipo de aviso");
+ assert.equal(noticeMatrix.review.email,false,"Salvar uma preferência não ativa outro tipo de aviso");
  assert.equal(await page.locator('[data-do="test-push"],[data-do="test-web-push"]').count(),0,"Botões de teste removidos da conta");
  // Novo painel pessoal: criar aviso privado, sem pendência; e aviso da própria demanda.
  await page.goto(origin+"/#/meus-lembretes");
@@ -152,10 +152,24 @@ try{
  await page.locator("#personal-reminder-form").waitFor();
  await page.locator('[name="reminderType"]').selectOption("custom");
  await page.locator('#personal-reminder-form input[name="title"]').fill("Estudar para a prova");
+ assert.equal(await page.locator('#personal-reminder-form [name="email"]').count(),0,"Alarmes pessoais não permitem e-mail");
+ assert.equal(await page.locator('#personal-reminder-form .reminder-auto-card').count(),1,"Exclusão automática no mesmo cartão");
+ await page.setViewportSize({width:360,height:844});
+ const autoGeom=await page.locator(".reminder-auto-card").evaluate(card=>{
+   const tick=card.querySelector('input[type="checkbox"]').getBoundingClientRect();
+   const heading=card.querySelector(".reminder-auto-toggle span").getBoundingClientRect();
+   const box=card.getBoundingClientRect();
+   return {separate:tick.right<=heading.left,visible:tick.left>=box.left&&heading.right<=box.right,
+    width:box.width,scroll:card.scrollWidth,client:card.clientWidth};
+ });
+ assert.ok(autoGeom.separate&&autoGeom.visible&&autoGeom.scroll<=autoGeom.client+1,
+  "Checkbox de exclusão deve ficar alinhado ao texto sem sair da caixa no celular");
+ await page.setViewportSize({width:1420,height:900});
  assert.equal(await page.locator('#personal-reminder-form textarea[name="message"]').inputValue(),"","Mensagem permanece opcional");
  await page.locator('#personal-reminder-form button[type="submit"]').click();
  await page.locator(".reminder-list-row").first().waitFor({timeout:10000});
  assert.equal(personalMockItems[0].taskId,null,"Personalizado não é vinculado a uma demanda");
+ assert.equal(personalMockItems[0].channels.email,false,"Alarme pessoal não usa a fila de e-mails");
  assert.equal(personalMockItems[0].autoDelete,true,"Exclusão automática oferecida no cadastro");
  await page.locator('[data-do="reminder-edit"]').first().click();
  await page.locator('#personal-reminder-form textarea[name="message"]').fill("Revisar os capítulos");
@@ -163,10 +177,12 @@ try{
  await page.waitForTimeout(200);
  assert.equal(personalMockItems[0].message,"Revisar os capítulos","Editar lembrete atualiza sua mensagem");
  await page.locator('[data-do="reminder-new"]').click();
- await page.locator('#personal-reminder-form select[name="taskId"]').selectOption("t1");
+ await page.locator('#personal-reminder-form select[name="taskId"]').selectOption("t2");
+ const suggestedAt=await page.locator('#personal-reminder-form [data-reminder-field="at"]').inputValue();
+ assert.equal(suggestedAt.slice(0,10),commissionOnly.deadlines[0].dueAt.slice(0,10),"Data sugerida corresponde ao prazo da comissão");
  await page.locator('#personal-reminder-form button[type="submit"]').click();
  await page.waitForTimeout(200);
- assert.equal(personalMockItems.at(-1).taskId,"t1","Lembrete de demanda usa somente minhas pendências");
+ assert.equal(personalMockItems.at(-1).taskId,"t2","Lembrete de demanda usa somente minhas pendências");
  assert.equal(await page.locator(".reminder-list-row").count(),2,"Lembretes cadastrados aparecem na lista pessoal");
  await page.goto(origin+"/#/conta");
  await page.goto(origin+"/#/demandas");
@@ -499,6 +515,18 @@ try{
  await page.reload({waitUntil:"domcontentloaded"});
  // Seleção múltipla de arquivos locais para guardar na demanda.
  await page.locator("#task-file-input").waitFor({state:"attached",timeout:10000});
+ await page.setViewportSize({width:360,height:844});
+ const photoGeometry=await page.locator(".task-files-section").evaluate(section=>{
+   const outer=section.getBoundingClientRect();
+   const picker=section.querySelector(".task-file-picker").getBoundingClientRect();
+   const help=section.querySelector(".task-file-help").getBoundingClientRect();
+   return {section:outer.width,picker:picker.width,help:help.width,
+    childOverflow:picker.right>outer.right+1||help.right>outer.right+1,
+    pageOverflow:document.documentElement.scrollWidth>innerWidth+1};
+ });
+ assert.ok(!photoGeometry.childOverflow&&!photoGeometry.pageOverflow,
+  "Seletor e instruções de fotos não podem ser cortados no celular");
+ await page.setViewportSize({width:1420,height:900});
  assert.equal(await page.locator("#task-file-input").getAttribute("multiple"),"");
  assert.equal(await page.locator("#task-file-input").getAttribute("accept"),"image/jpeg,image/png,image/webp",
   "Seleção somente dos formatos originais que o servidor preserva");
