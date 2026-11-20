@@ -560,7 +560,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       if(emailTargets.length)jobs.push(processQueue(env,2));
       if(targets.android.length||targets.pc.length)jobs.push(pushNotificationToChannels(env,targets,{
         ...pushModel,route:"/atividade/"+task.id,taskId:task.id,kind
-      },kind+"|"+task.id+"|"+task.version+"|"+action));
+      },kind+"|"+task.id+"|"+uid()+"|"+action));
       await Promise.allSettled(jobs);
     })());
   }
