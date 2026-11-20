@@ -3697,3 +3697,208 @@ body.commission-image-editor-open{overflow:hidden}
  #screen .admin-commissions .admin-commission-summary-link{padding:7px 6px;max-width:94px;font-size:10px}
  #screen .admin-commissions .admin-commission-title strong{font-size:13px}
 }
+
+
+/* ==============================================================
+   Comissões • cartões compactos (polimento de interface, nov/2026)
+   Mantém imagens e cores personalizadas, rotas e menus existentes.
+   Aplicado somente à grade de comissões, sem atingir o painel admin.
+   ============================================================== */
+#screen .commission-cards-grid {
+  gap: 14px;
+  margin-top: 15px;
+}
+#screen .commission-tile-v2 {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--commission-tone) 21%, #e2ddef);
+  border-radius: 19px;
+  box-shadow: 0 5px 17px rgba(37,29,76,.045);
+}
+#screen .commission-tile-v2:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(37,29,76,.085);
+}
+#screen .commission-tile-link-v2 {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(72px,32%);
+  grid-template-rows: 5px minmax(0,auto) auto minmax(35px,auto);
+  align-items: start;
+  column-gap: 10px;
+  row-gap: 7px;
+  min-height: 164px;
+  width: 100%;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+}
+#screen .commission-tile-link-v2::before,
+#screen .commission-tile-link-v2::after { display: none; }
+#screen .commission-v2-copy { display: contents; }
+#screen .commission-v2-marker {
+  grid-column: 1;
+  grid-row: 1;
+  width: 40px;
+  height: 5px;
+  margin: 0;
+  border-radius: 999px;
+}
+#screen .commission-v2-copy h3 {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  font-size: clamp(17px, 4.5vw, 21px);
+  line-height: 1.24;
+  font-weight: 800;
+  letter-spacing: -.35px;
+  color: #1b1736;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+#screen .commission-v2-members {
+  grid-column: 1;
+  grid-row: 3;
+  min-width: 0;
+  gap: 6px;
+  align-self: center;
+  font-size: 12px;
+  line-height: 1.42;
+  color: #615973;
+  overflow-wrap: anywhere;
+}
+#screen .commission-v2-members svg {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+#screen .commission-v2-view {
+  grid-column: 1;
+  grid-row: 4;
+  justify-self: start;
+  align-self: end;
+  min-height: 35px;
+  margin: 2px 0 0;
+  padding: 8px 12px;
+  gap: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb,var(--commission-tone) 17%,#fff);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-weight: 800;
+}
+#screen .commission-v2-view svg { width: 16px; height: 16px; }
+#screen .commission-v2-art {
+  grid-column: 2;
+  grid-row: 2 / 5;
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: min(100%,94px);
+  height: 94px;
+  align-self: end;
+  justify-self: center;
+  margin: 0 0 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 17px;
+  background: linear-gradient(140deg,
+    color-mix(in srgb,var(--commission-tone) 12%,#fff),
+    color-mix(in srgb,var(--commission-tone) 31%,#fff));
+}
+#screen .commission-v2-art .commission-card-svg {
+  display: block;
+  width: 92%;
+  height: 92%;
+  max-width: 88px;
+  max-height: 88px;
+  overflow: visible;
+}
+#screen .commission-v2-art-custom img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 15px;
+  border: 2px solid rgba(255,255,255,.92);
+}
+#screen .commission-tile-v2 .commission-tile-menu {
+  top: 9px;
+  right: 9px;
+  z-index: 8;
+}
+#screen .commission-tile-v2 .commission-tile-menu > summary {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #eee7fa;
+  background: rgba(255,255,255,.97);
+  box-shadow: 0 2px 8px rgba(41,24,89,.08);
+}
+#screen .commission-tile-v2 .commission-tile-menu > summary:focus-visible {
+  outline: 2px solid #6e32ba;
+  outline-offset: 2px;
+}
+#screen .commission-tile-v2 .commission-tile-menu-items { z-index: 12; }
+/* Dois cartões lado a lado em tablets, mantendo títulos legíveis. */
+@media (min-width:651px) and (max-width:1050px) {
+  #screen .commission-tile-link-v2 {
+    min-height: 169px;
+    grid-template-columns: minmax(0,1fr) minmax(70px,30%);
+  }
+  #screen .commission-v2-copy h3 { font-size: 19px; }
+}
+/* No celular, garante ação e ilustração visíveis sem rolagem lateral. */
+@media (max-width:650px) {
+  #screen .commission-cards-grid { grid-template-columns:1fr; gap: 11px; margin-top: 14px; }
+  #screen .commission-tile-link-v2 {
+    min-height: 153px;
+    padding: 13px 14px;
+    grid-template-columns: minmax(0,1fr) minmax(74px,33%);
+    grid-template-rows: 5px auto auto minmax(35px,auto);
+    column-gap: 8px;
+    row-gap: 6px;
+  }
+  #screen .commission-v2-copy h3 {
+    grid-column: 1; grid-row: 2;
+    padding-right: 0;
+    font-size: clamp(17px,4.6vw,20px);
+    line-height: 1.25;
+  }
+  #screen .commission-v2-members {
+    grid-column: 1; grid-row: 3;
+    font-size: 11.5px;
+    line-height: 1.42;
+  }
+  #screen .commission-v2-view {
+    grid-column:1;grid-row:4;
+    padding: 8px 11px;
+    font-size: 11.5px;
+  }
+  #screen .commission-v2-art {
+    grid-column: 2; grid-row: 2 / 5;
+    width: min(100%,86px);
+    height: 86px;
+    margin: 0 0 1px;
+  }
+}
+@media (max-width:360px) {
+  #screen .commission-tile-link-v2 {
+    padding: 13px 12px;
+    grid-template-columns: minmax(0,1fr) 72px;
+    gap: 5px 7px;
+  }
+  #screen .commission-v2-copy h3 { font-size: 17px; }
+  #screen .commission-v2-members { font-size: 11px; }
+  #screen .commission-v2-view { font-size: 11px; padding: 8px 9px; }
+  #screen .commission-v2-art { width: 72px; height: 76px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  #screen .commission-tile-v2 { transition: none; }
+}

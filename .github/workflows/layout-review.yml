@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/layout-review.yml'
+      - 'live.css'
+      - 'styles.css'
   workflow_dispatch:
 permissions:
   contents: read
