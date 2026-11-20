@@ -17,10 +17,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Instalar navegador Chromium
+      - name: Preparar Playwright usando Chrome pré-instalado
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
-          npx playwright install --with-deps chromium
+          google-chrome --version
       - name: Preparar script temporário a partir dos testes já existentes
         run: |
           cat > /tmp/pet-audit-tail.mjs <<'JS_AUDIT'
@@ -159,6 +159,7 @@ jobs:
           anchor='try{\n await page.goto(origin+"/#/demandas"'
           assert anchor in base, "Não foi possível recuperar fixture isolada"
           prefix=base.split(anchor,1)[0]
+          prefix=prefix.replace("chromium.launch({headless:true})","chromium.launch({headless:true,channel:'chrome',args:['--no-sandbox']})")
           tail=Path('/tmp/pet-audit-tail.mjs').read_text(encoding='utf8')
           Path('scripts/.layout-audit-run.mjs').write_text(prefix+tail,encoding='utf8')
           PY
