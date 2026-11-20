@@ -36,3 +36,13 @@ CREATE TABLE IF NOT EXISTS personal_reminder_times(
  updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_personal_reminder_times_due ON personal_reminder_times(status,next_at);
+
+-- Dedupe independente da fila Gmail: aviso push continua mesmo sem e-mail habilitado.
+CREATE TABLE IF NOT EXISTS notification_event_log(
+ dedupe_key TEXT PRIMARY KEY,
+ task_id TEXT,
+ kind TEXT NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notification_event_task ON notification_event_log(task_id);
+ALTER TABLE personal_reminder_times ADD COLUMN retry_after TEXT;
