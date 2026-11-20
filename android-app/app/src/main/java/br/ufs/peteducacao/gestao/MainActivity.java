@@ -2,6 +2,17 @@ package br.ufs.peteducacao.gestao;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.webkit.WebResourceResponse;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.messaging.FirebaseMessaging;
+import org.json.JSONObject;
+import java.util.UUID;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
@@ -21,6 +32,10 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     private static final String HOME = "https://peteducacao.github.io/pet-gestao/#/inicio";
     private static final int PICK_FILE_REQUEST = 1938;
+    private static final int PUSH_PERMISSION_REQUEST = 1706;
+    private static final String PUSH_CHANNEL = "pet_gestao_avisos";
+    private String currentPushToken = null;
+    private boolean trustedPageReady = false;
     private WebView webView;
     private ValueCallback<Uri[]> pendingFileSelection;
 
@@ -65,6 +80,13 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                trustedPageReady = isTrustedSite(url);
+                publishPushToken();
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
                     Toast.makeText(MainActivity.this,
@@ -99,11 +121,111 @@ public class MainActivity extends Activity {
             if ("https".equalsIgnoreCase(uri.getScheme())) openExternal(uri);
         });
 
+        createNotificationChannel();
+        initializePush();
+
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            webView.loadUrl(HOME);
+            String route = safePushRoute(getIntent().getStringExtra("pet_route"));
+            webView.loadUrl(route != null
+                    ? "https://peteducacao.github.io/pet-gestao/#" + route : HOME);
         }
+    }
+
+    private boolean isTrustedSite(String url) {
+        Uri uri = Uri.parse(url);
+        String path = uri.getPath();
+        return "https".equalsIgnoreCase(uri.getScheme())
+                && "peteducacao.github.io".equalsIgnoreCase(uri.getHost())
+                && path != null
+                && (path.equals("/pet-gestao") || path.startsWith("/pet-gestao/"));
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(PUSH_CHANNEL,
+                    "Demandas e prazos", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription("Novas demandas, prazos próximos e atrasos do PET Gestão");
+            channel.enableVibration(true);
+            NotificationManager manager = (NotificationManager)
+                    getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.createNotificationChannel(channel);
+        }
+    }
+
+    private void initializePush() {
+        // Sem google-services.json, o APK de testes continua funcional,
+        // mas não promete receber mensagens do Firebase.
+        if (FirebaseApp.getApps(this).isEmpty()) return;
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    PUSH_PERMISSION_REQUEST);
+        } else {
+            loadPushToken();
+        }
+    }
+
+    private void loadPushToken() {
+        if (FirebaseApp.getApps(this).isEmpty()) return;
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) return;
+        FirebaseMessaging.getInstance().getToken().addOnSuccessListener(value -> {
+            if (value == null || value.isEmpty()) return;
+            currentPushToken = value;
+            publishPushToken();
+        });
+    }
+
+    private void publishPushToken() {
+        if (!trustedPageReady || webView == null || currentPushToken == null) return;
+        final String deviceId = getSharedPreferences("pet_push", MODE_PRIVATE)
+                .getString("device_id", "");
+        String id = deviceId;
+        if (id.isEmpty()) {
+            id = UUID.randomUUID().toString();
+            getSharedPreferences("pet_push", MODE_PRIVATE).edit()
+                    .putString("device_id", id).apply();
+        }
+        final String code = "window.petGestaoPushToken && window.petGestaoPushToken("
+                + JSONObject.quote(currentPushToken) + ","
+                + JSONObject.quote(id) + ");";
+        webView.evaluateJavascript(code, null);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                                           int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PUSH_PERMISSION_REQUEST && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) loadPushToken();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) loadPushToken();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (webView != null) {
+            String route = intent.getStringExtra("pet_route");
+            String destination = safePushRoute(route);
+            if (destination != null) webView.loadUrl(
+                    "https://peteducacao.github.io/pet-gestao/#" + destination);
+        }
+    }
+
+    private static String safePushRoute(String route) {
+        if (route == null || !route.matches("^/atividade/[A-Za-z0-9-]{1,100}$"))
+            return null;
+        return route;
     }
 
     private void openExternal(Uri uri) {

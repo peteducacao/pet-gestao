@@ -38,6 +38,24 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Validar Firebase Android quando configurado
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$FIREBASE_GOOGLE_SERVICES_JSON_B64" ]; then
+            printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON_B64" | base64 --decode > android-app/app/google-services.json
+            python3 - <<'PY'
+          import json
+          with open("android-app/app/google-services.json",encoding="utf8") as f: j=json.load(f)
+          clients=[c for c in j.get("client",[]) if c.get("client_info",{}).get("android_client_info",{}).get("package_name")=="br.ufs.peteducacao.gestao"]
+          if not clients or not j.get("project_info",{}).get("project_id"):
+              raise SystemExit("Firebase não contém o pacote br.ufs.peteducacao.gestao.")
+          print("Configuração Android do Firebase validada sem exibir dados privados.")
+          PY
+          else
+            echo "::warning::Firebase não configurado: APK instala, mas não receberá push até criar FIREBASE_GOOGLE_SERVICES_JSON_B64."
+          fi
+
       - name: Compilar APK de instalação
         working-directory: android-app
         run: gradle :app:assembleDebug --no-daemon
