@@ -121,6 +121,55 @@ assert.equal(none.email.length+none.android.length+none.pc.length,0,"Nenhum = ne
 const push=await api.notificationPushModel(db,"create",{demanda:"Relatório",autor:"Ana"});
 assert.deepEqual(push,{title:"Nova: Relatório",body:"Ana registrou Relatório"});
 await assert.rejects(api.saveNotificationPreferences(db,{id:"a"},{create:choices.create}),/seis notificações/);
+// Seis casos, sem lógica de prazo divergente entre e-mail e push.
+const day=Date.parse("2026-11-24T12:00:00Z");
+const settings={daysBefore:1,dueSoonEnabled:true,overdueEnabled:true,eventTodayEnabled:true};
+const occasion=[
+ {kind:"due_soon",isEvent:false,daysUntil:1,dueTimestamp:day+86400000},
+ {kind:"overdue",isEvent:false,daysUntil:0,dueTimestamp:day-3600000},
+ {kind:"event_soon",isEvent:true,daysUntil:1,dueTimestamp:day+86400000},
+ {kind:"event_today",isEvent:true,daysUntil:0,dueTimestamp:day+3600000}
+];
+for(const event of occasion){
+ const {kind,...when}=event;
+ assert.equal(api.noticeKindForDeadline({...when,nowTimestamp:day,settings,createdAt:new Date(day-86400000).toISOString()}),kind,
+  "A etapa/evento deve disparar o mesmo tipo em todos os canais: "+kind);
+ const canceled=api.noticeKindForDeadline({...when,nowTimestamp:day,
+  settings:{...settings,dueSoonEnabled:false,overdueEnabled:false,eventTodayEnabled:false}});
+ assert.equal(canceled,null,"Desligar gatilho no Admin impede todos os canais, não só e-mail: "+kind);
+}
+assert.equal(api.noticeKindForDeadline({
+ isEvent:true,daysUntil:0,dueTimestamp:day-86400000,nowTimestamp:day,settings
+}),null,"Evento passado não pode disparar hoje");
+const everyone=Object.fromEntries(kinds.map(kind=>[kind,{email:true,android:true,pc:true}]));
+await api.saveNotificationPreferences(db,{id:"a"},everyone);
+for(const kind of kinds){
+ const selected=await api.notificationRecipients(db,["a","v"],kind);
+ assert.deepEqual(selected.email.map(x=>x.id),["a"],kind+": e-mail do responsável");
+ assert.deepEqual(selected.android.map(x=>x.id),["a"],kind+": Android do mesmo responsável");
+ assert.deepEqual(selected.pc.map(x=>x.id),["a"],kind+": PC do mesmo responsável");
+}
+const emailOnly=Object.fromEntries(kinds.map(kind=>[kind,{email:true,android:false,pc:false}]));
+await api.saveNotificationPreferences(db,{id:"a"},emailOnly);
+for(const kind of kinds){
+ const selected=await api.notificationRecipients(db,["a"],kind);
+ assert.equal(selected.email.length,1,kind+": e-mail ativo");
+ assert.equal(selected.android.length+selected.pc.length,0,kind+": celular e PC desativados");
+}
+const pushOnly=Object.fromEntries(kinds.map(kind=>[kind,{email:false,android:true,pc:true}]));
+await api.saveNotificationPreferences(db,{id:"a"},pushOnly);
+for(const kind of kinds){
+ const selected=await api.notificationRecipients(db,["a"],kind);
+ assert.equal(selected.email.length,0,kind+": Gmail desativado não bloqueia push");
+ assert.equal(selected.android.length+selected.pc.length,2,kind+": Android e PC independentes do Gmail");
+}
+await api.saveNotificationPreferences(db,{id:"a"},choices);
+const worker=await readFile(new URL("../worker/src/index.js",import.meta.url),"utf8");
+assert.equal((worker.match(/const kind=noticeKindForDeadline\(/g)||[]).length,2,
+ "Ambos os tipos automáticos usam o mesmo seletor de avisos");
+assert.ok(worker.includes("if(ctx?.waitUntil)ctx.waitUntil(pushJob)"),
+ "Push tem execução independente da fila Gmail");
+console.log("Paridade dos 6 tipos: gatilhos automáticos, destinatários, canais separados e opt-in OK.");
 console.log("Notificações: seis tipos, um único salvamento, canais independentes, opt-out e modelos push OK.");
 const personalSource=(await readFile(new URL("../worker/src/personal-reminders.js",import.meta.url),"utf8"))
  .replace('import {pushWithoutMinuteDuplicates} from "./push-collision.js";','const pushWithoutMinuteDuplicates=async()=>({android:0,pc:0,skipped:{android:0,pc:0}});');
