@@ -7,6 +7,7 @@ on:
       - 'app-live.js'
       - 'scripts/test-smoke.mjs'
       - 'scripts/test-ui.mjs'
+      - 'scripts/test-push.mjs'
       - '.github/workflows/integration-tests.yml'
   pull_request:
     branches: [main]
@@ -15,6 +16,7 @@ on:
       - 'app-live.js'
       - 'scripts/test-smoke.mjs'
       - 'scripts/test-ui.mjs'
+      - 'scripts/test-push.mjs'
       - '.github/workflows/integration-tests.yml'
   workflow_dispatch:
 permissions:
@@ -33,6 +35,8 @@ jobs:
           node --check --input-type=module < worker/src/index.js
           node --check scripts/test-smoke.mjs
           node scripts/test-auth-sessions.mjs
+      - name: Garantir que identificadores Android válidos passam pelo FCM (simulado)
+        run: node scripts/test-push.mjs
       - name: Testar interface de e-mails e configurações com JSDOM
         run: |
           npm install --no-save --no-package-lock jsdom@26
