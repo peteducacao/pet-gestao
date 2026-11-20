@@ -265,7 +265,18 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
           await env.DB.prepare("UPDATE email_queue SET status='cancelado',error_message='Notificação obsoleta cancelada antes do envio' WHERE id=? AND status='processando'").bind(item.id).run();
           continue;
         }
-        await authorizedMail(env,asJson(item.recipient_emails,[]),item.subject,item.body);
+        let addresses=asJson(item.recipient_emails,[]);
+        if(NOTICE_KINDS.includes(item.kind)){
+          const currentUsers=(await env.DB.prepare("SELECT id,email FROM users").all()).results;
+          const matched=currentUsers.filter(u=>addresses.includes(u.email));
+          const settings=await notificationRecipients(env.DB,matched.map(u=>u.id),item.kind);
+          addresses=addresses.filter(mail=>settings.email.some(u=>u.email===mail));
+          if(!addresses.length){
+            await env.DB.prepare("UPDATE email_queue SET status='cancelado',error_message='Destinatários desativaram avisos por e-mail' WHERE id=? AND status='processando'").bind(item.id).run();
+            continue;
+          }
+        }
+        await authorizedMail(env,addresses,item.subject,item.body);
         await env.DB.prepare("UPDATE email_queue SET status='enviado',sent_at=?,error_message=NULL WHERE id=? AND status='processando'").bind(now(),item.id).run();
         if(["event_soon","event_today"].includes(item.kind))
           await env.DB.prepare("UPDATE deadline_notice_log SET notice_kind=? WHERE queue_id=? AND notice_kind=?")
@@ -341,6 +352,33 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     }
   }
 
+  // A distribuição de push é independente do Gmail e sua cota. A chave de
+  // idempotência é exclusiva por canal, impedindo avisos duplicados no cron.
+  async function dispatchDeadlinePush(env,task,kind,targets,values,dedupeKey){
+    const chosen={android:[],pc:[]},claimed={};
+    for(const channel of ["android","pc"]){
+      if(!targets[channel]?.length)continue;
+      const key=dedupeKey+"|"+channel;
+      const claim=await env.DB.prepare("INSERT OR IGNORE INTO notification_event_log(dedupe_key,task_id,kind,created_at) VALUES(?,?,?,?)")
+        .bind(key,task.id,kind,now()).run();
+      if(claim.meta?.changes){chosen[channel]=targets[channel];claimed[channel]=key;}
+    }
+    if(!chosen.android.length&&!chosen.pc.length)return;
+    try{
+      const model=await notificationPushModel(env.DB,kind,values);
+      const result=await pushNotificationToChannels(env,chosen,{
+        ...model,route:"/atividade/"+task.id,taskId:task.id,kind
+      },dedupeKey);
+      // Nenhum serviço aceitou a notificação: pode tentar outra vez.
+      for(const channel of Object.keys(claimed)){
+        if(!result[channel])await env.DB.prepare("DELETE FROM notification_event_log WHERE dedupe_key=?").bind(claimed[channel]).run();
+      }
+    }catch(error){
+      for(const key of Object.values(claimed))await env.DB.prepare("DELETE FROM notification_event_log WHERE dedupe_key=?").bind(key).run().catch(()=>{});
+      console.error("PET Gestão — push automático indisponível:",String(error?.message||error).slice(0,150));
+    }
+  }
+
   async function queueDeadlineReminders(env){
     const db=env.DB;
     const stored=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
@@ -381,8 +419,9 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const kind=diffDays===0&&config.eventTodayEnabled&&clock.getTime()<dueMs?"event_today":
           (diffDays===daysBefore&&config.dueSoonEnabled&&clock.getTime()<dueMs?"event_soon":null);
         if(!kind)continue;
-        const recipients=unique(people.filter(isEligiblePerson).map(person=>person.email).filter(validEmail));
-        if(!recipients.length)continue;
+        const targets=await notificationRecipients(db,people.filter(isEligiblePerson).map(person=>person.id),kind);
+        const recipients=unique(targets.email.map(person=>person.email).filter(validEmail));
+        if(!recipients.length&&!targets.android.length&&!targets.pc.length)continue;
         const template=models?.[kind]||deadlineMailTemplates[kind];
         const dateText=new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(dueMs));
         const values={autor:"PET Gestão",acao:kind==="event_today"?"lembra que o evento acontece hoje":"lembra que o evento está se aproximando",tipo:kind==="event_today"?"Evento hoje":"Evento se aproximando",demanda:task.title,etapa:"Evento",prazo:dateText,dias:kind==="event_today"?"":String(daysBefore),link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
@@ -391,6 +430,8 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const bodyTemplate=String(template.body||deadlineMailTemplates[kind].body).slice(0,10000);
         const message=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
         const stageId=String(event.id||"evento-data"),dedupeKey=[task.id,stageId,rawDue,kind].join("|");
+        await dispatchDeadlinePush(env,task,kind,targets,values,dedupeKey);
+        if(!recipients.length)continue;
         const sentMarker=kind+"_sent";
         const previousNotice=await db.prepare("SELECT l.queue_id,l.notice_kind,q.status FROM deadline_notice_log l LEFT JOIN email_queue q ON q.id=l.queue_id WHERE l.dedupe_key=?").bind(dedupeKey).first();
         if(previousNotice){
@@ -456,8 +497,9 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const candidates=notifyEveryone?[...new Set([...allPeople,...stageOwners])]:
           stageOwners.length?stageOwners:[...activePeople];
         const recipientIds=candidates.filter(id=>!donePeople[id]&&(activePeople.has(id)||!allPeople.has(id)));
-        const recipients=unique(recipientIds.map(id=>peopleById.get(id)?.email).filter(validEmail));
-        if(!recipients.length)continue;
+        const targets=await notificationRecipients(db,recipientIds,kind);
+        const recipients=unique(targets.email.map(person=>person.email).filter(validEmail));
+        if(!recipients.length&&!targets.android.length&&!targets.pc.length)continue;
         const template=models?.[kind]||deadlineMailTemplates[kind];
         const deadlineText=new Intl.DateTimeFormat("pt-BR",{
           timeZone:"America/Maceio",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"
@@ -475,6 +517,8 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const text=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
         const stageId=String(stage.id||stage.label+"-"+stageIndex);
         const dedupeKey=[task.id,stageId,rawDue,kind].join("|");
+        await dispatchDeadlinePush(env,task,kind,targets,values,dedupeKey);
+        if(!recipients.length)continue;
         const queueId=uid(),stamp=now();
         const noticeBatch=await db.batch([
           db.prepare("INSERT OR IGNORE INTO deadline_notice_log(dedupe_key,task_id,stage_id,notice_kind,stage_due_at,queue_id,created_at) VALUES(?,?,?,?,?,?,?)")
