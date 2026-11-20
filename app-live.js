@@ -835,7 +835,7 @@ function renderPushPreferences(){
  const status=connected?"Este celular está conectado e pronto para receber avisos.":
   count>0?count+" celular(es) vinculado(s) à sua conta. Abra o aplicativo para ativar neste aparelho.":
   "Para receber no celular, instale o APK e permita as notificações.";
- return '<section class="account-push-panel account-channel-card"><div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3>Celular Android</h3><p>'+esc(status)+'</p></div></div></section>';
+ return '<section class="account-push-panel account-channel-card"><div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-push-title">Celular Android</h3><p>'+esc(status)+'</p></div></div></section>';
 }
 const NOTICE_KINDS_UI=[["create","Nova demanda","Quando uma demanda é cadastrada"],
  ["review","Revisão de texto","Quando há revisão ou correção"],
@@ -897,7 +897,7 @@ function renderWebPushPreferences(){
   count>0?count+" computador(es) conectado(s) à sua conta.":
   "Ative para receber avisos também neste PC.";
  return '<section class="account-web-push-panel account-channel-card">'+
-  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3>Computador (PC)</h3><p>'+esc(status)+'</p></div></div>'+
+  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-web-push-title">Computador (PC)</h3><p>'+esc(status)+'</p></div></div>'+
   '<div class="account-push-actions">'+
   (connected?'<button type="button" class="button ghost" data-do="disable-web-push">Desativar neste PC</button>':
     '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+ico("bell")+' Ativar neste PC</button>')+
@@ -1676,7 +1676,7 @@ function renderPersonalReminders(){
     '<button type="button" class="button ghost" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' Excluir</button></div></article>';
   }).join(""):'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
  return headerHtml+'<div class="reminder-page"><div class="reminder-page-actions"><button type="button" class="button primary" data-do="reminder-new">'+ico("plus")+' Novo lembrete</button>'+
- '<span class="field-hint">Se a demanda for excluída ou sua pendência terminar, o lembte vinculado será removido.</span></div>'+formHtml+list+'</div>';
+ '<span class="field-hint">Se a demanda for excluída ou sua pendência terminar, o lembrete vinculado será removido.</span></div>'+formHtml+list+'</div>';
 }
 function renderMine(){
  if(!canWrite())return authRequired();
