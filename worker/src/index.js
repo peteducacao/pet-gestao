@@ -1637,4 +1637,4 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
-export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await processQueue(env,15);await processPersonalReminders(env,(emails,subject,message)=>authorizedMail(env,emails,subject,message))})())};
+export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await Promise.allSettled([processQueue(env,15),processPersonalReminders(env,(emails,subject,message)=>authorizedMail(env,emails,subject,message))])})())};
