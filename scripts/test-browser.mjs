@@ -1070,17 +1070,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#admin-user-search").fill("");
  assert.equal(await page.locator("#admin-users .admin-user-card:visible").count(),2,"Limpar busca restaura usuários");
  assert.equal(await page.locator('#admin-users [data-role="u1"]').inputValue(),"tutor","Cargo real preservado");
- assert.equal(await page.locator('#admin-users [data-notify="u1"]').isChecked(),false,"Preferência preservada");
- await page.locator('#admin-users [data-notify="u1"]').check();
- assert.equal(await page.locator('#admin-users [data-notify="u1"]').isChecked(),true,
-  "Interruptor altera a preferência editada");
- await page.waitForTimeout(220); // aguarda transição CSS de 150 ms
- const switchVisual=await page.locator('#admin-users [data-notify="u1"]').evaluate(el=>({
-  appearance:getComputedStyle(el).appearance,background:getComputedStyle(el).backgroundColor
- }));
- assert.equal(switchVisual.appearance,"none","Permissão de e-mail usa interruptor roxo estilizado");
- assert.equal(switchVisual.background,"rgb(113, 52, 197)","Interruptor ativo mostra roxo");
- await page.locator('#admin-users [data-notify="u1"]').uncheck();
+ assert.equal(await page.locator('#admin-users [data-notify]').count(),0,
+  "Admin não exibe bloqueio paralelo de notificações: apenas preferências do destinatário");
+
 
  assert.equal(await page.locator(".admin-sidebar.open").count(),0,"Menu Admin fecha ao navegar para Usuários");
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/demandas"]').count(),0,"Sem Demandas duplicadas no Admin");
