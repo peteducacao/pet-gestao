@@ -1,0 +1,175 @@
+name: Auditoria visual responsiva do PET Gestão (sem alterar dados)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/layout-review.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capturas:
+    name: Fotografar telas com dados de teste
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar navegador Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Preparar script temporário a partir dos testes já existentes
+        run: |
+          cat > /tmp/pet-audit-tail.mjs <<'JS_AUDIT'
+          // Auditoria visual isolada: reutiliza os mesmos mocks locais de test-browser.mjs.
+          import path from "node:path";
+          const dir="layout-review-output";
+          await fs.promises.mkdir(dir,{recursive:true});
+          for(const sub of ["celular-390","celular-360","tablet-800","desktop-1440"])await fs.promises.mkdir(path.join(dir,sub),{recursive:true});
+          let entries=[],issues=[],pageErrors=[];
+          page.on("pageerror",e=>{pageErrors.push(String(e).slice(0,250));});
+          page.on("console",m=>{if(m.type()==="error")pageErrors.push("console: "+m.text().slice(0,250));});
+          const today=new Date();
+          const d=(offset)=>{
+           const dt=new Date(today);dt.setDate(dt.getDate()+offset);
+           return dt.toISOString().slice(0,10);
+          };
+          const addTask=(id,title,days,extra={})=>({
+           ...task,id,title,registeredAt:d(-5),description:"Atividade de demonstração para inspeção de layout em celulares e tablets.",
+           deadlines:[{id:"prazo-"+id,label:"Prazo da atividade",dueAt:d(days)+"T17:00:00",assigneeIds:["u1"]}],
+           commissionIds:["videos"],assigneeIds:["u1"],archivedAt:null,status:"pendente",...extra
+          });
+          tasks.push(addTask("audit-01","Planejamento semanal do PET",2),addTask("audit-02","Preparar materiais da oficina de robótica",6),
+           addTask("audit-03","Revisar textos e planejar publicações das redes sociais",-3),
+           addTask("audit-04","Organizar reunião geral dos integrantes",11),
+           addTask("audit-05","Criar materiais para apresentação do projeto",1),
+           addTask("audit-06","Revisão editorial de documento institucional",15));
+          for(const [id,name] of [
+           ["comunicacao","Comunicação"],["divulgacao","Divulgação"],["robotica","Robótica educacional"],
+           ["eventos","Eventos e organização"],["redes","Redes sociais"],["pesquisa","Pesquisa e extensão"],
+           ["formacao","Formação e oficinas"],["documentacao","Documentação"],["apoio","Apoio administrativo"]
+          ])committees.push({id,name,memberIds:[],memberCount:0,maxMembers:4,backgroundColor:"#f7f3ff"});
+          meetings.push(
+           {id:"m2",title:"Planejamento das atividades",date:d(-1),rawNotes:"Discussão dos planos. Organização de eventos e demandas por comissão."},
+           {id:"m3",title:"Reunião de avaliação mensal",date:d(-8),rawNotes:"Resultados parciais, encaminhamentos e observações."});
+          const cleanFile=(s)=>String(s).replace(/[^a-z0-9-]/gi,"-");
+          async function capture(section,route,label,width,height=844,callback=null){
+           const record={section,route,label,width};
+           try{
+             await page.setViewportSize({width,height});
+             await page.goto(origin+"/#/"+route,{waitUntil:"domcontentloaded",timeout:15000});
+             await page.locator("#screen").waitFor({state:"visible",timeout:11000});
+             await page.waitForTimeout(350);
+             const notice=page.locator("#notice-dialog");
+             if(await notice.isVisible()){const cancel=notice.locator('[data-do="notice-cancel"]').first();if(await cancel.count())await cancel.click();}
+             if(callback)await callback();
+             await page.waitForTimeout(250);
+             record.metrics=await page.evaluate(()=>{
+               const root=document.querySelector("#screen");
+               const view=window.innerWidth;
+               const els=[...root.querySelectorAll("a,button,input,textarea,select,summary")].filter(el=>{
+                 const r=el.getBoundingClientRect(),cs=getComputedStyle(el);
+                 return r.width>0&&r.height>0&&cs.visibility!=="hidden"&&cs.display!=="none"&&r.bottom>=0;
+               });
+               const targetIssues=els.filter(el=>{
+                 const r=el.getBoundingClientRect();return r.width<38||r.height<38;
+               }).slice(0,12).map(el=>{
+                 const r=el.getBoundingClientRect();return {tag:el.tagName,text:(el.textContent||el.getAttribute("aria-label")||"").trim().slice(0,40),w:Math.round(r.width),h:Math.round(r.height)};
+               });
+               const escapes=els.filter(el=>{
+                 const r=el.getBoundingClientRect();return r.right>view+5||r.left< -5;
+               }).slice(0,10).map(el=>({tag:el.tagName,text:(el.textContent||"").trim().slice(0,35),x:Math.round(el.getBoundingClientRect().x),right:Math.round(el.getBoundingClientRect().right)}));
+               const fontSmall=[...root.querySelectorAll("small,p,label,span,button,a")].filter(el=>{
+                 const r=el.getBoundingClientRect(),cs=getComputedStyle(el);
+                 return r.width>10&&r.height>6&&cs.display!=="none"&&Number.parseFloat(cs.fontSize)<11;
+               }).slice(0,10).map(el=>({text:(el.textContent||"").trim().slice(0,38),px:getComputedStyle(el).fontSize}));
+               return {
+                 title:root.querySelector(".page-title")?.textContent?.trim()||document.querySelector("#current-page")?.textContent?.trim(),
+                 horizontalOverflow:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)-window.innerWidth,
+                 scrollHeight:document.documentElement.scrollHeight,
+                 interactiveCount:els.length,smallTargets:targetIssues,offScreenActions:escapes,smallFonts:fontSmall,
+                 text:root.innerText.slice(0,450)
+               };
+             });
+             const file=path.join(dir,section,cleanFile(label)+".png");
+             await page.screenshot({path:file,fullPage:true,animations:"disabled",timeout:20000});
+             record.file=file;
+             if(record.metrics.horizontalOverflow>2)issues.push({label,route,issue:"horizontal-overflow",pixels:record.metrics.horizontalOverflow});
+             if(record.metrics.offScreenActions.length)issues.push({label,route,issue:"offscreen-actions",count:record.metrics.offScreenActions.length});
+           }catch(err){record.error=String(err).slice(0,500);issues.push({label,route,issue:"capture-error",error:record.error});}
+           entries.push(record);
+           console.log("AUDIT "+section+" "+label+" : "+(record.error?"ERROR "+record.error:record.metrics.title+" overflow="+record.metrics.horizontalOverflow));
+          }
+          try{
+           const mobile=[
+           ["inicio","01-visao-geral"],["demandas","02-demandas"],["atividade/t1","03-detalhes-demanda"],
+           ["registrar","04-registrar-demanda"],["comissoes","05-comissoes"],["comissoes/videos","06-detalhe-comissao"],
+           ["comissoes/nova","07-nova-comissao"],["reunioes","08-atas"],["reunioes/nova","09-criar-ata"],
+           ["reunioes/editar/m1","10-editar-ata"],["minhas-pendencias","11-minhas-pendencias"],
+           ["conta","12-meu-perfil"],["ajuda","13-ajuda"],["cadastro","14-cadastro"],
+           ["login","15-login"],["esqueci","16-recuperar-senha"]
+           ];
+           for(const [route,label] of mobile)await capture("celular-390",route,label,390);
+           await capture("celular-390","demandas","17-demandas-semanais",390,844,async()=>{
+             const sel=page.locator('select[data-filter="periodMode"]');if(await sel.count())await sel.selectOption("semanal");
+           });
+           await capture("celular-390","inicio","18-menu-lateral-aberto",390,844,async()=>{
+             const btn=page.locator("#open-menu");if(await btn.isVisible())await btn.click();
+           });
+           // Tablet: prioridade a telas com muitos controles.
+           for(const [route,label] of [
+           ["inicio","01-visao-geral"],["demandas","02-demandas"],["comissoes","03-comissoes"],
+           ["atividade/t1","04-detalhes"],["registrar","05-formulario"],["conta","06-perfil"]
+           ])await capture("tablet-800",route,label,800,1135);
+           for(const [route,label] of [
+           ["inicio","01-inicio"],["demandas","02-demandas"],["comissoes","03-comissoes"],["conta","04-perfil"],
+           ["registrar","05-registro"]
+           ])await capture("celular-360",route,label,360,780);
+          
+           // Conta Admin fictícia e mock API local - nenhuma credencial ou dado real é usado.
+           try{await loginAs(admin);}catch(err){issues.push({issue:"admin-login-error",error:String(err).slice(0,350)});}
+           const adminRoutes=[
+           ["admin/painel","19-admin-painel"],["admin/usuarios","20-admin-usuarios"],
+           ["admin/comissoes","21-admin-comissoes"],["admin/emails","22-admin-emails"],
+           ["admin/configuracoes","23-admin-configuracoes"],["admin/resumo/videos","24-admin-resumo-comissao"]
+           ];
+           for(const [route,label] of adminRoutes)await capture("celular-390",route,label,390);
+           for(const [route,label] of [["admin/painel","07-admin-painel"],["admin/comissoes","08-admin-comissoes"],["admin/usuarios","09-admin-usuarios"]])
+            await capture("tablet-800",route,label,800,1135);
+           for(const [route,label] of [["inicio","01-inicio"],["admin/painel","02-admin-painel"],["admin/comissoes","03-admin-comissoes"]])
+            await capture("desktop-1440",route,label,1440,900);
+          
+           await fs.promises.writeFile(path.join(dir,"metricas.json"),JSON.stringify({generatedAt:new Date().toISOString(),fixture:"isolado, sem banco real",screens:entries,issues,pageErrors:pageErrors.slice(0,60)},null,2));
+           await fs.promises.writeFile(path.join(dir,"LEIA-ME.txt"),"AUDITORIA VISUAL DE LAYOUT - PET GESTAO\n"+
+           "Capturas de Chrome/Playwright com API simulada, NÃO do APK, exceto testes separados de emulador.\n"+
+           "Dados ficticios: todas as comissoes, demandas e pessoas aqui sao de teste local.\n"+
+           "Os arquivos PNG contem paginas completas com rolagem, para comparacao entre resolucoes.\n"+
+           "Temas cobertos: inicio, demandas, atividades, criacao, comissoes, atas, pendencias, perfil, ajuda, autenticacao e admin.\n");
+           console.log("TOTAL "+entries.length+" screenshots "+issues.length+" issues");
+          }catch(err){console.log("CRITICAL "+String(err));}
+          finally{await browser.close();server.kill();}
+          
+          JS_AUDIT
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path('scripts/test-browser.mjs').read_text(encoding='utf8')
+          anchor='try{\n await page.goto(origin+"/#/demandas"'
+          assert anchor in base, "Não foi possível recuperar fixture isolada"
+          prefix=base.split(anchor,1)[0]
+          tail=Path('/tmp/pet-audit-tail.mjs').read_text(encoding='utf8')
+          Path('scripts/.layout-audit-run.mjs').write_text(prefix+tail,encoding='utf8')
+          PY
+          node --check scripts/.layout-audit-run.mjs
+      - name: Capturar telas em celular, tablet e desktop
+        run: node scripts/.layout-audit-run.mjs
+      - name: Guardar imagens e métricas da auditoria
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PET-Gestao-Layout-Auditoria
+          path: layout-review-output/
+          retention-days: 7
+          if-no-files-found: warn
