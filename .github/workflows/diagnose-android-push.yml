@@ -1,0 +1,76 @@
+name: PET Gestão — diagnóstico de entrega Android
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-android-push.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preparar acesso somente para consulta
+        run: |
+          npm install -g wrangler@4
+          node scripts/prepare-deploy.mjs
+      - name: Conferir Firebase no Worker ativo
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const api=fs.readFileSync('api-url.txt','utf8').trim();
+          const res=await fetch(api+'/api/v1/health',{signal:AbortSignal.timeout(15000)});
+          if(!res.ok)throw Error('Worker não responde ao health: '+res.status);
+          const body=await res.json();
+          console.log(JSON.stringify({ok:body.ok,database:body.database,pushConfigured:body.pushConfigured}));
+          JS
+      - name: Conferir vínculo entre conta pessoal, preferências e aparelho sem identificar pessoas
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT CASE WHEN COALESCE(u.role_override,u.role)='admin' THEN 'admin' ELSE 'demais-contas' END AS grupo,
+             COUNT(*) AS total_contas,
+             SUM(CASE WHEN np.email_enabled=1 THEN 1 ELSE 0 END) AS contas_com_email_de_criacao,
+             SUM(CASE WHEN np.android_enabled=1 THEN 1 ELSE 0 END) AS contas_com_celular_ativado,
+             SUM(CASE WHEN np.pc_enabled=1 THEN 1 ELSE 0 END) AS contas_com_pc_ativado,
+             SUM(CASE WHEN d.total IS NOT NULL THEN 1 ELSE 0 END) AS contas_com_dispositivo_nativo,
+             SUM(CASE WHEN np.android_enabled=1 AND d.total IS NOT NULL THEN 1 ELSE 0 END) AS contas_aptas_a_receber_android
+            FROM users u
+            LEFT JOIN notification_preferences np ON np.user_id=u.id AND np.kind='create'
+            LEFT JOIN (SELECT user_id,COUNT(*) AS total FROM push_devices GROUP BY user_id) d ON d.user_id=u.id
+            GROUP BY grupo ORDER BY grupo;"
+      - name: Conferir se os destinatários das demandas recentes têm token Android
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            WITH recent AS (SELECT * FROM tasks WHERE datetime(created_at)>=datetime('now','-8 hours')),
+             assignments AS (
+              SELECT t.id AS task_id,CAST(j.value AS TEXT) AS user_id FROM recent t,json_each(t.assignee_ids) j
+              UNION
+              SELECT t.id,cm.user_id FROM recent t JOIN json_each(t.commission_ids) j
+               JOIN commission_members cm ON cm.commission_id=CAST(j.value AS TEXT)
+             ), candidate AS (
+              SELECT r.id AS task_id,
+               MAX(CASE WHEN np.email_enabled=1 THEN 1 ELSE 0 END) AS email_ativado,
+               MAX(CASE WHEN np.android_enabled=1 THEN 1 ELSE 0 END) AS android_ativado,
+               MAX(CASE WHEN np.android_enabled=1 AND pd.user_id IS NOT NULL THEN 1 ELSE 0 END) AS android_com_dispositivo
+              FROM recent r LEFT JOIN assignments a ON a.task_id=r.id
+               LEFT JOIN notification_preferences np ON np.user_id=a.user_id AND np.kind='create'
+               LEFT JOIN (SELECT DISTINCT user_id FROM push_devices) pd ON pd.user_id=a.user_id
+              GROUP BY r.id
+             )
+            SELECT COUNT(*) AS demandas,
+             SUM(email_ativado) AS com_algum_email_ativado,
+             SUM(android_ativado) AS com_algum_android_ativado,
+             SUM(android_com_dispositivo) AS com_celular_vinculado_e_ativado FROM candidate;"
+      - name: Quantificar registro e falhas do FCM sem expor tokens
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT (SELECT COUNT(*) FROM push_devices) AS dispositivos_registrados,
+             (SELECT COUNT(*) FROM push_notice_log WHERE datetime(created_at)>=datetime('now','-8 hours')) AS avisos_fcm_registrados,
+             (SELECT COUNT(*) FROM notification_event_log WHERE datetime(created_at)>=datetime('now','-8 hours')) AS eventos_automaticos_claimed;"
