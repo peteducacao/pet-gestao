@@ -1422,7 +1422,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
           ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento recém-salvo:",error.message)}})());
         }
         // O aviso no celular independe da caixa de e-mail e respeita os destinatários atribuídos.
-        await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Nova demanda","cadastrou");
+        await askNotify(db,env,ctx,user,b,fullAfter(t,{id,title:t.title}),"Nova demanda","cadastrou");
         return answer({ok:true,id},201);
       }
       match=path.match(/^\/api\/v1\/tasks\/([^/]+)$/);
@@ -1450,7 +1450,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         }
         if(t.captionText!==old.captionText){
           await markTutorReviewAfterCorrection(db,old,user,stamp);
-          await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Texto para revisão","atualizou o texto para revisão");
+          await askNotify(db,env,ctx,user,b,fullAfter(t,{id:old.id,title:t.title}),"Texto para revisão","atualizou o texto para revisão");
         }
         return answer({ok:true});
       }
@@ -1588,7 +1588,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       }
       if(path==="/api/v1/mail"&&method==="GET"){
         ensure(user,true);
-        const items=(await db.prepare("SELECT id,kind,recipient_emails,subject,body,scheduled_at,status,attempts,error_message,created_at,sent_at FROM email_queue ORDER BY created_at DESC LIMIT 250").all()).results;
+        const items=(await db.prepare("SELECT id,kind,recipient_emails,subject,body,scheduled_at,status,attempts,error_message,created_at,sent_at,task_id AS taskId FROM email_queue ORDER BY created_at DESC LIMIT 250").all()).results;
         return answer({items:items.map(x=>({...x,recipientEmails:asJson(x.recipient_emails,[])}))});
       }
       if(path==="/api/v1/mail"&&method==="POST"){

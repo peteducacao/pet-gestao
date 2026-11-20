@@ -44,6 +44,19 @@ await test("Admin cria demanda e dispara e-mail ao próprio responsável com con
    assert.equal(matching.length,1,"Salvar e enviar precisa gerar exatamente um e-mail para o autor responsável");
    assert.ok(matching[0].recipientEmails.includes(actor.email),"O próprio responsável recebe e-mail se ativou Nova demanda");
    assert.equal(new Set(matching[0].recipientEmails).size,matching[0].recipientEmails.length,"Nenhum destinatário duplicado");
+   assert.equal(matching[0].taskId,tId,"Criação: ID da demanda precisa estar no e-mail e no push");
+   good(await api("/tasks/"+tId,"PUT",{
+     title,assignmentScope:"usuarios",assigneeIds:[actor.id],commissionIds:[],
+     deadlines:[],captionText:"Atualização de revisão para teste isolado",notify:true
+   }));
+   let review=[];
+   for(let attempt=0;attempt<20;attempt++){
+     review=good(await api("/mail")).items.filter(m=>m.kind==="review"&&String(m.body||"").includes(title));
+     if(review.length)break;
+     await new Promise(resolve=>setTimeout(resolve,75));
+   }
+   assert.equal(review.length,1,"A revisão alterada dispara um aviso ao responsável");
+   assert.equal(review[0].taskId,tId,"Revisão: ID correto é obrigatório para push e e-mail");
  }finally{
    good(await api("/tasks/"+tId,"DELETE"));
  }

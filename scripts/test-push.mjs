@@ -8,7 +8,7 @@ const source=await readFile(new URL("../worker/src/push.js",import.meta.url),"ut
 const webPushSource=await readFile(new URL("../worker/src/web-push.js",import.meta.url),"utf8");
 const webPushUrl="data:text/javascript;charset=utf-8,"+encodeURIComponent(webPushSource);
 const moduleUrl="data:text/javascript;charset=utf-8,"+encodeURIComponent(source.replace('from "./web-push.js"','from "'+webPushUrl+'"'));
-const {registerPushDevice,unregisterPushDevice,getPushPreferences,savePushPreferences,sendPushTest}=await import(moduleUrl);
+const {registerPushDevice,unregisterPushDevice,getPushPreferences,savePushPreferences,sendPushTest,pushNotificationToChannels}=await import(moduleUrl);
 
 const user={id:"integrante-local",must_change_password:0};
 const anotherUser={id:"outro-integrante",must_change_password:0};
@@ -21,6 +21,13 @@ const db={
   return {
    bind(...params){
     return {
+     async all(){
+      if(statement.startsWith("SELECT d.user_id,d.token,d.device_id"))
+       return {results:[...devices.values()].filter(d=>params.includes(d.user_id)).map(d=>({
+        ...d,new_demands:1,deadlines:1,overdue:1
+       }))};
+      throw Error("Consulta all inesperada: "+statement);
+     },
      async first(){
       if(statement.startsWith("SELECT device_id,token FROM push_devices")){
        const d=devices.get(params[1]);
@@ -47,6 +54,7 @@ const db={
        return {meta:{changes:1}};
       }
       if(statement.startsWith("INSERT OR IGNORE INTO push_notice_log")){
+       assert.ok(params[2],"ID da demanda é obrigatório; o D1 recusaria um push sem vínculo");
        if(notices.has(params[0]))return {meta:{changes:0}};
        notices.add(params[0]);return {meta:{changes:1}};
       }
@@ -87,8 +95,11 @@ globalThis.fetch=async (url,init)=>{
   assert.equal(init.headers.Authorization,"Bearer token-local-simulado");
   const request=JSON.parse(init.body);
   assert.equal(request.message.token,token);
-  assert.equal(request.message.data.route,"/inicio");
-  assert.equal(request.message.data.kind,"test");
+  if(request.message.data.kind==="test")assert.equal(request.message.data.route,"/inicio");
+  else {
+   assert.ok(["create","review"].includes(request.message.data.kind));
+   assert.equal(request.message.data.route,"/atividade/42af9a2b-8536-4706-a4c8-daa948847b29");
+  }
   return new Response(JSON.stringify({name:"projects/pet-gestao-yfs/messages/local"}),
    {status:200,headers:{"Content-Type":"application/json"}});
  }
@@ -114,6 +125,17 @@ try{
  assert.equal(deliveryRequests,1);
  await assert.rejects(()=>sendPushTest(env,user,{deviceId}),
   /Aguarde dois minutos antes de enviar outro teste/);
+ for(const kind of ["create","review"]){
+  const taskId="42af9a2b-8536-4706-a4c8-daa948847b29";
+  const result=await pushNotificationToChannels(env,{android:[user.id],pc:[]},{
+   title:kind==="create"?"Nova demanda":"Texto para revisão",
+   body:"Demanda com identificador válido",route:"/atividade/"+taskId,
+   taskId,kind
+  },kind+"|"+taskId);
+  assert.deepEqual(result,{android:1,pc:0},"Firebase aceita "+kind+" com ID da demanda");
+ }
+ assert.equal(deliveryRequests,3,"Teste, criação e revisão chegaram ao Firebase fictício");
+
  await savePushPreferences(db,user,{newDemands:false,deadlines:true,overdue:false});
  assert.deepEqual((await getPushPreferences(db,user)).preferences,
   {newDemands:false,deadlines:true,overdue:false});
