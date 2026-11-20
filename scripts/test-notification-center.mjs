@@ -93,7 +93,7 @@ assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,taskId:"
 assert.ok(executed.some(x=>x.sql.startsWith("INSERT INTO personal_reminders")&&x.args[2]==="mine"),"Lembrete vinculado apenas à própria pendência");
 await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,taskId:"other"}),/sua pendência/);
 await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,schedules:[{at:localTime},{at:localTime}]}),/duas vezes/);
-await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,channels:{email:false,android:false,pc:false}}),/pelo menos um canal/);
+await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,channels:{email:false,android:false,pc:false}}),/celular ou o PC/);
 await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,channels:{email:true,android:false,pc:false}}),/celular ou o PC/);
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,channels:{email:true,android:true,pc:false}})).ok,"Uma escolha antiga de email é ignorada e não enviada");
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,recurrence:"daily",schedules:[{time:"09:00"},{time:"18:00"}]})).ok);
