@@ -154,6 +154,17 @@ try{
  await page.locator('#personal-reminder-form input[name="title"]').fill("Estudar para a prova");
  assert.equal(await page.locator('#personal-reminder-form [name="email"]').count(),0,"Alarmes pessoais não permitem e-mail");
  assert.equal(await page.locator('#personal-reminder-form .reminder-auto-card').count(),1,"Exclusão automática no mesmo cartão");
+ await page.setViewportSize({width:360,height:844});
+ const autoGeom=await page.locator(".reminder-auto-card").evaluate(card=>{
+   const tick=card.querySelector('input[type="checkbox"]').getBoundingClientRect();
+   const heading=card.querySelector(".reminder-auto-toggle span").getBoundingClientRect();
+   const box=card.getBoundingClientRect();
+   return {separate:tick.right<=heading.left,visible:tick.left>=box.left&&heading.right<=box.right,
+    width:box.width,scroll:card.scrollWidth,client:card.clientWidth};
+ });
+ assert.ok(autoGeom.separate&&autoGeom.visible&&autoGeom.scroll<=autoGeom.client+1,
+  "Checkbox de exclusão deve ficar alinhado ao texto sem sair da caixa no celular");
+ await page.setViewportSize({width:1420,height:900});
  assert.equal(await page.locator('#personal-reminder-form textarea[name="message"]').inputValue(),"","Mensagem permanece opcional");
  await page.locator('#personal-reminder-form button[type="submit"]').click();
  await page.locator(".reminder-list-row").first().waitFor({timeout:10000});
@@ -504,6 +515,18 @@ try{
  await page.reload({waitUntil:"domcontentloaded"});
  // Seleção múltipla de arquivos locais para guardar na demanda.
  await page.locator("#task-file-input").waitFor({state:"attached",timeout:10000});
+ await page.setViewportSize({width:360,height:844});
+ const photoGeometry=await page.locator(".task-files-section").evaluate(section=>{
+   const outer=section.getBoundingClientRect();
+   const picker=section.querySelector(".task-file-picker").getBoundingClientRect();
+   const help=section.querySelector(".task-file-help").getBoundingClientRect();
+   return {section:outer.width,picker:picker.width,help:help.width,
+    childOverflow:picker.right>outer.right+1||help.right>outer.right+1,
+    pageOverflow:document.documentElement.scrollWidth>innerWidth+1};
+ });
+ assert.ok(!photoGeometry.childOverflow&&!photoGeometry.pageOverflow,
+  "Seletor e instruções de fotos não podem ser cortados no celular");
+ await page.setViewportSize({width:1420,height:900});
  assert.equal(await page.locator("#task-file-input").getAttribute("multiple"),"");
  assert.equal(await page.locator("#task-file-input").getAttribute("accept"),"image/jpeg,image/png,image/webp",
   "Seleção somente dos formatos originais que o servidor preserva");
