@@ -1,5 +1,5 @@
 import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushNotificationToChannels} from "./push.js";
-import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel} from "./notification-center.js";
+import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel,noticeAudience,noticeSendPolicy} from "./notification-center.js";
 import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
 import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
@@ -534,16 +534,16 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
   }
 
   async function askNotify(db,env,ctx,user,payload,task,title,action){
-    if(user.role!=="tutor"&&user.role!=="admin")return;
-    if(!user.notification_enabled||payload.notify!==true)return;
-    const ids=new Set(unique(task.assigneeIds));
-    for(const cId of task.commissionIds){
-      const members=(await db.prepare("SELECT user_id FROM commission_members WHERE commission_id=?").bind(cId).all()).results;
-      members.forEach(m=>ids.add(m.user_id));
-    }
-    ids.delete(user.id);
-    const kind=title==="Nova demanda"?"create":"review",targets=await notificationRecipients(db,[...ids],kind);
-    const emailTargets=targets.email.map(u=>u.email).filter(v=>validEmail(v)&&email(v)!==email(user.email));
+    const kind=title==="Nova demanda"?"create":"review";
+    const policy=noticeSendPolicy(user,kind,payload.notify);
+    if(!policy.email&&!policy.push)return;
+    // Comissões incluem todos os seus integrantes aptos, inclusive quem
+    // cadastrou a demanda e também faz parte da equipe responsável.
+    const memberIds=await noticeAudience(db,task);
+    if(!memberIds.length)return;
+    const targets=await notificationRecipients(db,memberIds,kind);
+    // Preserva o funcionamento anterior do Gmail: quem criou não recebe cópia.
+    const emailTargets=policy.email?targets.email.map(u=>u.email).filter(v=>validEmail(v)&&email(v)!==email(user.email)):[];
     const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
     const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
     const config=configs.notificationTemplates?.[kind]||configs.notificationTemplate||{};
@@ -555,16 +555,21 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       const body=String(config.body||'Olá!\n\n{autor} {acao} na demanda "{demanda}".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação').slice(0,10000);
       await enqueue(db,user.id,kind,emailTargets,subject,substitute(body,mailHasFormatting(body)),now(),task.id);
     }
-    const pushModel=await notificationPushModel(db,kind,values);
+    const pushTargets=policy.push?targets:{android:[],pc:[]};
+    const pushModel=policy.push&& (pushTargets.android.length||pushTargets.pc.length)
+      ?await notificationPushModel(db,kind,values):null;
     ctx.waitUntil((async()=>{
       const jobs=[];
       if(emailTargets.length)jobs.push(processQueue(env,2));
-      if(targets.android.length||targets.pc.length)jobs.push(pushNotificationToChannels(env,targets,{
+      if(pushModel)jobs.push(pushNotificationToChannels(env,pushTargets,{
         ...pushModel,route:"/atividade/"+task.id,taskId:task.id,kind
       },kind+"|"+task.id+"|"+uid()+"|"+action));
-      await Promise.allSettled(jobs);
+      const results=await Promise.allSettled(jobs);
+      for(const result of results)if(result.status==="rejected")
+        console.error("PET Gestão — erro ao avisar responsáveis:",String(result.reason?.message||result.reason).slice(0,150));
     })());
   }
+
   function validateTask(payload,old=null){
     const title=str(payload.title,180);
     if(!title)fail("Informe o título da demanda.");

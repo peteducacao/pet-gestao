@@ -39,6 +39,29 @@ const make=(sql,args=[])=>({
  }
 });
 const db={prepare(sql){return make(sql)},async batch(ops){statements=ops;return Promise.all(ops.map(s=>s.run()))}};
+// Mesma regra de disparo do e-mail: apenas tutor ou Admin com confirmação.
+for(const role of ["petiano","usuario"]){
+ for(const kind of ["create","review"]){
+  assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},kind,true),
+   {email:false,push:false},"PETiano(a) não dispara avisos ao criar ou revisar");
+ }
+}
+for(const role of ["tutor","admin"]){
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},"create",true),
+  {email:true,push:true},"Tutor/Admin dispara ambos os canais ao confirmar");
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},"create",false),
+  {email:false,push:false},"Recusar aviso bloqueia ambos os canais");
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:false},"create",true),
+  {email:false,push:false},"Permissão de enviar desativada bloqueia ambos os canais");
+}
+const audienceDb={prepare(sql){
+ assert.ok(sql.includes("FROM commission_members"),"Busca integrantes das comissões selecionadas");
+ return {bind(id){return {async all(){return {results:id==="videos"?
+  [{user_id:"a"},{user_id:"b"}]:[{user_id:"b"}]}}}}};
+}};
+const audience=await api.noticeAudience(audienceDb,
+ {assigneeIds:["a"],commissionIds:["videos","textos"]});
+assert.deepEqual(audience,["a","b"],"Autor que faz parte da comissão também recebe; não duplica");
 const defaults=await api.preferencesForUser(db,"a");
 assert.equal(Object.keys(defaults).length,6);
 assert.deepEqual(defaults.create,{email:false,android:false,pc:false},"Sem escolha explícita, todos os canais começam desligados");
@@ -52,6 +75,33 @@ assert.deepEqual(await api.preferencesForUser(db,"a"),choices);
 const unsaved=await api.notificationRecipients(db,["b","v"],"create");
 assert.equal(unsaved.email.length+unsaved.android.length+unsaved.pc.length,0,"Pessoa sem preferências salvas não recebe avisos");
 await api.saveNotificationPreferences(db,{id:"b"},Object.fromEntries(kinds.map(kind=>[kind,{email:true,android:false,pc:true}])));
+// Regressão: a pessoa que cria a demanda e também participa da comissão é destinatária.
+const commissionDb={prepare(sql){
+ assert.match(sql,/FROM commission_members WHERE commission_id=/);
+ return {bind(id){return {async all(){
+  return {results:id==="videos"?[{user_id:"a"},{user_id:"b"}]:[]};
+ }}}};
+}};
+const commissionAudience=await api.noticeAudience(commissionDb,{
+ assigneeIds:[],commissionIds:["videos"]
+});
+assert.deepEqual(commissionAudience,["a","b"],"Comissão inclui a própria pessoa que criou a demanda");
+const mixedAudience=await api.noticeAudience(commissionDb,{
+ assigneeIds:["a"],commissionIds:["videos"]
+});
+assert.deepEqual(mixedAudience,["a","b"],"Uma pessoa vinculada duas vezes recebe um único aviso");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"petiano",notification_enabled:0},"create",false),
+ {email:false,push:false},"PETiano não dispara e-mail nem push ao criar demanda");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"tutor",notification_enabled:1},"create",true),
+ {email:true,push:true},"Tutor que escolhe enviar avisa por ambos os canais");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"tutor",notification_enabled:1},"create",false),
+ {email:false,push:false},"Tutor que recusa o envio não dispara nenhum aviso");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"petiano",notification_enabled:0},"review",false),
+ {email:false,push:false},"Atualização sem solicitação não dispara revisão");
+const memberTargets=await api.notificationRecipients(db,commissionAudience,"create");
+assert.deepEqual(memberTargets.android.map(x=>x.id),["a"],"Criador da comissão com Celular ativado recebe push Android");
+assert.deepEqual(memberTargets.pc.map(x=>x.id),["b"],"Outros membros recebem PC quando ativado");
+
 const targets=await api.notificationRecipients(db,["a","b","v"],"create");
 assert.deepEqual(targets.email.map(x=>x.id),["b"],"Pessoa com e-mail desativado não o recebe");
 assert.deepEqual(targets.android.map(x=>x.id),["a"],"Android segue habilitado apesar do e-mail off");
