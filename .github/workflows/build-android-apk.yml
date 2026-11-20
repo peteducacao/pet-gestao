@@ -25,16 +25,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Instalar SDK Android
-        uses: android-actions/setup-android@v3
-
       - name: Instalar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
 
       - name: Instalar plataforma Android
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER" || { echo "Android SDK não encontrado"; exit 1; }
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Compilar APK de instalação
         working-directory: android-app
