@@ -120,19 +120,24 @@ async function notifyMany(env,userIds,message,preference,dedupeForUser=null,chan
  if(channel==="pc"||!fcmConfiguration(env))return totals;
  const db=env.DB,devices=await devicesFor(db,userIds,preference);
  for(const device of devices){
+   let key=null;
    try{
     if(dedupeForUser){
-      // Registro por aparelho: várias contas e vários aparelhos não duplicam no mesmo dispositivo.
-      const key=dedupeForUser+"|"+device.device_id;
+      // Uma chave por dispositivo e horário; reter somente se o FCM aceitou.
+      key=dedupeForUser+"|"+device.device_id;
       const claim=await db.prepare("INSERT OR IGNORE INTO push_notice_log(dedupe_key,device_id,task_id,kind,created_at) VALUES(?,?,?,?,?)")
         .bind(key,device.device_id,message.taskId,message.kind,now()).run();
       if(!claim.meta?.changes)continue;
     }
     const result=await deliver(env,device.token,message);
     if(result.status==="sent")totals.android++;
-    if(result.status==="invalid")
-      await db.prepare("DELETE FROM push_devices WHERE device_id=? AND token=?").bind(device.device_id,device.token).run();
+    else {
+      if(key)await db.prepare("DELETE FROM push_notice_log WHERE dedupe_key=?").bind(key).run();
+      if(result.status==="invalid")
+        await db.prepare("DELETE FROM push_devices WHERE device_id=? AND token=?").bind(device.device_id,device.token).run();
+    }
    }catch(err){
+    if(key)await db.prepare("DELETE FROM push_notice_log WHERE dedupe_key=?").bind(key).run().catch(()=>{});
     console.error("PET Gestão — falha no envio push:",String(err?.message||err).slice(0,160));
    }
  }
