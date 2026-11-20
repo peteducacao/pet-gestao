@@ -32,6 +32,26 @@ export async function saveNotificationPreferences(db,user,payload){
  await db.batch(commands);
  return {preferences:await preferencesForUser(db,user.id)};
 }
+// Incluir o criador apenas quando ele também é responsável (individual ou comissão).
+// Não remover a pessoa por ter sido a autora do cadastro.
+export async function noticeAudience(db,task){
+ const ids=new Set(unique(task?.assigneeIds));
+ for(const commissionId of unique(task?.commissionIds)){
+  const members=(await db.prepare("SELECT user_id FROM commission_members WHERE commission_id=?").bind(commissionId).all()).results;
+  members.forEach(member=>{if(member.user_id)ids.add(String(member.user_id));});
+ }
+ return [...ids];
+}
+export function noticeSendPolicy(actor,kind,notify){
+ const hasPrompt=["tutor","admin"].includes(actor?.role)&&Boolean(actor?.notification_enabled);
+ const approved=hasPrompt&&notify===true;
+ return {
+  email:approved,
+  // PETianos não veem a pergunta. Para eles, os pushes novos já consentidos
+  // na conta são automáticos. Se houve pergunta e a pessoa recusou, não enviar.
+  push:approved||(kind==="create"&&!hasPrompt)
+ };
+}
 export async function notificationRecipients(db,rawIds,kind){
  if(!NOTICE_KINDS.includes(kind))fail("Tipo de aviso inválido.");
  const ids=unique(rawIds);
