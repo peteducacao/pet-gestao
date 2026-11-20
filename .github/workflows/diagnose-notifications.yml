@@ -54,5 +54,45 @@ jobs:
                    (SELECT COUNT(*) FROM web_push_subscriptions) AS pc_conectados;"
       - name: Verificar autenticação da ponte Gmail
         run: node scripts/check-mail-bridge.mjs
-      - name: Enviar um único e-mail de teste à conta administrativa
-        run: node scripts/test-mail-once.mjs
+      - name: Conferir associação dos avisos às demandas sem revelar nomes
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT (SELECT COUNT(*) FROM users) AS contas,
+                   (SELECT COUNT(*) FROM tasks) AS demandas,
+                   (SELECT COUNT(*) FROM tasks WHERE datetime(created_at)>=datetime('now','6 hours')) AS futuras,
+                   (SELECT COUNT(*) FROM tasks WHERE datetime(created_at)>=datetime('now','-6 hours')) AS demandas_recentes,
+                   (SELECT COUNT(*) FROM email_queue) AS emails_no_historico;"
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT CASE WHEN COALESCE(u.role_override,u.role)='usuario' THEN 'usuario'
+                        ELSE COALESCE(u.role_override,u.role) END AS cargo,
+                   COUNT(*) AS contas_com_preferencia
+            FROM notification_preferences np JOIN users u ON u.id=np.user_id
+            WHERE np.kind='create' GROUP BY cargo;"
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            WITH recent AS (
+              SELECT * FROM tasks WHERE datetime(created_at)>=datetime('now','-6 hours')
+            ), members AS (
+              SELECT t.id AS task_id, CAST(j.value AS TEXT) AS user_id
+              FROM recent t, json_each(t.assignee_ids) j
+              UNION
+              SELECT t.id, cm.user_id FROM recent t
+              JOIN json_each(t.commission_ids) j
+              JOIN commission_members cm ON cm.commission_id=CAST(j.value AS TEXT)
+            ), per_task AS (
+              SELECT t.id,
+                SUM(CASE WHEN np.email_enabled=1 THEN 1 ELSE 0 END) AS email_destinos,
+                SUM(CASE WHEN np.android_enabled=1 THEN 1 ELSE 0 END) AS android_destinos,
+                SUM(CASE WHEN np.pc_enabled=1 THEN 1 ELSE 0 END) AS pc_destinos,
+                COUNT(m.user_id) AS membros
+              FROM recent t LEFT JOIN members m ON m.task_id=t.id
+              LEFT JOIN notification_preferences np ON np.user_id=m.user_id AND np.kind='create'
+              GROUP BY t.id
+            )
+            SELECT COUNT(*) AS demandas_recentes,
+              SUM(CASE WHEN membros>0 THEN 1 ELSE 0 END) AS com_responsaveis,
+              SUM(CASE WHEN email_destinos>0 THEN 1 ELSE 0 END) AS com_email_ativado_no_destinatario,
+              SUM(CASE WHEN android_destinos>0 THEN 1 ELSE 0 END) AS com_android_ativado_no_destinatario,
+              SUM(CASE WHEN pc_destinos>0 THEN 1 ELSE 0 END) AS com_pc_ativado_no_destinatario
+            FROM per_task;"
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT kind,status,COUNT(*) AS quantidade FROM email_queue GROUP BY kind,status ORDER BY kind,status;"
