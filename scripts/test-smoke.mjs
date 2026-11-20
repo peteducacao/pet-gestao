@@ -27,48 +27,95 @@ await test("avisos começam desligados e só ativam após Salvar todas",async()=
  good(await api("/notification-preferences","PUT",enabled));
  assert.deepEqual(good(await api("/notification-preferences")).preferences,enabled);
 });
-await test("Admin cria demanda e dispara e-mail ao próprio responsável com confirmação",async()=>{
- const actor=good(await api("/auth/me")).user;
- const title="Regressao de aviso criacao "+crypto.randomUUID().slice(0,8);
- const tId=good(await api("/tasks","POST",{
-   title,assignmentScope:"usuarios",assigneeIds:[actor.id],commissionIds:[],
-   deadlines:[],notify:true
- }),201).id;
- try{
-   let matching=[];
-   for(let attempt=0;attempt<20;attempt++){
-     matching=good(await api("/mail")).items.filter(m=>m.kind==="create"&&String(m.body||"").includes(title));
-     if(matching.length)break;
-     await new Promise(resolve=>setTimeout(resolve,75));
-   }
-   assert.equal(matching.length,1,"Salvar e enviar precisa gerar exatamente um e-mail para o autor responsável");
-   assert.ok(matching[0].recipientEmails.includes(actor.email),"O próprio responsável recebe e-mail se ativou Nova demanda");
-   assert.equal(new Set(matching[0].recipientEmails).size,matching[0].recipientEmails.length,"Nenhum destinatário duplicado");
-   assert.equal(matching[0].taskId,tId,"Criação: ID da demanda precisa estar no e-mail e no push");
-   good(await api("/tasks/"+tId,"PUT",{
-     title,assignmentScope:"usuarios",assigneeIds:[actor.id],commissionIds:[],
-     deadlines:[],captionText:"Atualização de revisão para teste isolado",notify:true
-   }));
-   let review=[];
-   for(let attempt=0;attempt<20;attempt++){
-     review=good(await api("/mail")).items.filter(m=>m.kind==="review"&&String(m.body||"").includes(title));
-     if(review.length)break;
-     await new Promise(resolve=>setTimeout(resolve,75));
-   }
-   assert.equal(review.length,1,"A revisão alterada dispara um aviso ao responsável");
-   assert.equal(review[0].taskId,tId,"Revisão: ID correto é obrigatório para push e e-mail");
- }finally{
-   good(await api("/tasks/"+tId,"DELETE"));
+await test("autor não recebe e-mail sobre própria criação/revisão; demais responsáveis recebem",async()=>{
+ const adminToken=token,actor=good(await api("/auth/me")).user;
+ const recipientEmail="teste-aviso-"+crypto.randomUUID().slice(0,8)+"@pet.local";
+ const recipientPassword="SenhaTesteAviso123!";
+ let recipientId="";
+ const createdTasks=[];
+ const messagesByTitle=(title,kind)=>goodPromise(title,kind);
+ async function goodPromise(title,kind){
+  let found=[];
+  for(let attempt=0;attempt<20;attempt++){
+   found=good(await api("/mail")).items.filter(m=>m.kind===kind&&String(m.body||"").includes(title));
+   if(found.length)break;
+   await new Promise(resolve=>setTimeout(resolve,75));
+  }
+  return found;
  }
- const muted="Regressao sem enviar "+crypto.randomUUID().slice(0,8);
- const silentId=good(await api("/tasks","POST",{title:muted,assignmentScope:"usuarios",
-  assigneeIds:[actor.id],commissionIds:[],deadlines:[],notify:false}),201).id;
  try{
-   await new Promise(resolve=>setTimeout(resolve,160));
-   assert.equal(good(await api("/mail")).items.filter(m=>m.kind==="create"&&String(m.body||"").includes(muted)).length,0,
-    "Salvar sem enviar não deve enfileirar mensagem");
+  good(await api("/auth/register","POST",{
+   name:"Destinatario de teste",email:recipientEmail,password:recipientPassword
+  }),201);
+  const receiver=good(await api("/admin/users")).users.find(u=>u.email===recipientEmail);
+  assert.ok(receiver?.id,"Conta temporária de teste deve existir");
+  recipientId=receiver.id;
+  good(await api("/admin/users/"+recipientId,"PATCH",{role:"petiano"}));
+  token=good(await api("/auth/login","POST",{
+   email:recipientEmail,password:recipientPassword
+  })).token;
+  const settings=good(await api("/notification-preferences")).preferences;
+  for(const kind of ["create","review"])settings[kind]={...settings[kind],email:true};
+  good(await api("/notification-preferences","PUT",settings));
+  token=adminToken;
+
+  const soloTitle="Aviso sem auto-email "+crypto.randomUUID().slice(0,8);
+  const soloId=good(await api("/tasks","POST",{
+   title:soloTitle,assignmentScope:"usuarios",assigneeIds:[actor.id],
+   commissionIds:[],deadlines:[],notify:true
+  }),201).id;
+  createdTasks.push(soloId);
+  await new Promise(resolve=>setTimeout(resolve,150));
+  assert.equal((await messagesByTitle(soloTitle,"create")).length,0,
+   "Criar demanda só para si não pode gerar e-mail ao autor");
+  good(await api("/tasks/"+soloId,"PUT",{
+   title:soloTitle,assignmentScope:"usuarios",assigneeIds:[actor.id],
+   commissionIds:[],deadlines:[],captionText:"Revisão sem auto-email",notify:true
+  }));
+  assert.equal((await messagesByTitle(soloTitle,"review")).length,0,
+   "Atualizar própria revisão não pode gerar e-mail ao autor");
+
+  const title="Aviso outros participantes "+crypto.randomUUID().slice(0,8);
+  const tId=good(await api("/tasks","POST",{
+   title,assignmentScope:"usuarios",assigneeIds:[actor.id,recipientId],
+   commissionIds:[],deadlines:[],notify:true
+  }),201).id;
+  createdTasks.push(tId);
+  const matching=await messagesByTitle(title,"create");
+  assert.equal(matching.length,1,"Criação deve gerar um e-mail para os outros responsáveis");
+  assert.deepEqual(matching[0].recipientEmails,[recipientEmail],
+   "Autor não recebe, outro responsável opt-in recebe sem duplicação");
+  assert.equal(matching[0].taskId,tId,"Criação mantém ID correto da demanda");
+  good(await api("/tasks/"+tId,"PUT",{
+   title,assignmentScope:"usuarios",assigneeIds:[actor.id,recipientId],
+   commissionIds:[],deadlines:[],captionText:"Atualização de revisão para teste",notify:true
+  }));
+  const review=await messagesByTitle(title,"review");
+  assert.equal(review.length,1,"Revisão deve avisar os outros responsáveis");
+  assert.deepEqual(review[0].recipientEmails,[recipientEmail],
+   "Revisão não envia e-mail ao próprio autor");
+  assert.equal(review[0].taskId,tId,"Revisão mantém ID correto da demanda");
+
+  const muted="Regressao sem enviar "+crypto.randomUUID().slice(0,8);
+  const silentId=good(await api("/tasks","POST",{
+   title:muted,assignmentScope:"usuarios",assigneeIds:[actor.id,recipientId],
+   commissionIds:[],deadlines:[],notify:false
+  }),201).id;
+  createdTasks.push(silentId);
+  assert.equal((await messagesByTitle(muted,"create")).length,0,
+   "Salvar sem enviar não pode gerar e-mail para ninguém");
  }finally{
-   good(await api("/tasks/"+silentId,"DELETE"));
+  token=adminToken;
+  for(const taskId of createdTasks)good(await api("/tasks/"+taskId,"DELETE"));
+  if(recipientId){
+   token=good(await api("/auth/login","POST",{
+    email:recipientEmail,password:recipientPassword
+   })).token;
+   good(await api("/account","DELETE",{
+    password:recipientPassword,confirmation:"EXCLUIR MINHA CONTA"
+   }));
+  }
+  token=adminToken;
  }
 });
 await test("cenários fictícios removidos, preservando as dez comissões reais",async()=>{
