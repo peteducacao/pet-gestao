@@ -52,6 +52,33 @@ assert.deepEqual(await api.preferencesForUser(db,"a"),choices);
 const unsaved=await api.notificationRecipients(db,["b","v"],"create");
 assert.equal(unsaved.email.length+unsaved.android.length+unsaved.pc.length,0,"Pessoa sem preferências salvas não recebe avisos");
 await api.saveNotificationPreferences(db,{id:"b"},Object.fromEntries(kinds.map(kind=>[kind,{email:true,android:false,pc:true}])));
+// Regressão: a pessoa que cria a demanda e também participa da comissão é destinatária.
+const commissionDb={prepare(sql){
+ assert.match(sql,/FROM commission_members WHERE commission_id=/);
+ return {bind(id){return {async all(){
+  return {results:id==="videos"?[{user_id:"a"},{user_id:"b"}]:[]};
+ }}}};
+}};
+const commissionAudience=await api.noticeAudience(commissionDb,{
+ assigneeIds:[],commissionIds:["videos"]
+});
+assert.deepEqual(commissionAudience,["a","b"],"Comissão inclui a própria pessoa que criou a demanda");
+const mixedAudience=await api.noticeAudience(commissionDb,{
+ assigneeIds:["a"],commissionIds:["videos"]
+});
+assert.deepEqual(mixedAudience,["a","b"],"Uma pessoa vinculada duas vezes recebe um único aviso");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"petiano",notification_enabled:0},"create",false),
+ {email:false,push:true},"PETiano sem pergunta recebe push se ativou suas preferências");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"tutor",notification_enabled:1},"create",true),
+ {email:true,push:true},"Tutor que escolhe enviar avisa por ambos os canais");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"tutor",notification_enabled:1},"create",false),
+ {email:false,push:false},"Tutor que recusa o envio não dispara nenhum aviso");
+assert.deepEqual(api.noticeSendPolicy({id:"a",role:"petiano",notification_enabled:0},"review",false),
+ {email:false,push:false},"Atualização sem solicitação não dispara revisão");
+const memberTargets=await api.notificationRecipients(db,commissionAudience,"create");
+assert.deepEqual(memberTargets.android.map(x=>x.id),["a"],"Criador da comissão com Celular ativado recebe push Android");
+assert.deepEqual(memberTargets.pc.map(x=>x.id),["b"],"Outros membros recebem PC quando ativado");
+
 const targets=await api.notificationRecipients(db,["a","b","v"],"create");
 assert.deepEqual(targets.email.map(x=>x.id),["b"],"Pessoa com e-mail desativado não o recebe");
 assert.deepEqual(targets.android.map(x=>x.id),["a"],"Android segue habilitado apesar do e-mail off");
