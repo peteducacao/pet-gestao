@@ -1,4 +1,6 @@
-import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushTaskCreated,pushDeadlineReminders} from "./push.js";
+import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushNotificationToChannels} from "./push.js";
+import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel} from "./notification-center.js";
+import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
 "use strict";
 
@@ -494,18 +496,29 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       const members=(await db.prepare("SELECT user_id FROM commission_members WHERE commission_id=?").bind(cId).all()).results;
       members.forEach(m=>ids.add(m.user_id));
     }
-    const recipients=await recipientEmails(db,{userIds:[...ids]},user.email);
-    if(!recipients.length)return;
+    ids.delete(user.id);
+    const kind=title==="Nova demanda"?"create":"review",targets=await notificationRecipients(db,[...ids],kind);
+    const emailTargets=targets.email.map(u=>u.email).filter(v=>validEmail(v)&&email(v)!==email(user.email));
     const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
     const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
-    const kind=title==="Nova demanda"?"create":"review";
     const config=configs.notificationTemplates?.[kind]||configs.notificationTemplate||{};
-    const subjectTemplate=str(config.subject||"PET Gestão — {tipo}",200);
-    const bodyTemplate=String(config.body||"Olá!\n\n{autor} {acao} na demanda \"{demanda}\".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação").slice(0,10000);
-    const values={autor:user.name,acao:action,demanda:task.title,tipo:title};
-    const merge=(tpl,html=false)=>tpl.replace(/\{(autor|acao|demanda|tipo)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
-    await enqueue(db,user.id,"automatica",recipients,merge(subjectTemplate),merge(bodyTemplate,mailHasFormatting(bodyTemplate)),now(),task.id);
-    ctx.waitUntil(processQueue(env,2));
+    const values={autor:user.name,acao:action,demanda:task.title,tipo:title,etapa:"",prazo:"",dias:"",
+      link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
+    const substitute=(tpl,html=false)=>String(tpl||"").replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
+    if(emailTargets.length){
+      const subject=substitute(str(config.subject||"PET Gestão — {tipo}",200));
+      const body=String(config.body||'Olá!\n\n{autor} {acao} na demanda "{demanda}".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação').slice(0,10000);
+      await enqueue(db,user.id,kind,emailTargets,subject,substitute(body,mailHasFormatting(body)),now(),task.id);
+    }
+    const pushModel=await notificationPushModel(db,kind,values);
+    ctx.waitUntil((async()=>{
+      const jobs=[];
+      if(emailTargets.length)jobs.push(processQueue(env,2));
+      if(targets.android.length||targets.pc.length)jobs.push(pushNotificationToChannels(env,targets,{
+        ...pushModel,route:"/atividade/"+task.id,taskId:task.id,kind
+      },kind+"|"+task.id+"|"+task.version+"|"+action));
+      await Promise.allSettled(jobs);
+    })());
   }
   function validateTask(payload,old=null){
     const title=str(payload.title,180);
@@ -651,6 +664,26 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         requireLogin(user);
         if(user.must_change_password)fail("Altere a senha temporária antes de testar notificações.",403);
         return answer(await webPushTest(env,user,await body(req)));
+      }
+      if(path==="/api/v1/notification-preferences"&&method==="GET"){
+        requireLogin(user);return answer({preferences:await preferencesForUser(db,user.id)});
+      }
+      if(path==="/api/v1/notification-preferences"&&method==="PUT"){
+        requireLogin(user);if(user.must_change_password)fail("Atualize sua senha primeiro.",403);
+        return answer(await saveNotificationPreferences(db,user,await body(req)));
+      }
+      if(path==="/api/v1/personal-reminders"&&method==="GET"){
+        ensure(user);return answer(await listPersonalReminders(db,user));
+      }
+      if(path==="/api/v1/personal-reminders"&&method==="POST"){
+        ensure(user);return answer(await savePersonalReminder(db,user,await body(req)),201);
+      }
+      let personalRoute=path.match(/^\/api\/v1\/personal-reminders\/([^/]+)$/);
+      if(personalRoute&&method==="PUT"){
+        ensure(user);return answer(await savePersonalReminder(db,user,await body(req),personalRoute[1]));
+      }
+      if(personalRoute&&method==="DELETE"){
+        ensure(user);return answer(await deletePersonalReminder(db,user,personalRoute[1]));
       }
       if(path==="/api/v1/bootstrap"&&method==="GET"){
         // Corrige também eventos antigos já salvos com a data vencida,
@@ -1063,6 +1096,16 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       }
       if(path==="/api/v1/admin/notification-template"&&method==="PUT"){
         ensure(user,true);const b=await body(req);
+        if(b.channel==="app"){
+          if(!NOTICE_KINDS.includes(b.kind))fail("Tipo de aviso inválido.");
+          const title=str(b.title,90),message=str(b.message,220);
+          if(!title||!message)fail("Informe título e mensagem da notificação.");
+          const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationPushTemplates'").first();
+          const models=asJson(saved?.value,{});
+          models[b.kind]={title,body:message};
+          await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationPushTemplates',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(models)).run();
+          return answer({ok:true});
+        }
         const subject=str(b.subject,200),message=String(b.message??"").trim().slice(0,10000);
         if(!subject||!message)fail("Informe assunto e mensagem do modelo.");
         if(b.kind===undefined){
@@ -1327,8 +1370,6 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
           ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento recém-salvo:",error.message)}})());
         }
         // O aviso no celular independe da caixa de e-mail e respeita os destinatários atribuídos.
-        ctx.waitUntil(pushTaskCreated(env,id,user.id).catch(error=>
-          console.error("PET Gestão — push de nova demanda indisponível:",String(error?.message||error).slice(0,150))));
         await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Nova demanda","cadastrou");
         return answer({ok:true,id},201);
       }
@@ -1552,4 +1593,4 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
-export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await pushDeadlineReminders(env).catch(error=>console.error("PET Gestão — push de prazos indisponível:",String(error?.message||error).slice(0,150)));await processQueue(env,15)})())};
+export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await processQueue(env,15);await processPersonalReminders(env,(emails,subject,message)=>authorizedMail(env,emails,subject,message))})())};
