@@ -1,3 +1,4 @@
+import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,pushTaskCreated,pushDeadlineReminders} from "./push.js";
 "use strict";
 
   "use strict";
@@ -607,6 +608,20 @@
       await seedAdmin(db,env);
       diagnosticStage="session";
       const user=await currentUser(req,db);
+      // Notificações nativas Android — somente aparelhos da conta autenticada.
+      // Um navegador sem Firebase pode definir preferências, mas não registrar tokens fictícios.
+      if(path==="/api/v1/push/preferences"&&method==="GET"){
+        requireLogin(user);return answer(await getPushPreferences(db,user));
+      }
+      if(path==="/api/v1/push/preferences"&&method==="PUT"){
+        requireLogin(user);return answer(await savePushPreferences(db,user,await body(req)));
+      }
+      if(path==="/api/v1/push/register"&&method==="POST"){
+        requireLogin(user);return answer(await registerPushDevice(db,user,await body(req)));
+      }
+      if(path==="/api/v1/push/unregister"&&method==="POST"){
+        requireLogin(user);return answer(await unregisterPushDevice(db,user,await body(req)));
+      }
       if(path==="/api/v1/bootstrap"&&method==="GET"){
         // Corrige também eventos antigos já salvos com a data vencida,
         // mesmo se o agendador ainda não tiver executado.
@@ -1281,6 +1296,9 @@
           await autoCompleteCollectiveEvents(env,id);
           ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento recém-salvo:",error.message)}})());
         }
+        // O aviso no celular independe da caixa de e-mail e respeita os destinatários atribuídos.
+        ctx.waitUntil(pushTaskCreated(env,id,user.id).catch(error=>
+          console.error("PET Gestão — push de nova demanda indisponível:",String(error?.message||error).slice(0,150))));
         await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Nova demanda","cadastrou");
         return answer({ok:true,id},201);
       }
@@ -1504,4 +1522,4 @@
       return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
-export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await processQueue(env,15)})())};
+export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await processQueue(env,15);await pushDeadlineReminders(env).catch(error=>console.error("PET Gestão — push de prazos indisponível:",String(error?.message||error).slice(0,150)))})())};
