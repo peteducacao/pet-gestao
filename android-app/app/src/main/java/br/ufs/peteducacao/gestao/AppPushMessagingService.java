@@ -28,7 +28,7 @@ public class AppPushMessagingService extends FirebaseMessagingService {
         if (body == null) body = "Você tem uma atualização.";
         if (title.length() > 90) title = title.substring(0, 90);
         if (body.length() > 220) body = body.substring(0, 220);
-        if (route == null || !route.matches("^/atividade/[A-Za-z0-9-]{1,100}$")) route = null;
+        if (route == null || !route.matches("^(/inicio|/atividade/[A-Za-z0-9-]{1,100})$")) route = null;
 
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP |

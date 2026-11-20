@@ -84,6 +84,8 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 trustedPageReady = isTrustedSite(url);
                 publishPushToken();
+                // A WebView pode terminar de carregar antes do script defer da interface.
+                view.postDelayed(() -> publishPushToken(), 900);
             }
 
             @Override
@@ -224,7 +226,7 @@ public class MainActivity extends Activity {
     }
 
     private static String safePushRoute(String route) {
-        if (route == null || !route.matches("^/atividade/[A-Za-z0-9-]{1,100}$"))
+        if (route == null || !route.matches("^(/inicio|/atividade/[A-Za-z0-9-]{1,100})$"))
             return null;
         return route;
     }

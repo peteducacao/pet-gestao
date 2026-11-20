@@ -4439,3 +4439,10 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 #screen .account-push-options input{accent-color:#7443c8;width:22px;height:22px;flex:0 0 22px}
 #screen .account-push-save{min-height:48px;padding:11px 17px;border-radius:12px}
 @media(max-width:680px){#screen .account-push-panel{padding:16px;margin:15px 0 20px}#screen .account-push-icon{width:43px;height:43px;flex-basis:43px}#screen .account-push-heading h3{font-size:18px}#screen .account-push-save{width:100%}}
+
+
+/* Meu perfil — ação de teste nativo em proporção confortável no celular. */
+#screen .account-push-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch}
+#screen .account-push-actions .button{min-height:48px;min-width:0;flex:1 1 220px;padding:10px 14px;line-height:1.4}
+#screen .account-push-actions .account-push-test:disabled{opacity:.56;cursor:not-allowed}
+@media(max-width:680px){#screen .account-push-actions{flex-direction:column}#screen .account-push-actions .button{width:100%;flex:0 0 auto}}

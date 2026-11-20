@@ -1,4 +1,4 @@
-import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,pushTaskCreated,pushDeadlineReminders} from "./push.js";
+import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushTaskCreated,pushDeadlineReminders} from "./push.js";
 "use strict";
 
   "use strict";
@@ -621,6 +621,11 @@ import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPush
       }
       if(path==="/api/v1/push/unregister"&&method==="POST"){
         requireLogin(user);return answer(await unregisterPushDevice(db,user,await body(req)));
+      }
+      if(path==="/api/v1/push/test"&&method==="POST"){
+        requireLogin(user);
+        if(user.must_change_password)fail("Altere a senha temporária antes de testar notificações.",403);
+        return answer(await sendPushTest(env,user,await body(req)));
       }
       if(path==="/api/v1/bootstrap"&&method==="GET"){
         // Corrige também eventos antigos já salvos com a data vencida,

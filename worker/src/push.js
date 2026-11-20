@@ -130,6 +130,43 @@ async function notifyMany(env,userIds,message,preference,dedupeForUser=null){
    }
  }
 }
+
+/** Comprovação controlada do fluxo Android → Worker → FCM, apenas para o próprio aparelho. */
+export async function sendPushTest(env,user,payload){
+ if(!fcmConfiguration(env))reject("Firebase ainda não está configurado no Cloudflare.",503);
+ const deviceId=String(payload.deviceId||"").trim();
+ if(!/^[a-f\\d]{8}-[a-f\\d]{4}-[a-f\\d]{4}-[a-f\\d]{4}-[a-f\\d]{12}$/i.test(deviceId))
+   reject("Identificador do aparelho inválido.");
+ const device=await env.DB.prepare("SELECT device_id,token FROM push_devices WHERE user_id=? AND device_id=?")
+   .bind(user.id,deviceId).first();
+ if(!device)reject("Este aparelho ainda não foi conectado. Abra novamente o aplicativo Android.",409);
+ // Limite de 1 teste por aparelho a cada janela de 2 minutos.
+ const key="test|"+deviceId+"|"+Math.floor(Date.now()/120000);
+ const claim=await env.DB.prepare("INSERT OR IGNORE INTO push_notice_log(dedupe_key,device_id,task_id,kind,created_at) VALUES(?,?,?,?,?)")
+   .bind(key,deviceId,"pet-gestao-self-test","test",now()).run();
+ if(!claim.meta?.changes)reject("Aguarde dois minutos antes de enviar outro teste.",429);
+ try{
+   const result=await deliver(env,device.token,{
+     title:"PET Gestão • Notificações ativadas",
+     body:"Teste recebido! Seu celular está pronto para avisos de novas demandas e prazos.",
+     route:"/inicio",kind:"test"
+   });
+   if(result.status==="sent")return {ok:true,acceptedByFirebase:true};
+   if(result.status==="invalid"){
+     await env.DB.prepare("DELETE FROM push_devices WHERE user_id=? AND device_id=?")
+       .bind(user.id,deviceId).run();
+     reject("O registro deste aparelho expirou. Reinicie o aplicativo e tente novamente.",409);
+   }
+   reject("Firebase ainda não está configurado para envio.",503);
+ }catch(err){
+   // Não gastar cota de teste em falhas externas e permitir nova tentativa.
+   await env.DB.prepare("DELETE FROM push_notice_log WHERE dedupe_key=?").bind(key).run();
+   if(err.status)throw err;
+   console.error("PET Gestão — falha no teste FCM:",String(err?.message||err).slice(0,150));
+   reject("Não foi possível entregar o teste ao Firebase. Confira a configuração do Cloud Messaging.",503);
+ }
+}
+
 async function assignedUsers(db,task){
  const chosen=new Set(ids(json(task.assignee_ids,[])));
  const commissions=ids(json(task.commission_ids,[]));

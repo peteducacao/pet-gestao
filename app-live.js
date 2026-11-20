@@ -827,12 +827,14 @@ async function loadPushPreferencesForActiveUser(){
 function renderPushPreferences(){
  const prefs=state.pushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
  const count=Number(state.pushData?.registeredDevices||0);
- const connected=!!androidPush;
+ const connected=!!androidPush&&!!registeredPushFor&&registeredPushFor.startsWith(String(me?.id||"")+"|");
  const status=connected
-  ?"Este aparelho está conectado à sua conta. Autorize as notificações nas configurações do Android."
-  :count>0
-    ?"Você tem "+count+" aparelho(s) cadastrado(s). Para receber notificações neste celular, abra o APK atualizado."
-    :"Para receber avisos na barra do celular, instale o APK atualizado e permita as notificações.";
+  ?"Aparelho vinculado à sua conta. Faça o teste abaixo para conferir o recebimento."
+  :androidPush
+    ?"Conectando este aparelho ao PET Gestão. Se não concluir, feche e abra o aplicativo."
+    :count>0
+      ?"Você tem "+count+" aparelho(s) cadastrado(s). Para testar neste celular, abra o APK atualizado."
+      :"Para receber avisos na barra do celular, instale o APK atualizado e permita as notificações.";
  return '<section class="account-push-panel" aria-labelledby="profile-push-title">'+
   '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-push-title">Notificações no celular</h3>'+
   '<p>Escolha os avisos que deseja receber no aplicativo Android. As notificações por e-mail são configuradas separadamente.</p></div></div>'+
@@ -841,8 +843,10 @@ function renderPushPreferences(){
   '<label><input type="checkbox" data-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
   '<label><input type="checkbox" data-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
   '<label><input type="checkbox" data-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label>'+
-  '</div><button type="button" class="button primary account-push-save" data-do="save-push-settings">'+
-  ico("check")+' Salvar preferências</button></section>';
+  '</div><div class="account-push-actions"><button type="button" class="button primary account-push-save" data-do="save-push-settings">'+
+  ico("check")+' Salvar preferências</button>'+
+  '<button type="button" class="button ghost account-push-test" data-do="test-push" '+(connected?"":'disabled title="Abra o aplicativo Android com notificações permitidas"')+'>'+
+  ico("bell")+' Enviar notificação de teste</button></div></section>';
 }
 
 async function reload(){
@@ -2759,6 +2763,17 @@ async function handleClick(e){
    const picker=action==="stage-pick-date"?b.closest(".live-stage")?.querySelector('[data-stage="day"]'):$("#collective-event-day");
    if(!picker)return;
    try{picker.showPicker()}catch{picker.focus();picker.click()}
+   return;
+ }
+ if(action==="test-push"){
+   if(!androidPush||!me||!registeredPushFor.startsWith(me.id+"|"))
+     return setToast("Abra o APK atualizado, entre na conta e permita notificações.");
+   b.disabled=true;
+   try{
+     const result=await request("/push/test","POST",{deviceId:androidPush.deviceId});
+     if(result.acceptedByFirebase)
+       setToast("Teste aceito pelo Firebase! Confira a barra de notificações do celular.");
+   }finally{if(b.isConnected)b.disabled=false}
    return;
  }
  if(action==="save-push-settings"){
