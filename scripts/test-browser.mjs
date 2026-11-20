@@ -1279,15 +1279,6 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/conta");
  await page.locator('[data-do="account-tab"][data-tab="aplicativos"]').click();
  const desktopButton=page.locator('[data-do="install-desktop-app"]');
- const panelDiagnostic=await page.evaluate(()=>{
-  const pane=document.querySelector("#account-pane-aplicativos");
-  const button=document.querySelector('[data-do="install-desktop-app"]');
-  return {active:[...document.querySelectorAll(".account-hub-nav-btn")].map(e=>({tab:e.dataset.tab,selected:e.getAttribute("aria-selected")})),
-   paneHidden:pane?.hidden,paneStyle:pane&&getComputedStyle(pane).display,
-   buttonDisplay:button&&getComputedStyle(button).display,buttonVisible:button?.getBoundingClientRect().width,
-   buttonParent:button?.parentElement?.outerHTML.slice(0,180),location:location.hash};
- });
- console.log("ACCOUNT_APPS_DEBUG",JSON.stringify(panelDiagnostic));
  await desktopButton.waitFor({state:"visible",timeout:8000});
  const apkButton=page.locator('a.account-app-install-button[href*="/releases/download/android-apk/PET-Gestao.apk"]');
  await apkButton.waitFor({state:"visible",timeout:10000});
