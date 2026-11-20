@@ -4652,3 +4652,75 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  .reminder-slot-remove{justify-self:end}
  .reminder-form-actions .button{flex:1;white-space:normal}
 }
+
+/* Polimento dos lembretes e upload de fotos – Android / tablet / PC. */
+#screen .reminder-editor .register-form .reminder-auto-card{
+ box-sizing:border-box;min-width:0;width:100%;
+ border:1px solid #ded5e9;border-radius:14px;background:#faf8fe;
+ padding:16px 17px;display:grid;gap:9px
+}
+#screen .reminder-editor .register-form label.reminder-auto-toggle{
+ display:grid!important;grid-template-columns:22px minmax(0,1fr)!important;
+ align-items:start!important;gap:11px!important;
+ width:100%;min-width:0;text-align:left!important;
+ margin:0!important;padding:0!important;cursor:pointer
+}
+#screen .reminder-editor .register-form label.reminder-auto-toggle input[type="checkbox"]{
+ width:21px!important;min-width:21px!important;max-width:21px!important;
+ height:21px!important;min-height:21px!important;max-height:21px!important;
+ margin:1px 0 0!important;padding:0!important;accent-color:#7549ce;
+ align-self:start;justify-self:start;box-sizing:border-box
+}
+#screen .reminder-auto-toggle span{
+ display:block;min-width:0;line-height:1.4;overflow-wrap:anywhere;
+ font-size:14px;font-weight:700;color:#423551
+}
+#screen .reminder-auto-card .field-hint{
+ margin:0 0 0 33px!important;line-height:1.5;color:#776e84;
+ font-size:12px;overflow-wrap:anywhere
+}
+#screen .task-form-refined .task-files-section{
+ box-sizing:border-box;min-width:0;width:100%;max-width:100%;
+ padding:18px!important;margin:14px 0 4px!important;
+ overflow-wrap:anywhere
+}
+#screen .task-form-refined .task-files-section h3{
+ display:flex;align-items:center;gap:9px;min-width:0;
+ margin:0 0 12px;font-size:17px;line-height:1.35
+}
+#screen .task-form-refined .task-files-section .task-file-help{
+ display:block;margin:0 0 17px!important;max-width:100%;
+ font-size:13px;line-height:1.55;overflow-wrap:anywhere;white-space:normal
+}
+#screen .task-form-refined .task-file-picker{
+ position:relative;box-sizing:border-box;width:100%;max-width:100%;
+ min-width:0;padding:13px!important;display:flex!important;
+ flex-direction:row;align-items:center;justify-content:space-between!important;
+ flex-wrap:wrap;gap:12px!important;border:1px dashed #af92de;
+ border-radius:13px;background:#fff;cursor:pointer
+}
+#screen .task-file-picker-label{font-weight:700;font-size:13px;line-height:1.4;min-width:0}
+#screen .task-file-picker-button{
+ display:inline-flex;justify-content:center;align-items:center;
+ padding:11px 16px;border-radius:10px;background:#7149c7;color:#fff;
+ font-size:13px;font-weight:750;line-height:1.35;text-align:center;
+ pointer-events:none;min-height:43px;box-sizing:border-box;white-space:normal
+}
+#screen .task-form-refined .task-file-picker input[type="file"]{
+ display:block;position:absolute;inset:0;width:100%!important;
+ height:100%!important;min-height:0!important;max-width:100%!important;
+ opacity:0;cursor:pointer;margin:0;padding:0;z-index:1
+}
+#screen .task-file-picker:focus-within{outline:3px solid #b99bed;outline-offset:3px}
+#screen .task-file-picker:hover .task-file-picker-button{background:#5c36ac}
+@media(max-width:570px){
+ #screen .task-form-refined .task-files-section{padding:16px!important}
+ #screen .task-form-refined .task-file-picker{
+   flex-direction:column;align-items:stretch!important;
+   justify-content:center!important;gap:10px!important
+ }
+ #screen .task-file-picker-label{font-size:13px}
+ #screen .task-file-picker-button{width:100%}
+ #screen .reminder-editor .register-form .reminder-auto-card{padding:14px}
+ #screen .reminder-auto-card .field-hint{margin-left:33px!important}
+}
