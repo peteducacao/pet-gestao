@@ -1,6 +1,7 @@
 import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushNotificationToChannels} from "./push.js";
 import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel} from "./notification-center.js";
 import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
+import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
 "use strict";
 
@@ -366,12 +367,12 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     if(!chosen.android.length&&!chosen.pc.length)return;
     try{
       const model=await notificationPushModel(env.DB,kind,values);
-      const result=await pushNotificationToChannels(env,chosen,{
+      const result=await pushWithoutMinuteDuplicates(env,chosen,{
         ...model,route:"/atividade/"+task.id,taskId:task.id,kind
       },dedupeKey);
       // Nenhum serviço aceitou a notificação: pode tentar outra vez.
       for(const channel of Object.keys(claimed)){
-        if(!result[channel])await env.DB.prepare("DELETE FROM notification_event_log WHERE dedupe_key=?").bind(claimed[channel]).run();
+        if(!result[channel]&&!result.skipped[channel])await env.DB.prepare("DELETE FROM notification_event_log WHERE dedupe_key=?").bind(claimed[channel]).run();
       }
     }catch(error){
       for(const key of Object.values(claimed))await env.DB.prepare("DELETE FROM notification_event_log WHERE dedupe_key=?").bind(key).run().catch(()=>{});
@@ -1637,4 +1638,14 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       return answer({error:err.status?err.message:"Erro no servidor. Verifique a configuração e tente novamente.",code:safeCode,stage:err.safeStage||diagnosticStage},err.status||500);
     }
   }
-export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{await purgeIncompleteAttachments(env.DB);await autoCompleteCollectiveEvents(env);await queueDeadlineReminders(env);await Promise.allSettled([processQueue(env,15),processPersonalReminders(env,(emails,subject,message)=>authorizedMail(env,emails,subject,message))])})())};
+export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()=>{
+ await purgeIncompleteAttachments(env.DB);
+ await autoCompleteCollectiveEvents(env);
+ // Primeiro alarmes pessoais: em coincidência exata de minuto, prevalece a escolha pessoal.
+ await processPersonalReminders(env).catch(error=>console.error("PET Gestão — cron pessoal:",String(error?.message||error).slice(0,150)));
+ await queueDeadlineReminders(env);
+ await processQueue(env,15);
+ const t=new Date();
+ if(t.getUTCHours()===6&&t.getUTCMinutes()===0)
+  await env.DB.prepare("DELETE FROM push_delivery_minute_log WHERE created_at<?").bind(new Date(Date.now()-30*86400000).toISOString()).run().catch(()=>{});
+})())};
