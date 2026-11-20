@@ -542,10 +542,11 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     const memberIds=await noticeAudience(db,task);
     if(!memberIds.length)return;
     const targets=await notificationRecipients(db,memberIds,kind);
-    // O autor também pode ser responsável por uma comissão: respeitar seu
-    // opt-in de e-mail, assim como o de Android/PC. Ninguém não atribuído
-    // recebe aviso. Set e normalização impedem cópias repetidas.
-    const emailTargets=policy.email?unique(targets.email.map(u=>email(u.email)).filter(validEmail)):[];
+    // O autor não recebe e-mail automático sobre a própria criação/revisão.
+    // As notificações Android/PC mantêm a lista de destinatários original.
+    const emailTargets=policy.email?unique(targets.email
+      .filter(u=>u.id!==user.id&&email(u.email)!==email(user.email))
+      .map(u=>email(u.email)).filter(validEmail)):[];
     const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
     const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
     const config=configs.notificationTemplates?.[kind]||configs.notificationTemplate||{};
