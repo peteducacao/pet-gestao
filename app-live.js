@@ -1451,7 +1451,8 @@ function assignmentView(){
  const currentSelection=state.assignmentScope==="comissoes"?state.selectedCommissions:state.selectedUsers;
  return '<div class="register-assignment"><div class="task-form-help">'+
  '<span class="task-form-help-icon">'+ico("users")+'</span><div><h3>Responsáveis pela demanda <span class="task-form-required">*</span></h3>'+
- '<p>Escolha quem ficará responsável por realizar esta atividade. Ao selecionar uma <strong>comissão</strong>, a demanda aparece na página dessa equipe. Ao escolher <strong>pessoas</strong>, ela aparece em Minhas pendências de cada responsável. Em <strong>Todos(as)</strong>, todos os integrantes com permissão de concluir recebem a demanda. A exibição na Visão geral pode ser escolhida abaixo.</p></div></div><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
+ '<p class="task-form-help-short">Selecione quem realizará a atividade.</p>'+
+ '<details class="task-form-explanation"><summary>Como funciona?</summary><p>Escolha quem ficará responsável por realizar esta atividade. Ao selecionar uma <strong>comissão</strong>, a demanda aparece na página dessa equipe. Ao escolher <strong>pessoas</strong>, ela aparece em Minhas pendências de cada responsável. Em <strong>Todos(as)</strong>, todos os integrantes com permissão de concluir recebem a demanda. A exibição na Visão geral pode ser escolhida abaixo.</p></details></div></div><div class="segmented assignment-modes">'+opts.map(([s,n])=>'<button type="button" class="'+(state.assignmentScope===s?"active":"")+'" data-do="assignment-scope" data-value="'+s+'">'+n+'</button>').join("")+'</div>'+
  (state.assignmentScope==="todos"?'<p class="assignment-all">Evento coletivo para PETianos(as), tutores(as) e Administração. Será concluído automaticamente após a data escolhida, sem precisar marcar a conclusão.</p>':choices.map(x=>'<label class="assignment-option"><input type="checkbox" data-assign="'+state.assignmentScope+'" value="'+esc(x.key)+'" '+(currentSelection.has(x.key)?"checked":"")+'><span>'+esc(x.name)+'</span></label>').join(""))+
  '<p class="notice-line">'+(state.assignmentScope==="todos"?'Participantes do evento: '+users.length:'Responsáveis individuais: '+state.selectedUsers.size+' · Comissões: '+state.selectedCommissions.size)+'</p></div>';
 }
@@ -1598,10 +1599,12 @@ function renderDeadlineSettings(stagesList=[]){
    "Informe o dia do evento coletivo. Não é necessário definir Prazo, Correção, Postagem ou responsáveis por etapa.":
    "Para uma única pessoa responsável, basta informar a data da atividade. Não é preciso criar etapas de Prazo, Correção ou Postagem.";
   const saved=(stagesList||[]).find(x=>x.dueAt)||(stagesList||[])[0];
-  return '<div class="register-deadlines collective-date-panel"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>'+title+'</h3><p>'+help+'</p></div></div>'+
+  return '<div class="register-deadlines collective-date-panel"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>'+title+'</h3><p>Escolha o dia, mês e ano da atividade.</p>'+
+   '<details class="task-form-explanation"><summary>Entenda esta data</summary><p>'+help+'</p></details></div></div>'+
    collectiveEventDate(saved)+'</div>';
  }
- return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>As etapas são <strong>opcionais</strong>. Você pode salvar a demanda sem prazo ou adicionar etapas como Prazo, Correção e Postagem, ou personalizar o nome de uma etapa.</p></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
+ return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Adicione datas e etapas quando precisar. São opcionais.</p>'+
+ '<details class="task-form-explanation"><summary>Entenda os prazos</summary><p>Você pode salvar a demanda sem prazo ou adicionar etapas como Prazo, Correção e Postagem, ou personalizar o nome de uma etapa.</p></details></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
  '<div id="stage-rows">'+(stagesList||[]).filter(x=>x.label!=="Evento").map(stageRow).join("")+'</div></div>';
 }
 function refreshDeadlineMode(previousScope=null,previousSingle=null){
@@ -1801,20 +1804,38 @@ function renderTaskForm(routeId){
       isEveryoneAssigned(t)?"todos":t.commissionIds?.length&&!t.assigneeIds?.length?"comissoes":"usuarios"
     )):"usuarios";
  }
- return header("Cadastros",t?"Editar demanda":"Registrar demanda","Defina os responsáveis e informe a data da atividade, ou etapas quando necessário.",
- ""+
+ return header("Cadastros",t?"Editar demanda":"Registrar demanda",
+ "Defina o título, os responsáveis, a visibilidade e os prazos da atividade.",
  (t?'<button type="submit" form="task-form" class="button primary task-form-header-save">'+ico("check")+' Salvar demanda</button>':""))+
- '<section class="card card-pad register-page"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form"><label>Título da demanda *<input name="title" maxlength="180" required value="'+esc(t?.title||"")+'"></label>'+
- '<label class="rich-label">Anotações da comissão<small class="field-hint">Registre ideias, lembretes, combinados e informações importantes para a demanda.</small></label>'+richEditor("description",t?.description||"")+
- '<div id="assignment-container">'+assignmentView()+'</div>'+
- '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend><p class="field-hint">Em qualquer opção, a demanda continua disponível em Demandas e nas pendências dos responsáveis. A escolha define apenas sua presença na Visão geral.</p>'+
+ '<section class="card card-pad register-page task-form-v2"><form id="task-form" data-id="'+esc(t?.id||"")+'" class="register-form task-form-refined">'+
+ '<section class="task-form-section task-form-main" aria-labelledby="task-form-info-title">'+
+ '<div class="task-form-section-heading"><span class="task-form-section-icon" aria-hidden="true">'+ico("list")+'</span><h2 id="task-form-info-title">Informações da demanda</h2></div>'+
+ '<label class="task-form-title-field">Título da demanda <span class="task-form-required">*</span><input name="title" maxlength="180" required placeholder="Ex.: Organizar evento de integração" value="'+esc(t?.title||"")+'"></label></section>'+
+ '<section class="task-form-section task-form-notes" aria-label="Anotações da comissão">'+
+ '<div class="task-form-section-heading"><span class="task-form-section-icon" aria-hidden="true">'+ico("list")+'</span><h2>Anotações da comissão</h2></div>'+
+ '<p class="task-form-section-intro">Registre detalhes e observações importantes.</p>'+
+ richEditor("description",t?.description||"","Descreva a demanda...")+'</section>'+
+ '<section class="task-form-section task-form-assignees" aria-label="Responsáveis">'+
+ '<div id="assignment-container">'+assignmentView()+'</div></section>'+
+ '<section class="task-form-section task-form-visibility-section" aria-label="Visibilidade da demanda">'+
+ '<fieldset class="task-visibility"><legend>Onde exibir a demanda?</legend>'+
+ '<p class="task-form-section-intro">Escolha em quais áreas a demanda ficará em destaque.</p>'+
+ '<details class="task-form-explanation"><summary>Entenda a visibilidade</summary>'+
+ '<p>Em qualquer opção, a demanda continua disponível em Demandas e nas pendências dos responsáveis. A escolha define apenas sua presença na Visão geral.</p></details>'+
+ '<div class="task-visibility-choices">'+
  '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="geral" '+(t?.overviewVisible!==false?'checked':"")+'><span><strong>Visão geral, Demandas e comissões</strong><small>Visível na Visão geral, em Demandas e nas comissões vinculadas.</small></span></label>'+
- '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label></fieldset>'+
- '<div id="deadline-settings">'+renderDeadlineSettings(t?(t.deadlines||[]):state.assignmentScope==="todos"?[]:[{label:"Prazo",dueAt:""}])+'</div>'+ 
- '<label class="rich-label">Texto para revisão (opcional)<small class="field-hint">Escreva ou cole aqui o conteúdo da demanda para revisão da tutoria.</small></label>'+
-  (t?lastReviewEdit(t):"")+richEditor("captionText",t?.captionText||"")+
+ '<label class="visibility-choice"><input type="radio" name="overviewVisibility" value="comissao" '+(t?.overviewVisible===false?'checked':"")+' '+(state.assignmentScope!=="todos"&&state.selectedCommissions.size?"":"disabled")+'><span><strong>Somente nas comissões</strong><small>Sem card na Visão geral; permanece em Demandas e em Minhas pendências dos integrantes.</small></span></label>'+
+ '</div></fieldset></section>'+
+ '<section class="task-form-section task-form-deadlines-section" aria-label="Datas e prazos">'+
+ '<div id="deadline-settings">'+renderDeadlineSettings(t?(t.deadlines||[]):state.assignmentScope==="todos"?[]:[{label:"Prazo",dueAt:""}])+'</div></section>'+
+ '<details class="task-form-section task-form-review-section" '+(t?'open':'')+'>'+
+ '<summary class="task-form-review-summary"><span class="task-form-section-icon" aria-hidden="true">'+ico("list")+'</span>'+
+ '<span class="task-form-review-summary-copy"><strong>Texto para revisão (opcional)</strong><small>Adicione um texto para revisão da tutoria.</small></span>'+
+ '<span class="task-form-review-chevron" aria-hidden="true">⌄</span></summary>'+
+ '<div class="task-form-review-content">'+(t?lastReviewEdit(t):"")+richEditor("captionText",t?.captionText||"")+'</div></details>'+
  taskFileForm(t)+
- (t?"":'<div class="form-actions"><button type="submit" class="button primary">Salvar demanda</button></div>')+'</form></section>';
+ (t?"":'<div class="form-actions task-form-save-actions"><button type="submit" class="button primary">'+ico("check")+' Salvar demanda</button></div>')+
+ '</form></section>';
 }
 function historyFor(taskId){return(data.history||[]).filter(x=>x.task_id===taskId)}
 function lastReviewEdit(t){

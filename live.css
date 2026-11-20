@@ -3913,3 +3913,280 @@ body.commission-image-editor-open{overflow:hidden}
 @media (prefers-reduced-motion:reduce) {
   #screen .commission-tile-v2 { transition: none; }
 }
+
+
+/* ================================================================
+   Registrar / Editar demanda · polimento mobile, reversível.
+   Edita somente a apresentação do #task-form; salva os mesmos dados.
+   Áreas de toque >= 44px e campos >= 48px (inclui 320px e tablet).
+   ================================================================ */
+#screen .task-form-v2 {
+  max-width: 1030px;
+  padding: clamp(16px,2.4vw,28px);
+  border:1px solid #e9e1f2;
+  border-radius:21px;
+  box-shadow:0 8px 25px rgba(36,21,74,.035);
+}
+#screen .task-form-refined {gap:0;min-width:0;}
+#screen .task-form-refined .task-form-section {
+  position:relative; min-width:0;
+  padding:21px 0 22px;
+  border-bottom:1px solid #e9e4ef;
+}
+#screen .task-form-refined .task-form-section:first-child {padding-top:0}
+#screen .task-form-refined .task-form-section:last-of-type {border-bottom:0}
+#screen .task-form-refined .task-form-section-heading {
+  display:flex;align-items:center;gap:11px;margin:0 0 15px;min-width:0;
+}
+#screen .task-form-refined .task-form-section-icon {
+  display:grid;place-items:center;
+  flex:0 0 37px;width:37px;height:37px;border-radius:11px;
+  background:#f4ecff;color:#6635b4;
+}
+#screen .task-form-refined .task-form-section-icon svg {width:20px;height:20px}
+#screen .task-form-refined .task-form-section-heading h2 {
+  margin:0;font-size:clamp(17px,2vw,20px);
+  letter-spacing:-.02em;line-height:1.3;color:#211936;
+}
+#screen .task-form-refined .task-form-section-intro {
+  color:#655b73;font-size:14px;line-height:1.5;margin:0 0 13px;
+}
+#screen .task-form-refined .task-form-title-field {
+  display:flex;flex-wrap:wrap;flex-direction:row;gap:5px;
+  align-items:center;min-width:0;margin:0;
+  font-size:14px;font-weight:750;color:#382e49;
+}
+#screen .task-form-refined .task-form-title-field input {
+  flex:1 1 100%;box-sizing:border-box;width:100%;
+  margin-top:6px;min-height:52px;padding:12px 13px;
+  border-radius:12px;font-size:16px;
+}
+#screen .task-form-refined .task-form-required {color:#b52247;font-weight:800}
+#screen .task-form-refined .rich-editor {
+  width:100%;min-width:0;overflow:hidden;border:1px solid #ddd5e8;border-radius:13px;
+}
+#screen .task-form-refined .rich-toolbar {
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;
+  gap:5px;padding:8px;background:#f9f7fc;min-height:54px;
+}
+#screen .task-form-refined .rich-toolbar-group {
+  display:flex;flex-wrap:nowrap;align-items:center;gap:3px;
+  padding:0;background:transparent;border-radius:10px;
+}
+#screen .task-form-refined .rich-toolbar-divider {
+  display:none;
+}
+#screen .task-form-refined .rich-toolbar .rich-format-button {
+  flex:0 0 44px;min-width:44px;width:44px;height:44px;min-height:44px;
+  padding:7px;border-radius:10px!important;
+  border:1px solid #e6e0f1!important;
+  background:white!important;color:#4e405f!important;
+  font-size:16px;
+}
+#screen .task-form-refined .rich-toolbar .rich-format-button svg {width:20px;height:20px}
+#screen .task-form-refined .rich-toolbar .rich-format-button[aria-pressed="true"] {
+  background:#6a35bd!important;color:#fff!important;border-color:#6a35bd!important;
+}
+#screen .task-form-refined .rich-toolbar .rich-color-label,
+#screen .task-form-refined .rich-toolbar .rich-highlight-label {
+  width:44px;min-width:44px;max-width:44px;
+  height:44px;min-height:44px;flex:0 0 44px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:white;border:1px solid #e6e0f1;border-radius:10px;
+}
+#screen .task-form-refined .rich-content {
+  min-height:116px;padding:14px;font-size:16px;line-height:1.55;
+}
+#screen .task-form-refined .task-form-help {
+  padding:0!important;background:none!important;
+  border:0!important;box-shadow:none!important;gap:10px;align-items:flex-start;
+}
+#screen .task-form-refined .task-form-help h3 {font-size:18px;line-height:1.32;margin:0}
+#screen .task-form-refined .task-form-help .task-form-help-short {
+  margin:5px 0 0;font-size:14px;line-height:1.5;
+}
+#screen .task-form-refined .task-form-explanation {margin-top:9px;min-width:0}
+#screen .task-form-refined .task-form-explanation summary {
+  display:inline-flex;align-items:center;gap:6px;
+  cursor:pointer;list-style:none;
+  min-height:44px;padding:9px 11px;border-radius:10px;
+  background:#f6f0ff;color:#6432ae;font-weight:750;font-size:13px;
+}
+#screen .task-form-refined .task-form-explanation summary::-webkit-details-marker {display:none}
+#screen .task-form-refined .task-form-explanation summary::after {content:"⌄";font-size:17px;line-height:1}
+#screen .task-form-refined .task-form-explanation[open] summary::after {transform:rotate(180deg)}
+#screen .task-form-refined .task-form-explanation p {
+  font-size:13px;line-height:1.65;color:#625774;
+  margin:8px 0 4px;padding:0 3px;
+}
+#screen .task-form-refined .assignment-modes {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  width:100%;max-width:100%;margin:16px 0 12px;gap:6px;
+  border-radius:12px;
+}
+#screen .task-form-refined .assignment-modes button {
+  box-sizing:border-box;display:flex;align-items:center;justify-content:center;
+  min-width:0;min-height:50px;padding:10px 6px;
+  line-height:1.25;white-space:normal;font-size:clamp(12px,2.9vw,14px);
+  font-weight:750;border-radius:10px;
+}
+#screen .task-form-refined .assignment-option {
+  min-height:50px;margin-bottom:7px;padding:11px 12px;gap:12px;
+  border-radius:12px;box-sizing:border-box;
+  background:#fbf9ff;border:1px solid #ebe4f5;
+  font-size:14px;line-height:1.4;overflow-wrap:break-word;
+}
+#screen .task-form-refined .assignment-option input {
+  width:20px;height:20px;flex:0 0 20px;
+}
+#screen .task-form-refined .notice-line {font-size:12px;line-height:1.5}
+#screen .task-form-refined .task-visibility {
+  padding:0;border:0;background:transparent;min-width:0;
+}
+#screen .task-form-refined .task-visibility legend {
+  margin:0 0 8px;padding:0;font-size:18px;
+}
+#screen .task-form-refined .task-visibility-choices {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;margin-top:11px;
+}
+#screen .task-form-refined .visibility-choice {
+  min-height:94px;padding:14px;gap:10px;
+  background:#fff;border-radius:12px;
+  align-items:flex-start;
+}
+#screen .task-form-refined .visibility-choice strong {font-size:14px;line-height:1.35}
+#screen .task-form-refined .visibility-choice small {font-size:12px;line-height:1.5}
+#screen .task-form-refined .visibility-choice input {
+  margin-top:2px;flex:0 0 21px;width:21px;height:21px;
+}
+#screen .task-form-refined .register-deadlines {
+  border:0;background:transparent;padding:0;margin:0;
+}
+#screen .task-form-refined .task-form-deadlines-heading {
+  min-width:0;max-width:100%;gap:11px;
+}
+#screen .task-form-refined .task-form-deadlines-heading h3 {font-size:18px;line-height:1.3}
+#screen .task-form-refined .task-form-deadlines-heading p {
+  font-size:14px;line-height:1.5;margin:5px 0 0;
+}
+#screen .task-form-refined .register-deadlines .section-head {
+  display:flex;align-items:flex-start;justify-content:space-between;
+  flex-wrap:wrap;gap:11px;
+}
+#screen .task-form-refined [data-do="add-stage"] {
+  min-height:48px;padding:11px 15px;
+  font-size:14px;font-weight:750;border-radius:11px;
+}
+#screen .task-form-refined .live-stage {
+  border:1px solid #e6ddec;border-radius:13px;
+  background:#faf8fe;
+}
+#screen .task-form-refined .live-stage label,
+#screen .task-form-refined .live-stage legend {font-size:13px;line-height:1.4}
+#screen .task-form-refined .live-stage select,
+#screen .task-form-refined .live-stage input:not([type="date"]):not([type="checkbox"]),
+#screen .task-form-refined .collective-date-parts input {
+  font-size:16px;min-height:48px;
+}
+#screen .task-form-refined .live-stage .stage-date-parts input {min-height:48px;font-size:16px}
+#screen .task-form-refined .stage-date-parts .collective-calendar-button,
+#screen .task-form-refined .collective-date-parts .collective-calendar-button {
+  width:48px;min-width:48px;max-width:48px;height:48px;min-height:48px;
+}
+#screen .task-form-refined .stage-remove-button {
+  min-height:48px;font-size:14px;
+}
+#screen .task-form-refined .collective-date-panel .collective-event-date {
+  border-radius:12px;
+}
+#screen .task-form-refined .task-form-review-section {
+  padding:0;border:1px solid #e9e0f0;
+  border-radius:14px;background:#faf8fd;
+  overflow:hidden;margin-top:8px;
+}
+#screen .task-form-refined .task-form-review-summary {
+  display:flex;align-items:center;gap:11px;
+  cursor:pointer;list-style:none;
+  padding:15px;min-height:64px;
+}
+#screen .task-form-refined .task-form-review-summary::-webkit-details-marker {display:none}
+#screen .task-form-refined .task-form-review-summary-copy {
+  display:grid;gap:4px;flex:1 1 auto;min-width:0;
+}
+#screen .task-form-refined .task-form-review-summary-copy strong {
+  font-size:16px;line-height:1.35;color:#221936;
+}
+#screen .task-form-refined .task-form-review-summary-copy small {
+  font-size:12px;line-height:1.5;color:#6b6075;
+}
+#screen .task-form-refined .task-form-review-chevron {
+  font-size:22px;color:#6c3fa9;transition:transform .18s;
+}
+#screen .task-form-refined .task-form-review-section[open] .task-form-review-chevron {
+  transform:rotate(180deg);
+}
+#screen .task-form-refined .task-form-review-content {
+  padding:0 15px 15px;
+}
+#screen .task-form-refined .task-form-review-content .review-last-edit {
+  font-size:12px;line-height:1.5;
+}
+#screen .task-form-refined .task-files-section {
+  padding:22px 0 12px;margin-top:6px;
+}
+#screen .task-form-refined .task-file-picker {
+  display:flex;align-items:center;justify-content:center;
+  min-height:50px;padding:12px 14px;font-size:14px;
+}
+#screen .task-form-refined .task-form-save-actions {
+  margin-top:20px;display:flex;justify-content:stretch;
+}
+#screen .task-form-refined .task-form-save-actions>.button {
+  width:100%;min-height:54px;border-radius:12px;
+  font-size:16px;font-weight:800;
+}
+#screen .task-form-v2 .task-form-header-save {min-height:48px;}
+@media (max-width:720px) {
+  #screen .task-form-v2 {
+    padding:16px 14px;border-radius:17px;
+  }
+  #screen .task-form-refined .task-form-section {padding:20px 0;}
+  #screen .task-form-refined .task-visibility-choices {
+    grid-template-columns:1fr;
+  }
+  #screen .task-form-refined .visibility-choice {min-height:74px;}
+  #screen .task-form-refined .rich-toolbar {
+    padding:7px;gap:5px;
+  }
+  #screen .task-form-refined .rich-toolbar .rich-format-button {width:44px;min-width:44px;}
+  #screen .task-form-refined .rich-toolbar-group {gap:3px;}
+  #screen .task-form-refined .register-deadlines .section-head {
+    flex-direction:column;align-items:stretch;
+  }
+  #screen .task-form-refined [data-do="add-stage"] {width:100%}
+  #screen .task-form-refined .live-stage {
+    padding:14px!important;gap:13px!important;
+  }
+  #screen .task-form-refined .live-stage .stage-date-parts {
+    width:100%;max-width:100%;
+    grid-template-columns:minmax(0,.75fr) minmax(0,.75fr) minmax(0,1.25fr) 48px!important;
+    gap:5px!important;
+  }
+  #screen .task-form-refined .live-stage .stage-date-parts > .collective-calendar-button {
+    width:48px!important;min-width:48px!important;max-width:48px!important;
+  }
+  #screen .task-form-refined .live-stage .stage-date-parts input {
+    width:100%;min-width:0;padding:7px 3px;font-size:16px;
+  }
+}
+@media (max-width:370px) {
+  #screen .task-form-v2 {padding:13px 11px;}
+  #screen .task-form-refined .task-form-section {padding:17px 0;}
+  #screen .task-form-refined .rich-toolbar {gap:3px;padding:5px;}
+  #screen .task-form-refined .rich-toolbar-group {gap:1px;}
+  #screen .task-form-refined .rich-toolbar .rich-format-button {
+    flex-basis:44px;width:44px;min-width:44px;
+  }
+  #screen .task-form-refined .assignment-modes button {font-size:12px;padding:8px 3px;}
+}

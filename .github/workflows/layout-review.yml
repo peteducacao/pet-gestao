@@ -6,6 +6,7 @@ on:
       - '.github/workflows/layout-review.yml'
       - 'live.css'
       - 'styles.css'
+      - 'app-live.js'
   workflow_dispatch:
 permissions:
   contents: read
