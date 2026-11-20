@@ -91,7 +91,7 @@ const mixedAudience=await api.noticeAudience(commissionDb,{
 });
 assert.deepEqual(mixedAudience,["a","b"],"Uma pessoa vinculada duas vezes recebe um único aviso");
 assert.deepEqual(api.noticeSendPolicy({id:"a",role:"petiano",notification_enabled:0},"create",false),
- {email:false,push:true},"PETiano sem pergunta recebe push se ativou suas preferências");
+ {email:false,push:false},"PETiano não dispara e-mail nem push ao criar demanda");
 assert.deepEqual(api.noticeSendPolicy({id:"a",role:"tutor",notification_enabled:1},"create",true),
  {email:true,push:true},"Tutor que escolhe enviar avisa por ambos os canais");
 assert.deepEqual(api.noticeSendPolicy({id:"a",role:"tutor",notification_enabled:1},"create",false),
