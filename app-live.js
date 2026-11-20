@@ -1604,7 +1604,7 @@ function renderDeadlineSettings(stagesList=[]){
    collectiveEventDate(saved)+'</div>';
  }
  return '<div class="register-deadlines"><div class="section-head"><div class="task-form-deadlines-heading"><span class="task-form-help-icon">'+ico("calendar")+'</span><div><h3>Prazos por etapa</h3><p>Adicione datas e etapas quando precisar. São opcionais.</p>'+
- '<details class="task-form-explanation"><summary>Entenda os prazos</summary><p>Você pode salvar a demanda sem prazo ou adicionar etapas como Prazo, Correção e Postagem, ou personalizar o nome de uma etapa.</p></details></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
+ '<details class="task-form-explanation"><summary>Entenda os prazos</summary><p>As etapas são <strong>opcionais</strong>. Você pode salvar a demanda sem prazo ou adicionar Prazo, Correção, Postagem ou uma etapa personalizada.</p></details></div></div><button class="button ghost" type="button" data-do="add-stage">+ Adicionar etapa</button></div>'+
  '<div id="stage-rows">'+(stagesList||[]).filter(x=>x.label!=="Evento").map(stageRow).join("")+'</div></div>';
 }
 function refreshDeadlineMode(previousScope=null,previousSingle=null){
