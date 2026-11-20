@@ -8,6 +8,7 @@ on:
       - 'scripts/test-smoke.mjs'
       - 'scripts/test-ui.mjs'
       - 'scripts/test-push.mjs'
+      - 'scripts/test-web-push.mjs'
       - '.github/workflows/integration-tests.yml'
   pull_request:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - 'scripts/test-smoke.mjs'
       - 'scripts/test-ui.mjs'
       - 'scripts/test-push.mjs'
+      - 'scripts/test-web-push.mjs'
       - '.github/workflows/integration-tests.yml'
   workflow_dispatch:
 permissions:
@@ -37,6 +39,8 @@ jobs:
           node scripts/test-auth-sessions.mjs
       - name: Garantir que identificadores Android válidos passam pelo FCM (simulado)
         run: node scripts/test-push.mjs
+      - name: Testar Web Push no PC com criptografia real simulada
+        run: node scripts/test-web-push.mjs
       - name: Testar interface de e-mails e configurações com JSDOM
         run: |
           npm install --no-save --no-package-lock jsdom@26
