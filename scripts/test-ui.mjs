@@ -620,7 +620,8 @@ assert.equal(document.querySelector(".account-profile-info")?.textContent,profil
  "Cancelar logout preserva a identidade e os dados exibidos");
 const deleteAccountButton=document.querySelector('[data-do="account-delete-open"]');
 assert.ok(deleteAccountButton,"Meu perfil oferece Excluir minha conta");
-assert.ok(document.querySelector('[data-do="install-pet-app"]'),"Instalação no perfil disponível para todas as contas");
+assert.ok(document.querySelector('a.account-app-install-button[href="./downloads/PET-Gestao.apk"][download="PET-Gestao.apk"]'),"Download direto do APK no perfil disponível para todas as contas");
+assert.ok(!document.querySelector('[data-do="install-pet-app"]'),"O perfil não deve abrir instalação PWA");
 tap('[data-do="account-delete-open"]');
 assert.equal(document.querySelector("#account-delete-dialog")?.hidden,false,
   "Abre diálogo de exclusão definitiva");
