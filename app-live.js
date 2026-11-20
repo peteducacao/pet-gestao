@@ -2869,6 +2869,102 @@ async function handleClick(e){
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
  }
+ if(action==="account-tab"){
+  const name=b.dataset.tab;
+  if(!["perfil","seguranca","notificacoes","aplicativos"].includes(name))return;
+  if(me?.mustChangePassword&&name!=="seguranca")return setToast("Altere a senha temporária antes de continuar.");
+  state.accountTab=name;
+  $(".account-hub-nav-btn").forEach(button=>{
+   const active=button.dataset.tab===name;
+   button.classList.toggle("is-active",active);
+   button.setAttribute("aria-selected",String(active));
+   button.tabIndex=active?0:-1;
+  });
+  $(".account-hub-pane").forEach(pane=>{pane.hidden=pane.id!=="account-pane-"+name;});
+  if(name==="notificacoes")void loadWebPushState();
+  return;
+ }
+ if(action==="install-desktop-app"){
+  if(window.matchMedia?.("(display-mode: standalone)")?.matches)
+   return setToast("O PET Gestão já está aberto como aplicativo instalado.");
+  if(desktopInstallPrompt){
+   const prompt=desktopInstallPrompt;desktopInstallPrompt=null;
+   await prompt.prompt();
+   const choice=await prompt.userChoice;
+   if(choice?.outcome==="accepted")setToast("Instalação solicitada. Confira os aplicativos do seu computador.");
+   else setToast("Instalação cancelada. Você pode tentar novamente pelo menu do navegador.");
+  }else{
+   showNotice("No Google Chrome, abra o menu ⋮ e escolha Transmitir, salvar e compartilhar → Instalar página como app. No Microsoft Edge, abra ⋯ → Aplicativos → Instalar este site como aplicativo. A instalação cria um aplicativo para o PC, sem precisar de arquivo .exe.",{
+    title:"Instalar PET Gestão no computador",kind:"info"});
+  }
+  return;
+ }
+ if(action==="enable-web-push"){
+  if(!webPushSupported())return setToast("Este navegador não oferece notificações Push compatíveis.");
+  if(Notification.permission==="denied")return setToast("Permita as notificações nas configurações do navegador.");
+  // Solicita a permissão durante o clique, antes de chamadas à rede.
+  const permission=Notification.permission==="granted"?"granted":await Notification.requestPermission();
+  if(permission!=="granted")return setToast("Ative a permissão de notificações para receber avisos.");
+  b.disabled=true;
+  try{
+   const response=await request("/web-push/key");
+   const raw=response.publicKey.replace(/-/g,"+").replace(/_/g,"/");
+   const decoded=atob(raw+"=".repeat((4-raw.length%4)%4));
+   const vapidKey=Uint8Array.from(decoded,c=>c.charCodeAt(0));
+   const reg=await navigator.serviceWorker.ready;
+   let sub=await reg.pushManager.getSubscription();
+   if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidKey});
+   await request("/web-push/subscribe","POST",sub.toJSON());
+   state.webPushHere=true;
+   state.webPushData=await request("/web-push/status");
+   setToast("Notificações do computador ativadas. Faça o teste de recebimento.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="disable-web-push"){
+  if(!await askConfirm("Desativar os avisos neste computador? As notificações dos demais aparelhos continuarão funcionando.",{
+   title:"Desativar notificações neste PC?",confirmLabel:"Desativar neste PC",cancelLabel:"Manter ativadas"}))return;
+  b.disabled=true;
+  try{
+   const sub=await desktopSubscription();
+   if(sub){
+    await request("/web-push/unsubscribe","POST",{endpoint:sub.endpoint});
+    await sub.unsubscribe();
+   }
+   state.webPushHere=false;
+   state.webPushData=await request("/web-push/status");
+   setToast("Notificações desativadas neste computador.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="test-web-push"){
+  const sub=await desktopSubscription();
+  if(!sub||!state.webPushHere)return setToast("Ative as notificações neste computador antes de testar.");
+  b.disabled=true;
+  try{
+   const result=await request("/web-push/test","POST",{endpoint:sub.endpoint});
+   if(result.acceptedByService)setToast("Teste aceito pelo serviço do navegador. Confira as notificações do computador.");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="save-web-push-settings"){
+  const card=b.closest(".account-web-push-panel");if(!card)return;
+  const settings={};
+  for(const name of ["newDemands","deadlines","overdue"]){
+   const check=card.querySelector('[data-web-push-setting="'+name+'"]');
+   if(!check)return setToast("Preferência do computador indisponível.");
+   settings[name]=check.checked;
+  }
+  b.disabled=true;
+  try{
+   state.webPushData=await request("/web-push/preferences","PUT",settings);
+   setToast("Preferências do computador salvas.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
  if(action==="test-push"){
    if(!androidPush||!me||!registeredPushFor.startsWith(me.id+"|"))
      return setToast("Abra o APK atualizado, entre na conta e permita notificações.");
@@ -3174,6 +3270,13 @@ async function handleClick(e){
   }))return;
   // Desvincular este dispositivo ANTES de revogar a sessão, sem afetar outros aparelhos.
   if(androidPush)try{await request("/push/unregister","POST",{deviceId:androidPush.deviceId})}catch{}
+  // Remover apenas a inscrição deste navegador antes de encerrar a sessão.
+  const browserSubscription=await desktopSubscription().catch(()=>null);
+  if(browserSubscription){
+   try{await request("/web-push/unsubscribe","POST",{endpoint:browserSubscription.endpoint})}catch{}
+   try{await browserSubscription.unsubscribe()}catch{}
+  }
+  state.webPushHere=false;state.webPushData=null;
   registeredPushFor="";state.pushData=null;
   try{await request("/auth/logout","POST",{},"user")}catch{}
   token="";me=null;regularMe=null;
