@@ -137,6 +137,8 @@ export async function processPersonalReminders(env,sendEmail){
   const claim=await db.prepare("UPDATE personal_reminder_times SET status='processando',attempts=attempts+1,updated_at=? WHERE id=? AND status='pendente'").bind(now(),slot.id).run();
   if(!claim.meta?.changes)continue;
   try{
+   const stillOwned=await db.prepare("SELECT id FROM personal_reminders WHERE id=? AND user_id=?").bind(slot.parent_id,slot.user_id).first();
+   if(!stillOwned)continue;
    // Não entregar caso a pessoa conclua sua parte entre a consulta e o envio.
    if(slot.task_id&&!await mine(db,slot.task_id,slot.user_id)){
     await db.prepare("DELETE FROM personal_reminders WHERE id=?").bind(slot.parent_id).run();continue;
