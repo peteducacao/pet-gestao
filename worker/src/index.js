@@ -602,7 +602,7 @@ import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPush
     const answer=(data,status=200)=>json(data,status,origin);
     let diagnosticStage="request";
     try{
-      if(path==="/api/v1/health")return answer({ok:true,service:"PET Gestão",database:!!db,now:now()});
+      if(path==="/api/v1/health")return answer({ok:true,service:"PET Gestão",database:!!db,pushConfigured:!!(env.FCM_SERVICE_ACCOUNT_JSON&&asJson(env.FCM_SERVICE_ACCOUNT_JSON,{})?.project_id==="pet-gestao-yfs"&&asJson(env.FCM_SERVICE_ACCOUNT_JSON,{})?.private_key),now:now()});
       if(!db)fail("Banco D1 não conectado.",503);
       diagnosticStage="admin-initialization";
       await seedAdmin(db,env);
