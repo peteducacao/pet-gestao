@@ -140,7 +140,9 @@ try{
  assert.equal(await page.locator('[data-do="save-notice-matrix"]').count(),1,"Um só botão para salvar todos os avisos");
  await page.locator('[data-notice-kind="create"][data-notice-channel="email"]').uncheck();
  await page.locator('[data-notice-kind="create"][data-notice-channel="pc"]').uncheck();
+ const preferencesSaved=page.waitForResponse(r=>r.url().endsWith("/notification-preferences")&&r.request().method()==="PUT");
  await page.locator('[data-do="save-notice-matrix"]').click();
+ await preferencesSaved;
  assert.deepEqual(noticeMatrix.create,{email:false,android:true,pc:false},"Opções por canal persistidas independentemente");
  assert.equal(noticeMatrix.review.email,true,"Salvar uma preferência não altera outro tipo de aviso");
  assert.equal(await page.locator('[data-do="test-push"],[data-do="test-web-push"]').count(),0,"Botões de teste removidos da conta");
