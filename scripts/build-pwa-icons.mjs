@@ -21,26 +21,57 @@ function segment(x,y,ax,ay,bx,by){
  const dx=bx-ax,dy=by-ay,q=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy)));
  return Math.hypot(x-ax-q*dx,y-ay-q*dy);
 }
-// Mesmo desenho do SVG oficial: prancheta sólida branca, visto roxo e fundo violeta.
-// Renderização interna sem dependências para garantir PNGs idênticos a cada deploy.
+// Tradução em pixels antialias do desenho vetorial aprovado (sem robótica).
+// Depende só de Node: os PNGs continuam sendo gerados sem serviços externos.
+function pointStroke(x,y,ax,ay,bx,by,w){
+ return segment(x,y,ax,ay,bx,by)<=w;
+}
+const swooshSegments=[];
+for(const [a,c,b] of [
+ [[.330,.803],[.525,.857],[.742,.693]],
+ [[.742,.693],[.836,.619],[.832,.494]]
+]){
+ let previous=a;
+ for(let i=1;i<=14;i++){
+  const t=i/14,u=1-t,p=[u*u*a[0]+2*u*t*c[0]+t*t*b[0],u*u*a[1]+2*u*t*c[1]+t*t*b[1]];
+  swooshSegments.push([previous,p]);previous=p;
+ }
+}
+function onSwoosh(x,y){
+ if(x<.30||x>.90||y<.46||y>.87)return false;
+ return swooshSegments.some(([a,b])=>pointStroke(x,y,a[0],a[1],b[0],b[1],.0137));
+}
 function pixel(x,y,maskable){
- const t=Math.max(0,Math.min(1,(x+y)/2));
- const purple=[Math.round(133-67*t),0,Math.round(208-91*t),255];
- const white=[255,255,255,255],check=[101,0,165,255];
- if(!maskable&&!rounded(x,y,0,0,1,1,.219))return [0,0,0,0];
- // A área segura do Android conserva uma folga ao redor do símbolo.
+ if(!maskable&&!rounded(x,y,0,0,1,1,.207))return [0,0,0,0];
  const scale=maskable?.8:1,px=(x-.5)/scale+.5,py=(y-.5)/scale+.5;
- let result=purple;
- if(rounded(px,py,.264,.322,.736,.814,.073))result=white;
- // Presilha separada por um contorno roxo.
- const outside=rounded(px,py,.291,.285,.709,.457,.066)||Math.hypot(px-.5,py-.289)<=.093;
- const inside=rounded(px,py,.313,.305,.688,.431,.050)||Math.hypot(px-.5,py-.292)<=.080;
- if(outside)result=purple;
- if(inside)result=white;
- if(Math.hypot(px-.5,py-.295)<=.0254)result=check;
- if(segment(px,py,.385,.592,.471,.680)<.033||
-    segment(px,py,.471,.680,.621,.525)<.033)result=check;
- return result;
+ let t=Math.max(0,Math.min(1,(px+(1-py))/2));
+ let rgb=[Math.round(51+111*t),Math.round(0+34*t),Math.round(99+156*t),255];
+ // Duas curvas discretas mantêm as ondas roxas no fundo.
+ if(py<.42-.25*px&&px<.75)rgb=[Math.round(rgb[0]*.77),0,Math.round(rgb[2]*.83),255];
+ if(py>.90-.23*px)rgb=[Math.round(rgb[0]*.74),0,Math.round(rgb[2]*.8),255];
+ const white=[255,255,255,255],lavender=[224,197,255,255],hole=[91,0,169,255];
+ // Moldura da prancheta com cantos arredondados.
+ if(rounded(px,py,.198,.264,.802,.793,.12)&&
+   !rounded(px,py,.240,.305,.760,.751,.078))rgb=white;
+ // Presilha superior e arco circular.
+ if(rounded(px,py,.367,.220,.633,.338,.042))rgb=white;
+ const d=Math.hypot(px-.5,py-.201);
+ if(d>=.058&&d<=.096&&py<.24)rgb=white;
+ if(d<.024)rgb=hole;
+ // Checklist: três vistos, três linhas.
+ for(const row of [0,.09375,.1875]){
+  if(pointStroke(px,py,.305,.424+row,.334,.453+row,.0137)||
+     pointStroke(px,py,.334,.453+row,.383,.398+row,.0137))rgb=white;
+ }
+ if(rounded(px,py,.432,.416,.690,.443,.0137)||
+    rounded(px,py,.432,.510,.690,.537,.0137)||
+    rounded(px,py,.432,.604,.627,.631,.0137))rgb=lavender;
+ // Barras de progresso ascendentes.
+ if(rounded(px,py,.506,.684,.572,.773,.018)||
+    rounded(px,py,.588,.633,.654,.773,.018)||
+    rounded(px,py,.670,.572,.736,.773,.018))rgb=white;
+ if(onSwoosh(px,py))rgb=white;
+ return rgb;
 }
 function generate(size,maskable){
  const raw=Buffer.alloc((size*4+1)*size);

@@ -9,8 +9,9 @@ import {generatePwaIcons} from "./build-pwa-icons.mjs";
 const read=file=>fs.readFileSync(file,"utf8");
 const icon=read("assets/gestao-icon.svg");
 assert.equal(icon,read("assets/favicon.svg"),"Favicon e marca principal precisam ser o mesmo desenho");
-assert.match(icon,/<rect width="512" height="512" rx="112"/);
-assert.match(icon,/<path d="m197 303 44 45 77-79"/,"Prancheta branca com um visto roxo");
+assert.match(icon,/<rect width="512" height="512" rx="106"/);
+assert.match(icon,/<path d="m156 217 15 15 25-28"/,"Checklist aprovado sem robótica");
+assert.match(icon,/<rect x="259" y="350"/,"Barras de acompanhamento presentes");
 assert.doesNotMatch(icon,/<text\b/i,"A marca não pode conter texto visual");
 
 const html=read("index.html"),manifest=JSON.parse(read("site.webmanifest")),sw=read("sw.js");
@@ -20,7 +21,7 @@ assert.match(html,/pet-splash-pulse 1\.25s/,"Animação de abertura preservada")
 assert.match(html,/rel="apple-touch-icon" sizes="180x180"/);
 assert.match(html,/class="brand-icon brand-mark"[^>]*><img src="assets\/gestao-icon.svg/);
 assert.match(sw,/pet-gestao-public-shell-v20261118-limpeza-testes-v5/);
-assert.ok(manifest.icons.some(i=>i.type==="image/svg+xml"&&i.src.includes("prancheta-20261116")));
+assert.ok(manifest.icons.some(i=>i.type==="image/svg+xml"&&i.src.includes("gestao-premium-20261120")));
 
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),"pet-gestao-icons-"));
 try {
@@ -42,9 +43,9 @@ try {
  const i=png.indexOf(Buffer.from("IDAT")),n=png.readUInt32BE(i-4);
  const raw=inflateSync(png.subarray(i+4,i+4+n));
  const color=(x,y)=>[...raw.subarray(y*(192*4+1)+1+x*4,y*(192*4+1)+1+x*4+4)];
- const board=color(96,148),tick=color(90,130),background=color(96,18);
- assert.deepEqual(board,[255,255,255,255],"Corpo da prancheta é branco");
- assert.ok(tick[0]<170&&tick[2]>100,"Visto central roxo legível");
- assert.ok(background[2]>80&&background[0]>40,"Fundo roxo nítido");
+ const board=color(42,107),tick=color(65,102),background=color(96,18);
+ assert.deepEqual(board,[255,255,255,255],"Contorno da prancheta é branco");
+ assert.ok(tick[0]>200&&tick[2]>200,"Visto branco legível");
+ assert.ok(background[2]>80&&background[0]>35,"Fundo roxo nítido");
  console.log("OK: ícones 192/512 maskable, iOS 180, favicon, barra lateral e splash consistentes.");
 }finally{fs.rmSync(dir,{recursive:true,force:true})}

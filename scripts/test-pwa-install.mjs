@@ -19,7 +19,8 @@ assert.ok(html.includes('rel="manifest" href="site.webmanifest?'),"Manifesto dev
 assert.ok(html.includes('name="theme-color"'),"Tema do Android ausente.");
 assert.ok(html.includes('name="mobile-web-app-capable"'),"Suporte ao modo aplicativo ausente.");
 assert.match(app,/navigator\.serviceWorker\.register\("\.\/sw\.js"\)/);
-assert.ok(app.includes('href="./downloads/PET-Gestao.apk"'),"Botão deve baixar o APK direto do próprio site.");
+assert.ok(app.includes('releases/download/android-apk/PET-Gestao.apk'),"Botão principal precisa do APK publicado no GitHub.");
+assert.ok(app.includes('href="./downloads/PET-Gestao.apk"'),"Deve existir link alternativo pelo próprio site.");
 assert.ok(app.includes('download="PET-Gestao.apk"'),"Download deve ter nome .apk.");
 assert.match(app,/Baixar APK para Android/);
 assert.ok(!app.includes('install-pet-app'),"A tela não deve acionar a instalação PWA.");
@@ -27,7 +28,7 @@ const apkFile=path.join(root,"downloads","PET-Gestao.apk");
 assert.ok(fs.existsSync(apkFile),"APK não foi incluído no site.");
 const apk=fs.readFileSync(apkFile);
 assert.ok(apk.length>10000 && apk.subarray(0,4).equals(Buffer.from([0x50,0x4B,0x03,0x04])),"Arquivo Android inválido.");
-assert.match(sw,/pet-gestao-public-shell-v20261118-limpeza-testes-v5/);
+assert.match(sw,/pet-gestao-public-shell-v20261120-splash-premium-apk-v1/);
 assert.ok(!sw.includes('"/api/'),"A API não deve ser armazenada no cache.");
 
 const icons=manifest.icons.filter(icon=>icon.type==="image/png");

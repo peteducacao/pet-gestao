@@ -11,6 +11,9 @@ on:
       - 'assets/**'
       - 'worker/**'
       - 'scripts/prepare-deploy.mjs'
+      - 'scripts/build-pwa-icons.mjs'
+      - 'scripts/test-startup-splash.mjs'
+      - 'scripts/test-brand-icons.mjs'
       - 'scripts/test-auth-sessions.mjs'
       - 'scripts/test-pwa-install.mjs'
       - '.github/workflows/pages.yml'
@@ -186,3 +189,13 @@ jobs:
       - name: Publicar site
         id: pages
         uses: actions/deploy-pages@v4
+
+      - name: Diagnosticar acesso público ao APK
+        continue-on-error: true
+        run: |
+          # Informação operacional: CDN pode levar alguns instantes para atualizar.
+          for url in             "https://peteducacao.github.io/pet-gestao/downloads/PET-Gestao.apk"             "https://github.com/peteducacao/pet-gestao/releases/download/android-apk/PET-Gestao.apk"; do
+            printf '%s\n' "$url"
+            curl -sSL -o /tmp/pet-gestao-public.apk               --connect-timeout 10 --max-time 40               -w "HTTP: %{http_code}, bytes: %{size_download}, content-type: %{content_type}\n"               "$url" || true
+            file /tmp/pet-gestao-public.apk || true
+          done

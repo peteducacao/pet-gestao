@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   android-apk:
@@ -66,3 +67,11 @@ jobs:
               --title "PET Gestão — APK Android" \
               --notes "APK de teste instalável no Android, sem Play Store. Usa a interface oficial do GitHub Pages e os dados do Cloudflare. Requer conexão para sincronização. É assinado como build de debug; para futuras atualizações nativas, configurar assinatura privada estável."
           fi
+
+      - name: Atualizar download do APK no GitHub Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # O primeiro deploy pode ocorrer antes da compilação Android.
+          # Este disparo atualiza o arquivo /downloads/ com a versão recém-publicada.
+          gh workflow run pages.yml --ref main

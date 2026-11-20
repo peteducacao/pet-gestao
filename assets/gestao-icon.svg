@@ -1,18 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
-<title id="title">PET Gestão — prancheta de tarefas concluídas</title>
+<title id="title">PET Gestão — organização, checklist e acompanhamento</title>
 <defs>
-  <linearGradient id="pet-purple" x1="0" y1="0" x2="1" y2="1">
-    <stop stop-color="#8500D0"/>
-    <stop offset=".55" stop-color="#6400A8"/>
-    <stop offset="1" stop-color="#420075"/>
-  </linearGradient>
+ <linearGradient id="bg" x1=".1" y1="1" x2=".9" y2=".04"><stop offset="0" stop-color="#330063"/><stop offset=".51" stop-color="#6200b5"/><stop offset="1" stop-color="#a22aff"/></linearGradient>
+ <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#eee3ff"/></linearGradient>
+ <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f9f5ff"/><stop offset="1" stop-color="#c694ff"/></linearGradient>
 </defs>
-<!-- Marca única: fundo roxo, prancheta branca e confirmação roxa. Sem texto. -->
-<rect width="512" height="512" rx="112" fill="url(#pet-purple)"/>
-<rect x="135" y="165" width="242" height="252" rx="37" fill="#FFFFFF"/>
-<!-- Entalhe ao redor da presilha para separar visualmente as duas formas. -->
-<path d="M182 146h27c4-28 22-47 47-47s43 19 47 47h27c19 0 33 14 33 33v20c0 20-15 35-35 35H184c-19 0-35-15-35-35v-20c0-19 14-33 33-33Z" fill="url(#pet-purple)"/>
-<path d="M187 156h31c3-26 17-45 38-45s35 19 38 45h31c15 0 27 12 27 27v12c0 14-12 26-26 26H186c-14 0-26-12-26-26v-12c0-15 12-27 27-27Z" fill="#FFFFFF"/>
-<circle cx="256" cy="151" r="13" fill="#6500A5"/>
-<path d="m197 303 44 45 77-79" fill="none" stroke="#6500A5" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+<rect width="512" height="512" rx="106" fill="url(#bg)"/>
+<path d="M-20 215 Q118 95 292 62 Q419 39 545 -20 L540 135 Q372 166 230 228 Q110 270 -20 364 Z" fill="#310067" opacity=".34"/>
+<path d="M-32 421 Q118 309 252 322 Q402 326 541 216 L541 385 Q360 464 238 496 L20 515Z" fill="#22004a" opacity=".24"/>
+<g fill="none" stroke="url(#paper)" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"><rect x="112" y="146" width="288" height="249" rx="51"/></g>
+<rect x="188" y="113" width="136" height="60" rx="21" fill="url(#paper)"/>
+<path d="M219 117c1-30 15-49 37-49s36 19 37 49" fill="none" stroke="url(#paper)" stroke-width="21" stroke-linecap="round"/>
+<circle cx="256" cy="103" r="12" fill="#5b00a9"/>
+<g stroke="url(#paper)" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="14">
+<path d="m156 217 15 15 25-28"/><path d="m156 265 15 15 25-28"/><path d="m156 313 15 15 25-28"/>
+</g>
+<g fill="url(#violet)"><rect x="221" y="213" width="132" height="14" rx="7"/><rect x="221" y="261" width="132" height="14" rx="7"/><rect x="221" y="309" width="100" height="14" rx="7"/></g>
+<g fill="url(#paper)"><rect x="259" y="350" width="34" height="45" rx="9"/><rect x="301" y="324" width="34" height="71" rx="9"/><rect x="343" y="293" width="34" height="102" rx="9"/></g>
+<path d="M169 411 Q269 439 380 355 Q428 317 426 253" fill="none" stroke="url(#paper)" stroke-width="14" stroke-linecap="round"/>
 </svg>

@@ -1261,9 +1261,10 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(tasks.some(x=>x.id==="t1"),false);
  // O controle de exclusão de conta também deve estar acessível pelo perfil.
  await page.goto(origin+"/#/conta");
- const apkButton=page.locator('a.account-app-install-button[download="PET-Gestao.apk"]');
+ const apkButton=page.locator('a.account-app-install-button[href*="/releases/download/android-apk/PET-Gestao.apk"]');
  await apkButton.waitFor({state:"visible",timeout:10000});
- assert.equal(await apkButton.getAttribute("href"),"./downloads/PET-Gestao.apk","O perfil oferece download do APK hospedado no site");
+ assert.equal(await apkButton.getAttribute("href"),"https://github.com/peteducacao/pet-gestao/releases/download/android-apk/PET-Gestao.apk","Botão principal entrega o APK da versão publicada");
+ assert.equal(await page.locator('a[href="./downloads/PET-Gestao.apk"][download="PET-Gestao.apk"]').count(),1,"Link alternativo local permanece disponível");
  assert.equal(await page.locator('[data-do="install-pet-app"]').count(),0,"Não abrir instalador PWA ao baixar aplicativo");
  await page.locator('[data-do="account-delete-open"]').waitFor({state:"visible",timeout:10000});
  await page.locator('[data-do="account-delete-open"]').click();

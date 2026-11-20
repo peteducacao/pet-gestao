@@ -2148,15 +2148,17 @@ function renderConfirmEmail(tokenPart){
   (valid?'<button type="button" class="button primary" data-do="confirm-account-email">Confirmar meu e-mail</button>':'<a href="#/login" class="button primary">Entrar</a>')+
   '</section>';
 }
-// Download direto do APK Android pelo próprio domínio do PET Gestão.
+// Link principal: arquivo da versão Android publicada, sem abrir a página de Releases.
+// Mantemos uma segunda origem no GitHub Pages caso a rede bloqueie downloads do GitHub.
 function renderAppInstall(){
+ const apkRelease="https://github.com/peteducacao/pet-gestao/releases/download/android-apk/PET-Gestao.apk";
  return '<section class="account-app-install" aria-label="Baixar APK do PET Gestão">'+
   '<div class="account-app-install-head"><span class="account-app-install-icon">'+ico("download")+'</span><div>'+
   '<h3>Aplicativo PET Gestão para Android</h3>'+
   '<p>Instale o aplicativo no celular, sem depender da Play Store. Ele acompanha as atualizações do site e acessa as mesmas contas e dados do PET.</p></div></div>'+
-  '<a class="button primary account-app-install-button" href="./downloads/PET-Gestao.apk" download="PET-Gestao.apk" aria-label="Baixar APK do PET Gestão para Android">'+
+  '<a class="button primary account-app-install-button" href="'+apkRelease+'" target="_blank" rel="noopener noreferrer" aria-label="Baixar APK do PET Gestão para Android">'+
   ico("download")+' Baixar APK para Android</a>'+
-  '<p class="account-app-install-help">Arquivo APK para Android 8 ou superior. Depois de baixar, abra o arquivo e autorize a instalação dessa fonte, se o Android solicitar. É necessária internet para sincronizar os dados.</p>'+
+  '<p class="account-app-install-help">Se não iniciar o download, <a href="./downloads/PET-Gestao.apk" download="PET-Gestao.apk">baixe pelo servidor do site</a> ou abra este endereço no Chrome. Android 8 ou superior. Após baixar, abra o arquivo e autorize a instalação, se solicitado. O aplicativo utiliza a internet para sincronizar dados.</p>'+
   '</section>';
 }
 function renderAccount(){
