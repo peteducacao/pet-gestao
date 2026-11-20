@@ -2341,24 +2341,62 @@ function renderAccount(){
   '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
   (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
   '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
- return header("Pessoal","Meu perfil","Seus dados e preferências de acesso.")+
- '<section class="card card-pad live-auth account-profile"><div class="profile-hero">'+
- '<div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span></div>'+
- '<div class="account-profile-info">'+profilePhoto+
- '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
- '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
- (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
- (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
- '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
- '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
- (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
- commissionsHtml+'<div class="profile-settings-heading"><h3>Configurações da conta</h3><p>Gerencie seus dados de acesso e a instalação do aplicativo.</p></div>'+
- '<div class="profile-settings-grid">'+emailManagement+renderAppInstall()+'</div>'+
- renderPushPreferences()+
- '<div class="profile-security-panel"><div><h3>Segurança da conta</h3><p>Atualize sua senha sempre que precisar.</p></div>'+
- '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">'+ico("lock")+' Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required ><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form></div><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
- '<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
- '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section></section>'+
+ const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos"].includes(state.accountTab)?state.accountTab:"perfil");
+ const tabButton=(key,name,description,iconName)=>
+  '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="'+(tab===key?"0":"-1")+'">'+
+  '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
+ const panel=(key,content)=>
+  '<section class="account-hub-pane '+(key==="perfil"?"account-profile":"")+'" id="account-pane-'+key+'" role="tabpanel" aria-labelledby="account-tab-'+key+'" '+(tab!==key?"hidden":"")+'>'+content+'</section>';
+ const profileContent=
+  '<div class="profile-hero"><div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span></div>'+
+  '<div class="account-profile-info">'+profilePhoto+
+  '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
+  '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
+  (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
+    '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
+    '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
+  commissionsHtml;
+ const passwordManagement=
+  '<section class="profile-security-panel account-setting-card"><div><h3>Senha de acesso</h3><p>Altere sua senha com segurança sempre que precisar.</p></div>'+
+  '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">'+ico("lock")+' Alterar senha</button>'+
+  '<form id="change-password-form" class="register-form" hidden>'+
+  '<label>Senha atual<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label>'+
+  '<label>Nova senha<span class="password-control"><input type="password" name="newPassword" required autocomplete="new-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label>'+
+  '<button type="submit" class="button primary">Alterar senha</button></form></section>';
+ const securityContent=
+  '<div class="account-pane-intro"><span class="profile-section-eyebrow">PROTEÇÃO DA CONTA</span><h2>Segurança e acesso</h2><p>Gerencie suas credenciais sem misturar com notificações.</p></div>'+
+  (me.mustChangePassword?'<p class="status-note">Sua senha é temporária. Altere-a para acessar o sistema.</p>':"")+
+  '<div class="account-settings-two-col"><div class="account-setting-card">'+emailManagement+'</div>'+passwordManagement+'</div>'+
+  '<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
+  '<button class="button danger-outline" type="button" data-do="account-delete-open">'+ico("close")+' Excluir minha conta</button></section>'+
+  '<div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>';
+ const emailNotifications=
+  '<section class="account-channel-card account-channel-email" aria-labelledby="account-email-notifications"><div class="account-push-heading">'+
+  '<span class="account-push-icon">'+ico("mail")+'</span><div><h3 id="account-email-notifications">Notificações por e-mail</h3>'+
+  '<p>Mensagens enviadas para o seu e-mail cadastrado.</p></div></div>'+
+  (["tutor","admin"].includes(me.role)?
+    '<label class="account-email-notify-option"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'><span>Ao cadastrar ou revisar uma demanda, perguntar se desejo notificar os responsáveis por e-mail.</span></label>':
+    '<p class="account-push-status">Os avisos destinados ao seu e-mail são enviados de acordo com as regras do sistema.</p>')+
+  '<p class="field-hint">E-mails essenciais, como confirmação de endereço e recuperação de senha, permanecem ativos por segurança.</p></section>';
+ const notificationContent=
+  '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEUS AVISOS</span><h2>Central de notificações</h2>'+
+  '<p>Configure e teste cada canal separadamente. As alterações no computador não modificam as preferências do celular.</p></div>'+
+  '<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
+ const appContent=
+  '<div class="account-pane-intro"><span class="profile-section-eyebrow">INSTALAÇÃO</span><h2>Aplicativos PET Gestão</h2>'+
+  '<p>Escolha onde deseja usar o PET Gestão. O acesso e seus dados continuam sincronizados.</p></div>'+
+  '<div class="account-download-grid">'+renderDesktopInstall()+renderAppInstall()+'</div>';
+ return header("Pessoal","Minha conta","Seu espaço pessoal, organizado por categoria.")+
+  '<div class="account-hub"><nav class="account-hub-sidebar" role="tablist" aria-label="Configurações da conta">'+
+  '<div class="account-hub-side-title">CONFIGURAÇÕES</div>'+
+  tabButton("perfil","Meu perfil","Dados e comissões","user")+
+  tabButton("seguranca","Segurança","E-mail, senha e exclusão","lock")+
+  tabButton("notificacoes","Notificações","E-mail, PC e celular","bell")+
+  tabButton("aplicativos","Aplicativos","Instalar no PC ou Android","download")+
+  '</nav><div class="account-hub-main">'+
+  panel("perfil",profileContent)+panel("seguranca",securityContent)+
+  panel("notificacoes",notificationContent)+panel("aplicativos",appContent)+
+  '</div></div>'+
  '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
   '<div class="account-delete-backdrop" data-do="account-delete-close"></div>'+
   '<section class="account-delete-card" role="dialog" aria-modal="true" aria-labelledby="account-delete-heading">'+
