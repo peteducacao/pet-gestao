@@ -18,6 +18,15 @@ await test("login único da Administração",async()=>{
  assert.equal(r.user.adminSession,true,"Admin autenticado pela entrada comum recebe escopo legítimo");
  assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
+await test("avisos começam desligados e só ativam após Salvar todas",async()=>{
+ const before=good(await api("/notification-preferences")).preferences;
+ assert.equal(Object.keys(before).length,6);
+ for(const row of Object.values(before))assert.deepEqual(row,{email:false,android:false,pc:false});
+ // Para os testes seguintes de envio automático de e-mails, o titular opta por receber.
+ const enabled=Object.fromEntries(Object.keys(before).map(kind=>[kind,{email:true,android:false,pc:false}]));
+ good(await api("/notification-preferences","PUT",enabled));
+ assert.deepEqual(good(await api("/notification-preferences")).preferences,enabled);
+});
 await test("cenários fictícios removidos, preservando as dez comissões reais",async()=>{
  const publicData=good(await api("/bootstrap"));
  assert.equal(publicData.committees.length,10,"As dez comissões institucionais permanecem intactas");
