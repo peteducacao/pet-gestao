@@ -171,10 +171,12 @@ export async function webPushTest(env,user,payload){
 }
 export async function notifyBrowserUsers(env,userIds,message,preference,dedupe){
  const members=[...new Set(userIds.map(String).filter(Boolean))].slice(0,300);
- if(!members.length)return;
+ if(!members.length)return 0;
  const column=preference==="newDemands"?"new_demands":preference==="overdue"?"overdue":"deadlines";
+ const clause=preference?" AND COALESCE(p."+column+",1)=1":"";
  const rows=(await env.DB.prepare("SELECT s.* FROM web_push_subscriptions s LEFT JOIN web_push_preferences p ON p.user_id=s.user_id WHERE s.user_id IN ("+
-  members.map(()=>"?").join(",")+") AND COALESCE(p."+column+",1)=1 LIMIT 300").bind(...members).all()).results;
+  members.map(()=>"?").join(",")+")"+clause+" LIMIT 300").bind(...members).all()).results;
+ let delivered=0;
  for(const sub of rows){
   let key=null;
   try{
@@ -184,6 +186,7 @@ export async function notifyBrowserUsers(env,userIds,message,preference,dedupe){
     if(!claim.meta?.changes)continue;
    }
    const result=await deliverWebPush(env.DB,sub,message);
+   if(result.status==="sent")delivered++;
    if(result.status==="invalid"){
     await env.DB.prepare("DELETE FROM web_push_subscriptions WHERE id=?").bind(sub.id).run();
    }
@@ -192,4 +195,5 @@ export async function notifyBrowserUsers(env,userIds,message,preference,dedupe){
    console.error("PET Gestão — web push indisponível:",String(error.message||error).slice(0,150));
   }
  }
+ return delivered;
 }
