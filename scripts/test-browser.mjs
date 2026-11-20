@@ -15,7 +15,7 @@ const task={id:"t1",title:"Poesia no PET",description:"Ideias 📚",captionText:
   assigneeIds:["u1"],commissionIds:["videos"],userDone:{},commissionDone:{},
   deadlines:[{id:"p1",label:"Prazo",dueAt:new Date(Date.now()-15*60*1000).toISOString(),assigneeIds:["u1"]}],
   registeredAt:"2026-11-09",archivedAt:null,status:"pendente"};
-const commissionOnly={...task,id:"t2",title:"Atividade exclusiva da comissão",description:"",captionText:"",assigneeIds:[],commissionIds:["videos"],overviewVisible:false,userDone:{},commissionDone:{},deadlines:[{id:"p2",label:"Prazo",dueAt:"2026-11-20T17:00:00",assigneeIds:[]}]};
+const commissionOnly={...task,id:"t2",title:"Atividade exclusiva da comissão",description:"",captionText:"",assigneeIds:[],commissionIds:["videos"],overviewVisible:false,userDone:{},commissionDone:{},deadlines:[{id:"p2",label:"Prazo",dueAt:new Date(Date.now()+7*86400000).toISOString().slice(0,10)+"T17:00:00",assigneeIds:[]}]};
 let tasks=[task,commissionOnly],meetings=[{id:"m1",title:"Reunião de teste",date:"2026-11-09",rawNotes:"Pauta\nResponsável: (???)"}];
 const committees=[{id:"videos",name:"Vídeos",memberIds:["u1"],memberCount:1,maxMembers:0,backgroundColor:"#f7f3ff"}];
 const history=[{task_id:"t1",action:"Criou a demanda",actor_name:"Usuário de teste",created_at:new Date().toISOString()},
