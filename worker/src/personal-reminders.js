@@ -97,7 +97,7 @@ export async function savePersonalReminder(db,user,input,id=null){
    }
    due=nextTime(recurrence,time,weekday);
    display=time;
-   if(repeatUntil&&due?.slice(0,10)>repeatUntil)fail("A repetição termina antes do próximo aviso.");
+   if(repeatUntil&&due&&localStamp(Date.parse(due)).slice(0,10)>repeatUntil)fail("A repetição termina antes do próximo aviso.");
   }
   const unique=recurrence+"|"+display+"|"+weekday;
   if(keys.has(unique))fail("O mesmo dia e horário foi incluído duas vezes.");
@@ -129,8 +129,10 @@ export async function deletePersonalReminder(db,user,id){
 export async function processPersonalReminders(env,sendEmail){
  const db=env.DB;
  await prunePersonalReminders(db);
+ // Recuperar uma execução interrompida após 15 minutos, sem prender alarmes para sempre.
+ await db.prepare("UPDATE personal_reminder_times SET status='pendente' WHERE status='processando' AND updated_at<?").bind(new Date(Date.now()-900000).toISOString()).run();
  // Há uma única cobrança por horário. Cron concorrente não pode ocupar a mesma linha.
- const pending=(await db.prepare("SELECT t.*,r.user_id,r.task_id,r.title,r.message,r.channels,r.auto_delete,r.recurrence,r.repeat_until,r.id AS parent_id,u.email FROM personal_reminder_times t JOIN personal_reminders r ON r.id=t.reminder_id JOIN users u ON u.id=r.user_id WHERE t.status='pendente' AND t.next_at<=? ORDER BY t.next_at LIMIT 20").bind(now()).all()).results;
+ const pending=(await db.prepare("SELECT t.*,r.user_id,r.task_id,r.title,r.message,r.channels,r.auto_delete,r.recurrence,r.repeat_until,r.id AS parent_id,u.email FROM personal_reminder_times t JOIN personal_reminders r ON r.id=t.reminder_id JOIN users u ON u.id=r.user_id WHERE t.status='pendente' AND t.next_at<=? AND (t.retry_after IS NULL OR t.retry_after<=?) ORDER BY t.next_at LIMIT 20").bind(now(),now()).all()).results;
  for(const slot of pending){
   const claim=await db.prepare("UPDATE personal_reminder_times SET status='processando',attempts=attempts+1,updated_at=? WHERE id=? AND status='pendente'").bind(now(),slot.id).run();
   if(!claim.meta?.changes)continue;
@@ -158,7 +160,7 @@ export async function processPersonalReminders(env,sendEmail){
    if(!success){
     // Sem dispositivo conectado, cota Gmail esgotada ou falha temporária:
     // nunca marcar como enviado, nem excluir; aguardar nova tentativa.
-    await db.prepare("UPDATE personal_reminder_times SET status='pendente',updated_at=? WHERE id=? AND status='processando'").bind(now(),slot.id).run();
+    await db.prepare("UPDATE personal_reminder_times SET status='pendente',retry_after=?,updated_at=? WHERE id=? AND status='processando'").bind(new Date(Date.now()+Math.min(360,10*Math.max(1,slot.attempts+1))*60000).toISOString(),now(),slot.id).run();
     continue;
    }
    if(slot.recurrence==="once"){
@@ -177,11 +179,11 @@ export async function processPersonalReminders(env,sendEmail){
       const left=await db.prepare("SELECT 1 AS yes FROM personal_reminder_times WHERE reminder_id=? LIMIT 1").bind(slot.parent_id).first();
       if(!left)await db.prepare("DELETE FROM personal_reminders WHERE id=?").bind(slot.parent_id).run();
      }
-    }else await db.prepare("UPDATE personal_reminder_times SET status='pendente',next_at=?,notified_at=?,updated_at=? WHERE id=?").bind(next,now(),now(),slot.id).run();
+    }else await db.prepare("UPDATE personal_reminder_times SET status='pendente',next_at=?,retry_after=NULL,notified_at=?,updated_at=? WHERE id=?").bind(next,now(),now(),slot.id).run();
    }
   }catch(error){
    console.error("PET Gestão — falha no lembrete pessoal:",String(error?.message||error).slice(0,150));
-   await db.prepare("UPDATE personal_reminder_times SET status='pendente',updated_at=? WHERE id=? AND status='processando'").bind(now(),slot.id).run().catch(()=>{});
+   await db.prepare("UPDATE personal_reminder_times SET status='pendente',retry_after=?,updated_at=? WHERE id=? AND status='processando'").bind(new Date(Date.now()+600000).toISOString(),now(),slot.id).run().catch(()=>{});
   }
  }
 }
