@@ -1,0 +1,76 @@
+name: PET Gestão — conferir APK no emulador Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-apk-visual-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android-visual:
+    name: Instalar e fotografar APK no emulador
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Obter APK publicado
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download android-apk --pattern 'PET-Gestao.apk' --dir . --clobber
+          test -s PET-Gestao.apk
+          unzip -tqq PET-Gestao.apk
+
+      - name: Habilitar aceleração do emulador
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+          mkdir -p android-visual-output
+
+      - name: Rodar APK no Pixel simulado
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          ram-size: 2048M
+          heap-size: 512M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            adb wait-for-device
+            adb shell input keyevent 82
+            adb install -r PET-Gestao.apk
+            adb shell am start -n br.ufs.peteducacao.gestao/.MainActivity
+            sleep 12
+            adb shell screencap -p /sdcard/pet-gestao-12s.png
+            adb pull /sdcard/pet-gestao-12s.png android-visual-output/
+            sleep 16
+            adb shell screencap -p /sdcard/pet-gestao-28s.png
+            adb pull /sdcard/pet-gestao-28s.png android-visual-output/
+            adb shell dumpsys window > android-visual-output/window-dump.txt
+            adb shell uiautomator dump /sdcard/pet-gestao-ui.xml || true
+            adb pull /sdcard/pet-gestao-ui.xml android-visual-output/ || true
+            adb shell dumpsys activity activities > android-visual-output/activity-dump.txt
+            adb logcat -d -t 1000 > android-visual-output/logcat.txt || true
+
+      - name: Publicar capturas da inspeção
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PET-Gestao-Android-Simulador
+          path: android-visual-output/
+          retention-days: 7
+          if-no-files-found: warn
