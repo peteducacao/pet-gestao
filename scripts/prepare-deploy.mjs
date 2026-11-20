@@ -40,7 +40,7 @@ const config={
  main:"worker/src/index.js",
  compatibility_date:"2026-11-09",
  d1_databases:[{binding:"DB",database_name:"pet-gestao-db",database_id:db.uuid||db.id,migrations_dir:"worker/migrations"}],
- triggers:{crons:["*/5 * * * *"]},
+ triggers:{crons:["* * * * *"]},
  vars:{PUBLIC_SITE_URL:"https://peteducacao.github.io/pet-gestao/"}
 };
 fs.writeFileSync("wrangler.json",JSON.stringify(config,null,2));
