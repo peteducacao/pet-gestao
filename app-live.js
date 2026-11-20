@@ -2992,7 +2992,7 @@ async function handleClick(e){
  if(action==="save-notice-matrix"){
   if(!state.noticeDraft)return setToast("Aguarde o carregamento das suas preferências.");
   const settings=JSON.parse(JSON.stringify(state.noticeDraft));
-  for(const input of $(".account-notification-matrix [data-notice-kind]")){
+  for(const input of $$(".account-notification-matrix [data-notice-kind]")){
    if(!settings[input.dataset.noticeKind])return setToast("Preferência inválida.");
    settings[input.dataset.noticeKind][input.dataset.noticeChannel]=input.checked;
   }
