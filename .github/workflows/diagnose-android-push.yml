@@ -68,6 +68,25 @@ jobs:
              SUM(email_ativado) AS com_algum_email_ativado,
              SUM(android_ativado) AS com_algum_android_ativado,
              SUM(android_com_dispositivo) AS com_celular_vinculado_e_ativado FROM candidate;"
+      - name: Conferir aceite FCM especificamente nas demandas criadas recentemente
+        run: |
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            SELECT kind,COUNT(*) AS avisos_aceitos FROM push_notice_log
+            WHERE datetime(created_at)>=datetime('now','-3 hours')
+            GROUP BY kind ORDER BY kind;"
+          wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
+            WITH recent AS (SELECT * FROM tasks WHERE datetime(created_at)>=datetime('now','-3 hours')),
+             status AS (
+              SELECT t.id,
+               EXISTS(SELECT 1 FROM push_notice_log pl
+                WHERE pl.task_id=t.id AND pl.kind='create') AS aceita_pelo_fcm,
+               EXISTS(SELECT 1 FROM email_queue eq
+                WHERE eq.task_id=t.id AND eq.kind='create' AND eq.status='enviado') AS aceita_pelo_gmail
+              FROM recent t
+             )
+            SELECT COUNT(*) AS demandas_recentes,
+             SUM(aceita_pelo_fcm) AS demandas_com_push_aceito,
+             SUM(aceita_pelo_gmail) AS demandas_com_email_enviado FROM status;"
       - name: Quantificar registro e falhas do FCM sem expor tokens
         run: |
           wrangler d1 execute pet-gestao-db --remote --config wrangler.json --command "
