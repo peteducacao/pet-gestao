@@ -4278,3 +4278,85 @@ body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin
 @media(max-width:360px){
  body.admin-ui-active #admin-users .admin-user-actions{grid-template-columns:1fr}
 }
+
+
+/* Administração > Usuários — hierarquia visual separada: título, busca e lista. */
+body.admin-ui-active .admin-users-panel{
+  padding:0!important;margin:0!important;border:0!important;
+  border-radius:0!important;background:transparent!important;box-shadow:none!important;
+  display:block;min-width:0;
+}
+body.admin-ui-active .admin-users-panel[hidden]{display:none!important}
+body.admin-ui-active #admin-users{margin:0!important;min-width:0}
+body.admin-ui-active #admin-users .admin-user-list-top{
+  display:block;min-width:0;margin:0!important;
+  padding:18px!important;background:#fff!important;
+  border:1px solid #e5def0!important;border-radius:18px!important;
+  box-shadow:0 4px 16px rgba(47,25,91,.035);
+}
+body.admin-ui-active #admin-users .admin-user-search-box{
+  display:grid;gap:9px;width:100%;max-width:none!important;
+  min-width:0!important;margin:0;
+}
+body.admin-ui-active #admin-users .admin-user-search-box .admin-user-field-label{
+  color:#514263;font-size:14px;font-weight:800;line-height:1.4;
+}
+body.admin-ui-active #admin-users .admin-user-search-box input{
+  width:100%;min-width:0;max-width:100%;
+  min-height:52px;font-size:16px;border-radius:12px;
+  background:#faf8fd;border:1px solid #dcd3ea;
+  padding:12px 14px;
+}
+body.admin-ui-active #admin-users .admin-user-results-heading{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;min-width:0;flex-wrap:wrap;
+  margin:26px 0 14px;padding:0 2px 12px;
+  border-bottom:1px solid #e4dcec;
+}
+body.admin-ui-active #admin-users .admin-user-results-heading h2{
+  margin:0;min-width:0;font-size:clamp(17px,2.7vw,20px);
+  line-height:1.4;letter-spacing:-.025em;
+  color:#261c3a;font-weight:850;
+}
+body.admin-ui-active #admin-users .admin-user-result-count{
+  display:inline-flex;align-items:center;justify-content:center;
+  margin:0;padding:8px 12px;min-height:36px;
+  border-radius:999px;border:1px solid #e2d3f6;
+  background:#f1eaff;color:#63409d;
+  font-size:12.5px;font-weight:800;white-space:nowrap;
+}
+body.admin-ui-active #admin-users .admin-user-cards{
+  margin:0;gap:14px;min-width:0;
+}
+body.admin-ui-active #admin-users .admin-user-card{
+  border:1px solid #e5deed;border-radius:17px;
+  background:#fff;
+  box-shadow:0 3px 14px rgba(47,25,91,.035);
+}
+body.admin-ui-active .admin-users-panel>.admin-users-guides{
+  margin:22px 0 0;max-width:100%;
+}
+@media(max-width:680px){
+ body.admin-ui-active .admin-users-panel{width:100%;max-width:100%}
+ body.admin-ui-active #admin-users .admin-user-list-top{
+   padding:16px!important;border-radius:16px!important;
+ }
+ body.admin-ui-active #admin-users .admin-user-results-heading{
+   margin:23px 0 13px;padding-bottom:12px;
+   gap:8px;
+ }
+ body.admin-ui-active #admin-users .admin-user-results-heading h2{
+   font-size:17px;
+ }
+ body.admin-ui-active #admin-users .admin-user-result-count{
+   min-height:34px;padding:7px 10px;font-size:12px;
+ }
+ body.admin-ui-active #admin-users .admin-user-cards{
+   grid-template-columns:1fr;gap:14px;
+ }
+}
+@media(max-width:340px){
+ body.admin-ui-active #admin-users .admin-user-results-heading{
+   align-items:flex-start;flex-direction:column;gap:9px;
+ }
+}

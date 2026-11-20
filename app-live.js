@@ -2313,7 +2313,7 @@ function renderAdmin(){
   '<section class="card card-pad live-auth"><p>'+(me?"Seu perfil não possui acesso administrativo.":"Entre com sua conta Admin pela mesma tela de login.")+'</p>'+
   button(me?"Voltar à Visão geral":"Entrar",me?"inicio":"login",true)+'</section>';
   const reminderConfig=data.settings.reminderSettings||{dueSoonEnabled:false,overdueEnabled:false,daysBefore:3,overdueAudience:"pending",eventTodayEnabled:false};
- const adminPanels='<section class="card card-pad admin-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><div class="admin-users-title"><h2>Usuários</h2><p>Encontre integrantes e gerencie as permissões.</p></div><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div><details class="admin-users-guides"><summary>Orientações sobre cargos e notificações</summary><div class="admin-users-guides-content"><p class="field-hint admin-role-guide">É possível ter mais de uma conta Administração. Somente um(a) administrador(a) pode conceder ou remover esse cargo, e o último administrador permanece protegido. Quem receber o cargo deve entrar novamente na conta para ativar o acesso administrativo.</p><p class="field-hint admin-role-guide admin-notify-guide"><strong>Sobre as notificações por e-mail:</strong> esta opção define se a pessoa poderá utilizar o envio de avisos por e-mail ao salvar alterações. Quando ativada, a Tutoria ou Administração poderá escolher entre enviar ou não a notificação. Os destinatários são definidos conforme os responsáveis e as comissões da atividade; marcar esta opção não significa que a pessoa receberá todos os avisos por e-mail.</p></div></details></section>'+
+ const adminPanels='<section class="admin-panel admin-users-panel" '+(state.adminTab==="usuarios"?"":'hidden')+'><div class="live-admin-list" id="admin-users"><p>Carregando usuários...</p></div><details class="admin-users-guides"><summary>Orientações sobre cargos e notificações</summary><div class="admin-users-guides-content"><p class="field-hint admin-role-guide">É possível ter mais de uma conta Administração. Somente um(a) administrador(a) pode conceder ou remover esse cargo, e o último administrador permanece protegido. Quem receber o cargo deve entrar novamente na conta para ativar o acesso administrativo.</p><p class="field-hint admin-role-guide admin-notify-guide"><strong>Sobre as notificações por e-mail:</strong> esta opção define se a pessoa poderá utilizar o envio de avisos por e-mail ao salvar alterações. Quando ativada, a Tutoria ou Administração poderá escolher entre enviar ou não a notificação. Os destinatários são definidos conforme os responsáveis e as comissões da atividade; marcar esta opção não significa que a pessoa receberá todos os avisos por e-mail.</p></div></details></section>'+
  '<section class="card card-pad admin-commissions admin-panel" '+(state.adminTab==="comissoes"?"":'hidden')+'><div class="admin-section-heading"><div><h2>Comissões</h2><p>Defina as vagas e organize a ordem de exibição. As alterações só serão aplicadas quando você salvar.</p></div><button type="button" class="button primary admin-save-all-button" data-do="save-all-commissions">'+ico("check")+' Salvar todas as alterações</button></div>'+
  '<div class="admin-commission-list">'+
  data.committees.map((c,i)=>'<div class="admin-commission-item" data-commission-id="'+esc(c.id)+'">'+
@@ -2367,7 +2367,7 @@ function renderAdmin(){
  '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("chevron-left")+' Voltar ao PET Gestão</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
  '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>Administração</strong></span></div></div>'+
- '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">Gerencie demandas, comissões, usuários e envios de e-mails.</p>'+
+ '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">'+esc(state.adminTab==="usuarios"?"Localize integrantes e gerencie cargos e permissões.":"Gerencie demandas, comissões, usuários e envios de e-mails.")+'</p>'+
  dashboard+adminPanels)+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
 }
 
@@ -2585,7 +2585,7 @@ function filterAdminUsers(){
  const empty=$("#admin-user-search-empty");
  if(empty)empty.hidden=count!==0;
  const result=$("#admin-user-count");
- if(result)result.textContent=filter?count+" de "+(state.adminUsers||[]).length+" pessoas":(state.adminUsers||[]).length+" pessoas";
+ if(result){const total=(state.adminUsers||[]).length;result.textContent=filter?count+" de "+total+" "+(total===1?"pessoa":"pessoas"):total+" "+(total===1?"pessoa":"pessoas");}
 }
 async function loadAdminUsers(){
  try{
@@ -2605,8 +2605,9 @@ async function loadAdminUsers(){
  '<div class="admin-user-actions"><button class="button primary small-action" data-do="save-user" data-id="'+esc(u.id)+'">'+ico("check")+' Salvar</button>'+
  '<button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">'+ico("lock")+' Senha temporária</button></div>'+
  '</article>').join("");
- target.innerHTML='<div class="admin-user-list-top"><label class="admin-user-search-box"><span class="admin-user-field-label">Buscar usuário</span><input id="admin-user-search" type="search" autocomplete="off" placeholder="Buscar por nome ou e-mail" value="'+esc(query)+'" aria-label="Buscar usuário por nome ou e-mail"></label><span id="admin-user-count" class="admin-user-result-count">'+users.length+' pessoas</span></div>'+
- '<div class="admin-user-cards">'+userCards+'</div><p id="admin-user-search-empty" class="admin-user-search-empty" hidden>Nenhum usuário encontrado com esse nome ou e-mail.</p>';
+ target.innerHTML='<div class="admin-user-list-top" role="search" aria-label="Pesquisar integrantes"><label class="admin-user-search-box"><span class="admin-user-field-label">Buscar integrante</span><input id="admin-user-search" type="search" autocomplete="off" placeholder="Digite nome ou e-mail" value="'+esc(query)+'" aria-label="Buscar integrante por nome ou e-mail" aria-controls="admin-user-cards"></label></div>'+
+ '<div class="admin-user-results-heading"><h2>Integrantes cadastrados</h2><span id="admin-user-count" class="admin-user-result-count" aria-live="polite">'+users.length+(users.length===1?' pessoa':' pessoas')+'</span></div>'+
+ '<div class="admin-user-cards" id="admin-user-cards">'+userCards+'</div><p id="admin-user-search-empty" class="admin-user-search-empty" hidden>Nenhum integrante encontrado com esse nome ou e-mail.</p>';
  filterAdminUsers();
  }catch(e){setToast(e.message)}
 }

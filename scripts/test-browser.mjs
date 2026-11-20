@@ -945,6 +945,11 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(guideStyles.shared,true,"Notificações usam mesma classe do aviso sobre Administração");
  assert.deepEqual(guideStyles.second,guideStyles.first,"Dois avisos idênticos em fundo lilás, borda, cantos, padding e texto no celular");
  await page.locator("#admin-user-search").waitFor({state:"visible",timeout:5000});
+ assert.equal(await page.locator(".admin-page h1").innerText(),"Usuários","Título Usuários aparece apenas no cabeçalho");
+ assert.equal(await page.locator(".admin-users-panel .admin-users-title").count(),0,"Não repetir título Usuários dentro do painel");
+ assert.equal(await page.locator("#admin-users .admin-user-list-top #admin-user-count").count(),0,"O contador fica fora do bloco de busca");
+ assert.equal(await page.locator("#admin-users .admin-user-results-heading #admin-user-count").count(),1,"O contador fica ao lado do título da lista");
+ assert.equal(await page.locator("#admin-users .admin-user-results-heading h2").innerText(),"Integrantes cadastrados","Lista identificada separadamente");
  assert.equal(await page.locator("#admin-users .admin-user-card").count(),2,"Lista exibe cartões de usuários reais");
  for(const width of [320,360,390,414]){
   await page.setViewportSize({width,height:844});
