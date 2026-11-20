@@ -117,7 +117,7 @@ assert.ok(worker.includes("const config={dueSoonEnabled,daysBefore,overdueEnable
 assert.ok(front.includes('data-do="save-reminder-soon"'),"Avisos antecipados possuem salvamento exclusivo");
 assert.ok(front.includes('data-do="save-reminder-overdue"'),"Prazo vencido possui salvamento independente");
 assert.ok(front.includes('data-do="save-reminder-event-today"'),"Evento no dia possui ativação independente");
-assert.ok(front.includes("Modelos de todos os e-mails automáticos"),"Todos os modelos de avisos ficam em um único seletor");
+assert.ok(front.includes("Modelos de notificações"),"Todos os modelos de avisos ficam em um único seletor");
 assert.ok(front.includes('dueSoonEnabled:$("#reminder-soon").checked'),"Interface envia controle antecipado");
 assert.ok(front.includes('daysBefore:days'),"Interface envia antecedência somente para avisos antecipados");
 console.log("Compatibilidade e salvamento dos avisos automáticos: OK.");
