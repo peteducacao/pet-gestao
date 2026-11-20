@@ -2801,7 +2801,8 @@ function render(){
 }
 async function askNotification(participants=null){
  if(!canNotify())return false;
- if(participants&&participants.users.length===1&&participants.users[0]===me.id&&!participants.commissions.length)return false;
+ // Sem outros destinatários, o próprio responsável ainda pode receber push se ativou Nova demanda.
+ if(participants&&participants.users.length===1&&participants.users[0]===me.id&&!participants.commissions.length)return true;
  return Boolean(await askConfirm("Deseja avisar os(as) responsáveis sobre esta alteração? Seu próprio e-mail não receberá cópia.",{
   title:"Notificar os(as) responsáveis?",
   cancelLabel:"Salvar sem enviar",
