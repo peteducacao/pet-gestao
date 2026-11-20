@@ -4360,3 +4360,39 @@ body.admin-ui-active .admin-users-panel>.admin-users-guides{
    align-items:flex-start;flex-direction:column;gap:9px;
  }
 }
+
+
+/* Administração > Usuários: contador sem recorte roxo nem aperto no celular. */
+body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result-count{
+  display:block;
+  flex:0 0 auto;
+  width:auto;
+  max-width:100%;
+  min-height:0;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  color:#746b80;
+  font-size:13px;
+  font-weight:650;
+  line-height:1.5;
+  white-space:normal;
+  overflow-wrap:normal;
+}
+@media(max-width:680px){
+  body.admin-ui-active #admin-users .admin-user-results-heading{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:3px;
+  }
+  body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result-count{
+    font-size:13px;
+    min-height:0;
+    padding:0;
+    margin:0;
+  }
+}
