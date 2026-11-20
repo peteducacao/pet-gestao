@@ -58,8 +58,8 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
+const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
 window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();desktopInstallPrompt=event;});
@@ -951,7 +951,7 @@ function nav(){
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
    el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
-   if(el.dataset.route==="minhas-pendencias"||el.dataset.route==="reunioes")el.hidden=!canWrite();
+   if(["minhas-pendencias","meus-lembretes","reunioes"].includes(el.dataset.route))el.hidden=!canWrite();
    if(profile){
      el.hidden=false;el.href=regularMe?"#/conta":"#/login";
      const label=el.querySelector("span");if(label)label.textContent=regularMe?"Meu perfil":"Entrar";
@@ -1563,6 +1563,115 @@ function renderCommitteeEdit(cid){
  '<label class="rich-label">Descrição (opcional)</label>'+richEditor("description",c?.description||"","Apresente a comissão e suas atividades...")+
  colorEditor+imagePicker+
  '<button class="button primary" type="submit">Salvar comissão</button></form></section>';
+}
+// Lembretes do próprio usuário, separados da criação rápida de demandas.
+const reminderLocalValue=(offset=3600000)=>{
+ const d=new Date(Date.now()+offset);
+ const pad=x=>String(x).padStart(2,"0");
+ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+};
+const reminderDefaultSlot=mode=>mode==="once"?{at:reminderLocalValue()}:
+ mode==="daily"?{time:"09:00"}:{weekday:1,time:"09:00"};
+async function loadPersonalReminders(){
+ const id=me?.id;
+ if(!id||state.reminderLoading)return;
+ state.reminderLoading=true;
+ try{
+  const data=await request("/personal-reminders");
+  if(me?.id!==id)return;
+  state.reminderItems=data.items||[];
+  state.reminderLoadedFor=id;
+  if(routeParts().page==="meus-lembretes")render();
+ }catch(error){setToast("Não foi possível carregar os lembretes: "+error.message)}
+ finally{state.reminderLoading=false}
+}
+function readReminderSlots(form){
+ return [...form.querySelectorAll(".reminder-slot-row")].map(row=>({
+  at:row.querySelector('[data-reminder-field="at"]')?.value||"",
+  time:row.querySelector('[data-reminder-field="time"]')?.value||"",
+  weekday:Number(row.querySelector('[data-reminder-field="weekday"]')?.value||0)
+ }));
+}
+function captureReminderEditor(){
+ const form=$("#personal-reminder-form");if(!form)return;
+ state.reminderDraft={
+  reminderType:form.elements.reminderType?.value||"task",
+  taskId:form.elements.taskId?.value||"",
+  title:form.elements.title?.value||"",
+  message:form.elements.message?.value||"",
+  channels:{email:form.elements.email?.checked===true,android:form.elements.android?.checked===true,pc:form.elements.pc?.checked===true},
+  autoDelete:form.elements.autoDelete?.checked===true,
+  repeatUntil:form.elements.repeatUntil?.value||""
+ };
+ state.reminderRecurrence=form.elements.recurrence?.value||"once";
+ state.reminderSchedules=readReminderSlots(form);
+}
+function openReminderEditor(item=null){
+ state.reminderEditing=item?.id||"new";
+ state.reminderRecurrence=item?.recurrence||"once";
+ state.reminderDraft={reminderType:item?(item.taskId?"task":"custom"):"task",
+  taskId:item?.taskId||"",title:item?.title||"",message:item?.message||"",
+  channels:item?.channels||{email:true,android:true,pc:true},
+  autoDelete:item?.autoDelete??true,repeatUntil:item?.repeatUntil||""};
+ state.reminderSchedules=item?.schedules?.map(x=>item.recurrence==="once"?{at:x.at}:{time:x.at,weekday:x.weekday})||
+  [reminderDefaultSlot(state.reminderRecurrence)];
+ render();
+ $("#personal-reminder-form")?.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderReminderSlots(){
+ const mode=state.reminderRecurrence||"once",days=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+ return '<div class="reminder-slots">'+(state.reminderSchedules||[]).map((slot,i)=>
+  '<div class="reminder-slot-row" data-index="'+i+'">'+
+  (mode==="once"?'<label>Data e horário <input type="datetime-local" data-reminder-field="at" required value="'+esc(slot.at||reminderLocalValue())+'"></label>':
+   (mode==="weekly"?'<label>Dia da semana<select class="select" data-reminder-field="weekday">'+days.map((d,n)=>opt(String(n),d,String(slot.weekday??1))).join("")+'</select></label>':"")+
+   '<label>Horário <input type="time" data-reminder-field="time" value="'+esc(slot.time||"09:00")+'" required></label>')+
+  '<button type="button" class="button ghost reminder-slot-remove" data-do="reminder-remove-time" data-index="'+i+'" aria-label="Remover horário" '+(state.reminderSchedules.length===1?"disabled":"")+'>'+ico("trash")+'</button></div>').join("")+
+  '</div><button type="button" class="button ghost" data-do="reminder-add-time" '+(state.reminderSchedules.length>=20?"disabled":"")+'>'+ico("plus")+' Adicionar outro horário</button>';
+}
+function renderPersonalReminders(){
+ if(!canWrite())return authRequired();
+ const pending=data.tasks.filter(isMyPending).sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
+ const draft=state.reminderDraft||{},editing=state.reminderEditing!==false;
+ const custom=draft.reminderType==="custom",mode=state.reminderRecurrence;
+ const headerHtml=header("Pessoal","Meus lembretes","Seus alarmes pessoais, sem alterar o cadastro das demandas.");
+ const formHtml=!editing?"":'<section class="card card-pad reminder-editor">'+
+  '<div class="section-head"><div><h2>'+(state.reminderEditing==="new"?"Novo lembrete":"Editar lembrete")+'</h2><p>Escolha vários dias e horários para ser avisado.</p></div>'+
+  '<button type="button" class="button ghost" data-do="reminder-close">Fechar</button></div>'+
+  '<form id="personal-reminder-form" class="register-form">'+
+  '<label>Tipo de lembrete<select class="select" name="reminderType" id="reminder-type">'+
+  opt("task","Uma das minhas pendências",custom?"custom":"task")+opt("custom","Personalizado (assunto pessoal)",custom?"custom":"task")+'</select></label>'+
+  (custom?'<label>Título do lembrete<input name="title" maxlength="120" required placeholder="Ex.: Ligar para alguém" value="'+esc(draft.title||"")+'"></label>':
+   '<label>Minha demanda<select class="select" name="taskId" required><option value="">Selecione a demanda</option>'+
+   pending.map(t=>opt(t.id,t.title,draft.taskId||"")).join("")+'</select></label>'+
+   (!pending.length?'<p class="field-hint">Você não possui pendências ativas. Use Personalizado para criar um aviso pessoal.</p>':""))+
+  '<label>Repetir<select class="select" name="recurrence" id="reminder-recurrence">'+
+  [["once","Uma vez (um ou vários dias)"],["daily","Todos os dias"],["weekly","Semanalmente"]].map(([v,l])=>opt(v,l,mode)).join("")+'</select></label>'+
+  renderReminderSlots()+
+  (mode==="once"?"":'<label>Repetir até (opcional)<input type="date" name="repeatUntil" value="'+esc(draft.repeatUntil||"")+'"></label>')+
+  '<label>Mensagem (opcional)<textarea name="message" maxlength="200" rows="2" placeholder="Se ficar vazio, o PET Gestão usa a mensagem padrão.">'+esc(draft.message||"")+'</textarea></label>'+
+  '<fieldset class="reminder-channels"><legend>Receber por</legend>'+
+  [["email","E-mail"],["android","Celular"],["pc","PC"]].map(([key,label])=>
+   '<label><input type="checkbox" name="'+key+'" '+(draft.channels?.[key]?"checked":"")+'> '+label+'</label>').join("")+'</fieldset>'+
+  '<label class="reminder-auto-delete"><input type="checkbox" name="autoDelete" '+(draft.autoDelete?"checked":"")+'> Excluir automaticamente após notificar</label>'+
+  '<p class="field-hint">Um horário único é removido quando o aviso é aceito por algum canal. Alarmes recorrentes permanecem até a data final, se houver, ou até você excluir.</p>'+
+  '<div class="reminder-form-actions"><button type="button" class="button ghost" data-do="reminder-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar lembrete</button></div>'+
+  '</form></section>';
+ const items=state.reminderItems||[];
+ const list='<section class="card card-pad reminder-list"><div class="section-head"><div><h2>Lembretes cadastrados</h2><p>Somente você pode visualizar ou modificar seus alarmes.</p></div></div>'+
+ (state.reminderLoadedFor!==me?.id?'<p class="field-hint">Carregando lembretes...</p>':
+  items.length?items.map(item=>{
+   const times=item.schedules||[],active=times.filter(x=>x.status!=="disparado");
+   const dates=times.slice(0,3).map(x=>item.recurrence==="once"?x.at.replace("T"," às "):
+    item.recurrence==="daily"?"Diariamente às "+x.at:
+    ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][x.weekday]+" às "+x.at).join(" · ");
+   return '<article class="reminder-list-row"><div class="reminder-list-icon">'+ico(item.taskId?"calendar":"bell")+'</div>'+
+    '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p>'+esc(dates)+'</p>'+
+    '<small>'+(item.taskId?"Vinculado à minha demanda":"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
+    '<div class="reminder-list-actions"><button type="button" class="button ghost" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' Editar</button>'+
+    '<button type="button" class="button ghost" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' Excluir</button></div></article>';
+  }).join(""):'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
+ return headerHtml+'<div class="reminder-page"><div class="reminder-page-actions"><button type="button" class="button primary" data-do="reminder-new">'+ico("plus")+' Novo lembrete</button>'+
+ '<span class="field-hint">Se a demanda for excluída ou sua pendência terminar, o lembte vinculado será removido.</span></div>'+formHtml+list+'</div>';
 }
 function renderMine(){
  if(!canWrite())return authRequired();
@@ -2646,6 +2755,7 @@ function render(){
  else if(page==="atividade")html=renderDetail(parts[0],parts[1]||"");
  else if(page==="reunioes")html=renderMemory(parts.join("/"));
  else if(page==="minhas-pendencias")html=renderMine();
+ else if(page==="meus-lembretes")html=renderPersonalReminders();
  else if(page==="login")html=renderLogin();
  else if(page==="cadastro")html=renderRegisterAccount();
  else if(page==="esqueci")html=renderForgot();
@@ -2655,6 +2765,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
+ if(page==="meus-lembretes"&&state.reminderLoadedFor!==me?.id&&!state.reminderLoading)void loadPersonalReminders();
  if(page==="admin"&&isAdmin()&&parts[0]==="resumo"&&parts[1])
    loadAdminCommissionSummary(parts[1]);
  if(taskFormRoute(location.hash)&&$("#task-form")&&taskFormDraft?.route!==location.hash)
