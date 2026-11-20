@@ -54,6 +54,8 @@ jobs:
           node --check --input-type=module < worker/src/index.js
       - name: Testar permanência de sessão e login discreto
         run: node scripts/test-auth-sessions.mjs
+      - name: Validar preferências por canal e alarmes pessoais
+        run: node scripts/test-notification-center.mjs
       - name: Testar cards de comissões, imagens e tons RGB
         run: node scripts/test-commission-cards.mjs
       - name: Testar a tela de abertura do aplicativo
