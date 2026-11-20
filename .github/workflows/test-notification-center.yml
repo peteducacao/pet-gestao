@@ -1,0 +1,50 @@
+name: PET Gestão — preferências e lembretes
+on:
+  pull_request:
+    paths:
+      - 'worker/src/notification-center.js'
+      - 'worker/src/personal-reminders.js'
+      - 'worker/src/index.js'
+      - 'worker/migrations/0026_notification_center_reminders.sql'
+      - 'scripts/test-notification-center.mjs'
+      - '.github/workflows/test-notification-center.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar sintaxe da API
+        run: |
+          node --check --input-type=module < worker/src/index.js
+          node --check --input-type=module < worker/src/notification-center.js
+          node --check --input-type=module < worker/src/personal-reminders.js
+      - name: Testar preferências e lembretes
+        run: node scripts/test-notification-center.mjs
+      - name: Simular migração do D1 e exclusão em cascata
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+          db=sqlite3.connect(':memory:')
+          db.execute('PRAGMA foreign_keys=ON')
+          db.executescript('CREATE TABLE users(id TEXT PRIMARY KEY); CREATE TABLE tasks(id TEXT PRIMARY KEY);')
+          db.executescript(open('worker/migrations/0026_notification_center_reminders.sql').read())
+          db.execute("INSERT INTO users VALUES ('a')")
+          db.execute("INSERT INTO tasks VALUES ('t')")
+          db.execute("""INSERT INTO personal_reminders
+            (id,user_id,task_id,title,channels,created_at,updated_at)
+            VALUES ('r','a','t','Minha pendência','{}','2026-11-20','2026-11-20')""")
+          db.execute("""INSERT INTO personal_reminder_times
+            (id,reminder_id,time_local,status,updated_at)
+            VALUES ('s','r','2026-11-21T09:00','pendente','2026-11-20')""")
+          db.execute("DELETE FROM tasks WHERE id='t'")
+          assert db.execute("SELECT COUNT(*) FROM personal_reminders").fetchone()[0]==0, 'Remover demanda deve apagar lembrete'
+          assert db.execute("SELECT COUNT(*) FROM personal_reminder_times").fetchone()[0]==0, 'Remover demanda deve apagar horários'
+          assert db.execute('PRAGMA foreign_key_check').fetchall()==[], 'Sem referências órfãs'
+          print('D1: migração e limpeza automática em cascata verificadas.')
+          PY

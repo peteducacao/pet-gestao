@@ -15,7 +15,7 @@ const task={id:"t1",title:"Poesia no PET",description:"Ideias 📚",captionText:
   assigneeIds:["u1"],commissionIds:["videos"],userDone:{},commissionDone:{},
   deadlines:[{id:"p1",label:"Prazo",dueAt:new Date(Date.now()-15*60*1000).toISOString(),assigneeIds:["u1"]}],
   registeredAt:"2026-11-09",archivedAt:null,status:"pendente"};
-const commissionOnly={...task,id:"t2",title:"Atividade exclusiva da comissão",description:"",captionText:"",assigneeIds:[],commissionIds:["videos"],overviewVisible:false,userDone:{},commissionDone:{},deadlines:[{id:"p2",label:"Prazo",dueAt:"2026-11-20T17:00:00",assigneeIds:[]}]};
+const commissionOnly={...task,id:"t2",title:"Atividade exclusiva da comissão",description:"",captionText:"",assigneeIds:[],commissionIds:["videos"],overviewVisible:false,userDone:{},commissionDone:{},deadlines:[{id:"p2",label:"Prazo",dueAt:new Date(Date.now()+7*86400000).toISOString().slice(0,10)+"T17:00:00",assigneeIds:[]}]};
 let tasks=[task,commissionOnly],meetings=[{id:"m1",title:"Reunião de teste",date:"2026-11-09",rawNotes:"Pauta\nResponsável: (???)"}];
 const committees=[{id:"videos",name:"Vídeos",memberIds:["u1"],memberCount:1,maxMembers:0,backgroundColor:"#f7f3ff"}];
 const history=[{task_id:"t1",action:"Criou a demanda",actor_name:"Usuário de teste",created_at:new Date().toISOString()},
@@ -23,6 +23,9 @@ const history=[{task_id:"t1",action:"Criou a demanda",actor_name:"Usuário de te
 const settings={autoMonth:true,autoWeek:true,notificationTemplates:{}};
  const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user,admin],committees,tasks,meetings,events:[],history,settings});
 const calls=[];
+const notificationKinds=["create","review","due_soon","overdue","event_soon","event_today"];
+let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:true,android:true,pc:true}]));
+let personalMockItems=[];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
  if(method==="OPTIONS")return route.fulfill({status:204,headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PUT,PATCH,DELETE","access-control-allow-headers":"Authorization,Content-Type"}});
@@ -31,6 +34,22 @@ await page.route("**/api/v1/**",async route=>{
  if(p==="/auth/me")result={user:adminMode?admin:user};
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/auth/login"&&method==="POST")result={token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user};
+ else if(p==="/notification-preferences"&&method==="GET")result={preferences:noticeMatrix};
+ else if(p==="/notification-preferences"&&method==="PUT"){noticeMatrix=body;result={preferences:noticeMatrix};}
+ else if(p==="/personal-reminders"&&method==="GET")result={items:personalMockItems};
+ else if(p==="/personal-reminders"&&method==="POST"){
+  const id="reminder-"+(personalMockItems.length+1);
+  personalMockItems.push({id,...body,schedules:body.schedules.map((slot,i)=>({id:"slot-"+i,at:slot.at||slot.time,weekday:slot.weekday??null,status:"pendente"}))});
+  result={ok:true,id};status=201;
+ }
+ else if(/^\/personal-reminders\/[^/]+$/.test(p)&&method==="PUT"){
+  const id=p.split("/")[2],index=personalMockItems.findIndex(x=>x.id===id);
+  if(index>=0)personalMockItems[index]={id,...body,schedules:body.schedules.map((slot,i)=>({id:"slot-"+i,at:slot.at||slot.time,weekday:slot.weekday??null,status:"pendente"}))};
+  result={ok:true,id};
+ }
+ else if(/^\/personal-reminders\/[^/]+$/.test(p)&&method==="DELETE"){
+  personalMockItems=personalMockItems.filter(x=>x.id!==p.split("/")[2]);result={ok:true};
+ }
  else if(p==="/mail")result={items:[]};
  else if(p==="/mail/status")result={connected:true,message:"Teste isolado"};
  else if(p==="/admin/commissions-batch"&&method==="PUT"){
@@ -114,6 +133,42 @@ try{
  await page.locator(".profile-commissions").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator(".profile-commissions").innerText()).includes("Vídeos"),
    "Meu perfil mostra minhas comissões sem alterar o cadastro");
+ // Central única: os seis avisos compartilham um botão de salvar por destinatário.
+ await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
+ await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator('.notice-matrix tbody tr').count(),6,"Seis tipos de notificações por três canais");
+ assert.equal(await page.locator('[data-do="save-notice-matrix"]').count(),1,"Um só botão para salvar todos os avisos");
+ await page.locator('[data-notice-kind="create"][data-notice-channel="email"]').uncheck();
+ await page.locator('[data-notice-kind="create"][data-notice-channel="pc"]').uncheck();
+ const preferencesSaved=page.waitForResponse(r=>r.url().endsWith("/notification-preferences")&&r.request().method()==="PUT");
+ await page.locator('[data-do="save-notice-matrix"]').click();
+ await preferencesSaved;
+ assert.deepEqual(noticeMatrix.create,{email:false,android:true,pc:false},"Opções por canal persistidas independentemente");
+ assert.equal(noticeMatrix.review.email,true,"Salvar uma preferência não altera outro tipo de aviso");
+ assert.equal(await page.locator('[data-do="test-push"],[data-do="test-web-push"]').count(),0,"Botões de teste removidos da conta");
+ // Novo painel pessoal: criar aviso privado, sem pendência; e aviso da própria demanda.
+ await page.goto(origin+"/#/meus-lembretes");
+ await page.locator('[data-do="reminder-new"]').click();
+ await page.locator("#personal-reminder-form").waitFor();
+ await page.locator('[name="reminderType"]').selectOption("custom");
+ await page.locator('#personal-reminder-form input[name="title"]').fill("Estudar para a prova");
+ assert.equal(await page.locator('#personal-reminder-form textarea[name="message"]').inputValue(),"","Mensagem permanece opcional");
+ await page.locator('#personal-reminder-form button[type="submit"]').click();
+ await page.locator(".reminder-list-row").first().waitFor({timeout:10000});
+ assert.equal(personalMockItems[0].taskId,null,"Personalizado não é vinculado a uma demanda");
+ assert.equal(personalMockItems[0].autoDelete,true,"Exclusão automática oferecida no cadastro");
+ await page.locator('[data-do="reminder-edit"]').first().click();
+ await page.locator('#personal-reminder-form textarea[name="message"]').fill("Revisar os capítulos");
+ await page.locator('#personal-reminder-form button[type="submit"]').click();
+ await page.waitForTimeout(200);
+ assert.equal(personalMockItems[0].message,"Revisar os capítulos","Editar lembrete atualiza sua mensagem");
+ await page.locator('[data-do="reminder-new"]').click();
+ await page.locator('#personal-reminder-form select[name="taskId"]').selectOption("t1");
+ await page.locator('#personal-reminder-form button[type="submit"]').click();
+ await page.waitForTimeout(200);
+ assert.equal(personalMockItems.at(-1).taskId,"t1","Lembrete de demanda usa somente minhas pendências");
+ assert.equal(await page.locator(".reminder-list-row").count(),2,"Lembretes cadastrados aparecem na lista pessoal");
+ await page.goto(origin+"/#/conta");
  await page.goto(origin+"/#/demandas");
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
  // Regression: GitHub Pages/browser may fail to load config.js. The PUBLIC fallback

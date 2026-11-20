@@ -1,5 +1,5 @@
 // Armazena somente arquivos estáticos públicos. Nunca armazena API, conta ou anexos.
-const CACHE_NAME="pet-gestao-public-shell-v20261120-icone-sem-traco-v2";
+const CACHE_NAME="pet-gestao-public-shell-v20261120-lembretes-v1";
 const FILES=["./","./index.html","./styles.css","./live.css","./app-live.js",
  "./site.webmanifest","./assets/gestao-icon.svg","./assets/favicon.svg",
  "./assets/pet-gestao-180.png","./assets/pet-gestao-192.png","./assets/pet-gestao-512.png",
@@ -45,13 +45,13 @@ self.addEventListener("push",event=>{
   const title=String(payload.title||"PET Gestão").slice(0,100);
   const message=String(payload.body||"Novo aviso do PET Gestão.").slice(0,250);
   const route=String(payload.route||"/inicio");
-  const safe=/^\/(?:inicio|atividade\/[A-Za-z0-9_-]{1,100}|minhas-pendencias)$/.test(route)?route:"/inicio";
+  const safe=/^\/(?:inicio|atividade\/[A-Za-z0-9_-]{1,100}|minhas-pendencias|meus-lembretes)$/.test(route)?route:"/inicio";
   const url=new URL("./#"+safe,self.registration.scope).href;
   await self.registration.showNotification(title,{
    body:message,
    icon:new URL("./assets/pet-gestao-192.png",self.registration.scope).href,
    badge:new URL("./assets/pet-gestao-192.png",self.registration.scope).href,
-   tag:"pet-gestao-"+String(payload.kind||"aviso")+"-"+safe,
+   tag:"pet-gestao-"+String(payload.kind||"aviso")+"-"+safe+"-"+String(payload.noticeId||"").replace(/[^A-Za-z0-9_-]/g,"").slice(0,60),
    data:{url}
   });
  })());

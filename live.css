@@ -4582,3 +4582,73 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  #screen .account-push-actions .button{width:100%;min-width:0}
  #screen .account-hub-pane .profile-hero .account-profile-info{min-width:0}
 }
+
+/* Central de notificações por canal e alarmes pessoais (2026-11). */
+.account-notification-matrix{margin-bottom:18px}
+.account-notification-matrix .section-head{margin-bottom:16px}
+.notice-matrix-scroller{overflow-x:auto;max-width:100%;border:1px solid var(--border,#e4dded);border-radius:15px}
+.notice-matrix{width:100%;border-collapse:collapse;min-width:440px}
+.notice-matrix th,.notice-matrix td{padding:13px 12px;border-bottom:1px solid var(--border,#eee9f2)}
+.notice-matrix tbody tr:last-child th,.notice-matrix tbody tr:last-child td{border-bottom:0}
+.notice-matrix thead th{background:var(--surface-alt,#f8f5fc);text-align:center;font-size:.85rem;white-space:nowrap}
+.notice-matrix thead th:first-child{text-align:left;width:55%}
+.notice-matrix thead svg{width:15px;height:15px;vertical-align:middle;margin-right:5px}
+.notice-matrix tbody th{text-align:left;font-weight:normal}
+.notice-matrix tbody th strong{font-size:.91rem;display:block;color:var(--text,#222)}
+.notice-matrix tbody th small{font-size:.77rem;display:block;margin-top:3px;color:var(--muted,#777)}
+.notice-matrix tbody td{text-align:center}
+.notice-cell-switch{display:inline-flex;align-items:center;position:relative;cursor:pointer;padding:4px}
+.notice-cell-switch input{position:absolute;opacity:0;inset:4px;width:40px;height:23px;margin:0;z-index:2;cursor:pointer}
+.notice-cell-switch span{display:inline-block;pointer-events:none;position:relative;border-radius:30px;width:40px;height:23px;background:#cbc9d4;transition:background .15s}
+.notice-cell-switch span::after{content:"";position:absolute;width:17px;height:17px;left:3px;top:3px;border-radius:50%;background:white;box-shadow:0 1px 3px #0003;transition:transform .15s}
+.notice-cell-switch input:checked+span{background:#6d2ac8}
+.notice-cell-switch input:checked+span::after{transform:translateX(17px)}
+.notice-cell-switch input:focus-visible+span{outline:3px solid #9f7adf;outline-offset:3px}
+.notice-matrix-actions{display:flex;justify-content:flex-end;margin-top:15px}
+.notice-matrix-actions .button{min-height:44px}
+.account-notification-matrix+.account-channel-grid{margin-top:12px}
+.reminder-page{display:grid;gap:18px;max-width:1160px}
+.reminder-page-actions{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}
+.reminder-page-actions .field-hint{max-width:670px;margin:0}
+.reminder-editor,.reminder-list{min-width:0}
+.reminder-editor .section-head{align-items:start}
+.reminder-editor .register-form{display:grid;gap:16px;max-width:920px}
+.reminder-editor .register-form label{min-width:0}
+.reminder-editor textarea{min-height:72px}
+.reminder-slots{display:grid;gap:10px}
+.reminder-slot-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;background:var(--surface-alt,#faf8fc);border:1px solid var(--border,#eee6f4);border-radius:12px;padding:12px}
+.reminder-slot-row:has([data-reminder-field="weekday"]){grid-template-columns:minmax(95px,1fr) minmax(100px,1fr) auto}
+.reminder-slot-row label{display:flex;flex-direction:column;gap:5px;min-width:0}
+.reminder-slot-row input,.reminder-slot-row select{min-height:41px;width:100%;min-width:0}
+.reminder-slot-remove{height:41px;min-width:41px;justify-content:center}
+.reminder-channels{display:flex;flex-wrap:wrap;gap:14px 24px;border:1px solid var(--border,#e2dce9);border-radius:12px;padding:15px 16px}
+.reminder-channels legend{font-weight:700;padding:0 6px}
+.reminder-channels label{display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:500}
+.reminder-channels input,.reminder-auto-delete input{accent-color:#732dcc}
+.reminder-auto-delete{display:flex!important;align-items:center;gap:9px}
+.reminder-form-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:9px}
+.reminder-list-row{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border,#eae6ed);padding:16px 0}
+.reminder-list-row:last-child{border-bottom:0}
+.reminder-list-icon{width:40px;height:40px;flex:0 0 40px;background:#f0e6ff;color:#6421b3;border-radius:13px;display:grid;place-items:center}
+.reminder-list-icon svg{width:21px;height:21px}
+.reminder-list-info{flex:1;min-width:0}
+.reminder-list-info strong{font-size:.94rem;display:block;overflow-wrap:anywhere}
+.reminder-list-info p{font-size:.87rem;color:var(--muted,#777);margin:4px 0}
+.reminder-list-info small{color:var(--muted,#777);font-size:.76rem}
+.reminder-list-actions{display:flex;gap:6px;flex-wrap:wrap}
+.reminder-list-actions .button{min-height:38px}
+@media(max-width:700px){
+ .account-notification-matrix{padding:16px}
+ .notice-matrix th,.notice-matrix td{padding:12px 7px}
+ .notice-matrix tbody th small{font-size:.7rem}
+ .notice-matrix-actions .button{width:100%}
+ .reminder-page-actions .button{width:100%;justify-content:center}
+ .reminder-list-row{align-items:flex-start;flex-wrap:wrap}
+ .reminder-list-actions{width:100%;padding-left:52px}
+ .reminder-list-actions .button{flex:1}
+}
+@media(max-width:410px){
+ .reminder-slot-row,.reminder-slot-row:has([data-reminder-field="weekday"]){grid-template-columns:minmax(0,1fr)}
+ .reminder-slot-remove{justify-self:end}
+ .reminder-form-actions .button{flex:1;white-space:normal}
+}

@@ -58,8 +58,8 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
+const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
 window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();desktopInstallPrompt=event;});
@@ -827,32 +827,44 @@ async function loadPushPreferencesForActiveUser(){
  }catch(error){console.warn("PET Gestão: preferências de notificações indisponíveis:",error.message)}
  void registerNativePush();
  void loadWebPushState();
+ void loadNotificationPreferences();
 }
 function renderPushPreferences(){
- const prefs=state.pushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
  const count=Number(state.pushData?.registeredDevices||0);
- const connected=!!androidPush&&!!registeredPushFor&&registeredPushFor.startsWith(String(me?.id||"")+"|");
- const status=connected
-  ?"Aparelho vinculado à sua conta. Faça o teste abaixo para conferir o recebimento."
-  :androidPush
-    ?"Conectando este aparelho ao PET Gestão. Se não concluir, feche e abra o aplicativo."
-    :count>0
-      ?"Você tem "+count+" aparelho(s) cadastrado(s). Para testar neste celular, abra o APK atualizado."
-      :"Para receber avisos na barra do celular, instale o APK atualizado e permita as notificações.";
- return '<section class="account-push-panel" aria-labelledby="profile-push-title">'+
-  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-push-title">Notificações no celular</h3>'+
-  '<p>Escolha os avisos que deseja receber no aplicativo Android. As notificações por e-mail são configuradas separadamente.</p></div></div>'+
-  '<p class="account-push-status">'+esc(status)+'</p>'+
-  '<div class="account-push-options">'+
-  '<label><input type="checkbox" data-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
-  '<label><input type="checkbox" data-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
-  '<label><input type="checkbox" data-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label>'+
-  '</div><div class="account-push-actions"><button type="button" class="button primary account-push-save" data-do="save-push-settings">'+
-  ico("check")+' Salvar preferências</button>'+
-  '<button type="button" class="button ghost account-push-test" data-do="test-push" '+(connected?"":'disabled title="Abra o aplicativo Android com notificações permitidas"')+'>'+
-  ico("bell")+' Enviar notificação de teste</button></div></section>';
+ const connected=!!androidPush&&registeredPushFor.startsWith(String(me?.id||"")+"|");
+ const status=connected?"Este celular está conectado e pronto para receber avisos.":
+  count>0?count+" celular(es) vinculado(s) à sua conta. Abra o aplicativo para ativar neste aparelho.":
+  "Para receber no celular, instale o APK e permita as notificações.";
+ return '<section class="account-push-panel account-channel-card"><div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-push-title">Celular Android</h3><p>'+esc(status)+'</p></div></div></section>';
 }
-
+const NOTICE_KINDS_UI=[["create","Nova demanda","Quando uma demanda é cadastrada"],
+ ["review","Revisão de texto","Quando há revisão ou correção"],
+ ["due_soon","Prazo vencendo","Aviso antecipado de uma etapa"],
+ ["overdue","Prazo vencido","Uma etapa ultrapassou seu prazo"],
+ ["event_soon","Evento se aproximando","Aviso antecipado de evento"],
+ ["event_today","Evento hoje","Lembrete no próprio dia do evento"]];
+async function loadNotificationPreferences(){
+ const userId=me?.id;if(!userId||me?.mustChangePassword)return;
+ try{
+  const result=await request("/notification-preferences");
+  if(me?.id!==userId)return;
+  state.noticePrefs=result.preferences;
+  if(!state.noticeDirty)state.noticeDraft=JSON.parse(JSON.stringify(result.preferences));
+  if(routeParts().page==="conta"&&state.accountTab==="notificacoes")render();
+ }catch(error){console.warn("PET Gestão: central de notificações indisponível:",error.message)}
+}
+function renderNotificationMatrix(){
+ const prefs=state.noticeDraft||state.noticePrefs;
+ if(!prefs)return '<section class="card card-pad">Carregando suas preferências de avisos...</section>';
+ const names=[["email","E-mail","mail"],["android","Celular","bell"],["pc","PC","monitor"]];
+ return '<section class="card card-pad account-notification-matrix"><div class="section-head"><div><h3>Quais avisos quero receber?</h3><p>Marque os tipos e os canais que deseja. Você pode desligar todos.</p></div></div>'+
+  '<div class="notice-matrix-scroller"><table class="notice-matrix"><thead><tr><th scope="col">Tipo de aviso</th>'+
+  names.map(([,label,iconName])=>'<th scope="col">'+ico(iconName)+'<span>'+label+'</span></th>').join("")+'</tr></thead><tbody>'+
+  NOTICE_KINDS_UI.map(([kind,label,desc])=>'<tr><th scope="row"><strong>'+label+'</strong><small>'+desc+'</small></th>'+
+   names.map(([channel,label])=>'<td><label class="notice-cell-switch" aria-label="'+label+' por '+channel+'"><input type="checkbox" data-notice-kind="'+kind+'" data-notice-channel="'+channel+'" '+(prefs?.[kind]?.[channel]?"checked":"")+'><span aria-hidden="true"></span></label></td>').join("")+'</tr>').join("")+
+  '</tbody></table></div><p class="field-hint">Os três canais são independentes. Se o Gmail atingir a cota diária, celular e PC continuam funcionando.</p>'+
+  '<div class="notice-matrix-actions"><button type="button" class="button primary" data-do="save-notice-matrix">'+ico("check")+' Salvar todas as preferências</button></div></section>';
+}
 async function desktopSubscription(){
  if(!("serviceWorker" in navigator)||!("PushManager" in window))return null;
  const registration=await navigator.serviceWorker.getRegistration("./sw.js");
@@ -876,32 +888,20 @@ function webPushSupported(){
  return window.isSecureContext&&"Notification" in window&&"serviceWorker" in navigator&&"PushManager" in window;
 }
 function renderWebPushPreferences(){
- const prefs=state.webPushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
  const count=Number(state.webPushData?.registeredComputers||0);
- const connected=!!state.webPushHere;
- const supported=webPushSupported();
+ const connected=!!state.webPushHere,supported=webPushSupported();
  const blocked=supported&&Notification.permission==="denied";
- const status=!supported?"Este navegador não oferece notificações Push compatíveis. Experimente Chrome ou Edge no computador.":
-  blocked?"O navegador bloqueou os avisos. Permita notificações nas configurações do site para continuar.":
-  connected?"Este computador está vinculado à sua conta. Você pode testar o recebimento agora.":
-  count>0?"Você tem "+count+" computador(es) vinculado(s). Ative este navegador para receber avisos aqui.":
-  "Ative para receber avisos do PET Gestão no computador, inclusive quando a janela do aplicativo estiver fechada (se o sistema permitir).";
- return '<section class="account-web-push-panel account-channel-card" aria-labelledby="profile-web-push-title">'+
-  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div>'+
-  '<h3 id="profile-web-push-title">Notificações no computador</h3>'+
-  '<p>Avisos do sistema no Windows, macOS ou Linux, com permissões do navegador.</p></div></div>'+
-  '<p class="account-push-status" role="status">'+esc(status)+'</p>'+
-  '<div class="account-push-options">'+
-  '<label><input type="checkbox" data-web-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
-  '<label><input type="checkbox" data-web-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
-  '<label><input type="checkbox" data-web-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label></div>'+
+ const status=!supported?"Este navegador não suporta Web Push. Use Chrome ou Edge.":
+  blocked?"Permita as notificações nas configurações do navegador.":
+  connected?"Este computador está conectado e pronto para receber avisos.":
+  count>0?count+" computador(es) conectado(s) à sua conta.":
+  "Ative para receber avisos também neste PC.";
+ return '<section class="account-web-push-panel account-channel-card">'+
+  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-web-push-title">Computador (PC)</h3><p>'+esc(status)+'</p></div></div>'+
   '<div class="account-push-actions">'+
   (connected?'<button type="button" class="button ghost" data-do="disable-web-push">Desativar neste PC</button>':
-  '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+
-   ico("bell")+' Ativar neste PC</button>')+
-  '<button type="button" class="button ghost" data-do="save-web-push-settings">'+ico("check")+' Salvar preferências</button>'+
-  '<button type="button" class="button ghost" data-do="test-web-push" '+(connected?"":'disabled title="Ative as notificações neste PC"')+'>'+
-  ico("bell")+' Enviar teste ao PC</button></div></section>';
+    '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+ico("bell")+' Ativar neste PC</button>')+
+  '</div></section>';
 }
 function renderDesktopInstall(){
  const installed=window.matchMedia?.("(display-mode: standalone)")?.matches||window.navigator.standalone===true;
@@ -919,7 +919,12 @@ async function reload(){
  try{
    // Toda a aplicação compartilha o mesmo perfil e token de autenticação.
    const b=await request("/bootstrap","GET");
+   const beforeUser=me?.id||"";
    data=b;me=b.session?.user||null;regularMe=me;
+   if(beforeUser!==(me?.id||"")){
+    state.noticePrefs=null;state.noticeDraft=null;state.noticeDirty=false;
+    state.reminderItems=[];state.reminderLoadedFor=null;state.reminderEditing=false;
+   }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
 
@@ -951,7 +956,7 @@ function nav(){
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
    el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
-   if(el.dataset.route==="minhas-pendencias"||el.dataset.route==="reunioes")el.hidden=!canWrite();
+   if(["minhas-pendencias","meus-lembretes","reunioes"].includes(el.dataset.route))el.hidden=!canWrite();
    if(profile){
      el.hidden=false;el.href=regularMe?"#/conta":"#/login";
      const label=el.querySelector("span");if(label)label.textContent=regularMe?"Meu perfil":"Entrar";
@@ -1563,6 +1568,113 @@ function renderCommitteeEdit(cid){
  '<label class="rich-label">Descrição (opcional)</label>'+richEditor("description",c?.description||"","Apresente a comissão e suas atividades...")+
  colorEditor+imagePicker+
  '<button class="button primary" type="submit">Salvar comissão</button></form></section>';
+}
+// Lembretes do próprio usuário, separados da criação rápida de demandas.
+const reminderLocalValue=(offset=3600000)=>{
+ return new Date(Date.now()+offset-3*3600000).toISOString().slice(0,16);
+};
+const reminderDefaultSlot=mode=>mode==="once"?{at:reminderLocalValue()}:
+ mode==="daily"?{time:"09:00"}:{weekday:1,time:"09:00"};
+async function loadPersonalReminders(){
+ const id=me?.id;
+ if(!id||state.reminderLoading)return;
+ state.reminderLoading=true;
+ try{
+  const data=await request("/personal-reminders");
+  if(me?.id!==id)return;
+  state.reminderItems=data.items||[];
+  state.reminderLoadedFor=id;
+  if(routeParts().page==="meus-lembretes")render();
+ }catch(error){setToast("Não foi possível carregar os lembretes: "+error.message)}
+ finally{state.reminderLoading=false}
+}
+function readReminderSlots(form){
+ return [...form.querySelectorAll(".reminder-slot-row")].map(row=>({
+  at:row.querySelector('[data-reminder-field="at"]')?.value||"",
+  time:row.querySelector('[data-reminder-field="time"]')?.value||"",
+  weekday:Number(row.querySelector('[data-reminder-field="weekday"]')?.value||0)
+ }));
+}
+function captureReminderEditor(){
+ const form=$("#personal-reminder-form");if(!form)return;
+ state.reminderDraft={
+  reminderType:form.elements.reminderType?.value||"task",
+  taskId:form.elements.taskId?.value||"",
+  title:form.elements.title?.value||"",
+  message:form.elements.message?.value||"",
+  channels:{email:form.elements.email?.checked===true,android:form.elements.android?.checked===true,pc:form.elements.pc?.checked===true},
+  autoDelete:form.elements.autoDelete?.checked===true,
+  repeatUntil:form.elements.repeatUntil?.value||""
+ };
+ state.reminderRecurrence=form.elements.recurrence?.value||"once";
+ state.reminderSchedules=readReminderSlots(form);
+}
+function openReminderEditor(item=null){
+ state.reminderEditing=item?.id||"new";
+ state.reminderRecurrence=item?.recurrence||"once";
+ state.reminderDraft={reminderType:item?(item.taskId?"task":"custom"):"task",
+  taskId:item?.taskId||"",title:item?.title||"",message:item?.message||"",
+  channels:item?.channels||{email:true,android:true,pc:true},
+  autoDelete:item?.autoDelete??true,repeatUntil:item?.repeatUntil||""};
+ state.reminderSchedules=item?.schedules?.map(x=>item.recurrence==="once"?{at:x.at}:{time:x.at,weekday:x.weekday})||
+  [reminderDefaultSlot(state.reminderRecurrence)];
+ render();
+ $("#personal-reminder-form")?.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderReminderSlots(){
+ const mode=state.reminderRecurrence||"once",days=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+ return '<div class="reminder-slots">'+(state.reminderSchedules||[]).map((slot,i)=>
+  '<div class="reminder-slot-row" data-index="'+i+'">'+
+  (mode==="once"?'<label>Data e horário <input type="datetime-local" data-reminder-field="at" required value="'+esc(slot.at||reminderLocalValue())+'"></label>':
+   (mode==="weekly"?'<label>Dia da semana<select class="select" data-reminder-field="weekday">'+days.map((d,n)=>opt(String(n),d,String(slot.weekday??1))).join("")+'</select></label>':"")+
+   '<label>Horário <input type="time" data-reminder-field="time" value="'+esc(slot.time||"09:00")+'" required></label>')+
+  '<button type="button" class="button ghost reminder-slot-remove" data-do="reminder-remove-time" data-index="'+i+'" aria-label="Remover horário" '+(state.reminderSchedules.length===1?"disabled":"")+'>'+ico("trash")+'</button></div>').join("")+
+  '</div><button type="button" class="button ghost" data-do="reminder-add-time" '+(state.reminderSchedules.length>=20?"disabled":"")+'>'+ico("plus")+' Adicionar outro horário</button>';
+}
+function renderPersonalReminders(){
+ if(!canWrite())return authRequired();
+ const pending=data.tasks.filter(isMyPending).sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
+ const draft=state.reminderDraft||{},editing=state.reminderEditing!==false;
+ const custom=draft.reminderType==="custom",mode=state.reminderRecurrence;
+ const headerHtml=header("Pessoal","Meus lembretes","Seus alarmes pessoais, sem alterar o cadastro das demandas.");
+ const formHtml=!editing?"":'<section class="card card-pad reminder-editor">'+
+  '<div class="section-head"><div><h2>'+(state.reminderEditing==="new"?"Novo lembrete":"Editar lembrete")+'</h2><p>Escolha vários dias e horários para ser avisado (horário de Sergipe).</p></div>'+
+  '<button type="button" class="button ghost" data-do="reminder-close">Fechar</button></div>'+
+  '<form id="personal-reminder-form" class="register-form">'+
+  '<label>Tipo de lembrete<select class="select" name="reminderType" id="reminder-type">'+
+  opt("task","Uma das minhas pendências",custom?"custom":"task")+opt("custom","Personalizado (assunto pessoal)",custom?"custom":"task")+'</select></label>'+
+  (custom?'<label>Título do lembrete<input name="title" maxlength="120" required placeholder="Ex.: Ligar para alguém" value="'+esc(draft.title||"")+'"></label>':
+   '<label>Minha demanda<select class="select" name="taskId" required><option value="">Selecione a demanda</option>'+
+   pending.map(t=>opt(t.id,t.title,draft.taskId||"")).join("")+'</select></label>'+
+   (!pending.length?'<p class="field-hint">Você não possui pendências ativas. Use Personalizado para criar um aviso pessoal.</p>':""))+
+  '<label>Repetir<select class="select" name="recurrence" id="reminder-recurrence">'+
+  [["once","Uma vez (um ou vários dias)"],["daily","Todos os dias"],["weekly","Semanalmente"]].map(([v,l])=>opt(v,l,mode)).join("")+'</select></label>'+
+  renderReminderSlots()+
+  (mode==="once"?"":'<label>Repetir até (opcional)<input type="date" name="repeatUntil" value="'+esc(draft.repeatUntil||"")+'"></label>')+
+  '<label>Mensagem (opcional)<textarea name="message" maxlength="200" rows="2" placeholder="Se ficar vazio, o PET Gestão usa a mensagem padrão.">'+esc(draft.message||"")+'</textarea></label>'+
+  '<fieldset class="reminder-channels"><legend>Receber por</legend>'+
+  [["email","E-mail"],["android","Celular"],["pc","PC"]].map(([key,label])=>
+   '<label><input type="checkbox" name="'+key+'" '+(draft.channels?.[key]?"checked":"")+'> '+label+'</label>').join("")+'</fieldset>'+
+  '<label class="reminder-auto-delete"><input type="checkbox" name="autoDelete" '+(draft.autoDelete?"checked":"")+'> Excluir automaticamente após notificar</label>'+
+  '<p class="field-hint">Um horário único é removido quando o aviso é aceito por algum canal. Alarmes recorrentes permanecem até a data final, se houver, ou até você excluir.</p>'+
+  '<div class="reminder-form-actions"><button type="button" class="button ghost" data-do="reminder-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar lembrete</button></div>'+
+  '</form></section>';
+ const items=state.reminderItems||[];
+ const list='<section class="card card-pad reminder-list"><div class="section-head"><div><h2>Lembretes cadastrados</h2><p>Somente você pode visualizar ou modificar seus alarmes.</p></div></div>'+
+ (state.reminderLoadedFor!==me?.id?'<p class="field-hint">Carregando lembretes...</p>':
+  items.length?items.map(item=>{
+   const times=item.schedules||[],active=times.filter(x=>x.status!=="disparado");
+   const dates=times.slice(0,3).map(x=>item.recurrence==="once"?x.at.replace("T"," às "):
+    item.recurrence==="daily"?"Diariamente às "+x.at:
+    ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][x.weekday]+" às "+x.at).join(" · ");
+   return '<article class="reminder-list-row"><div class="reminder-list-icon">'+ico(item.taskId?"calendar":"bell")+'</div>'+
+    '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p>'+esc(dates)+'</p>'+
+    '<small>'+(item.taskId?"Vinculado à minha demanda":"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
+    '<div class="reminder-list-actions"><button type="button" class="button ghost" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' Editar</button>'+
+    '<button type="button" class="button ghost" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' Excluir</button></div></article>';
+  }).join(""):'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
+ return headerHtml+'<div class="reminder-page"><div class="reminder-page-actions"><button type="button" class="button primary" data-do="reminder-new">'+ico("plus")+' Novo lembrete</button>'+
+ '<span class="field-hint">Se a demanda for excluída ou sua pendência terminar, o lembrete vinculado será removido.</span></div>'+formHtml+list+'</div>';
 }
 function renderMine(){
  if(!canWrite())return authRequired();
@@ -2375,13 +2487,13 @@ function renderAccount(){
   '<span class="account-push-icon">'+ico("mail")+'</span><div><h3 id="account-email-notifications">Notificações por e-mail</h3>'+
   '<p>Mensagens enviadas para o seu e-mail cadastrado.</p></div></div>'+
   (["tutor","admin"].includes(me.role)?
-    '<label class="account-email-notify-option"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'><span>Ao cadastrar ou revisar uma demanda, perguntar se desejo notificar os responsáveis por e-mail.</span></label>':
+    '<label class="account-email-notify-option"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'><span>Ao salvar uma demanda, permitir escolher se quero avisar os responsáveis pelos canais que eles ativaram.</span></label>':
     '<p class="account-push-status">Os avisos destinados ao seu e-mail são enviados de acordo com as regras do sistema.</p>')+
   '<p class="field-hint">E-mails essenciais, como confirmação de endereço e recuperação de senha, permanecem ativos por segurança.</p></section>';
  const notificationContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEUS AVISOS</span><h2>Central de notificações</h2>'+
-  '<p>Configure e teste cada canal separadamente. As alterações no computador não modificam as preferências do celular.</p></div>'+
-  '<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
+  '<p>Escolha quais dos seis avisos recebe por e-mail, Android ou PC. Salve todas as opções de uma só vez.</p></div>'+
+  renderNotificationMatrix()+'<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
  const appContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">INSTALAÇÃO</span><h2>Aplicativos PET Gestão</h2>'+
   '<p>Escolha onde deseja usar o PET Gestão. O acesso e seus dados continuam sincronizados.</p></div>'+
@@ -2419,7 +2531,7 @@ function notificationTemplateFor(kind){
   overdue:{subject:"PET Gestão — Prazo vencido: {demanda}",body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
   event_today:{subject:"PET Gestão — É hoje: {demanda}",body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"}
  };
- return state.templateDrafts?.[kind]||data.settings.notificationTemplates?.[kind]||
+ return state.templateDrafts?.["email:"+kind]||data.settings.notificationTemplates?.[kind]||
   (["create","review"].includes(kind)?data.settings.notificationTemplate:null)||fallbacks[kind]||fallbacks.create;
 }
 
@@ -2449,10 +2561,27 @@ function notificationVariableGuide(kind){
   '<p class="mail-template-guide-example"><strong>Exemplo:</strong> <code>{autor}</code> cadastrou <code>{demanda}</code> → o e-mail mostrará o nome da pessoa e o título da demanda.'+
   '</p></section>';
 }
-function notificationTemplateFields(kind){
+const pushTemplateFallbacks={
+ create:{title:"Nova demanda atribuída",body:"{demanda}"},
+ review:{title:"Texto para revisão",body:"{demanda} foi atualizado para revisão."},
+ due_soon:{title:"Prazo vencendo",body:"{demanda} · {etapa} · {prazo}"},
+ overdue:{title:"Prazo vencido",body:"{demanda} · {etapa} · {prazo}"},
+ event_soon:{title:"Evento se aproximando",body:"{demanda} · {prazo}"},
+ event_today:{title:"Evento hoje",body:"{demanda}"}
+};
+function notificationPushTemplateFor(kind){
+ return state.templateDrafts?.["app:"+kind]||data.settings.notificationPushTemplates?.[kind]||pushTemplateFallbacks[kind]||pushTemplateFallbacks.create;
+}
+function notificationTemplateFields(kind,channel=state.templateChannel){
+ if(channel==="app"){
+  const item=notificationPushTemplateFor(kind);
+  return '<p class="field-hint">Esta mensagem será usada no Android e no PC. Título até 90 caracteres, corpo até 220. Os campos entre chaves são preenchidos ao enviar.</p>'+
+   '<label>Título da notificação<input type="text" name="title" maxlength="90" required value="'+esc(item.title||"")+'"></label>'+
+   '<label>Mensagem curta<textarea name="message" maxlength="220" rows="3" required>'+esc(item.body||"")+'</textarea></label>'+notificationVariableGuide(kind);
+ }
  const config=notificationTemplateFor(kind);
  return '<label>Assunto<input type="text" name="subject" maxlength="200" required value="'+esc(config.subject||"")+'"></label>'+
-  '<label class="rich-label">Mensagem</label>'+
+  '<label class="rich-label">Mensagem do e-mail</label>'+
   richEditor("message",config.body||"")+notificationVariableGuide(kind);
 }
 function closeAdminMenu(){
@@ -2502,10 +2631,11 @@ function renderAdmin(){
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-event-today" '+(reminderConfig.eventTodayEnabled?"checked":"")+'> Enviar aviso no dia do evento</label><button type="button" class="button primary" data-do="save-reminder-event-today">Salvar aviso do dia do evento</button></div></section>'+
  '<section class="card card-pad admin-panel admin-reminder-panel" data-reminder-card="after" '+(state.adminTab==="configuracoes"?"":'hidden')+'><div class="reminder-panel-heading"><span class="reminder-panel-icon" aria-hidden="true">'+ico("clock")+'</span><h2>Aviso após o vencimento do prazo</h2></div><p class="field-hint reminder-panel-intro">Envie um aviso automático quando uma etapa vencer e a demanda ainda estiver ativa. Esse envio acontece depois do vencimento, sem antecedência.</p>'+
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> Enviar aviso quando o prazo vencer</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas, conforme o público selecionado. Endereços repetidos são unificados por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-overdue">Salvar aviso de prazo vencido</button></div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de todos os e-mails automáticos</h2><p class="field-hint">Selecione qualquer mensagem automática do PET Gestão para personalizar assunto e conteúdo, sem alterar se o aviso está habilitado. Cada modelo é salvo individualmente. Os e-mails de segurança da conta permanecem protegidos.</p>'+
- '<form id="notification-template-form" class="register-form"><label>Tipo de e-mail<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de notificações</h2><p class="field-hint">Edite os seis tipos de avisos por e-mail ou por notificação do aplicativo (celular e PC). Os e-mails de segurança permanecem protegidos.</p>'+
+ '<form id="notification-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
+ '<label>Canal<select name="channel" id="notification-template-channel" class="select">'+[["email","E-mail"],["app","Aplicativo (celular e PC)"]].map(([v,l])=>opt(v,l,state.templateChannel)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
- '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo de e-mail</button></div></form></section>'+
+ '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo</button></div></form></section>'+
  '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
  const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
@@ -2628,6 +2758,7 @@ function render(){
  else if(page==="atividade")html=renderDetail(parts[0],parts[1]||"");
  else if(page==="reunioes")html=renderMemory(parts.join("/"));
  else if(page==="minhas-pendencias")html=renderMine();
+ else if(page==="meus-lembretes")html=renderPersonalReminders();
  else if(page==="login")html=renderLogin();
  else if(page==="cadastro")html=renderRegisterAccount();
  else if(page==="esqueci")html=renderForgot();
@@ -2637,6 +2768,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
+ if(page==="meus-lembretes"&&state.reminderLoadedFor!==me?.id&&!state.reminderLoading)void loadPersonalReminders();
  if(page==="admin"&&isAdmin()&&parts[0]==="resumo"&&parts[1])
    loadAdminCommissionSummary(parts[1]);
  if(taskFormRoute(location.hash)&&$("#task-form")&&taskFormDraft?.route!==location.hash)
@@ -2857,6 +2989,70 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="save-notice-matrix"){
+  if(!state.noticeDraft)return setToast("Aguarde o carregamento das suas preferências.");
+  const settings=JSON.parse(JSON.stringify(state.noticeDraft));
+  for(const input of $$(".account-notification-matrix [data-notice-kind]")){
+   if(!settings[input.dataset.noticeKind])return setToast("Preferência inválida.");
+   settings[input.dataset.noticeKind][input.dataset.noticeChannel]=input.checked;
+  }
+  b.disabled=true;
+  try{
+   const result=await request("/notification-preferences","PUT",settings);
+   state.noticePrefs=result.preferences;
+   state.noticeDraft=JSON.parse(JSON.stringify(result.preferences));
+   state.noticeDirty=false;
+   setToast("Todas as preferências de notificação foram salvas.");
+   render();
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="reminder-new"){openReminderEditor();return}
+ if(action==="reminder-close"){
+  state.reminderEditing=false;state.reminderDraft=null;state.reminderSchedules=[];render();return;
+ }
+ if(action==="reminder-add-time"){
+  captureReminderEditor();
+  if(state.reminderSchedules.length>=20)return setToast("O máximo é 20 horários por lembrete.");
+  const mode=state.reminderRecurrence,slot=reminderDefaultSlot(mode);
+  const count=state.reminderSchedules.length;
+  if(mode==="once")slot.at=reminderLocalValue((count+1)*3600000);
+  if(mode==="daily")slot.time=String(9+count%14).padStart(2,"0")+":00";
+  if(mode==="weekly"){slot.weekday=count%7;slot.time=String(9+Math.floor(count/7)).padStart(2,"0")+":00";}
+  state.reminderSchedules.push(slot);
+  render();return;
+ }
+ if(action==="reminder-remove-time"){
+  captureReminderEditor();
+  if(state.reminderSchedules.length<=1)return;
+  const idx=Number(b.dataset.index);
+  state.reminderSchedules=state.reminderSchedules.filter((_,i)=>i!==idx);
+  render();return;
+ }
+ if(action==="reminder-edit"){
+  const item=state.reminderItems.find(x=>x.id===tid);
+  if(!item)return setToast("Este lembrete não está mais disponível.");
+  openReminderEditor(item);return;
+ }
+ if(action==="reminder-delete"){
+  if(!await askConfirm("Excluir este lembrete e seus horários? Os avisos futuros serão cancelados.",{
+   title:"Excluir lembrete?",confirmLabel:"Excluir lembrete",cancelLabel:"Manter lembrete"}))return;
+  b.disabled=true;
+  try{
+   await request("/personal-reminders/"+id(tid),"DELETE");
+   if(state.reminderEditing===tid){state.reminderEditing=false;state.reminderDraft=null;}
+   state.reminderLoadedFor=null;await loadPersonalReminders();
+   setToast("Lembrete excluído.");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="mail-preview-template"&&state.templateChannel==="app"){
+  const f=$("#notification-template-form");
+  if(!f)return;
+  const title=f.elements.title?.value||"",message=f.elements.message?.value||"";
+  showNotice(esc(title)+"\n"+esc(message),{title:"Prévia da notificação do aplicativo"});
+  return;
+ }
  if(action==="admin-summary-person"){
    state.summaryPerson=b.dataset.personId||"";
    const el=$("#admin-summary-results");
@@ -3529,11 +3725,38 @@ async function handleSubmit(e){
     if(ok){resetMeetingDraft();location.hash=workspaceHash("reunioes")}
     return;
    }
+ if(form.id==="personal-reminder-form"){
+   const f=userFields(form),type=f.reminderType||"task";
+   const task=type==="task"?data.tasks.find(t=>t.id===f.taskId&&isMyPending(t)):null;
+   if(type==="task"&&!task)return setToast("Selecione uma pendência que ainda pertença a você.");
+   const schedules=readReminderSlots(form).map(slot=>
+    f.recurrence==="once"?{at:slot.at}:
+    f.recurrence==="daily"?{time:slot.time}:{weekday:slot.weekday,time:slot.time});
+   const payload={taskId:type==="task"?task.id:null,title:type==="task"?task.title:String(f.title||"").trim(),
+    message:f.message||"",recurrence:f.recurrence,repeatUntil:f.repeatUntil||null,
+    channels:{email:form.elements.email.checked,android:form.elements.android.checked,pc:form.elements.pc.checked},
+    autoDelete:form.elements.autoDelete.checked,schedules};
+   if(!payload.channels.email&&!payload.channels.android&&!payload.channels.pc)
+    return setToast("Escolha pelo menos um canal para o lembrete.");
+   const button=form.querySelector('button[type="submit"]');
+   if(button)button.disabled=true;
+   try{
+    const updating=state.reminderEditing!=="new";
+    await request("/personal-reminders"+(updating?"/"+id(state.reminderEditing):""),updating?"PUT":"POST",payload);
+    state.reminderEditing=false;state.reminderDraft=null;state.reminderSchedules=[];
+    state.reminderLoadedFor=null;await loadPersonalReminders();
+    setToast(updating?"Lembrete atualizado.":"Lembrete criado.");
+   }finally{if(button?.isConnected)button.disabled=false}
+   return;
+ }
  if(form.id==="notification-template-form"){
-   const f=collectRich(form,userFields(form));
-   if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva o modelo da mensagem.");
-   const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",{kind:f.kind,subject:f.subject,message:f.message},"admin"),"Modelo de notificação salvo.");
-   if(ok)delete state.templateDrafts[f.kind];
+   const f=state.templateChannel==="app"?userFields(form):collectRich(form,userFields(form));
+   if(!String(f.message||"").replace(/<[^>]*>/g,"").trim())return setToast("Escreva a mensagem da notificação.");
+   if(state.templateChannel==="app"&&!String(f.title||"").trim())return setToast("Informe o título da notificação.");
+   const payload=state.templateChannel==="app"?{kind:f.kind,channel:"app",title:f.title,message:f.message}:
+    {kind:f.kind,channel:"email",subject:f.subject,message:f.message};
+   const ok=await saveAndReload(()=>request("/admin/notification-template","PUT",payload,"admin"),"Modelo de notificação salvo.");
+   if(ok)delete state.templateDrafts[state.templateChannel+":"+f.kind];
    return;
  }
  if(form.id==="mail-form"){await sendMail(form);return}
@@ -3630,14 +3853,35 @@ async function handleChange(e){
    }
    return;
  }
- if(t.id==="notification-template-kind"){
+ if(t?.matches?.("[data-notice-kind][data-notice-channel]")){
+  if(state.noticeDraft?.[t.dataset.noticeKind]){
+   state.noticeDraft[t.dataset.noticeKind][t.dataset.noticeChannel]=t.checked;
+   state.noticeDirty=true;
+  }
+  return;
+ }
+ if(t.id==="reminder-type"){
+  captureReminderEditor();
+  state.reminderDraft.reminderType=t.value;
+  render();return;
+ }
+ if(t.id==="reminder-recurrence"){
+  captureReminderEditor();
+  state.reminderRecurrence=t.value;
+  state.reminderSchedules=[reminderDefaultSlot(t.value)];
+  render();return;
+ }
+ if(t.id==="notification-template-kind"||t.id==="notification-template-channel"){
    const form=t.closest("#notification-template-form");
    if(form){
-     const previous=state.templateKind;
-     state.templateDrafts[previous]={subject:form.elements.subject.value,body:safeRich(form.querySelector('[data-rich-input="message"]')?.innerHTML||"")};
-     state.templateKind=t.value;
+     const previous=state.templateChannel+":"+state.templateKind;
+     state.templateDrafts[previous]=state.templateChannel==="app"?
+      {title:form.elements.title?.value||"",body:form.elements.message?.value||""}:
+      {subject:form.elements.subject?.value||"",body:safeRich(form.querySelector('[data-rich-input="message"]')?.innerHTML||"")};
+     if(t.id==="notification-template-kind")state.templateKind=t.value;
+     else state.templateChannel=t.value;
      const fields=form.querySelector("#notification-template-fields");
-     if(fields)fields.innerHTML=notificationTemplateFields(t.value);
+     if(fields)fields.innerHTML=notificationTemplateFields(state.templateKind);
    }
    return;
  }
