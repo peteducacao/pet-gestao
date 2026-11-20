@@ -109,14 +109,15 @@ async function devicesFor(db,userIds,preference){
   "FROM push_devices d LEFT JOIN push_preferences p ON p.user_id=d.user_id "+
   "WHERE d.user_id IN ("+holders+") LIMIT 300").bind(...list).all()).results;
  const column=preference==="newDemands"?"new_demands":preference==="overdue"?"overdue":"deadlines";
- return rows.filter(x=>Number(x[column])===1);
+ return preference?rows.filter(x=>Number(x[column])===1):rows;
 }
-async function notifyMany(env,userIds,message,preference,dedupeForUser=null){
- if(!userIds.length)return;
+async function notifyMany(env,userIds,message,preference,dedupeForUser=null,channel="both"){
+ const totals={android:0,pc:0};
+ if(!userIds.length)return totals;
  // Browser e Android compartilham destinatários, mas NÃO as preferências ou inscrições.
- await notifyBrowserUsers(env,userIds,message,preference,dedupeForUser)
-  .catch(error=>console.error("PET Gestão — envio para PC indisponível:",String(error.message||error).slice(0,160)));
- if(!fcmConfiguration(env))return;
+ if(channel!=="android")totals.pc=await notifyBrowserUsers(env,userIds,message,preference,dedupeForUser)
+  .catch(error=>{console.error("PET Gestão — envio para PC indisponível:",String(error.message||error).slice(0,160));return 0;});
+ if(channel==="pc"||!fcmConfiguration(env))return totals;
  const db=env.DB,devices=await devicesFor(db,userIds,preference);
  for(const device of devices){
    try{
@@ -128,12 +129,23 @@ async function notifyMany(env,userIds,message,preference,dedupeForUser=null){
       if(!claim.meta?.changes)continue;
     }
     const result=await deliver(env,device.token,message);
+    if(result.status==="sent")totals.android++;
     if(result.status==="invalid")
       await db.prepare("DELETE FROM push_devices WHERE device_id=? AND token=?").bind(device.device_id,device.token).run();
    }catch(err){
     console.error("PET Gestão — falha no envio push:",String(err?.message||err).slice(0,160));
    }
  }
+ return totals;
+}
+export async function pushNotificationToChannels(env,targets,message,dedupe){
+ const androidIds=(targets?.android||[]).map(x=>typeof x==="string"?x:x.id);
+ const pcIds=(targets?.pc||[]).map(x=>typeof x==="string"?x:x.id);
+ const [mobile,desktop]=await Promise.all([
+  notifyMany(env,androidIds,message,null,dedupe,"android"),
+  notifyMany(env,pcIds,message,null,dedupe,"pc")
+ ]);
+ return {android:mobile.android,pc:desktop.pc};
 }
 
 /** Comprovação controlada do fluxo Android → Worker → FCM, apenas para o próprio aparelho. */
