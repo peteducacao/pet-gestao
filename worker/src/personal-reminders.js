@@ -152,7 +152,7 @@ export async function processPersonalReminders(env,sendEmail){
    if(channels.android||channels.pc){
     const push=await pushNotificationToChannels(env,{
      android:channels.android?[slot.user_id]:[],pc:channels.pc?[slot.user_id]:[]
-    },{title,body:message.slice(0,220),route,kind:"personal",taskId:slot.task_id||slot.parent_id},
+    },{title,body:message.slice(0,220),route,kind:"personal",taskId:slot.task_id||slot.parent_id,noticeId:slot.id},
     "personal|"+slot.id+"|"+slot.next_at);
     results.android=push.android;results.pc=push.pc;
    }
