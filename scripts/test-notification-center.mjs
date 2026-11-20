@@ -99,3 +99,46 @@ assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,channels
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,recurrence:"daily",schedules:[{time:"09:00"},{time:"18:00"}]})).ok);
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,recurrence:"weekly",schedules:[{time:"08:30",weekday:2}]})).ok);
 console.log("Lembretes: personalizado, demandas próprias, vários horários, repetição e validações OK.");
+
+const collisionSource=(await readFile(new URL("../worker/src/push-collision.js",import.meta.url),"utf8"))
+ .replace('import {pushNotificationToChannels} from "./push.js";','const pushNotificationToChannels=async (...args)=>globalThis.__testSendPush(...args);');
+const collision=await import("data:text/javascript,"+encodeURIComponent(collisionSource));
+const sentLog=new Set(),pushCalls=[];
+let pushAccepted=true;
+const collisionDb={prepare(sql){
+ return {bind(...args){return {async run(){
+  const key=args.slice(0,4).join("|");
+  if(sql.includes("INSERT OR IGNORE INTO push_delivery_minute_log")){
+   if(sentLog.has(key))return {meta:{changes:0}};
+   sentLog.add(key);return {meta:{changes:1}};
+  }
+  if(sql.includes("DELETE FROM push_delivery_minute_log")){
+   return {meta:{changes:Number(sentLog.delete(key))}};
+  }
+  throw Error("Consulta de colisão inesperada: "+sql);
+ }}}};
+}};
+globalThis.__testSendPush=async (env,targets,message,key)=>{
+ pushCalls.push({targets,message,key});
+ return {android:pushAccepted?targets.android.length:0,pc:pushAccepted?targets.pc.length:0};
+};
+const collisionEnv={DB:collisionDb};
+const notice={taskId:"mine",kind:"personal",title:"Aviso",body:"Entrega",route:"/atividade/mine"};
+const minute=Date.parse("2026-11-21T09:00:00Z");
+const first=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:["a"],pc:[]} ,notice,"personal-1",minute);
+assert.equal(first.android,1);
+const duplicate=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:["a"],pc:[]} ,{...notice,kind:"due_soon"},"system-1",minute+20000);
+assert.equal(duplicate.android,0);
+assert.equal(duplicate.skipped.android,1,"Automático não repete alarme pessoal no mesmo minuto");
+assert.equal(pushCalls.length,1,"Um único envio Android é feito");
+const otherTime=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:["a"],pc:[]} ,notice,"personal-2",minute+60000);
+assert.equal(otherTime.android,1,"Horário diferente deve notificar novamente");
+const otherChannel=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:[],pc:["a"]},notice,"personal-pc",minute);
+assert.equal(otherChannel.pc,1,"PC é canal independente do Android");
+pushAccepted=false;
+const failure=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:["a"],pc:[]},notice,"personal-failed",minute+120000);
+assert.equal(failure.android,0);
+pushAccepted=true;
+const retry=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:["a"],pc:[]},notice,"personal-retry",minute+120000);
+assert.equal(retry.android,1,"Sem aceitação, a chave do minuto é liberada para retentativa");
+console.log("Deduplicação: mesmo minuto/canal só uma notificação, horários diferentes independentes, falhas recuperáveis OK.");
