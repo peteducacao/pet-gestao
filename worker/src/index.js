@@ -380,7 +380,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     }
   }
 
-  async function queueDeadlineReminders(env){
+  async function queueDeadlineReminders(env,ctx=null){
     const db=env.DB;
     const stored=await db.prepare("SELECT value FROM app_settings WHERE key='reminderSettings'").first();
     const config={...defaultReminderSettings,...asJson(stored?.value,{})};
@@ -431,7 +431,12 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const bodyTemplate=String(template.body||deadlineMailTemplates[kind].body).slice(0,10000);
         const message=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
         const stageId=String(event.id||"evento-data"),dedupeKey=[task.id,stageId,rawDue,kind].join("|");
-        await dispatchDeadlinePush(env,task,kind,targets,values,dedupeKey);
+        // Push e e-mail usam o MESMO evento e os MESMOS alvos, porém
+        // não dependem da entrega um do outro. O contexto mantém o envio vivo.
+        const pushJob=dispatchDeadlinePush(env,task,kind,targets,values,dedupeKey)
+          .catch(error=>console.error("PET Gestão — falha no push "+kind+":",String(error?.message||error).slice(0,150)));
+        if(ctx?.waitUntil)ctx.waitUntil(pushJob);
+        else await pushJob;
         if(!recipients.length)continue;
         const sentMarker=kind+"_sent";
         const previousNotice=await db.prepare("SELECT l.queue_id,l.notice_kind,q.status FROM deadline_notice_log l LEFT JOIN email_queue q ON q.id=l.queue_id WHERE l.dedupe_key=?").bind(dedupeKey).first();
@@ -518,7 +523,12 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const text=substitute(bodyTemplate,mailHasFormatting(bodyTemplate));
         const stageId=String(stage.id||stage.label+"-"+stageIndex);
         const dedupeKey=[task.id,stageId,rawDue,kind].join("|");
-        await dispatchDeadlinePush(env,task,kind,targets,values,dedupeKey);
+        // Push e e-mail usam o MESMO evento e os MESMOS alvos, porém
+        // não dependem da entrega um do outro. O contexto mantém o envio vivo.
+        const pushJob=dispatchDeadlinePush(env,task,kind,targets,values,dedupeKey)
+          .catch(error=>console.error("PET Gestão — falha no push "+kind+":",String(error?.message||error).slice(0,150)));
+        if(ctx?.waitUntil)ctx.waitUntil(pushJob);
+        else await pushJob;
         if(!recipients.length)continue;
         const queueId=uid(),stamp=now();
         const noticeBatch=await db.batch([
@@ -533,43 +543,44 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     }
   }
 
+  // Criação e revisão: a mesma autorização, os mesmos destinatários e o
+  // mesmo acontecimento dão origem aos três canais. Uma falha nunca bloqueia
+  // os outros, inclusive quando a integração Gmail fica sem cota.
   async function askNotify(db,env,ctx,user,payload,task,title,action){
     const kind=title==="Nova demanda"?"create":"review";
     const policy=noticeSendPolicy(user,kind,payload.notify);
     if(!policy.email&&!policy.push)return;
-    // Comissões incluem todos os seus integrantes aptos, inclusive quem
-    // cadastrou a demanda e também faz parte da equipe responsável.
     const memberIds=await noticeAudience(db,task);
     if(!memberIds.length)return;
     const targets=await notificationRecipients(db,memberIds,kind);
-    // O autor também pode ser responsável por uma comissão: respeitar seu
-    // opt-in de e-mail, assim como o de Android/PC. Ninguém não atribuído
-    // recebe aviso. Set e normalização impedem cópias repetidas.
     const emailTargets=policy.email?unique(targets.email.map(u=>email(u.email)).filter(validEmail)):[];
-    const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
-    const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
-    const config=configs.notificationTemplates?.[kind]||configs.notificationTemplate||{};
+    const wantsPush=policy.push&&(targets.android.length>0||targets.pc.length>0);
+    if(!emailTargets.length&&!wantsPush)return;
+
     const values={autor:user.name,acao:action,demanda:task.title,tipo:title,etapa:"",prazo:"",dias:"",
       link:"https://peteducacao.github.io/pet-gestao/#/atividade/"+encodeURIComponent(task.id)};
-    const substitute=(tpl,html=false)=>String(tpl||"").replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
-    if(emailTargets.length){
+    const jobs=[];
+    if(emailTargets.length)jobs.push((async()=>{
+      const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
+      const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
+      const config=configs.notificationTemplates?.[kind]||configs.notificationTemplate||{};
+      const substitute=(tpl,html=false)=>String(tpl||"").replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link)\}/g,(_,key)=>html?mailEscape(values[key]):values[key]);
       const subject=substitute(str(config.subject||"PET Gestão — {tipo}",200));
       const body=String(config.body||'Olá!\n\n{autor} {acao} na demanda "{demanda}".\n\nAcesse o PET Gestão para consultar as informações.\n\nPET Educação').slice(0,10000);
       await enqueue(db,user.id,kind,emailTargets,subject,substitute(body,mailHasFormatting(body)),now(),task.id);
-    }
-    const pushTargets=policy.push?targets:{android:[],pc:[]};
-    const pushModel=policy.push&& (pushTargets.android.length||pushTargets.pc.length)
-      ?await notificationPushModel(db,kind,values):null;
-    ctx.waitUntil((async()=>{
-      const jobs=[];
-      if(emailTargets.length)jobs.push(processQueue(env,2));
-      if(pushModel)jobs.push(pushNotificationToChannels(env,pushTargets,{
-        ...pushModel,route:"/atividade/"+task.id,taskId:task.id,kind
-      },kind+"|"+task.id+"|"+uid()+"|"+action));
-      const results=await Promise.allSettled(jobs);
-      for(const result of results)if(result.status==="rejected")
-        console.error("PET Gestão — erro ao avisar responsáveis:",String(result.reason?.message||result.reason).slice(0,150));
+      await processQueue(env,2);
     })());
+    if(wantsPush)jobs.push((async()=>{
+      const pushModel=await notificationPushModel(db,kind,values);
+      return pushNotificationToChannels(env,targets,{
+        ...pushModel,route:"/atividade/"+task.id,taskId:task.id,kind
+      },kind+"|"+task.id+"|"+uid()+"|"+action);
+    })());
+
+    ctx.waitUntil(Promise.allSettled(jobs).then(results=>{
+      for(let index=0;index<results.length;index++)if(results[index].status==="rejected")
+        console.error("PET Gestão — aviso "+kind+" / canal "+index+":",String(results[index].reason?.message||results[index].reason).slice(0,150));
+    }));
   }
 
   function validateTask(payload,old=null){
@@ -1200,7 +1211,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const config={dueSoonEnabled,daysBefore,overdueEnabled,overdueAudience,eventTodayEnabled};
         await db.prepare("INSERT INTO app_settings(key,value) VALUES('reminderSettings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(config)).run();
         ctx.waitUntil((async()=>{
-          try{await queueDeadlineReminders(env);await processQueue(env,15);}
+          try{await queueDeadlineReminders(env,ctx);await processQueue(env,15);}
           catch(error){console.error("PET Gestão — falha ao processar avisos após salvar configurações:",error.message);}
         })());
         return answer({ok:true,reminderSettings:config});
@@ -1419,7 +1430,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         await audit(db,id,user,"Cadastrou a demanda");
         if(t.assignmentScope==="todos"){
           await autoCompleteCollectiveEvents(env,id);
-          ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento recém-salvo:",error.message)}})());
+          ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env,ctx);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento recém-salvo:",error.message)}})());
         }
         // O aviso no celular independe da caixa de e-mail e respeita os destinatários atribuídos.
         await askNotify(db,env,ctx,user,b,fullAfter(t,{title:t.title}),"Nova demanda","cadastrou");
@@ -1446,7 +1457,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
          await audit(db,old.id,user,t.captionText!==old.captionText?"Atualizou texto para revisão":"Atualizou dados, prazos ou responsáveis");
         if(t.assignmentScope==="todos"){
           await autoCompleteCollectiveEvents(env,old.id);
-          ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento atualizado:",error.message)}})());
+          ctx.waitUntil((async()=>{try{await queueDeadlineReminders(env,ctx);await processQueue(env,15)}catch(error){console.error("PET Gestão — falha ao processar aviso do evento atualizado:",error.message)}})());
         }
         if(t.captionText!==old.captionText){
           await markTutorReviewAfterCorrection(db,old,user,stamp);
@@ -1650,7 +1661,7 @@ export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()
  await autoCompleteCollectiveEvents(env);
  // Primeiro alarmes pessoais: em coincidência exata de minuto, prevalece a escolha pessoal.
  await processPersonalReminders(env).catch(error=>console.error("PET Gestão — cron pessoal:",String(error?.message||error).slice(0,150)));
- await queueDeadlineReminders(env);
+ await queueDeadlineReminders(env,ctx);
  await processQueue(env,15);
  const t=new Date();
  if(t.getUTCHours()===6&&t.getUTCMinutes()===0)
