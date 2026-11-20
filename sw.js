@@ -32,3 +32,41 @@ self.addEventListener("fetch",event=>{
   return response;
  }).catch(()=>caches.match(request)));
 });
+
+
+// Notificações persistentes: o navegador pode estar fechado, desde que o serviço
+// de push do sistema operacional continue ativo.
+self.addEventListener("push",event=>{
+ event.waitUntil((async()=>{
+  if(!event.data)return;
+  let payload;
+  try{payload=event.data.json()}catch{return}
+  if(!payload||typeof payload!=="object")return;
+  const title=String(payload.title||"PET Gestão").slice(0,100);
+  const message=String(payload.body||"Novo aviso do PET Gestão.").slice(0,250);
+  const route=String(payload.route||"/inicio");
+  const safe=/^\/(?:inicio|atividade\/[A-Za-z0-9_-]{1,100}|minhas-pendencias)$/.test(route)?route:"/inicio";
+  const url=new URL("./#"+safe,self.registration.scope).href;
+  await self.registration.showNotification(title,{
+   body:message,
+   icon:new URL("./assets/pet-gestao-192.png",self.registration.scope).href,
+   badge:new URL("./assets/pet-gestao-192.png",self.registration.scope).href,
+   tag:"pet-gestao-"+String(payload.kind||"aviso")+"-"+safe,
+   data:{url}
+  });
+ })());
+});
+self.addEventListener("notificationclick",event=>{
+ event.notification.close();
+ event.waitUntil((async()=>{
+  const target=event.notification.data?.url||new URL("./#/inicio",self.registration.scope).href;
+  const windows=await clients.matchAll({type:"window",includeUncontrolled:true});
+  for(const tab of windows){
+   if(new URL(tab.url).origin===self.location.origin&&
+      new URL(tab.url).pathname.startsWith(new URL(self.registration.scope).pathname)){
+    await tab.navigate(target);await tab.focus();return;
+   }
+  }
+  await clients.openWindow(target);
+ })());
+});
