@@ -4396,3 +4396,32 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
     margin:0;
   }
 }
+
+
+/* Usuários: total em linha própria, sem etiqueta e sem risco de corte. */
+#screen #admin-users .admin-user-results-heading {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:3px;
+  width:100%;
+}
+#screen #admin-users .admin-user-results-heading > .admin-user-total-plain {
+  display:block;
+  flex:none;
+  width:auto;
+  max-width:100%;
+  min-height:0;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  color:#746b80;
+  font-size:13px;
+  font-weight:500;
+  line-height:1.55;
+  white-space:normal;
+}

@@ -2606,7 +2606,7 @@ async function loadAdminUsers(){
  '<button class="button ghost small-action" data-do="temp-pass" data-id="'+esc(u.id)+'">'+ico("lock")+' Senha temporária</button></div>'+
  '</article>').join("");
  target.innerHTML='<div class="admin-user-list-top" role="search" aria-label="Pesquisar integrantes"><label class="admin-user-search-box"><span class="admin-user-field-label">Buscar integrante</span><input id="admin-user-search" type="search" autocomplete="off" placeholder="Digite nome ou e-mail" value="'+esc(query)+'" aria-label="Buscar integrante por nome ou e-mail" aria-controls="admin-user-cards"></label></div>'+
- '<div class="admin-user-results-heading"><h2>Integrantes cadastrados</h2><span id="admin-user-count" class="admin-user-result-count" aria-live="polite">'+users.length+(users.length===1?' pessoa':' pessoas')+'</span></div>'+
+ '<div class="admin-user-results-heading"><h2>Integrantes cadastrados</h2><p id="admin-user-count" class="admin-user-total-plain" style="margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:#746b80;font-size:13px;line-height:1.55;font-weight:500" aria-live="polite">'+users.length+(users.length===1?' pessoa':' pessoas')+'</p></div>'+
  '<div class="admin-user-cards" id="admin-user-cards">'+userCards+'</div><p id="admin-user-search-empty" class="admin-user-search-empty" hidden>Nenhum integrante encontrado com esse nome ou e-mail.</p>';
  filterAdminUsers();
  }catch(e){setToast(e.message)}

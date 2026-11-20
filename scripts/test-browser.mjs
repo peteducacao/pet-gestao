@@ -949,6 +949,17 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator(".admin-users-panel .admin-users-title").count(),0,"Não repetir título Usuários dentro do painel");
  assert.equal(await page.locator("#admin-users .admin-user-list-top #admin-user-count").count(),0,"O contador fica fora do bloco de busca");
  assert.equal(await page.locator("#admin-users .admin-user-results-heading #admin-user-count").count(),1,"O contador fica ao lado do título da lista");
+ assert.equal(await page.locator("#admin-users .admin-user-results-heading .admin-user-result-count").count(),0,"O total não recebe mais a classe do selo roxo");
+ assert.equal(await page.locator("#admin-users .admin-user-results-heading .admin-user-total-plain").count(),1,"O total é texto simples");
+ const plainCountStyle=await page.locator("#admin-user-count").evaluate(el=>{
+   const s=getComputedStyle(el), rect=el.getBoundingClientRect(), title=el.previousElementSibling?.getBoundingClientRect();
+   return {background:s.backgroundColor,border:s.borderTopWidth,radius:s.borderTopLeftRadius,
+    vertical:rect.top >= (title?.bottom||0),leftDelta:Math.abs(rect.left-(title?.left||0))};
+ });
+ assert.equal(plainCountStyle.background,"rgba(0, 0, 0, 0)","Contador não pode ter recorte roxo");
+ assert.equal(plainCountStyle.border,"0px","Contador não pode ter borda");
+ assert.equal(plainCountStyle.radius,"0px","Contador não pode ter formato de selo");
+ assert.ok(plainCountStyle.vertical&&plainCountStyle.leftDelta<3,"Total abaixo do título e alinhado à esquerda");
  assert.equal(await page.locator("#admin-users .admin-user-results-heading h2").innerText(),"Integrantes cadastrados","Lista identificada separadamente");
  assert.equal(await page.locator("#admin-users .admin-user-card").count(),2,"Lista exibe cartões de usuários reais");
  for(const width of [320,360,390,414]){
