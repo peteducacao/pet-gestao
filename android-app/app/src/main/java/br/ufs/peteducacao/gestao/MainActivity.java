@@ -173,6 +173,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return;
+        // Atualiza o token na próxima abertura caso o Firebase o tenha renovado.
         FirebaseMessaging.getInstance().getToken().addOnSuccessListener(value -> {
             if (value == null || value.isEmpty()) return;
             currentPushToken = value;

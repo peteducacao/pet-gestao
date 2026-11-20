@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={pushData:null,adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let taskFormDraft=null;
@@ -788,6 +788,63 @@ async function request(path,method="GET",payload,scope){
  if(!res.ok)throw Error(obj.error||"Falha na operação.");
  return obj;
 }
+
+/* Ponte segura do APK Android: token temporário em memória, registro só com login. */
+let androidPush=null,registeredPushFor="",pushRegisterPromise=null;
+window.petGestaoPushToken=function(deviceToken,deviceId){
+ if(typeof deviceToken!=="string"||typeof deviceId!=="string")return;
+ if(!/^[A-Za-z0-9:_-]{40,4096}$/.test(deviceToken)||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(deviceId))return;
+ androidPush={token:deviceToken,deviceId};
+ void registerNativePush();
+};
+async function registerNativePush(){
+ if(!androidPush||!token||!me||me.mustChangePassword)return;
+ const userId=me.id,identity=userId+"|"+androidPush.deviceId+"|"+androidPush.token;
+ if(identity===registeredPushFor||pushRegisterPromise)return pushRegisterPromise;
+ pushRegisterPromise=(async()=>{
+  await request("/push/register","POST",androidPush);
+  registeredPushFor=identity;
+  const result=await request("/push/preferences");
+  if(me?.id!==userId)return;
+  state.pushData=result;
+  if(routeParts().page==="conta")render();
+ })().catch(err=>console.warn("PET Gestão: dispositivo Android não cadastrado:",err.message))
+ .finally(()=>{pushRegisterPromise=null});
+ return pushRegisterPromise;
+}
+async function loadPushPreferencesForActiveUser(){
+ const userId=me?.id;
+ if(!userId||me.mustChangePassword){state.pushData=null;return}
+ try{
+  const result=await request("/push/preferences");
+  if(me?.id!==userId)return;
+  state.pushData=result;
+  if(routeParts().page==="conta")render();
+ }catch(error){console.warn("PET Gestão: preferências de notificações indisponíveis:",error.message)}
+ void registerNativePush();
+}
+function renderPushPreferences(){
+ const prefs=state.pushData?.preferences||{newDemands:true,deadlines:true,overdue:true};
+ const count=Number(state.pushData?.registeredDevices||0);
+ const connected=!!androidPush;
+ const status=connected
+  ?"Este aparelho está conectado à sua conta. Autorize as notificações nas configurações do Android."
+  :count>0
+    ?"Você tem "+count+" aparelho(s) cadastrado(s). Para receber notificações neste celular, abra o APK atualizado."
+    :"Para receber avisos na barra do celular, instale o APK atualizado e permita as notificações.";
+ return '<section class="account-push-panel" aria-labelledby="profile-push-title">'+
+  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-push-title">Notificações no celular</h3>'+
+  '<p>Escolha os avisos que deseja receber no aplicativo Android. As notificações por e-mail são configuradas separadamente.</p></div></div>'+
+  '<p class="account-push-status">'+esc(status)+'</p>'+
+  '<div class="account-push-options">'+
+  '<label><input type="checkbox" data-push-setting="newDemands" '+(prefs.newDemands?"checked":"")+'> Novas demandas atribuídas</label>'+
+  '<label><input type="checkbox" data-push-setting="deadlines" '+(prefs.deadlines?"checked":"")+'> Prazos próximos e eventos</label>'+
+  '<label><input type="checkbox" data-push-setting="overdue" '+(prefs.overdue?"checked":"")+'> Prazos vencidos</label>'+
+  '</div><button type="button" class="button primary account-push-save" data-do="save-push-settings">'+
+  ico("check")+' Salvar preferências</button></section>';
+}
+
 async function reload(){
  try{
    // Toda a aplicação compartilha o mesmo perfil e token de autenticação.
@@ -801,6 +858,7 @@ async function reload(){
    me=null;setToast(e.message);
  }
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
+ void loadPushPreferencesForActiveUser();
 }
 function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
 function nav(){
@@ -2226,6 +2284,7 @@ function renderAccount(){
  (["tutor","admin"].includes(me.role)?'<label class="live-toggle"><input type="checkbox" id="account-notify" '+(me.notificationEnabled?"checked":"")+'> Perguntar se desejo notificar os(as) responsáveis por e-mail</label>':"")+
  commissionsHtml+'<div class="profile-settings-heading"><h3>Configurações da conta</h3><p>Gerencie seus dados de acesso e a instalação do aplicativo.</p></div>'+
  '<div class="profile-settings-grid">'+emailManagement+renderAppInstall()+'</div>'+
+ renderPushPreferences()+
  '<div class="profile-security-panel"><div><h3>Segurança da conta</h3><p>Atualize sua senha sempre que precisar.</p></div>'+
  '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">'+ico("lock")+' Alterar senha</button><form id="change-password-form" class="register-form" hidden><label>Senha atual<span class="password-control"><input type="password" name="password" required><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><label>Nova senha<span class="password-control"><input type="password" name="newPassword" required ><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label><button type="submit" class="button primary">Alterar senha</button></form></div><div class="account-profile-actions"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+'<span>Sair da conta</span></button></div>'+
  '<section class="account-danger-zone"><div><h3>Excluir minha conta</h3><p>Apague definitivamente seu cadastro, senha, sessões e vínculos pessoais. As atividades e atas institucionais serão preservadas, com referências à sua conta anonimizadas. Esta ação não pode ser desfeita.</p></div>'+
@@ -2702,6 +2761,24 @@ async function handleClick(e){
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
  }
+ if(action==="save-push-settings"){
+   if(!me)return setToast("Entre na conta para alterar suas notificações.");
+   const card=b.closest(".account-push-panel");if(!card)return;
+   const settings={};
+   for(const name of ["newDemands","deadlines","overdue"]){
+     const check=card.querySelector('[data-push-setting="'+name+'"]');
+     if(!check)return setToast("Opção de notificação indisponível.");
+     settings[name]=check.checked;
+   }
+   b.disabled=true;
+   try{
+     const result=await request("/push/preferences","PUT",settings);
+     state.pushData=result;
+     setToast("Preferências de notificações salvas.");
+     render();
+   }finally{if(b.isConnected)b.disabled=false}
+   return;
+ }
  if(action==="clear-activity"){
    if(!me)return;
    if(!await askConfirm("Limpar todas as atualizações exibidas para sua conta? Os históricos das demandas continuarão preservados.",{
@@ -2976,6 +3053,9 @@ async function handleClick(e){
    cancelLabel:"Continuar conectado",
    confirmLabel:"Sim, sair da conta"
   }))return;
+  // Desvincular este dispositivo ANTES de revogar a sessão, sem afetar outros aparelhos.
+  if(androidPush)try{await request("/push/unregister","POST",{deviceId:androidPush.deviceId})}catch{}
+  registeredPushFor="";state.pushData=null;
   try{await request("/auth/logout","POST",{},"user")}catch{}
   token="";me=null;regularMe=null;
   forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);publishSessionChange();

@@ -36,3 +36,13 @@ somente HTTPS para a WebView hospedada no GitHub Pages; URLs externas são
 abertas por aplicativos externos. Não incorpora senhas/tokens no APK.
 O APK precisa de internet para sincronizar dados. Backups do banco devem
 continuar sendo realizados no sistema original.
+
+## Notificações nativas (Firebase)
+
+- Projeto Firebase: `pet-gestao-yfs`, pacote `br.ufs.peteducacao.gestao`.
+- No GitHub Actions, configurar o secret `FIREBASE_GOOGLE_SERVICES_JSON_B64` com o conteúdo Base64 de `google-services.json` (não publicar o JSON).
+- No Cloudflare Worker `pet-gestao`, configurar `FCM_SERVICE_ACCOUNT_JSON` como Secret usando uma chave de conta de serviço do mesmo projeto.
+- Permissão de notificações necessária a partir do Android 13.
+- O dispositivo se vincula à conta autenticada; as preferências ficam em Meu perfil → Notificações no celular.
+- **Nota sobre atualização:** builds de debug do GitHub Actions podem ter assinaturas distintas; pode ser necessário desinstalar a versão anterior antes de instalar a nova. Uma versão de produção requer assinatura estável.
+- O APK isoladamente não comprova entrega: testar em aparelho real após configurar os dois secrets.

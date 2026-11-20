@@ -4425,3 +4425,17 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
   line-height:1.55;
   white-space:normal;
 }
+
+
+/* Meu perfil → notificações Android: controles grandes e claros em qualquer tela. */
+#screen .account-push-panel{margin:18px 0 24px;padding:20px;background:#fff;border:1px solid #e6dfed;border-radius:18px;box-shadow:0 4px 16px rgba(38,23,78,.035)}
+#screen .account-push-heading{display:flex;align-items:flex-start;gap:13px}
+#screen .account-push-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;color:#6b39b2;background:#f4edff;border-radius:15px}
+#screen .account-push-heading h3{margin:0 0 7px;font-size:19px;line-height:1.35}
+#screen .account-push-heading p{margin:0;color:#71667d;font-size:14px;line-height:1.55}
+#screen .account-push-status{margin:15px 0 13px;padding:13px 15px;background:#f8f5fe;color:#5c5171;font-size:13px;line-height:1.6;border-radius:12px}
+#screen .account-push-options{display:grid;gap:8px;margin-bottom:15px}
+#screen .account-push-options label{display:flex;align-items:center;gap:12px;min-height:51px;padding:10px 12px;border:1px solid #e8e2ef;border-radius:12px;font-weight:600;font-size:14px}
+#screen .account-push-options input{accent-color:#7443c8;width:22px;height:22px;flex:0 0 22px}
+#screen .account-push-save{min-height:48px;padding:11px 17px;border-radius:12px}
+@media(max-width:680px){#screen .account-push-panel{padding:16px;margin:15px 0 20px}#screen .account-push-icon{width:43px;height:43px;flex-basis:43px}#screen .account-push-heading h3{font-size:18px}#screen .account-push-save{width:100%}}
