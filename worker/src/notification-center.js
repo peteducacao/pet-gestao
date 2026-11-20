@@ -43,11 +43,11 @@ export async function noticeAudience(db,task){
  return [...ids];
 }
 export function noticeSendPolicy(actor,kind,notify){
- // Apenas Tutoria e Administração podem disparar avisos ao criar/revisar.
- // PETianos nunca disparam avisos de criação; a pergunta do autor também
- // controla ambos os canais, sem disparo adicional independente.
- const approved=["tutor","admin"].includes(actor?.role)&&
-  Boolean(actor?.notification_enabled)&&notify===true;
+ // A pergunta "Salvar e enviar" é a autorização de disparo do Tutor/Admin.
+ // Não depender de um segundo checkbox legado da conta do remetente:
+ // apenas as preferências do DESTINATÁRIO definem quais canais ele recebe.
+ // PETianos nunca disparam avisos de criação ou revisão.
+ const approved=["tutor","admin"].includes(actor?.role_override||actor?.role)&&notify===true;
  return {email:approved,push:approved};
 }
 export async function notificationRecipients(db,rawIds,kind){

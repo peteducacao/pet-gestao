@@ -542,8 +542,10 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     const memberIds=await noticeAudience(db,task);
     if(!memberIds.length)return;
     const targets=await notificationRecipients(db,memberIds,kind);
-    // Preserva o funcionamento anterior do Gmail: quem criou não recebe cópia.
-    const emailTargets=policy.email?targets.email.map(u=>u.email).filter(v=>validEmail(v)&&email(v)!==email(user.email)):[];
+    // O autor também pode ser responsável por uma comissão: respeitar seu
+    // opt-in de e-mail, assim como o de Android/PC. Ninguém não atribuído
+    // recebe aviso. Set e normalização impedem cópias repetidas.
+    const emailTargets=policy.email?unique(targets.email.map(u=>email(u.email)).filter(validEmail)):[];
     const saved=await db.prepare("SELECT key,value FROM app_settings WHERE key IN ('notificationTemplate','notificationTemplates')").all();
     const configs=Object.fromEntries(saved.results.map(row=>[row.key,asJson(row.value,{})]));
     const config=configs.notificationTemplates?.[kind]||configs.notificationTemplate||{};

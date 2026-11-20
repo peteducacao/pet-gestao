@@ -45,6 +45,8 @@ for(const role of ["petiano","usuario"]){
   assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},kind,true),
    {email:false,push:false},"PETiano(a) não dispara avisos ao criar ou revisar");
  }
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:false},"create",true),
+   {email:false,push:false},"PETiano não dispara mesmo marcando notify explicitamente");
 }
 for(const role of ["tutor","admin"]){
  assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},"create",true),
@@ -52,7 +54,9 @@ for(const role of ["tutor","admin"]){
  assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:true},"create",false),
   {email:false,push:false},"Recusar aviso bloqueia ambos os canais");
  assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:false},"create",true),
-  {email:false,push:false},"Permissão de enviar desativada bloqueia ambos os canais");
+  {email:true,push:true},"Confirmar envio funciona mesmo se checkbox legado do remetente estava desativado");
+ assert.deepEqual(api.noticeSendPolicy({role,notification_enabled:false},"create",false),
+  {email:false,push:false},"Salvar sem enviar nunca dispara notificações");
 }
 const audienceDb={prepare(sql){
  assert.ok(sql.includes("FROM commission_members"),"Busca integrantes das comissões selecionadas");
@@ -100,6 +104,12 @@ assert.deepEqual(api.noticeSendPolicy({id:"a",role:"petiano",notification_enable
  {email:false,push:false},"Atualização sem solicitação não dispara revisão");
 const memberTargets=await api.notificationRecipients(db,commissionAudience,"create");
 assert.deepEqual(memberTargets.android.map(x=>x.id),["a"],"Criador da comissão com Celular ativado recebe push Android");
+assert.deepEqual(memberTargets.email.map(x=>x.id),["b"],"Criador com e-mail desligado não é incluído contra sua escolha");
+await api.saveNotificationPreferences(db,{id:"a"},{...choices,create:{email:true,android:true,pc:true}});
+const selfTargets=await api.notificationRecipients(db,commissionAudience,"create");
+assert.deepEqual(selfTargets.email.map(x=>x.id),["a","b"],"Autor responsável e outros membros que optaram por e-mail devem receber");
+assert.deepEqual(selfTargets.android.map(x=>x.id),["a"],"Autor pode receber Android independente do e-mail");
+await api.saveNotificationPreferences(db,{id:"a"},choices);
 assert.deepEqual(memberTargets.pc.map(x=>x.id),["b"],"Outros membros recebem PC quando ativado");
 
 const targets=await api.notificationRecipients(db,["a","b","v"],"create");

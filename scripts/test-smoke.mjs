@@ -27,6 +27,37 @@ await test("avisos começam desligados e só ativam após Salvar todas",async()=
  good(await api("/notification-preferences","PUT",enabled));
  assert.deepEqual(good(await api("/notification-preferences")).preferences,enabled);
 });
+await test("Admin cria demanda e dispara e-mail ao próprio responsável com confirmação",async()=>{
+ const actor=good(await api("/auth/me")).user;
+ const title="Regressao de aviso criacao "+crypto.randomUUID().slice(0,8);
+ const tId=good(await api("/tasks","POST",{
+   title,assignmentScope:"usuarios",assigneeIds:[actor.id],commissionIds:[],
+   deadlines:[],notify:true
+ }),201).id;
+ try{
+   let matching=[];
+   for(let attempt=0;attempt<20;attempt++){
+     matching=good(await api("/mail")).items.filter(m=>m.kind==="create"&&String(m.body||"").includes(title));
+     if(matching.length)break;
+     await new Promise(resolve=>setTimeout(resolve,75));
+   }
+   assert.equal(matching.length,1,"Salvar e enviar precisa gerar exatamente um e-mail para o autor responsável");
+   assert.ok(matching[0].recipientEmails.includes(actor.email),"O próprio responsável recebe e-mail se ativou Nova demanda");
+   assert.equal(new Set(matching[0].recipientEmails).size,matching[0].recipientEmails.length,"Nenhum destinatário duplicado");
+ }finally{
+   good(await api("/tasks/"+tId,"DELETE"));
+ }
+ const muted="Regressao sem enviar "+crypto.randomUUID().slice(0,8);
+ const silentId=good(await api("/tasks","POST",{title:muted,assignmentScope:"usuarios",
+  assigneeIds:[actor.id],commissionIds:[],deadlines:[],notify:false}),201).id;
+ try{
+   await new Promise(resolve=>setTimeout(resolve,160));
+   assert.equal(good(await api("/mail")).items.filter(m=>m.kind==="create"&&String(m.body||"").includes(muted)).length,0,
+    "Salvar sem enviar não deve enfileirar mensagem");
+ }finally{
+   good(await api("/tasks/"+silentId,"DELETE"));
+ }
+});
 await test("cenários fictícios removidos, preservando as dez comissões reais",async()=>{
  const publicData=good(await api("/bootstrap"));
  assert.equal(publicData.committees.length,10,"As dez comissões institucionais permanecem intactas");
