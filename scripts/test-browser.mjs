@@ -843,8 +843,8 @@ await page.locator('a[data-route="reunioes"]').click();
    const computed=getComputedStyle(title),layout=getComputedStyle(link);
    title.textContent=original;
    return {width:x.width,titleWidth:t.width,titleRight:t.right,left:x.left,
-    titleBottom:t.bottom,artTop:a.top,artRight:a.right,memberRight:s.right,
-    buttonTop:b?.top,buttonRight:b?.right,artBottom:a.bottom,display:layout.display,
+    titleBottom:t.bottom,artTop:a.top,artRight:a.right,artLeft:a.left,memberRight:s.right,
+    buttonTop:b?.top,buttonRight:b?.right,buttonBottom:b?.bottom,artBottom:a.bottom,display:layout.display,
     wordBreak:computed.wordBreak,overflowWrap:computed.overflowWrap,
     pageScroll:document.documentElement.scrollWidth,viewWidth:window.innerWidth};
   });
@@ -852,7 +852,7 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.equal(m.wordBreak,"normal","Não separar letras dentro de palavras em "+width);
   assert.ok(m.titleWidth>=m.width-80,"Título usa a largura do cartão em "+width+": "+JSON.stringify(m));
   assert.ok(m.titleBottom<=m.artTop+2,"Imagem fica abaixo do título em "+width+": "+JSON.stringify(m));
-  assert.ok(m.buttonTop>=m.artBottom-2,"Botão não cobre a ilustração em "+width+": "+JSON.stringify(m));
+  assert.ok(m.buttonRight<=m.artLeft+2 || m.buttonTop>=m.artBottom-2,"Botão não cobre a ilustração em "+width+": "+JSON.stringify(m));
   assert.ok([m.titleRight,m.artRight,m.memberRight,m.buttonRight].every(right=>right<=m.left+m.width+2),
    "Textos, imagem e botão permanecem dentro do cartão em "+width+": "+JSON.stringify(m));
   assert.ok(m.pageScroll<=m.viewWidth+2,
