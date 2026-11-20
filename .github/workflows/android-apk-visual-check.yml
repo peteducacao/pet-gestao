@@ -45,7 +45,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
-          ram-size: 2048M
+          ram-size: 4096M
           heap-size: 512M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
@@ -54,12 +54,19 @@ jobs:
             adb shell input keyevent 82
             adb install -r PET-Gestao.apk
             adb shell am start -n br.ufs.peteducacao.gestao/.MainActivity
-            sleep 12
-            adb shell screencap -p /sdcard/pet-gestao-12s.png
-            adb pull /sdcard/pet-gestao-12s.png android-visual-output/
-            sleep 16
-            adb shell screencap -p /sdcard/pet-gestao-28s.png
-            adb pull /sdcard/pet-gestao-28s.png android-visual-output/
+            sleep 15
+            # Emuladores de CI podem exibir ANR do Pixel Launcher sobre a WebView.
+            # Fechar o launcher (não o PET Gestão) para capturar a tela livre.
+            adb shell am force-stop com.google.android.apps.nexuslauncher || true
+            adb shell input keyevent 4 || true
+            adb shell am start -n br.ufs.peteducacao.gestao/.MainActivity
+            sleep 6
+            adb shell screencap -p /sdcard/pet-gestao-inicio.png
+            adb pull /sdcard/pet-gestao-inicio.png android-visual-output/
+            adb shell input tap 55 160
+            sleep 3
+            adb shell screencap -p /sdcard/pet-gestao-menu.png
+            adb pull /sdcard/pet-gestao-menu.png android-visual-output/
             adb shell dumpsys window > android-visual-output/window-dump.txt
             adb shell uiautomator dump /sdcard/pet-gestao-ui.xml || true
             adb pull /sdcard/pet-gestao-ui.xml android-visual-output/ || true
