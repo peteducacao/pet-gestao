@@ -4190,3 +4190,91 @@ body.commission-image-editor-open{overflow:hidden}
   }
   #screen .task-form-refined .assignment-modes button {font-size:12px;padding:8px 3px;}
 }
+
+
+/* PET Gestão — polimento final, mobile/tablet: apenas layout (nov/2026). */
+/* Administração > Usuários: busca e cartões primeiro, ajuda recolhível. */
+body.admin-ui-active .admin-users-title{margin:0 0 14px}
+body.admin-ui-active .admin-users-title h2{font-size:21px;line-height:1.3;margin:0 0 5px}
+body.admin-ui-active .admin-users-title p{font-size:14px;line-height:1.5;color:#70657c;margin:0}
+body.admin-ui-active #admin-users{margin-top:0}
+body.admin-ui-active #admin-users .admin-user-list-top{gap:12px;margin-bottom:14px;background:#f9f6ff;border:1px solid #e9e1f3;border-radius:15px;padding:13px}
+body.admin-ui-active #admin-users .admin-user-search-box{max-width:none}
+body.admin-ui-active #admin-users .admin-user-field-label{font-size:13px}
+body.admin-ui-active #admin-users .admin-user-search-box input{min-height:52px;padding:11px 14px;font-size:16px;border-radius:12px}
+body.admin-ui-active #admin-users .admin-user-result-count{font-size:13px;white-space:nowrap}
+body.admin-ui-active #admin-users .admin-user-cards{gap:13px}
+body.admin-ui-active #admin-users .live-admin-row.admin-user-card{background:#fff;border-radius:16px;padding:17px;gap:13px;box-shadow:0 5px 16px rgba(40,23,87,.045)}
+body.admin-ui-active #admin-users .admin-user-identity{border-bottom:1px solid #eee8f6;padding-bottom:12px}
+body.admin-ui-active #admin-users .admin-user-name strong{font-size:16px}
+body.admin-ui-active #admin-users .admin-user-name small{font-size:13px}
+body.admin-ui-active #admin-users .admin-user-role .select{min-height:50px;font-size:15px;padding:10px}
+body.admin-ui-active #admin-users .admin-user-notify{min-height:50px;font-size:14px;line-height:1.5;padding:10px 0}
+body.admin-ui-active #admin-users .admin-user-notify input{width:48px;height:27px;flex-basis:48px}
+body.admin-ui-active #admin-users .admin-user-notify input::before{width:21px;height:21px}
+body.admin-ui-active #admin-users .admin-user-notify input:checked::before{transform:translateX(21px)}
+body.admin-ui-active #admin-users .admin-user-actions{grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);gap:9px}
+body.admin-ui-active #admin-users .admin-user-actions .button{min-height:48px;font-size:13px;padding:10px;line-height:1.3;border-radius:12px}
+body.admin-ui-active .admin-users-guides{margin:20px 0 0;border:1px solid #e9e1f3;background:#faf7ff;border-radius:14px;overflow:hidden}
+body.admin-ui-active .admin-users-guides>summary{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:52px;padding:14px 16px;color:#5c318f;cursor:pointer;font-weight:800;font-size:14px;list-style:none}
+body.admin-ui-active .admin-users-guides>summary::-webkit-details-marker{display:none}
+body.admin-ui-active .admin-users-guides>summary::after{content:"⌄";font-size:20px}
+body.admin-ui-active .admin-users-guides[open]>summary::after{transform:rotate(180deg)}
+body.admin-ui-active .admin-users-guides-content{padding:0 13px 13px}
+body.admin-ui-active .admin-users-guides-content .admin-role-guide{margin:8px 0 0;font-size:13px;line-height:1.65;padding:12px}
+/* Administração > Configurações: seções e ações de fácil toque. */
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden]))>.admin-panel:not([hidden]){
+  padding:clamp(16px,2vw,24px);margin-bottom:14px;border:1px solid #eae3f4;border-radius:17px;
+  background:#fff;box-shadow:0 5px 18px rgba(40,23,87,.035)
+}
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel h2{font-size:clamp(17px,2vw,21px);line-height:1.35}
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel .field-hint{font-size:13px;line-height:1.65}
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel .live-toggle{min-height:52px;display:flex;align-items:center;gap:11px;font-size:14px;line-height:1.5}
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel .live-toggle input{min-height:20px;min-width:20px;flex:0 0 auto}
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel button{min-height:48px;padding:11px 14px;font-size:14px;line-height:1.4;border-radius:12px}
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel select,
+body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel input:not([type="checkbox"]){min-height:48px;max-width:100%;font-size:15px}
+/* Visão geral: estados vazios proporcionais. */
+#screen .dashboard-grid .empty{min-height:0;padding:22px 16px}
+#screen .dashboard-grid .empty .empty-icon{width:48px;height:48px;margin-bottom:9px}
+#screen .dashboard-grid .empty h3{font-size:16px;line-height:1.4}
+#screen .dashboard-grid .empty p{font-size:13px;line-height:1.55}
+#screen .dashboard-weekly-card>.section-head{gap:12px}
+/* Minhas pendências: leitura e controles confortáveis. */
+#screen .mine-list{border-radius:17px}
+#screen .mine-list select{min-height:48px;font-size:15px}
+#screen .mine-task-item{margin-bottom:15px;padding-bottom:15px}
+#screen .mine-task-item>.demand-activity-card{border-radius:14px;box-shadow:0 3px 12px rgba(40,23,87,.035)}
+#screen .mine-task-item>.button,
+#screen .mine-task-item button[data-do="finish-mine"]{min-height:48px;padding:11px 14px;font-size:14px;font-weight:800;border-radius:12px}
+/* Meu perfil: hierarquia e alvos de toque. */
+#screen .account-profile .profile-settings-grid{gap:13px;align-items:stretch}
+#screen .account-profile .profile-settings-grid>section{border-radius:15px;min-width:0}
+#screen .account-profile .account-email-top .button{min-height:46px;padding:10px 14px;font-size:13px}
+#screen .account-profile .account-app-install-button{min-height:52px;border-radius:12px;padding:12px 15px;font-size:15px}
+#screen .account-profile .account-app-install-help{font-size:12.5px;line-height:1.65}
+#screen .account-profile .profile-security-panel>.button{min-height:48px;padding:10px 15px;font-size:14px}
+/* Celular/tablet: somente alvos tocáveis e quebra de texto, sem alterar rotas. */
+@media(max-width:680px){
+ .mobile-menu-button,.mobile-close-button,#open-menu{min-width:44px;min-height:44px}
+ .sidebar .nav-link{min-height:48px;display:flex;align-items:center;font-size:14px;line-height:1.4}
+ #screen .dashboard-grid{gap:13px}
+ #screen .dashboard-grid>.card{padding:16px}
+ #screen .dashboard-weekly-card>.section-head>.button{min-height:48px;font-size:13px}
+ #screen .mine-list{padding:15px}
+ #screen .mine-task-item>.button{width:100%;max-width:100%;margin-left:0}
+ #screen .account-profile .account-email-top{flex-direction:column;align-items:stretch}
+ #screen .account-profile .account-email-top .button{width:100%}
+ body.admin-ui-active #admin-users .admin-user-cards{grid-template-columns:1fr;gap:11px}
+ body.admin-ui-active #admin-users .live-admin-row.admin-user-card{padding:15px}
+ body.admin-ui-active #admin-users .admin-user-list-top{padding:12px;align-items:stretch}
+ body.admin-ui-active #admin-users .admin-user-search-box{min-width:0;flex-basis:auto}
+ body.admin-ui-active #admin-users .admin-user-result-count{font-size:12px;padding:0}
+ body.admin-ui-active .admin-page:has(.admin-reminder-panel:not([hidden])) .admin-panel .button{width:100%;min-height:50px;white-space:normal}
+}
+@media(min-width:681px) and (max-width:1150px){
+ body.admin-ui-active #admin-users .admin-user-cards{grid-template-columns:1fr}
+}
+@media(max-width:360px){
+ body.admin-ui-active #admin-users .admin-user-actions{grid-template-columns:1fr}
+}
