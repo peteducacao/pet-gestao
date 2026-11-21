@@ -1,7 +1,7 @@
 import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushNotificationToChannels} from "./push.js";
 import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel,noticeAudience,noticeSendPolicy} from "./notification-center.js";
 import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
-import {listSchedule,saveSchedule,deleteSchedule,quickNavGet,quickNavSave,annualReport} from "./annual-schedule.js";
+import {listSchedule,saveSchedule,deleteSchedule,quickNavGet,quickNavSave,annualReport,adminOverviewReport} from "./annual-schedule.js";
 import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
 "use strict";
@@ -748,6 +748,9 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       }
       if(path==="/api/v1/admin/annual-report"&&method==="GET"){
         ensure(user,true);return answer(await annualReport(db,user,url.searchParams.get("year")||new Date().getUTCFullYear()));
+      }
+      if(path==="/api/v1/admin/overview-report"&&method==="GET"){
+        ensure(user,true);return answer(await adminOverviewReport(db,user,url.searchParams.get("year")||new Date().getUTCFullYear()));
       }
       if(path==="/api/v1/personal-reminders"&&method==="GET"){
         ensure(user);return answer(await listPersonalReminders(db,user));
