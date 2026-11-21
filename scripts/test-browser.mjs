@@ -596,24 +596,38 @@ try{
  for(const width of [320,360,390,414]){
   await page.setViewportSize({width,height:844});
   const geometry=await page.locator(".dashboard-weekly-card>.section-head").evaluate(head=>{
-   const title=head.querySelector("h2"),description=head.querySelector("p"),button=head.querySelector(".button"),
-    tr=title.getBoundingClientRect(),dr=description.getBoundingClientRect(),
-    br=button.getBoundingClientRect(),hr=head.getBoundingClientRect();
+   const title=head.querySelector("h2"),help=head.querySelector(".pet-context-help"),
+    button=head.querySelector(".button"),tr=title.getBoundingClientRect(),
+    sr=help.querySelector("summary").getBoundingClientRect(),br=button.getBoundingClientRect(),
+    hr=head.getBoundingClientRect();
    return {direction:getComputedStyle(head).flexDirection,
-    width:hr.width,titleWidth:tr.width,titleHeight:tr.height,titleLineHeight:parseFloat(getComputedStyle(title).lineHeight),
-    descriptionBottom:dr.bottom,buttonTop:br.top,buttonWidth:br.width,
-    buttonRight:br.right,headRight:hr.right,pageWidth:document.documentElement.scrollWidth,viewport:window.innerWidth};
+    width:hr.width,titleWidth:tr.width,titleHeight:tr.height,
+    titleLineHeight:parseFloat(getComputedStyle(title).lineHeight),
+    titleBottom:tr.bottom,helpBottom:sr.bottom,helpClosed:!help.open,
+    helpText:help.querySelector(".pet-context-popup").textContent.trim(),
+    buttonTop:br.top,buttonWidth:br.width,buttonRight:br.right,
+    headRight:hr.right,pageWidth:document.documentElement.scrollWidth,viewport:window.innerWidth};
   });
   assert.equal(geometry.direction,"column","Pendências semanais empilhadas em "+width);
   assert.ok(geometry.titleHeight<=geometry.titleLineHeight*1.3,
    "Título inteiro deve caber em uma linha em "+width+": "+JSON.stringify(geometry));
-  assert.ok(geometry.buttonTop>=geometry.descriptionBottom+8,
-   "Descrição aparece inteira acima do botão em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.helpClosed&&geometry.helpText.includes("As próximas seis atividades em aberto"),
+   "Orientação deve iniciar recolhida no ícone ? em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.buttonTop>=Math.max(geometry.titleBottom,geometry.helpBottom)+8,
+   "Botão aparece abaixo do título e da ajuda em "+width+": "+JSON.stringify(geometry));
   assert.ok(geometry.buttonWidth>=geometry.width*.95,
    "Botão utiliza toda a largura do cartão em "+width+": "+JSON.stringify(geometry));
   assert.ok(geometry.buttonRight<=geometry.headRight+2&&geometry.pageWidth<=width+2,
    "Sem transbordamento horizontal em "+width+": "+JSON.stringify(geometry));
  }
+ await page.setViewportSize({width:360,height:844});
+ const weeklyHelp=page.locator(".dashboard-weekly-card .pet-context-help");
+ await weeklyHelp.locator("summary").click();
+ assert.equal(await weeklyHelp.evaluate(el=>el.open),true,"Tocar no ? abre orientação da seção");
+ assert.ok((await weeklyHelp.locator(".pet-context-popup").innerText()).includes("As próximas seis atividades em aberto"),
+  "Popover exibe o texto original completo");
+ await page.keyboard.press("Escape");
+ assert.equal(await weeklyHelp.evaluate(el=>el.open),false,"Esc fecha a orientação sem afetar a tela");
  await page.setViewportSize({width:1280,height:900});
  const desktopWeekly=await page.locator(".dashboard-weekly-card>.section-head").evaluate(head=>({
   direction:getComputedStyle(head).flexDirection,buttonWidth:head.querySelector(".button").getBoundingClientRect().width
