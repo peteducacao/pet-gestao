@@ -2815,14 +2815,16 @@ function renderAccount(){
   '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
   (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
   '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
- const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
+ const tab=me.mustChangePassword?"seguranca":(["perfil","painel","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
  const tabButton=(key,name,description,iconName)=>
   '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
   '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
  const panel=(key,content)=>
   '<section class="account-hub-pane '+(key==="perfil"?"account-profile":"")+'" id="account-pane-'+key+'" role="tabpanel" aria-labelledby="account-tab-'+key+'" '+(tab!==key?"hidden":"")+'>'+content+'</section>';
  const profileContent=
-  '<div class="profile-hero"><div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span></div>'+
+  '<div class="profile-hero theme-'+profileThemeClass()+'"'+profileBackgroundStyle(state.presentationPrefs)+'><div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span>'+
+  '<span class="profile-hero-top-actions"><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span>'+
+  '<button type="button" class="profile-customize-link" data-do="profile-open-appearance">'+ico("image")+' Alterar fundo</button></span></div>'+
   '<div class="account-profile-info">'+profilePhoto+
   '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
   '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
@@ -2864,12 +2866,13 @@ function renderAccount(){
   '<div class="account-hub"><nav class="account-hub-sidebar" role="tablist" aria-label="Configurações da conta">'+
   '<div class="account-hub-side-title">CONFIGURAÇÕES</div>'+
   tabButton("perfil","Meu perfil","Dados e comissões","user")+
+  tabButton("painel","Painel","Indicadores e aparência","settings")+
   tabButton("seguranca","Segurança","E-mail, senha e exclusão","lock")+
   tabButton("notificacoes","Notificações","E-mail, PC e celular","bell")+
   tabButton("aplicativos","Aplicativos","Instalar no PC, Android ou iOS","download")+
   tabButton("atalhos","Navegação rápida","Atalhos do celular","grid")+
   '</nav><div class="account-hub-main">'+
-  panel("perfil",profileContent)+panel("seguranca",securityContent)+
+  panel("perfil",profileContent)+panel("painel",renderPresentationSettings())+panel("seguranca",securityContent)+
   panel("notificacoes",notificationContent)+panel("aplicativos",appContent)+
   panel("atalhos",renderQuickNavSettings())+
   '</div></div>'+
@@ -3769,9 +3772,38 @@ async function handleClick(e){
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
  }
+ if(action==="profile-open-appearance"){
+  state.accountTab="painel";render();
+  $("#account-pane-painel h2")?.scrollIntoView({block:"nearest",behavior:"smooth"});
+  return;
+ }
+ if(action==="presentation-theme"){
+  if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+  const theme=b.dataset.theme;
+  if(!PRESENTATION_THEMES.some(p=>p[0]===theme))return;
+  state.presentationDraft.profileTheme=theme;
+  render();return;
+ }
+ if(action==="presentation-remove-photo"){
+  if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+  state.presentationDraft.profileImage=null;
+  if(state.presentationDraft.profileTheme==="photo")state.presentationDraft.profileTheme="lavender";
+  render();return;
+ }
+ if(action==="presentation-save"){
+  if(!me||!state.presentationDraft)return setToast("Configurações ainda não carregadas.");
+  b.disabled=true;
+  try{
+   const saved=await request("/user-presentation","PUT",state.presentationDraft);
+   state.presentationPrefs=saved;
+   state.presentationDraft=JSON.parse(JSON.stringify(saved));
+   render();setToast("Aparência e indicadores salvos na sua conta.");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
  if(action==="account-tab"){
   const name=b.dataset.tab;
-  if(!["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(name))return;
+  if(!["perfil","painel","seguranca","notificacoes","aplicativos","atalhos"].includes(name))return;
   if(me?.mustChangePassword&&name!=="seguranca")return setToast("Altere a senha temporária antes de continuar.");
   state.accountTab=name;
   document.querySelectorAll(".account-hub-nav-btn").forEach(button=>{
@@ -4681,6 +4713,32 @@ async function handleChange(e){
   }return;
  }
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
+ if(t.matches?.("[data-presentation-key]")){
+  if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+  const key=t.dataset.presentationKey;
+  if(!Object.hasOwn(PRESENTATION_DASHBOARD_DEFAULT,key))return;
+  state.presentationDraft.dashboard[key]=Boolean(t.checked);
+  return;
+ }
+ if(t.id==="profile-background-upload"){
+  const photo=t.files?.[0];t.value="";
+  if(!photo)return;
+  try{
+   const optimized=await shrinkPhoto(photo,{edge:1080,maxBytes:145*1024,square:false});
+   const encoded=await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result||""));
+    reader.onerror=()=>reject(Error("Não foi possível preparar o fundo."));
+    reader.readAsDataURL(optimized);
+   });
+   if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+   state.presentationDraft.profileImage=encoded;
+   state.presentationDraft.profileTheme="photo";
+   render();
+   setToast("Prévia atualizada. Clique em Salvar preferências para confirmar.");
+  }catch(error){setToast(error.message)}
+  return;
+ }
  if(t.id==="account-photo-input"){
    const original=t.files?.[0];t.value="";
    if(!original)return;
