@@ -1326,9 +1326,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.setViewportSize({width:390,height:844});
 
  const kindSelector=page.locator("#notification-template-kind");
- assert.equal(await kindSelector.locator("option").count(),6,"Seis modelos em um único seletor de Configurações");
+ assert.equal(await kindSelector.locator("option").count(),7,"Sete modelos, incluindo aniversário, em Configurações");
  assert.deepEqual(await kindSelector.locator("option").evaluateAll(items=>items.map(o=>o.value)),
-  ["create","review","due_soon","event_soon","event_today","overdue"]);
+  ["create","review","due_soon","event_soon","event_today","overdue","birthday"]);
  assert.equal(await page.locator("#notification-template-form .mail-template-guide-item").count(),4,"Criação possui suas quatro chaves");
  assert.equal(await page.locator("#overdue-template-form").count(),0,"Modelo vencido integrado");
  assert.equal(await page.locator("#deadline-template-form").count(),0,"Modelos de prazo integrados");
@@ -1357,6 +1357,14 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(settings.reminderSettings?.eventTodayEnabled,true,"Evento hoje ativado independentemente");
  assert.equal(settings.reminderSettings?.daysBefore,5,"Configurar evento hoje não altera dias do antecipado");
  await page.locator("#notice-dialog").waitFor({state:"hidden",timeout:5500});
+ await kindSelector.selectOption("birthday");
+ assert.equal(await page.locator("#notification-template-form .mail-template-guide-item").count(),1,"Aniversário oferece {nome}.");
+ await page.locator('#notification-template-form input[name=subject]').fill("Parabéns, {nome}! 🎂");
+ await page.locator("#notification-template-form button[type=submit]").click();
+ await page.waitForTimeout(180);
+ assert.equal(settings.notificationTemplates.birthday?.subject,"Parabéns, {nome}! 🎂","Admin edita o email de aniversário.");
+ if(await page.locator('#notice-dialog').isVisible())await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
+ await kindSelector.selectOption("create");
  await page.locator("#notification-template-form input[name=subject]").fill("Nova demanda personalizada");
  await page.locator("#notification-template-form button[type=submit]").click();
  await page.waitForTimeout(180);
