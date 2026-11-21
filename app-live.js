@@ -3932,7 +3932,15 @@ async function handleClick(e){
   state.assignmentScope=b.dataset.value;
   $("#assignment-container").innerHTML=assignmentView();syncVisibilityOptions();refreshDeadlineMode(previousScope,previousSingle);syncStageAssigneePlaceholder();return;
  }
- if(action==="add-stage"){$("#stage-rows").insertAdjacentHTML("beforeend",stageRow());return}
+ if(action==="add-stage"){
+  const list=$("#stage-rows");
+  if(!list)return;
+  // Novas etapas entram primeiro, perto do botão Adicionar etapa.
+  // Salvar percorre o DOM, preservando a mesma ordem na demanda.
+  list.insertAdjacentHTML("afterbegin",stageRow());
+  list.firstElementChild?.scrollIntoView({behavior:"smooth",block:"start"});
+  return;
+ }
  if(action==="remove-stage"){b.closest(".live-stage")?.remove();return}
  if(action==="commission-color-toggle"){
    const panel=$("#commission-rgb-panel");if(!panel)return;
