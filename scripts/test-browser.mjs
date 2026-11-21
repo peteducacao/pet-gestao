@@ -349,6 +349,8 @@ try{
  user.role="tutor";
  await page.reload();
  await page.goto(origin+"/#/registrar/t-everyone");
+ const editDiagnostic=await page.evaluate(()=>({hash:location.hash,heading:document.querySelector("#screen h1")?.textContent,info:document.querySelector("#screen")?.textContent.slice(0,220),hasDate:!!document.querySelector("#collective-event-day")}));
+ console.log("DIAGNÓSTICO DE EDIÇÃO:",JSON.stringify(editDiagnostic));
  await page.locator("#collective-event-day").waitFor({state:"attached"}); // Campo nativo é visualmente oculto por design.
  await page.setViewportSize({width:390,height:844});
  const eventSettings=page.locator("#deadline-settings");
