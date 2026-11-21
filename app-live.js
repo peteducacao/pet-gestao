@@ -2781,7 +2781,7 @@ function compactContextHelp(root){
   if(!title)return;
   const info=nodes.filter(p=>p&&p.isConnected&&p.textContent.trim());
   if(!info.length)return;
-  const wrap=document.createElement("span");
+  const wrap=document.createElement("div");
   wrap.className="pet-context-title";
   title.before(wrap);wrap.append(title);
   const help=document.createElement("details");
