@@ -1222,6 +1222,23 @@ function cronCard(entry){
    (canRemind?'<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>':"")+
    actions+'</div>':"")+'</div>'+open+'</article>';
 }
+function closeCronDetails(){
+ if(!state.cronDetails)return;
+ if(history.state?.petCronDetails&&location.hash===lastHash){
+  // Consome a entrada adicionada ao abrir a janela, sem abandonar o Cronograma.
+  history.back();
+  return;
+ }
+ state.cronDetails=null;
+ render();
+}
+function openCronDetails(entryId){
+ if(!(state.cronItems||[]).some(x=>x.id===entryId))return setToast("Atividade não encontrada.");
+ state.cronDetails=entryId;state.cronReminder=null;
+ history.pushState({...history.state,petCronDetails:entryId},"",location.href);
+ render();
+ $('[data-do="cron-details-close"]')?.focus();
+}
 function cronDetailsDialog(){
  const entry=(state.cronItems||[]).find(x=>x.id===state.cronDetails);
  if(!entry)return "";
@@ -3529,15 +3546,12 @@ async function handleClick(e){
  if(action==="cron-close"){state.cronEditing=null;render();return}
  if(action==="cron-edit"){
   if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
+  if(state.cronDetails&&history.state?.petCronDetails)history.back();
   state.cronEditing=tid;state.cronReminder=null;state.cronDetails=null;render();
   $("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return;
  }
- if(action==="cron-details"){
-  if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
-  state.cronDetails=tid;state.cronReminder=null;render();
-  $('[data-do="cron-details-close"]')?.focus();return;
- }
- if(action==="cron-details-close"){state.cronDetails=null;render();return;}
+ if(action==="cron-details"){openCronDetails(tid);return;}
+ if(action==="cron-details-close"){closeCronDetails();return;}
  if(action==="cron-delete"){
   const item=(state.cronItems||[]).find(x=>x.id===tid);
   if(!item)return setToast("Atividade não encontrada.");
@@ -3874,13 +3888,13 @@ async function handleClick(e){
  if(action==="mail-monitor-close"){state.mailMonitorOpen=false;render();return}
  if(action==="mail-monitor-refresh"){await loadMailHistory();return}
  if(action==="back"){
-   if(routeParts().page==="admin"){
-     const previous=state.navStack?.at(-2);
-     if(previous?.startsWith("#/admin")){state.navStack.pop();state.goingBack=true;location.hash=previous;}
-     else location.hash="#/admin/painel";
-   }else if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}
-   else location.hash="#/inicio";
-   return;
+  if(state.cronDetails){closeCronDetails();return}
+  if(state.cronReminder){state.cronReminder=null;render();return}
+  // Usa o histórico real, igual ao gesto/botão Voltar do celular.
+  // Se a página foi aberta diretamente, permanece dentro do PET Gestão.
+  if(state.navStack?.length>1)history.back();
+  else location.hash=routeParts().page==="admin"?"#/admin/painel":"#/inicio";
+  return;
  }
  if(action==="mode"){state.mode=b.dataset.value;render();return}
   if(action==="meetings-view"){state.meetingView=b.dataset.value;render();return}
@@ -4578,7 +4592,14 @@ function onNavigation(){
  if(lastHash!==location.hash)state.adminMenuOpen=false;
  if(lastHash!==location.hash&&location.hash==="#/admin/relatorios"){state.adminReportLoadedYear=null;state.adminReportError="";}
  if(lastHash!==location.hash&&lastHash.startsWith("#/cronograma")&&!location.hash.startsWith("#/cronograma")){state.cronFilter="cronograma";state.cronEditing=null;state.cronReminder=null;state.cronDetails=null;}
- if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
+ if(lastHash!==location.hash){
+  const stack=state.navStack||[];
+  const index=stack.lastIndexOf(location.hash);
+  if(index===stack.length-2)stack.pop();
+  else if(index>=0)stack.splice(index+1);
+  else stack.push(location.hash);
+  state.previousRoute=lastHash;lastHash=location.hash;
+ }
  if(state.authTransition){window.scrollTo({top:0});return}
  if(wasAdmin!==nowAdmin){
    state.adminMenuOpen=false;
@@ -4610,6 +4631,20 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
+ // Ao voltar pelo Android/Chrome, fechar primeiro qualquer detalhe aberto.
+ // A janela possui sua própria entrada de histórico, mas mantém a URL do Cronograma.
+ window.addEventListener("popstate",event=>{
+  if(state.cronDetails&&location.hash===lastHash&&!event.state?.petCronDetails){
+   const previous=state.cronDetails;
+   state.cronDetails=null;
+   render();
+   $('[data-do="cron-details"][data-id="'+previous+'"]')?.focus();
+   return;
+  }
+  if(location.hash!==lastHash&&event.state?.petCronDetails){
+   state.cronDetails=event.state.petCronDetails;
+  }
+ });
  window.addEventListener("hashchange",()=>{
    // Eventos duplicados para a mesma rota não devem fechar uma confirmação aberta.
    if(location.hash===lastHash)return;
@@ -4665,7 +4700,7 @@ function start(){
    else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
     else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
-   else if(state.cronDetails){e.preventDefault();state.cronDetails=null;render()}
+   else if(state.cronDetails){e.preventDefault();closeCronDetails()}
    else if(state.cronReminder){e.preventDefault();state.cronReminder=null;render()}
  }});
 
