@@ -597,7 +597,7 @@ function renderAdminCommissionSummary(cid){
  const from=state.summaryFrom||current.getFullYear()+"-01-01",to=state.summaryTo||dateKey(current);
  return header("Administração","Resumo · "+c.name,"Consulta privada de participações e atividades.")+
  '<section class="card card-pad admin-summary">'+
- '<div class="admin-summary-navigation"><a href="#/admin/comissoes" class="button ghost">Voltar às comissões</a></div>'+
+ '<div class="admin-summary-navigation"><a href="#/admin/relatorios" class="button ghost">Voltar aos relatórios</a><button type="button" class="button primary" data-do="admin-commission-pdf">'+ico("download")+' Exportar PDF</button></div>'+
  '<form id="admin-summary-form" class="admin-summary-filters" data-commission-id="'+esc(cid)+'">'+
  '<label>De<input type="date" name="from" value="'+esc(from)+'" required></label>'+
  '<label>Até<input type="date" name="to" value="'+esc(to)+'" required></label>'+
@@ -2883,7 +2883,7 @@ function renderAdminReports(){
 
 function renderAdmin(){
  const adminPart=routeParts().parts;
- if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
+ if(adminPart.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
  if(!isAdmin()&&hasAdminRole(me)&&!me.mustChangePassword)return header("Administração","Ativar painel administrativo","Seu cargo já é Administração. Confirme sua senha para ativar o acesso nesta sessão.")+
   '<section class="card card-pad live-auth admin-activation-panel"><h2>Ativar Administração</h2>'+
   '<p>O cargo foi concedido, mas sua sessão atual foi iniciada antes da promoção. Por segurança, confirme a senha da sua própria conta. Você não precisa trocar de usuário.</p>'+
@@ -2902,7 +2902,7 @@ function renderAdmin(){
  '<div class="admin-commission-item-top"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+
  (c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
  '</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div>'+
- '<a class="button ghost admin-commission-summary-link" href="#/admin/resumo/'+id(c.id)+'">'+ico("list")+' Ver resumo</a></div>'+
+ '</div>'+
  '<div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span>'+
  '<input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label>'+
  '<div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button>'+
@@ -2922,8 +2922,9 @@ function renderAdmin(){
  '<label>Canal<select name="channel" id="notification-template-channel" class="select">'+[["email","E-mail"],["app","Aplicativo (celular e PC)"]].map(([v,l])=>opt(v,l,state.templateChannel)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
  '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo</button></div></form></section>'+
- '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
- const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
+ '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>'+
+ '<section class="admin-panel" '+(state.adminTab==="relatorios"?"":'hidden')+'>'+renderAdminReports()+'</section>';
+ const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["relatorios","Relatórios","list"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
  const stats=[["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
@@ -2938,11 +2939,11 @@ function renderAdmin(){
  '<section class="admin-box"><div class="admin-history-head"><h2>Últimas alterações</h2>'+
  (recent.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':"")+
  '</div>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
- const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","emails","configuracoes"];
+ const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","relatorios","emails","configuracoes"];
  const tabRoute=adminParts.length===1&&tabNames.includes(adminParts[0])?adminParts[0]:null;
  if(tabRoute)state.adminTab=tabRoute;
  const subroute=tabRoute?[]:adminParts,embedded=subroute.length?adminEmbeddedView(subroute):"";
- const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",configuracoes:"Configurações"};
+ const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",relatorios:"Relatórios",configuracoes:"Configurações"};
  return '<div class="admin-layout">'+
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
@@ -3161,10 +3162,11 @@ function render(){
   meetingFormDraft={route:location.hash,snapshot:meetingDraftSnapshot()};
  else if(!meetingDraftRoute(location.hash))resetMeetingDraft();
  lastStatusSnapshot=statusSnapshot();
- if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
+ if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();updateMailScheduleButton();loadMailHistory();}
    if(state.adminTab==="painel")loadMailHistory();
+   if(state.adminTab==="relatorios"&&state.adminReportLoadedYear!==state.adminReportYear&&!state.adminReportLoading)void loadAdminAnnualReport();
  }
 }
 async function askNotification(participants=null){
@@ -3370,6 +3372,24 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="admin-report-pdf"){
+  const r=state.adminReportData;
+  if(!isAdmin()||!r||r.year!==state.adminReportYear)return setToast("Relatório ainda indisponível.");
+  const lines=["Ano: "+r.year,"Demandas no ano: "+r.demands,"Atividades do cronograma: "+r.activities,"",
+   "MÊS                          DEMANDAS       CRONOGRAMA",
+   ...r.months.map(x=>MONTHS[x.month-1].padEnd(28," ")+"   "+String(x.demands).padStart(5," ")+"              "+String(x.activities).padStart(5," "))];
+  reportPdf("PET-Gestao-Relatorio-"+r.year+".pdf","Relatório anual PET "+r.year,lines);return;
+ }
+ if(action==="admin-commission-pdf"){
+  const r=state.summaryData;
+  if(!isAdmin()||!r)return setToast("Consulte primeiro o resumo da comissão.");
+  const lines=["Período: "+textDate(r.from)+" a "+textDate(r.to),
+   "Cadastradas: "+r.registered,"Concluídas: "+r.concluded,"Com atraso: "+r.concludedLate,
+   "Não concluídas: "+r.notConcluded,"Entradas: "+r.entered,"Saídas: "+r.exited,"",
+   "PARTICIPAÇÃO DOS INTEGRANTES",
+   ...(r.members||[]).map(m=>m.name+" - Atribuídas: "+m.assigned+" - Realizadas: "+m.completed+" - Não realizadas: "+m.notCompleted)];
+  reportPdf("PET-Gestao-Comissao.pdf","Comissão: "+(r.commission?.name||""),lines);return;
+ }
  if(action==="quicknav-move"){
   const index=Number(b.dataset.index),other=index+Number(b.dataset.direction);
   const list=state.quickNavDraft?.items;
@@ -4388,6 +4408,9 @@ async function handleChange(e){
   else state.quickNavDraft.items=list.filter(v=>v!==key);
   render();return;
  }
+ if(t.id==="admin-report-kind"){state.adminReportView=t.value==="comissoes"?"comissoes":"cronograma";render();return}
+ if(t.id==="admin-report-year"){const y=Number(t.value);if(y>=2000&&y<=2100){state.adminReportYear=y;state.adminReportData=null;state.adminReportLoadedYear=null;state.adminReportError="";render();}return}
+ if(t.id==="admin-report-commission"){state.adminReportCommission=t.value;render();return}
  if(t.id==="cron-source"){state.cronFilter=["cronograma","demandas","todos"].includes(t.value)?t.value:"cronograma";render();return}
  if(t.id==="cron-year"){
   const year=Number(t.value);if(Number.isInteger(year)&&year>=2000&&year<=2100){
