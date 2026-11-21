@@ -223,13 +223,27 @@ try{
  await page.locator('#personal-reminder-form button[type="submit"]').click();
  await page.waitForTimeout(200);
  assert.equal(personalMockItems[0].message,"Revisar os capítulos","Editar lembrete atualiza sua mensagem");
+ // Demanda possui prazo inicial e Postagem em outra data: cada responsável escolhe sua etapa.
+ const postingDate=new Date(Date.now()+9*86400000).toISOString().slice(0,10);
+ commissionOnly.deadlines.push({id:"postagem-propria-ci",label:"Postagem",dueAt:postingDate+"T18:00:00",assigneeIds:["u1"]});
+ commissionOnly.deadlines.push({id:"revisao-alheia-ci",label:"Revisão alheia",dueAt:postingDate+"T19:00:00",assigneeIds:["outro-usuario"]});
  await page.locator('[data-do="reminder-new"]').click();
  await page.locator('#personal-reminder-form select[name="taskId"]').selectOption("t2");
  const suggestedAt=await page.locator('#personal-reminder-form [data-reminder-field="at"]').inputValue();
- assert.equal(suggestedAt.slice(0,10),commissionOnly.deadlines[0].dueAt.slice(0,10),"Data sugerida corresponde ao prazo da comissão");
+ assert.equal(suggestedAt.slice(0,10),commissionOnly.deadlines[0].dueAt.slice(0,10),"O prazo inicial permanece como sugestão geral.");
+ assert.equal(await page.locator('#reminder-stage option[value="postagem-propria-ci"]').count(),1,"Etapa Postagem da pessoa aparece.");
+ assert.equal(await page.locator('#reminder-stage option[value="revisao-alheia-ci"]').count(),0,"Etapa exclusiva de outra pessoa não é oferecida.");
+ await page.locator("#reminder-stage").selectOption("postagem-propria-ci");
+ assert.equal((await page.locator('#personal-reminder-form [data-reminder-field="at"]').inputValue()),postingDate+"T18:00","Escolher Postagem sugere sua própria data.");
+ const chosenAt=postingDate+"T19:30";
+ await page.locator('#personal-reminder-form [data-reminder-field="at"]').fill(chosenAt);
+ assert.ok((await page.locator(".reminder-stage-preview").innerText()).includes("Postagem"),"A etapa selecionada é identificada.");
  await page.locator('#personal-reminder-form button[type="submit"]').click();
  await page.waitForTimeout(200);
  assert.equal(personalMockItems.at(-1).taskId,"t2","Lembrete de demanda usa somente minhas pendências");
+ assert.equal(personalMockItems.at(-1).taskStageId,"postagem-propria-ci","Persistência da etapa de responsabilidade.");
+ assert.deepEqual(personalMockItems.at(-1).schedules.map(x=>x.at),[chosenAt],"Apenas o horário escolhido será notificado, sem aviso do prazo inicial.");
+ assert.ok((await page.locator(".reminder-list-row").first().innerText()).includes("Postagem"),"Lista identifica a etapa vinculada.");
  assert.equal(await page.locator(".reminder-list-row").count(),2,"Lembretes cadastrados aparecem na lista pessoal");
  await page.goto(origin+"/#/conta");
  await page.goto(origin+"/#/demandas");
