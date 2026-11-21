@@ -5162,3 +5162,13 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  #screen .presentation-save-row .button,#screen .account-birthday-form .button{width:100%}
  #screen .profile-hero-top-actions{align-items:flex-start}
 }
+
+
+/* Nome responsivo da sexta aba: sem quebra de linha no celular estreito. */
+#screen .account-hub-nav-btn[data-tab="atalhos"] .account-nav-compact{display:none}
+@media(max-width:375px){
+ #screen .account-hub-nav-btn[data-tab="atalhos"] .account-nav-full{display:none}
+ #screen .account-hub-nav-btn[data-tab="atalhos"] .account-nav-compact{
+  display:inline;white-space:nowrap;font-size:12px;
+ }
+}

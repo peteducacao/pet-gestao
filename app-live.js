@@ -2827,7 +2827,7 @@ function renderAccount(){
  const tab=me.mustChangePassword?"seguranca":(["perfil","painel","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
  const tabButton=(key,name,description,iconName)=>
   '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
-  '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
+  '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+(key==="atalhos"?'<span class="account-nav-full">Navegação rápida</span><span class="account-nav-compact">Atalhos</span>':name)+'</strong><small>'+description+'</small></span></button>';
  const panel=(key,content)=>
   '<section class="account-hub-pane '+(key==="perfil"?"account-profile":"")+'" id="account-pane-'+key+'" role="tabpanel" aria-labelledby="account-tab-'+key+'" '+(tab!==key?"hidden":"")+'>'+content+'</section>';
  const profileContent=
