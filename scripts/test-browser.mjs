@@ -41,7 +41,6 @@ await page.route("**/api/v1/**",async route=>{
  else if(p==="/schedule"&&method==="GET")result={year:Number(url.searchParams.get("year")),items:scheduleMock.filter(x=>x.startDate.slice(0,4)===url.searchParams.get("year"))};
  else if(p==="/schedule"&&method==="POST"){const newId="evento-cron-"+(scheduleMock.length+1);scheduleMock.push({id:newId,...body,completedAt:null,source:"manual"});result={ok:true,id:newId};status=201;}
  else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PUT"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)Object.assign(row,body);result={ok:true};}
- else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PATCH"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)row.completedAt=body.completed?new Date().toISOString():null;result={ok:true};}
  else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="DELETE"){scheduleMock=scheduleMock.filter(x=>x.id!==p.split("/").at(-1));result={ok:true};}
  else if(p==="/admin/annual-report"&&method==="GET"){
   const year=Number(url.searchParams.get("year")),month=Number(new Date().toISOString().slice(5,7));
@@ -1514,29 +1513,33 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator("#cron-source").inputValue(),"demandas","Filtro Demandas permanece selecionado.");
  assert.ok(await page.locator(".chron-card--demand").count()>0,"Demandas aparecem automaticamente no cronograma.");
  assert.ok(await page.locator('.chron-card--demand a[href^="#/atividade/"]').count()>0,"Demanda abre página original.");
- assert.ok(await page.locator('.chron-card--demand .chron-demand-title[href^="#/atividade/"]').count()>0,"Título também abre demanda original.");
+ assert.ok(await page.locator('.chron-card--demand .chron-card-open[href^="#/atividade/"]').count()>0,"Tocar no cartão abre a demanda original.");
  await page.locator("#cron-source").selectOption("todos");
  assert.ok(await page.locator(".chron-card").count()>scheduleMock.length,"Todos reúne as duas origens.");
  await page.locator('[data-do="cron-new"]').click();
  await page.locator("#cron-form").waitFor();
  await page.locator('#cron-form [name="title"]').fill("Atividade criada no cronograma");
  await page.locator('#cron-form [name="startTime"]').fill("09:00");
- await page.locator('#cron-form [name="endTime"]').fill("11:30");
+ await page.locator('#cron-form [name="endDate"]').fill(new Date(Date.now()+7*86400000).toISOString().slice(0,10));
+ await page.locator('#cron-form [name="endTime"]').fill("23:50");
  await page.locator('#cron-form [name="location"]').fill("Sala PET");
  await page.locator('#cron-form [name="description"]').fill("Observação personalizada");
  const posted=page.waitForResponse(r=>r.url().endsWith("/schedule")&&r.request().method()==="POST");
  await page.locator('#cron-form button[type="submit"]').click();await posted;
  await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade criada no cronograma"));
  const added=scheduleMock.find(x=>x.title==="Atividade criada no cronograma");
- assert.ok(added&&added.startTime==="09:00"&&added.endTime==="11:30");
+ assert.ok(added&&added.startTime==="09:00"&&added.endTime==="23:50");
  assert.ok(!tasks.some(x=>x.title===added.title),"Cadastro de cronograma não cria demanda.");
+ await page.locator('[data-do="cron-details"][data-id="'+added.id+'"]').click();
+ await page.locator("#cron-detail-title").waitFor();
+ assert.equal(await page.locator("#cron-detail-title").textContent(),"Atividade criada no cronograma","Tocar no cartão abre detalhes.");
  await page.locator('[data-do="cron-edit"][data-id="'+added.id+'"]').click();
  await page.locator('#cron-form [name="title"]').fill("Atividade renomeada");
  await page.locator('#cron-form button[type="submit"]').click();
  await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade renomeada"));
- await page.locator('[data-do="cron-toggle"][data-id="'+added.id+'"]').click();
- await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card")].some(el=>el.textContent.includes("Atividade renomeada")&&el.querySelector(".chron-date--done")));
- assert.ok(scheduleMock.find(x=>x.id===added.id)?.completedAt,"Borda verde reflete conclusão.");
+ assert.equal(await page.locator('[data-do="cron-toggle"]').count(),0,"Nenhuma conclusão manual aparece no cronograma.");
+ assert.equal(await page.locator('[data-do="cron-edit"]').count(),0,"Sem quadrado vazio de edição no cartão.");
+ assert.ok(await page.locator('[data-do="cron-remind"][data-id="'+added.id+'"]').count()>0,"Evento futuro permite lembrete.");
  await page.locator('[data-do="cron-remind"][data-id="'+added.id+'"]').click();
  await page.locator("#cron-reminder-form").waitFor();
  const future=new Date(Date.now()+3*3600000-3*3600000).toISOString().slice(0,16);
@@ -1544,6 +1547,10 @@ await page.locator('a[data-route="reunioes"]').click();
  const sent=page.waitForResponse(r=>r.url().endsWith("/personal-reminders")&&r.request().method()==="POST");
  await page.locator('#cron-reminder-form button[type="submit"]').click();await sent;
  assert.ok(personalMockItems.some(x=>x.scheduleEntryId===added.id&&x.autoDelete===true),"Aviso pessoal vinculado e autoexcluído.");
+ const expiredDate=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+ scheduleMock.push({id:"evento-passado-ci",title:"Evento passado",startDate:expiredDate,endDate:expiredDate,startTime:"09:00",endTime:"10:00",location:"Sala",source:"manual",completedAt:null});
+ // Ao voltar à lista, o evento passado estará concluído sem ação humana.
+
  await page.locator('[data-do="cron-view"][data-view="calendario"]').click();
  await page.locator(".chron-calendar-day").first().waitFor();
  await page.locator('[data-do="cron-calendar-mode"]').click();
