@@ -1494,6 +1494,16 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".chron-card").first().waitFor({timeout:10000});
  assert.equal(await page.locator(".chron-card--demand").count(),0,"Filtro inicial não mistura demandas.");
  await page.locator("#cron-source").selectOption("demandas");
+ const cronDiagnostic=await page.evaluate(()=>({
+  year:document.querySelector("#cron-year")?.value,
+  source:document.querySelector("#cron-source")?.value,
+  month:document.querySelector(".chron-month-nav")?.textContent.trim(),
+  browserDate:new Date().toISOString(),
+  cards:[...document.querySelectorAll(".chron-card")].map(el=>el.textContent.slice(0,90)),
+  notice:document.querySelector(".chron-empty")?.textContent,
+  visibleTitle:document.querySelector(".page-title")?.textContent
+ }));
+ console.log("CRON_DIAGNOSTIC",JSON.stringify({cronDiagnostic,fixture:tasks.map(t=>({id:t.id,due:t.deadlines?.map(d=>d.dueAt)}))}));
  assert.ok(await page.locator(".chron-card--demand").count()>0,"Demandas aparecem automaticamente no cronograma.");
  assert.ok(await page.locator('.chron-card--demand a[href^="#/atividade/"]').count()>0,"Demanda abre página original.");
  await page.locator("#cron-source").selectOption("todos");
