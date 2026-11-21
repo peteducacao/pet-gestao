@@ -46,6 +46,26 @@ await page.route("**/api/v1/**",async route=>{
   const year=Number(url.searchParams.get("year")),month=Number(new Date().toISOString().slice(5,7));
   result={year,demands:tasks.length,activities:scheduleMock.length,months:Array.from({length:12},(_,i)=>({month:i+1,demands:i+1===month?tasks.length:0,activities:i+1===month?scheduleMock.length:0}))};
  }
+ else if(p==="/admin/overview-report"&&method==="GET"){
+  const year=Number(url.searchParams.get("year")),month=Number(new Date().toISOString().slice(5,7));
+  const rows=tasks.filter(t=>String(t.registeredAt||"").startsWith(String(year)));
+  const done=t=>!!t.archivedAt&&t.closureOutcome!=="nao_concluida";
+  const incomplete=t=>!!t.archivedAt&&t.closureOutcome==="nao_concluida";
+  result={year,commissionCount:committees.length,users:2,activeMembers:1,
+   demands:rows.length,activities:scheduleMock.length,
+   pending:rows.filter(t=>!t.archivedAt).length,concluded:rows.filter(done).length,
+   notConcluded:rows.filter(incomplete).length,
+   demandsWithoutCommission:rows.filter(t=>!(t.commissionIds||[]).length).length,
+   meetings:meetings.length,emails:0,
+   roles:{admin:1,petiano:0,tutor:1,usuario:0},
+   commissions:committees.map(c=>{
+    const linked=rows.filter(t=>(t.commissionIds||[]).includes(c.id));
+    return {id:c.id,name:c.name,members:(c.memberIds||[]).length,
+     demands:linked.length,concluded:linked.filter(done).length,
+     pending:linked.filter(t=>!t.archivedAt).length,notConcluded:linked.filter(incomplete).length};
+   }),
+   months:Array.from({length:12},(_,i)=>({month:i+1,demands:i+1===month?rows.length:0,activities:i+1===month?scheduleMock.length:0}))};
+ }
  else if(p==="/notification-preferences"&&method==="GET")result={preferences:noticeMatrix};
  else if(p==="/notification-preferences"&&method==="PUT"){noticeMatrix=body;result={preferences:noticeMatrix};}
  else if(p==="/personal-reminders"&&method==="GET")result={items:personalMockItems};
@@ -1201,8 +1221,19 @@ await page.locator('a[data-route="reunioes"]').click();
  }
  await page.goto(origin+"/#/admin/relatorios");
  await page.locator("#admin-report-kind").waitFor();
+ await page.locator("#admin-report-kind").selectOption("todos");
+ await page.locator(".admin-overview-metrics").waitFor();
+ assert.equal(await page.locator(".admin-overview-metrics>div").count(),4,"Todos exibe os quatro indicadores gerais.");
+ assert.equal(await page.locator(".admin-overview-table tbody tr").count(),committees.length,"Todas as comissões aparecem na visão geral.");
+ assert.ok((await page.locator(".admin-overview-panel").innerText()).includes("Usuários por perfil"),"Resumo inclui usuários.");
+ assert.ok(calls.some(c=>c.p==="/admin/overview-report"),"Admin recebe os dados consolidados via API.");
  await page.locator("#admin-report-kind").selectOption("comissoes");
+ assert.equal(await page.locator("#admin-report-commission").inputValue(),"todos","Comissões abre com Todas as comissões.");
+ assert.ok(await page.locator(".admin-overview-table").count()>0,"Todas as comissões tem relatório conjunto.");
+ await page.locator("#admin-report-commission").selectOption("videos");
  await page.locator('a[href="#/admin/resumo/videos"]').waitFor();
+ await page.locator("#admin-report-commission").selectOption("todos");
+ assert.ok(await page.locator(".admin-overview-table").count()>0,"Retornar a Todas restaura visão consolidada.");
  await page.goto(origin+"/#/admin/comissoes");
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator('[data-do="save-vagas"]').count(),0,"Botões Salvar individuais removidos");
