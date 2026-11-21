@@ -508,10 +508,15 @@ assert.ok(emailGuide.classList.contains("admin-role-guide"),"Notificações reap
 await move("#/admin/comissoes");
 assert.equal(document.querySelectorAll('[data-do="save-vagas"]').length,0,"Salvar individual removido");
 assert.equal(document.querySelectorAll('[data-do="save-all-commissions"]').length,1,"Salvar todas aparece no topo");
-assert.equal(document.querySelectorAll(".admin-commission-item-top > .admin-commission-summary-link").length,committees.length,
- "Resumo de cada comissão fica no canto superior do cartão, fora da área do título.");
+assert.equal(document.querySelectorAll(".admin-commission-item-top > .admin-commission-summary-link").length,0,
+ "Resumo foi removido da área de Comissões e não ocupa espaço do cartão.");
 assert.equal(document.querySelectorAll(".admin-commission-title .admin-commission-summary-link").length,0,
  "O botão Resumo não fica mais embaixo do nome da comissão.");
+await move("#/admin/relatorios");await wait();
+assert.ok(document.querySelector("#admin-report-kind"),"Aba Relatórios possui seletor único.");
+document.querySelector("#admin-report-kind").value="comissoes";
+document.querySelector("#admin-report-kind").dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.ok(document.querySelector('a[href="#/admin/resumo/videos"]'),"Comissões agora são consultadas nos Relatórios.");
 await move("#/admin/resumo/videos");await wait();
 assert.ok(document.querySelector("#admin-summary-results"),"Resumo administrativo está disponível por comissão.");
 assert.equal([...document.querySelectorAll("#admin-summary-results h2")].some(h=>h.textContent==="Demandas finalizadas"),false,
