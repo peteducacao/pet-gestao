@@ -1483,6 +1483,9 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator("#commission-image-preview img").count(),1,"Prévia editada aparece no formulário");
  
  // Cronograma anual e ligação com demandas, sem registros duplicados.
+ const cronToday=new Date().toISOString().slice(0,10);
+ tasks.push({...task,id:"demanda-cron-ci",title:"Demanda vinculada ao cronograma",archivedAt:null,
+  registeredAt:cronToday,deadlines:[{id:"prazo-ci",label:"Apresentação",dueAt:cronToday+"T16:00:00"}]});
  await page.goto(origin+"/#/cronograma");
  await page.locator("#cron-source").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#cron-source").inputValue(),"cronograma","Filtro inicial é Cronograma.");
