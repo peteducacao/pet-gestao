@@ -250,3 +250,74 @@ pushAccepted=true;
 const retry=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:["a"],pc:[]},notice,"personal-retry",minute+120000);
 assert.equal(retry.android,1,"Sem aceitação, a chave do minuto é liberada para retentativa");
 console.log("Deduplicação: mesmo minuto/canal só uma notificação, horários diferentes independentes, falhas recuperáveis OK.");
+
+
+
+// Teste do cron de aniversários isolado: horário de Sergipe, preferência e deduplicação.
+const workerCode=await readFile(new URL("../worker/src/index.js",import.meta.url),"utf8");
+const birthStart=workerCode.indexOf("  async function queueBirthdayGreetings(env){");
+const birthEnd=workerCode.indexOf("  // Revalidar cada aviso vinculado",birthStart);
+assert.ok(birthStart>0&&birthEnd>birthStart,"Rotina de aniversários está presente no cron.");
+const birthSource=workerCode.slice(birthStart,birthEnd);
+let localNow="2026-11-21T12:00:00Z";
+class LocalDate extends Date{
+ constructor(...args){super(...(args.length?args:[localNow]))}
+ static now(){return Date.parse(localNow)}
+}
+const birthLog=new Set(),queuedBirthdayEmails=[],pushedBirthdays=[];
+let birthOptIn=true,birthUser={id:"a",name:"Aniversariante",email:"a@pet.test",birth_date:"2000-11-21"};
+const birthDb={prepare(sql){
+ let args=[];
+ return {
+  bind(...values){args=values;return this},
+  async first(){
+   if(sql.includes("key='notificationTemplates'"))return {value:JSON.stringify({birthday:{subject:"Viva, {nome}!",body:"Parabéns, {nome}!"}})};
+   throw Error("birthday first: "+sql);
+  },
+  async all(){
+   if(sql.includes("FROM users WHERE birth_date IS NOT NULL")){
+    return {results:args.includes(birthUser.birth_date.slice(5))?[birthUser]:[]};
+   }
+   throw Error("birthday all: "+sql);
+  },
+  async run(){
+   if(sql.startsWith("INSERT OR IGNORE INTO birthday_delivery_log")){
+    const k=args[0]+":"+args[1]+":"+sql.match(/'(email|push)'/)[1];
+    const added=!birthLog.has(k);birthLog.add(k);
+    return {meta:{changes:Number(added)}};
+   }
+   if(sql.startsWith("DELETE FROM birthday_delivery_log"))return {meta:{changes:0}};
+   throw Error("birthday run: "+sql);
+  }
+ };
+}};
+const birthdayTest=new Function("Date","notificationRecipients","notificationPushModel","pushNotificationToChannels",
+ "enqueue","now","asJson","validEmail","mailEscape","mailHasFormatting","console",
+ birthSource+"\nreturn queueBirthdayGreetings;")(
+ LocalDate,
+ async(db,ids)=>birthOptIn?{email:[birthUser],android:[birthUser],pc:[]}:{email:[],android:[],pc:[]},
+ async(db,kind,values)=>({title:"Viva "+values.nome,body:"Parabéns"}),
+ async(env,targets,message,key)=>{pushedBirthdays.push({message,key});return {android:1,pc:0}},
+ async(db,creatorId,kind,emails,subject,body)=>{queuedBirthdayEmails.push({kind,emails,subject,body});},
+ ()=>new Date(localNow).toISOString(),
+ (v,f)=>{try{return JSON.parse(v||"")}catch{return f}},
+ email=>email.includes("@"),
+ value=>String(value).replace(/</g,"&lt;"),
+ ()=>false,console);
+await birthdayTest({DB:birthDb});
+await birthdayTest({DB:birthDb});
+assert.equal(queuedBirthdayEmails.length,1,"Aniversário envia um e-mail por ano mesmo se cron repetir.");
+assert.equal(pushedBirthdays.length,1,"Aniversário gera apenas um aviso por ano.");
+assert.equal(queuedBirthdayEmails[0].subject,"Viva, Aniversariante!");
+assert.equal(queuedBirthdayEmails[0].kind,"birthday");
+birthOptIn=false;birthUser={...birthUser,id:"b"};
+await birthdayTest({DB:birthDb});
+assert.equal(queuedBirthdayEmails.length,1,"Sem opt-in, nenhum parabéns sai.");
+localNow="2026-11-21T11:00:00Z";
+birthUser={...birthUser,id:"c"};birthOptIn=true;
+await birthdayTest({DB:birthDb});
+assert.equal(pushedBirthdays.length,1,"Fora de 9h em Sergipe, cron não envia.");
+localNow="2027-02-28T12:00:00Z";birthUser={id:"leap",name:"Pessoa 29 de fevereiro",email:"leap@pet.test",birth_date:"2000-02-29"};
+await birthdayTest({DB:birthDb});
+assert.equal(queuedBirthdayEmails.length,2,"Nascidos em 29/02 recebem parabéns em 28/02 nos anos comuns.");
+console.log("Aniversários: cron local, privacidade por canal e disparo único anual OK.");
