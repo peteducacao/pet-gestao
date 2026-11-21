@@ -1198,7 +1198,7 @@ function cronCard(entry){
  const hour=isTask?(entry.startTime?entry.startTime+" · ":"")+entry.stageName:cronHours(entry);
  return '<article class="chron-card '+(isTask?"chron-card--demand":"")+'">'+
  '<div class="chron-date '+(entry.done?"chron-date--done":"chron-date--pending")+'" aria-label="'+(entry.done?"Concluída":"Pendente")+' em '+textDate(date)+'"><strong>'+day+'</strong><small>'+esc(month)+'</small></div>'+
- '<div class="chron-card-content"><div class="chron-card-top"><strong>'+esc(entry.title)+'</strong>'+
+ '<div class="chron-card-content"><div class="chron-card-top">'+(isTask?'<a class="chron-demand-title" href="#/atividade/'+id(entry.id)+'">'+esc(entry.title)+'</a>':'<strong>'+esc(entry.title)+'</strong>')+
  (isTask?'<span class="chron-demand-mark" title="Demanda">Demanda</span>':"")+'</div>'+
  '<div class="chron-meta">'+ico("clock")+' '+esc(hour)+esc(finish)+'</div>'+
  (entry.location&&entry.location!=="—"?'<div class="chron-meta">'+ico("folder")+' '+esc(entry.location)+'</div>':"")+
