@@ -4527,7 +4527,7 @@ async function handleChange(e){
  if(t.id==="reminder-task"){
   captureReminderEditor();
   state.reminderDraft.taskStageId="";
-  if(state.reminderEditing==="new"&&state.reminderRecurrence==="once"&&state.reminderSchedules.length===1){
+  if(state.reminderRecurrence==="once"){
    const selected=data.tasks.find(task=>task.id===t.value&&isMyPending(task));
    if(selected)state.reminderSchedules=[reminderDefaultSlot("once",selected)];
   }
@@ -4537,7 +4537,9 @@ async function handleChange(e){
   captureReminderEditor();
   const selected=data.tasks.find(task=>task.id===state.reminderDraft?.taskId&&isMyPending(task));
   const stage=reminderStageFor(selected,t.value);
-  if(state.reminderRecurrence==="once"&&state.reminderSchedules.length===1&&selected)
+  // Trocar a etapa redefine a agenda para apenas a data da nova etapa.
+  // O titular ainda pode adicionar outros horários explicitamente.
+  if(state.reminderRecurrence==="once"&&selected)
    state.reminderSchedules=[reminderDefaultSlot("once",selected,stage)];
   render();return;
  }
