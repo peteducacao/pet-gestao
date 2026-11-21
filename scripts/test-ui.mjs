@@ -139,7 +139,7 @@ await move("#/inicio");
 assert.ok(document.querySelector('a[data-route="reunioes"]'),"Atas aparece na navegação");
 assert.equal(document.querySelector('#account-button'),null,"Sem perfil duplicado no topo");
 assert.equal(document.querySelector('a[data-route="conta"]').getAttribute("href"),"#/conta","Perfil acessível no menu lateral");
-assert.equal(document.querySelector('a[data-route="cronograma"]'),null,"Cronograma duplicado removido");
+assert.ok(document.querySelector('a[data-route="cronograma"]'),"Cronograma anual está na navegação para PETianos e Tutoria");
 await move("#/demandas");
 // A exclusão de concluídas precisa aparecer para Tutoria e PETianos(as),
 // mesmo quando a conta não possui o escopo administrativo.
