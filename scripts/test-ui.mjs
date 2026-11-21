@@ -623,6 +623,8 @@ assert.ok(deleteAccountButton,"Meu perfil oferece Excluir minha conta");
 assert.ok(document.querySelector('a.account-app-install-button[href="https://github.com/peteducacao/pet-gestao/releases/download/android-apk/PET-Gestao.apk"]'),"Download principal aponta para o APK publicado");
 assert.ok(document.querySelector('a[href="./downloads/PET-Gestao.apk"][download="PET-Gestao.apk"]'),"Link alternativo permanece disponível no site");
 assert.ok(!document.querySelector('[data-do="install-pet-app"]'),"O perfil não deve abrir instalação PWA");
+assert.ok(document.querySelector('[data-do="install-ios-app"]'),"Área Aplicativos deve orientar a instalação no iPhone/iPad");
+assert.ok(document.querySelector('a[href="./privacidade.html"]'),"O aviso de privacidade deve ser acessível sem login");
 tap('[data-do="account-delete-open"]');
 assert.equal(document.querySelector("#account-delete-dialog")?.hidden,false,
   "Abre diálogo de exclusão definitiva");
