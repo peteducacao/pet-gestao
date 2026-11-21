@@ -1098,18 +1098,20 @@ await page.locator('a[data-route="reunioes"]').click();
   await page.setViewportSize({width,height:844});
   const m=await page.locator(".admin-commissions").evaluate(panel=>{
    const head=panel.querySelector(".admin-section-heading"),
-    desc=head.querySelector("p"),save=head.querySelector(".admin-save-all-button"),
+    help=head.querySelector(".pet-context-help"),summary=help.querySelector("summary"),
+    save=head.querySelector(".admin-save-all-button"),
     row=panel.querySelector(".admin-commission-item"),
     name=row.querySelector(".admin-commission-title strong"),
     vacancy=row.querySelector(".admin-vacancy-field input"),
     arrows=row.querySelector(".admin-order-controls"),
     controls=row.querySelector(".admin-commission-controls");
-   const d=desc.getBoundingClientRect(),b=save.getBoundingClientRect(),
+   const h=summary.getBoundingClientRect(),b=save.getBoundingClientRect(),
     p=panel.getBoundingClientRect(),n=name.getBoundingClientRect(),
     v=vacancy.getBoundingClientRect(),o=arrows.getBoundingClientRect(),
     ctrl=controls.getBoundingClientRect();
    return {direction:getComputedStyle(head).flexDirection,
-    descWidth:d.width,buttonWidth:b.width,descBottom:d.bottom,buttonTop:b.top,
+    helpClosed:!help.open,helpText:help.querySelector(".pet-context-popup").textContent.trim(),
+    helpBottom:h.bottom,buttonWidth:b.width,buttonTop:b.top,
     panelWidth:p.width,nameWordBreak:getComputedStyle(name).wordBreak,
     itemOverflow:row.scrollWidth-row.clientWidth,buttonRight:b.right,panelRight:p.right,
     nameWidth:n.width,vacancyWidth:v.width,vacancyLeft:v.left,vacancyRight:v.right,
@@ -1117,9 +1119,10 @@ await page.locator('a[data-route="reunioes"]').click();
     vacancyBottom:v.bottom,controlRight:ctrl.right,controlLeft:ctrl.left};
   });
   assert.equal(m.direction,"column","Cabeçalho Admin usa pilha vertical em "+width);
-  assert.ok(m.buttonTop>=m.descBottom+4,"Texto inteiro acima do botão em "+width+": "+JSON.stringify(m));
-  assert.ok(m.descWidth>=m.panelWidth*.65,"Descrição recebe espaço amplo em "+width+": "+JSON.stringify(m));
-  assert.ok(m.buttonWidth>=m.descWidth*.85,"Botão abaixo usa largura da seção em "+width);
+  assert.ok(m.helpClosed&&m.helpText.includes("Defina as vagas"),
+   "Explicação do painel Admin permanece acessível pelo ? em "+width+": "+JSON.stringify(m));
+  assert.ok(m.buttonTop>=m.helpBottom+4,"Botão fica abaixo do título e do ícone ? em "+width+": "+JSON.stringify(m));
+  assert.ok(m.buttonWidth>=m.panelWidth*.80,"Botão abaixo usa largura da seção em "+width);
   assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
   const top=await page.locator(".admin-commission-item").first().evaluate(row=>{
    const summary=row.querySelector(".admin-commission-item-top > .admin-commission-summary-link");
