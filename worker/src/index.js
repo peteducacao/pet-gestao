@@ -33,6 +33,16 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
   const arrayToJson=v=>JSON.stringify(v);
   const standardTime=d=>/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(String(d||""))?String(d):"";
   const currentYear=()=>new Date().getUTCFullYear();
+  function validateBirthDate(value,optional=false){
+    const v=String(value??"").trim();
+    if(optional&&!v)return null;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(v))fail("Informe uma data de nascimento válida.");
+    const date=new Date(v+"T12:00:00Z");
+    if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==v||
+       Number(v.slice(0,4))<1900||v>new Date().toISOString().slice(0,10))
+      fail("Data de nascimento inválida ou futura.");
+    return v;
+  }
   const isoAfter=minutes=>new Date(Date.now()+minutes*60000).toISOString();
   async function body(req){
     const size=Number(req.headers.get("content-length")||0);
@@ -92,7 +102,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     const browser=/^[a-f0-9-]{36}$/i.test(String(browserId||""))?String(browserId):null;
     if(browser)await db.prepare("DELETE FROM sessions WHERE browser_id=?").bind(browser).run();
     await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,admin_scope,browser_id) VALUES(?,?,?,?,?,?)").bind(digest,user.id,expiresAt,now(),adminScope&&user.role==="admin"?1:0,browser).run();
-    return {token,user:{...userPublic(user),adminSession:adminScope===true&&user.role==="admin"},expiresAt};
+    return {token,user:{...userPublic(user),birthDate:user.birth_date||null,adminSession:adminScope===true&&user.role==="admin"},expiresAt};
   }
   async function resetRate(db,mail){await db.prepare("DELETE FROM auth_attempts WHERE email=?").bind(mail).run()}
   async function rateFail(db,mail){
@@ -142,7 +152,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
     const pendingEmailChange=user?await db.prepare("SELECT new_email,expires_at FROM email_change_requests WHERE user_id=? AND expires_at>?").bind(user.id,now()).first():null;
     const visibleSettings=privateView?settings:{autoMonth:settings.autoMonth,autoWeek:settings.autoWeek};
-    return {session:user?{user:{...userPublic(user),pendingEmailChange:pendingEmailChange?{newEmail:pendingEmailChange.new_email,expiresAt:pendingEmailChange.expires_at}:null}}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
+    return {session:user?{user:{...userPublic(user),birthDate:user.birth_date||null,pendingEmailChange:pendingEmailChange?{newEmail:pendingEmailChange.new_email,expiresAt:pendingEmailChange.expires_at}:null}}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
       tasks:user?rawTasks.map(t=>privateView?{...privateTask(t),attachments:attachmentsByTask[t.id]||[],tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)):[],meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings:visibleSettings};
   }
   const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
@@ -781,14 +791,14 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       }
       diagnosticStage="request";
       if(path==="/api/v1/auth/register"&&method==="POST"){
-        const b=await body(req),name=str(b.name,120),mail=email(b.email),pw=String(b.password||"");
+        const b=await body(req),name=str(b.name,120),mail=email(b.email),pw=String(b.password||""),birthDate=validateBirthDate(b.birthDate);
         // Não impor 10 caracteres: senhas fracas são avisadas no cliente, não bloqueadas na API.
         if(name.length<2||!validEmail(mail)||!pw)fail("Informe nome, e-mail válido e uma senha.");
         // Comparação canônica também cobre cadastros legados com maiúsculas/espaços.
         if(await db.prepare("SELECT id FROM users WHERE lower(trim(email))=? LIMIT 1").bind(mail).first())fail("E-mail já cadastrado.",409);
         const salt=randomToken(),stamp=now();
         try{
-          await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,stamp,stamp).run();
+          await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,birth_date,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,birthDate,stamp,stamp).run();
         }catch(err){
           // O gatilho D1 e o UNIQUE original impedem cadastros paralelos do mesmo e-mail.
           if(/EMAIL_ALREADY_REGISTERED|UNIQUE constraint failed: users\.email/i.test(String(err.message||"")))fail("E-mail já cadastrado.",409);
@@ -830,7 +840,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         if(user){const token=(req.headers.get("authorization")||"").slice(7);await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await sha(token)).run()}
         return answer({ok:true});
       }
-      if(path==="/api/v1/auth/me"&&method==="GET"){requireLogin(user);return answer({user:userPublic(user)})}
+      if(path==="/api/v1/auth/me"&&method==="GET"){requireLogin(user);return answer({user:{...userPublic(user),birthDate:user.birth_date||null}})}
       if(path==="/api/v1/activity/clear"&&method==="POST"){
         requireLogin(user);
         await db.prepare("UPDATE users SET activity_cleared_at=? WHERE id=?").bind(now(),user.id).run();
@@ -1047,6 +1057,14 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         await db.batch(updates);
         return answer({ok:true,deleted:true});
       }
+      if(path==="/api/v1/account/birthday"&&method==="PUT"){
+        requireLogin(user);
+        if(user.must_change_password)fail("Altere a senha temporária antes de editar seu perfil.",403);
+        const input=await body(req),birthDate=validateBirthDate(input.birthDate,true);
+        await db.prepare("UPDATE users SET birth_date=?,updated_at=? WHERE id=?")
+          .bind(birthDate,now(),user.id).run();
+        return answer({ok:true,birthDate});
+      }
       if(path==="/api/v1/account/photo"&&method==="PUT"){
         requireLogin(user);
         const b=await body(req),photo=String(b.photo||"");
@@ -1199,7 +1217,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
           // Compatibilidade com o modelo único anterior.
           await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
         }else{
-          if(!["create","review","due_soon","event_soon","event_today","overdue"].includes(b.kind))fail("Tipo de notificação inválido.");
+          if(!NOTICE_KINDS.includes(b.kind))fail("Tipo de notificação inválido.");
           const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
           const models=asJson(saved?.value,{});
           models[b.kind]={subject,body:message};
