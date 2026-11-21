@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,cronDetails:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportCommission:'todos',adminReportUser:'todos',adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,adminOverviewData:null,adminOverviewLoadedYear:null,adminOverviewLoading:false,adminOverviewError:'',reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={presentationPrefs:null,presentationDraft:null,presentationLoading:false,pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,cronDetails:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportCommission:'todos',adminReportUser:'todos',adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,adminOverviewData:null,adminOverviewLoadedYear:null,adminOverviewLoading:false,adminOverviewError:'',reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma PET",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
@@ -930,7 +930,7 @@ async function reload(){
    if(beforeUser!==(me?.id||"")){
     state.noticePrefs=null;state.noticeDraft=null;state.noticeDirty=false;
     state.reminderItems=[];state.reminderLoadedFor=null;state.reminderEditing=false;
-    state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;
+    state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;state.presentationPrefs=null;state.presentationDraft=null;
    }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
@@ -942,6 +942,7 @@ async function reload(){
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
  void loadPushPreferencesForActiveUser();
  void loadQuickNavPrefs();
+ void loadPresentationPrefs();
 }
 function allowPage(p){if(canWrite())return true;return ["inicio","demandas","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
 function nav(){
@@ -1067,28 +1068,89 @@ document.addEventListener("keydown",e=>{
   for(const el of document.querySelectorAll(".demand-card-picker[open]"))el.open=false;
  }
 });
+const PRESENTATION_DASHBOARD_DEFAULT={active:true,mine:true,overdue:true,completed:true,updates:true};
+const PRESENTATION_THEMES=[
+ ["lavender","Lilás"],["ocean","Azul"],["forest","Verde"],
+ ["sunset","Rosa"],["midnight","Noturno"],["neutral","Neutro"]
+];
+const presentationDefault=()=>({dashboard:{...PRESENTATION_DASHBOARD_DEFAULT},profileTheme:"lavender",profileImage:null});
+function dashboardVisibility(){
+ return {...PRESENTATION_DASHBOARD_DEFAULT,...(state.presentationPrefs?.dashboard||{})};
+}
+function profileThemeClass(prefs=state.presentationPrefs){
+ const theme=prefs?.profileTheme||"lavender";
+ return ["lavender","ocean","forest","sunset","midnight","neutral","photo"].includes(theme)?theme:"lavender";
+}
+const profileBackgroundStyle=prefs=>profileThemeClass(prefs)==="photo"&&prefs?.profileImage?
+ ' style="--profile-photo:url('+esc(prefs.profileImage)+')"':"";
+async function loadPresentationPrefs(){
+ if(!me||me.mustChangePassword){state.presentationPrefs=null;state.presentationDraft=null;return}
+ if(state.presentationLoading)return;
+ const account=me.id;state.presentationLoading=true;
+ try{
+  const r=await request("/user-presentation");
+  if(me?.id!==account)return;
+  state.presentationPrefs=r;
+  state.presentationDraft=JSON.parse(JSON.stringify(r));
+  if(["inicio","conta"].includes(routeParts().page))render();
+ }catch(error){console.warn("PET Gestão: personalização indisponível:",error.message)}
+ finally{state.presentationLoading=false}
+}
+function renderPresentationSettings(){
+ const p=state.presentationDraft||state.presentationPrefs||presentationDefault();
+ const entries=[
+  ["active","Demandas ativas","Total de demandas em andamento","list"],
+  ["mine","Minhas atividades","Demandas que dependem de você","checklist"],
+  ["overdue","Prazos vencidos","Pendências fora do prazo","alert"],
+  ["completed","Concluídos","Demandas já encerradas","check"],
+  ["updates","Últimas atualizações","Histórico recente da equipe","bell"]
+ ];
+ return '<div class="account-pane-intro"><span class="profile-section-eyebrow">PERSONALIZAÇÃO</span>'+
+  '<h2>Painel e aparência</h2><p>Escolha o que aparece na sua Visão geral e personalize a identificação. As preferências acompanham sua conta.</p></div>'+
+  '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("grid")+'</span><div><h3>Indicadores da Visão geral</h3><p>Ative apenas o que deseja acompanhar. Os cartões se reorganizam automaticamente.</p></div></div>'+
+  '<div class="presentation-options">'+entries.map(([key,label,desc,iconName])=>
+   '<label class="presentation-option"><span class="presentation-option-icon">'+ico(iconName)+'</span>'+
+   '<span class="presentation-option-label"><strong>'+label+'</strong><small>'+desc+'</small></span>'+
+   '<input type="checkbox" data-presentation-key="'+key+'" '+(p.dashboard?.[key]?"checked":"")+' aria-label="Exibir '+label+' no painel"></label>').join("")+'</div></section>'+
+  '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("image")+'</span><div><h3>Fundo da identificação</h3><p>Escolha uma cor ou utilize uma fotografia. Seu nome e sua foto continuam legíveis.</p></div></div>'+
+  '<div class="profile-background-preview profile-hero theme-'+profileThemeClass(p)+'"'+profileBackgroundStyle(p)+'>'+
+  '<span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><strong>'+esc(me?.name||"Meu perfil")+'</strong><small>PET EDUCAÇÃO · UFS</small></div>'+
+  '<div class="presentation-theme-grid">'+PRESENTATION_THEMES.map(([id,label])=>
+   '<button type="button" class="presentation-theme-swatch theme-'+id+(profileThemeClass(p)===id?" selected":"")+'" data-do="presentation-theme" data-theme="'+id+'" aria-pressed="'+(profileThemeClass(p)===id)+'">'+
+   '<span class="presentation-theme-color"></span><span>'+label+'</span>'+(profileThemeClass(p)===id?ico("check"):"")+'</button>').join("")+'</div>'+
+  '<div class="presentation-upload-actions"><label class="button ghost presentation-upload-btn">'+ico("image")+' Escolher imagem de fundo'+
+  '<input id="profile-background-upload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Enviar imagem para fundo do perfil"></label>'+
+  (p.profileImage?'<button type="button" class="button ghost" data-do="presentation-remove-photo">'+ico("trash")+' Remover imagem</button>':"")+
+  '</div><p class="field-hint">Imagem comprimida automaticamente para até 150 KB. A personalização afeta apenas o seu perfil.</p></section>'+
+  '<div class="presentation-save-row"><button type="button" class="button primary" data-do="presentation-save">'+ico("check")+' Salvar preferências</button>'+
+  '<span>Essas opções não alteram demandas ou notificações.</span></div>';
+}
 function renderViewerHome(){
  const all=data.tasks.filter(t=>active(t)),visible=all.filter(t=>t.overviewVisible!==false);
  const next=[...visible].sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b)))).slice(0,6);
- const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length;
+ const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length,prefs=dashboardVisibility();
+ const metrics=[[all.length,"Demandas ativas","list","active"],[late,"Prazos vencidos","alert","overdue"],[complete,"Concluídos","check","completed"]].filter(x=>prefs[x[3]]);
  return header("Organização","Visão geral","Acompanhe as demandas da equipe em modo de visualização.")+
-  '<div class="stat-grid viewer-stat-grid">'+[[all.length,"Demandas ativas","list"],[late,"Prazos vencidos","alert"],[complete,"Concluídas","check"]].map(x=>
-   '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+  (metrics.length?'<div class="stat-grid viewer-stat-grid">'+metrics.map(x=>
+   '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
   '<div class="dashboard-grid viewer-dashboard"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>Próximas atividades cadastradas para acompanhamento.</p></div></div>'+
   (next.length?next.map(publicTaskCard).join(""):empty("Sem pendências neste momento"))+'</section></div>';
 }
 function renderHome(){
  if(!canWrite())return renderViewerHome();
  const all=data.tasks.filter(t=>active(t)),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
- const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4);
+ const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4),prefs=dashboardVisibility();
+ const metrics=[[all.length,"Demandas ativas","list","active"],
+  [data.tasks.filter(isMyPending).length,"Minhas atividades","checklist","mine"],
+  [late,"Prazos vencidos","alert","overdue"],
+  [data.tasks.filter(t=>t.archivedAt).length,"Concluídos","check","completed"]].filter(x=>prefs[x[3]]);
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ (metrics.length?'<div class="stat-grid">'+metrics.map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
  '<div class="dashboard-grid"><section class="card card-pad dashboard-weekly-card"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
- '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
+ (prefs.updates?'<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
  (me&&recentEvents.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':ico("bell"))+
- '</div>'+(recentEvents.length?recentEvents.map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
+ '</div>'+(recentEvents.length?recentEvents.map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section>':"")+'</div>';
 }
-
 const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"],["nao_concluida","Não concluídas"]];
 function visualizationSelect(filter,value,options=VISUALIZATIONS){
  return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
