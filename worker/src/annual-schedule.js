@@ -91,3 +91,78 @@ export async function annualReport(db,user,year){
  const taskMap=new Map(monthlyTasks.results.map(x=>[Number(x.m),Number(x.n)])),activityMap=new Map(monthlySchedule.results.map(x=>[Number(x.m),Number(x.n)]));
  return {year:y,demands:Number(tasks.n),activities:Number(activities.n),months:Array.from({length:12},(_,i)=>({month:i+1,demands:taskMap.get(i+1)||0,activities:activityMap.get(i+1)||0}))};
 }
+
+
+// Relatório administrativo integrado. Uma demanda associada a múltiplas
+// comissões conta uma vez no total do PET e uma vez em cada comissão vinculada.
+export async function adminOverview(db,user,year){
+ admin(user);
+ const y=Number(year);
+ if(!Number.isInteger(y)||y<2000||y>2100)fail("Ano inválido.");
+ const strYear=String(y);
+ const [commissionRows,userRows,membershipRows,taskRows,scheduleCount]=await Promise.all([
+  db.prepare("SELECT id,name FROM commissions ORDER BY sort_order,name").all(),
+  db.prepare("SELECT id,name,COALESCE(role_override,role) AS role FROM users ORDER BY name").all(),
+  db.prepare("SELECT commission_id,user_id FROM commission_members").all(),
+  db.prepare("SELECT id,registered_at,archived_at,closure_outcome,completed_late,commission_ids,assignee_ids,user_done,deadlines FROM tasks WHERE substr(registered_at,1,4)=? OR substr(archived_at,1,4)=?").bind(strYear,strYear).all(),
+  db.prepare("SELECT COUNT(*) AS n FROM schedule_entries WHERE substr(start_date,1,4)=?").bind(strYear).first()
+ ]);
+ const parse=v=>{try{return JSON.parse(v||"null")}catch{return null}};
+ const localDate=value=>String(value||"").slice(0,10);
+ const yearOf=value=>localDate(value).slice(0,4)===strYear;
+ const dueInstant=value=>{
+  const v=String(value||"");
+  return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(v)?v+"T23:59:59-03:00":
+   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(v)?v+(v.length===16?":00":"")+"-03:00":v);
+ };
+ const metrics=()=>({registered:0,concluded:0,concludedLate:0,notConcluded:0});
+ const update=(metric,task)=>{
+  if(yearOf(task.registered_at))metric.registered++;
+  if(yearOf(task.archived_at)){
+   if(task.closure_outcome==="nao_concluida")metric.notConcluded++;
+   else if(task.archived_at){
+    metric.concluded++;
+    if(task.late)metric.concludedLate++;
+   }
+  }
+ };
+ const memberships=new Map();
+ for(const member of membershipRows.results||[]){
+  const list=memberships.get(member.commission_id)||new Set();
+  list.add(member.user_id);memberships.set(member.commission_id,list);
+ }
+ const commissions=(commissionRows.results||[]).map(c=>({
+  id:c.id,name:c.name,members:memberships.get(c.id)?.size||0,...metrics()
+ }));
+ const users=(userRows.results||[]).map(u=>({
+  id:u.id,name:u.name,role:u.role,commissions:0,assigned:0,completed:0,notCompleted:0
+ }));
+ const byCommission=new Map(commissions.map(c=>[c.id,c]));
+ const byUser=new Map(users.map(u=>[u.id,u]));
+ for(const [cid,members] of memberships)
+  for(const uid of members){const u=byUser.get(uid);if(u)u.commissions++;}
+ const totals=metrics();
+ for(const row of taskRows.results||[]){
+  const done=parse(row.user_done)||{};
+  const deadlines=parse(row.deadlines)||[];
+  const late=row.completed_late!==null&&row.completed_late!==undefined?Boolean(row.completed_late):
+   Boolean(row.archived_at&&deadlines.some(d=>d?.dueAt&&d?.label!=="Evento"&&
+    Number.isFinite(dueInstant(d.dueAt))&&dueInstant(d.dueAt)<dueInstant(row.archived_at)));
+  const task={...row,late};
+  update(totals,task);
+  for(const cid of parse(row.commission_ids)||[]){
+   const c=byCommission.get(cid);
+   if(c)update(c,task);
+  }
+  for(const uid of parse(row.assignee_ids)||[]){
+   const u=byUser.get(uid);if(!u)continue;
+   if(yearOf(row.registered_at))u.assigned++;
+   const completion=done[uid];
+   const completedAt=typeof completion==="string"?completion:completion?.at;
+   if(completedAt&&yearOf(completedAt))u.completed++;
+   if(row.closure_outcome==="nao_concluida"&&yearOf(row.archived_at)&&!completion)u.notCompleted++;
+  }
+ }
+ return {year:y,totals,activities:Number(scheduleCount?.n||0),
+  commissions,users,commissionCount:commissions.length,userCount:users.length};
+}
