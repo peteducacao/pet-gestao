@@ -120,7 +120,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     const committees=(await db.prepare("SELECT c.*, (SELECT COUNT(*) FROM commission_members m WHERE m.commission_id=c.id) AS member_count FROM commissions c ORDER BY sort_order,name").all()).results;
     const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
     const privateView=!!user&&user.role!=="usuario"&&!user.must_change_password;
-    const rawTasks=(await db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 1000").all()).results;
+    const rawTasks=user?(await db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 1000").all()).results:[];
     const attachments=privateView&&user.role==="petiano"?(await db.prepare(
       "SELECT id,task_id,filename,mime_type,size_bytes,created_at,created_by FROM task_attachments WHERE status='ready' ORDER BY created_at"
     ).all()).results:[];
