@@ -2012,19 +2012,26 @@ function renderPersonalReminders(){
   '<div class="reminder-form-actions"><button type="button" class="button ghost" data-do="reminder-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar lembrete</button></div>'+
   '</form></section>';
  const items=state.reminderItems||[];
- const list='<section class="card card-pad reminder-list"><div class="section-head"><div><h2>Lembretes cadastrados</h2><p>Somente você pode visualizar ou modificar seus alarmes.</p></div></div>'+
+ const list='<section class="card card-pad reminder-list"><div class="section-head reminder-list-heading"><div><span class="reminder-section-kicker">SEUS AVISOS</span><h2>Lembretes cadastrados</h2>'+
+  '<p>Escolha quando receber cada aviso e acompanhe seus horários.</p></div>'+
+  '<span class="reminder-list-count">'+items.length+' '+(items.length===1?"lembrete":"lembretes")+'</span></div>'+
  (state.reminderLoadedFor!==me?.id?'<p class="field-hint">Carregando lembretes...</p>':
-  items.length?items.map(item=>{
+  items.length?'<div class="reminder-list-items">'+items.map(item=>{
    const times=item.schedules||[],active=times.filter(x=>x.status!=="disparado");
-   const dates=times.slice(0,3).map(x=>item.recurrence==="once"?x.at.replace("T"," às "):
+   const dates=times.slice(0,3).map(x=>item.recurrence==="once"&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x.at||"")?
+    textDate(x.at.slice(0,10))+" às "+x.at.slice(11,16):
     item.recurrence==="daily"?"Diariamente às "+x.at:
     ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][x.weekday]+" às "+x.at).join(" · ");
+   const origin=item.taskId?(item.taskStageId?
+    "Etapa: "+(stages(data.tasks.find(t=>t.id===item.taskId)||{}).find(stage=>String(stage.id)===String(item.taskStageId))?.label||"Etapa da demanda"):
+    "Demanda vinculada"):"Lembrete pessoal";
    return '<article class="reminder-list-row"><div class="reminder-list-icon">'+ico(item.taskId?"calendar":"bell")+'</div>'+
-    '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p>'+esc(dates)+'</p>'+
-    '<small>'+(item.taskId?(item.taskStageId?"Etapa: "+esc(stages(data.tasks.find(t=>t.id===item.taskId)||{}).find(stage=>String(stage.id)===String(item.taskStageId))?.label||"Etapa da demanda"):"Vinculado à minha demanda"):"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
-    '<div class="reminder-list-actions"><button type="button" class="button ghost" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' Editar</button>'+
-    '<button type="button" class="button ghost" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' Excluir</button></div></article>';
-  }).join(""):'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
+    '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p class="reminder-list-dates">'+ico("clock")+' '+esc(dates)+'</p>'+
+    '<div class="reminder-list-meta"><span>'+esc(origin)+'</span><span>'+active.length+' '+(active.length===1?"horário ativo":"horários ativos")+'</span>'+
+    (item.autoDelete?'<span>Exclusão automática</span>':"")+'</div></div>'+
+    '<div class="reminder-list-actions"><button type="button" class="button ghost reminder-edit-action" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' <span>Editar</span></button>'+
+    '<button type="button" class="button ghost reminder-delete-action" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' <span>Excluir</span></button></div></article>';
+  }).join("")+'</div>':'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
  return headerHtml+'<div class="reminder-page"><div class="reminder-page-actions"><button type="button" class="button primary" data-do="reminder-new">'+ico("plus")+' Novo lembrete</button>'+
  '<span class="field-hint">Se a demanda for excluída ou sua pendência terminar, o lembrete vinculado será removido.</span></div>'+formHtml+list+'</div>';
 }
@@ -2790,8 +2797,9 @@ function renderAccount(){
  const commissionCount=myCommissions.length;
  const commissionCountLabel=commissionCount===1?"comissão":"comissões";
  const commissionsHtml='<section class="profile-commissions" aria-label="Minhas comissões: '+commissionCount+' '+commissionCountLabel+'">'+
-  '<div class="profile-commissions-heading"><div><span class="profile-section-eyebrow">PARTICIPAÇÃO</span><h3>Minhas comissões</h3></div>'+
-  '<div class="profile-commission-counter" aria-live="polite"><strong>'+commissionCount+'</strong><span>'+commissionCountLabel+'</span></div></div>'+
+  '<div class="profile-commissions-heading"><div><span class="profile-section-eyebrow">MINHAS EQUIPES</span><h3>Comissões</h3>'+
+  '<p class="profile-commissions-subtitle">Equipes das quais você participa no PET</p></div>'+
+  '<div class="profile-commission-counter" aria-live="polite" aria-label="'+commissionCount+' '+commissionCountLabel+'"><strong>'+commissionCount+'</strong><span>'+commissionCountLabel+'</span></div></div>'+
   (myCommissions.length?'<div class="profile-commission-list">'+myCommissions.map(c=>
    '<a class="profile-commission-chip" href="'+workspaceHash("comissoes/"+c.id)+'">'+
     '<span class="profile-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
