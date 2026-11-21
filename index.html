@@ -108,11 +108,11 @@
   <link rel="icon" type="image/png" sizes="192x192" href="assets/pet-gestao-192.png?v=gestao-premium-sem-traco-20261120" />
   <link rel="manifest" href="site.webmanifest?v=gestao-premium-sem-traco-20261120" />
   <link rel="stylesheet" href="styles.css?v=gestao-20261110" />
-  <link rel="stylesheet" href="live.css?v=gestao-20261121-ajuda-refinada-v2" />
+  <link rel="stylesheet" href="live.css?v=gestao-20261121-cronograma-anual-v1" />
   <!-- A URL abaixo é PUBLICA; nenhuma credencial pode ser incluída nesta configuração. -->
   <script>window.PET_GESTAO_CONFIG=Object.freeze({apiBaseUrl:"https://pet-gestao.pet-educacao.workers.dev",appName:"PET Gestão",demoMode:false,locale:"pt-BR"});</script>
   <script src="config.js?v=gestao-20261110-api-resilient"></script>
-  <script src="app-live.js?v=gestao-20261121-ajuda-refinada-v2" defer></script>
+  <script src="app-live.js?v=gestao-20261121-cronograma-anual-v1" defer></script>
 </head>
 <body>
   <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -161,6 +161,7 @@
         <nav class="nav-group" id="primary-nav" aria-label="Navegação principal">
           <a class="nav-link" data-route="inicio" href="#/inicio"><svg><use href="#i-grid"/></svg><span>Visão geral</span></a>
           <a class="nav-link" data-route="demandas" href="#/demandas"><svg><use href="#i-list"/></svg><span>Demandas</span></a>
+          <a class="nav-link" data-route="cronograma" href="#/cronograma"><svg><use href="#i-calendar"/></svg><span>Cronograma PET</span></a>
           <a class="nav-link" data-route="reunioes" href="#/reunioes"><svg><use href="#i-calendar"/></svg><span>Atas de Reunião</span></a>
           <a class="nav-link" data-route="comissoes" href="#/comissoes"><svg><use href="#i-users"/></svg><span>Comissões</span></a>
           <a class="nav-link" data-route="ajuda" href="#/ajuda"><svg><use href="#i-info"/></svg><span>Ajuda</span></a>
@@ -222,6 +223,7 @@
   <div id="connecting-popup" class="connecting-popup" role="status" aria-live="polite" hidden>
     <div class="connecting-card"><span class="connecting-spinner" aria-hidden="true"></span><strong class="connecting-message">Conectando ao PET Gestão...</strong><span class="connecting-hint">Validando seu acesso</span></div>
   </div>
+  <nav id="pet-quickbar" class="pet-quickbar" aria-label="Navegação rápida do celular" hidden></nav>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>
