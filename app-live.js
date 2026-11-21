@@ -884,23 +884,29 @@ async function loadWebPushState(){
   if(routeParts().page==="conta"&&state.accountTab==="notificacoes")render();
  }catch(error){console.warn("PET Gestão: notificações do computador indisponíveis:",error.message)}
 }
+function iosDevice(){return /iPhone|iPad|iPod/i.test(navigator.userAgent||"")||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)}
+function installedAsApp(){return Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches||navigator.standalone===true)}
 function webPushSupported(){
  return window.isSecureContext&&"Notification" in window&&"serviceWorker" in navigator&&"PushManager" in window;
 }
 function renderWebPushPreferences(){
- const count=Number(state.webPushData?.registeredComputers||0);
+ const ios=iosDevice(),installed=installedAsApp();
+ const count=Number(ios?state.webPushData?.registeredIphones:state.webPushData?.registeredComputers)||0;
  const connected=!!state.webPushHere,supported=webPushSupported();
  const blocked=supported&&Notification.permission==="denied";
- const status=!supported?"Este navegador não suporta Web Push. Use Chrome ou Edge.":
-  blocked?"Permita as notificações nas configurações do navegador.":
-  connected?"Este computador está conectado e pronto para receber avisos.":
-  count>0?count+" computador(es) conectado(s) à sua conta.":
-  "Ative para receber avisos também neste PC.";
+ const title=ios?"iPhone / iPad":"Computador (PC)";
+ const device=ios?"iPhone/iPad":"PC";
+ const status=ios&&!installed?"Para receber notificações, adicione o PET Gestão à Tela de Início e abra pelo ícone instalado.":
+  !supported?"Notificações indisponíveis neste navegador. No iPhone, use o app salvo na Tela de Início (iOS 16.4 ou superior).":
+  blocked?"Permita as notificações nas configurações do dispositivo.":
+  connected?"Este "+device+" está conectado e pronto para receber avisos.":
+  count>0?count+" dispositivo(s) deste tipo vinculado(s) à sua conta.":
+  "Ative para receber aqui os mesmos avisos de demandas, prazos e lembretes.";
  return '<section class="account-web-push-panel account-channel-card">'+
-  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-web-push-title">Computador (PC)</h3><p>'+esc(status)+'</p></div></div>'+
+  '<div class="account-push-heading"><span class="account-push-icon">'+ico("bell")+'</span><div><h3 id="profile-web-push-title">'+title+'</h3><p>'+esc(status)+'</p></div></div>'+
   '<div class="account-push-actions">'+
-  (connected?'<button type="button" class="button ghost" data-do="disable-web-push">Desativar neste PC</button>':
-    '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked?"disabled":"")+'>'+ico("bell")+' Ativar neste PC</button>')+
+  (connected?'<button type="button" class="button ghost" data-do="disable-web-push">Desativar neste '+device+'</button>':
+    '<button type="button" class="button primary" data-do="enable-web-push" '+(!supported||blocked||(ios&&!installed)?"disabled":"")+'>'+ico("bell")+' Ativar neste '+device+'</button>')+
   '</div></section>';
 }
 function renderDesktopInstall(){
@@ -2426,6 +2432,16 @@ function renderConfirmEmail(tokenPart){
 }
 // Link principal: arquivo da versão Android publicada, sem abrir a página de Releases.
 // Mantemos uma segunda origem no GitHub Pages caso a rede bloqueie downloads do GitHub.
+function renderIOSInstall(){
+ const installed=iosDevice()&&installedAsApp();
+ return '<section class="account-app-install account-ios-install" aria-label="Instalar PET Gestão no iPhone ou iPad">'+
+  '<div class="account-app-install-head"><span class="account-app-install-icon">'+ico("download")+'</span><div>'+
+  '<h3>Aplicativo PET Gestão para iPhone e iPad</h3>'+
+  '<p>Instale pela Tela de Início do iOS, com ícone próprio e notificações de demandas, prazos e lembretes (iOS 16.4 ou superior).</p></div></div>'+
+  '<button type="button" class="button primary account-app-install-button" data-do="install-ios-app">'+ico("download")+' '+(installed?"Ver como ativar notificações no iPhone":"Instalar no iPhone / iPad")+'</button>'+
+  '<p class="account-app-install-help">No Safari, abra o PET Gestão, toque em Compartilhar e escolha Adicionar à Tela de Início. Depois abra o ícone instalado, entre na conta, acesse Notificações e permita o recebimento. Não é preciso baixar arquivo .ipa.</p>'+
+  '</section>';
+}
 function renderAppInstall(){
  const apkRelease="https://github.com/peteducacao/pet-gestao/releases/download/android-apk/PET-Gestao.apk";
  return '<section class="account-app-install" aria-label="Baixar APK do PET Gestão">'+
@@ -2512,14 +2528,14 @@ function renderAccount(){
  const appContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">INSTALAÇÃO</span><h2>Aplicativos PET Gestão</h2>'+
   '<p>Escolha onde deseja usar o PET Gestão. O acesso e seus dados continuam sincronizados.</p></div>'+
-  '<div class="account-download-grid">'+renderDesktopInstall()+renderAppInstall()+'</div>';
+  '<div class="account-download-grid">'+renderDesktopInstall()+renderAppInstall()+renderIOSInstall()+'</div>';
  return header("Pessoal","Minha conta","Seu espaço pessoal, organizado por categoria.")+
   '<div class="account-hub"><nav class="account-hub-sidebar" role="tablist" aria-label="Configurações da conta">'+
   '<div class="account-hub-side-title">CONFIGURAÇÕES</div>'+
   tabButton("perfil","Meu perfil","Dados e comissões","user")+
   tabButton("seguranca","Segurança","E-mail, senha e exclusão","lock")+
   tabButton("notificacoes","Notificações","E-mail, PC e celular","bell")+
-  tabButton("aplicativos","Aplicativos","Instalar no PC ou Android","download")+
+  tabButton("aplicativos","Aplicativos","Instalar no PC, Android ou iOS","download")+
   '</nav><div class="account-hub-main">'+
   panel("perfil",profileContent)+panel("seguranca",securityContent)+
   panel("notificacoes",notificationContent)+panel("aplicativos",appContent)+
@@ -3099,7 +3115,11 @@ async function handleClick(e){
   if(name==="notificacoes")void loadWebPushState();
   return;
  }
- if(action==="install-desktop-app"){
+ if(action==="install-ios-app"){
+   showNotice("No iPhone/iPad com iOS 16.4 ou superior: 1. Abra o PET Gestão no Safari. 2. Toque em Compartilhar e escolha Adicionar à Tela de Início. 3. Abra o PET Gestão pelo ícone criado. 4. Entre na conta, vá até Meu perfil → Notificações, ative o iPhone e marque os avisos desejados na coluna Celular. O iOS solicitará sua permissão.",{title:"Instalar e ativar notificações no iPhone",kind:"info"});
+   return;
+  }
+  if(action==="install-desktop-app"){
   if(window.matchMedia?.("(display-mode: standalone)")?.matches)
    return setToast("O PET Gestão já está aberto como aplicativo instalado.");
   if(desktopInstallPrompt){
@@ -3129,10 +3149,10 @@ async function handleClick(e){
    const reg=await navigator.serviceWorker.ready;
    let sub=await reg.pushManager.getSubscription();
    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidKey});
-   await request("/web-push/subscribe","POST",sub.toJSON());
+   await request("/web-push/subscribe","POST",{...sub.toJSON(),platform:iosDevice()?"ios":"pc"});
    state.webPushHere=true;
    state.webPushData=await request("/web-push/status");
-   setToast("Notificações do computador ativadas. Faça o teste de recebimento.");
+   setToast(iosDevice()?"Notificações do iPhone/iPad ativadas. Você receberá os avisos escolhidos para Celular.":"Notificações do computador ativadas.");
    render();
   }finally{if(b.isConnected)b.disabled=false}
   return;
@@ -3149,7 +3169,7 @@ async function handleClick(e){
    }
    state.webPushHere=false;
    state.webPushData=await request("/web-push/status");
-   setToast("Notificações desativadas neste computador.");
+   setToast("Notificações desativadas neste dispositivo.");
    render();
   }finally{if(b.isConnected)b.disabled=false}
   return;

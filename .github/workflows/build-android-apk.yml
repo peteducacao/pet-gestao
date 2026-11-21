@@ -6,6 +6,11 @@ on:
     paths:
       - 'android-app/**'
       - '.github/workflows/build-android-apk.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/build-android-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -75,6 +80,7 @@ jobs:
           if-no-files-found: error
 
       - name: Disponibilizar link público do APK
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -87,6 +93,7 @@ jobs:
           fi
 
       - name: Atualizar download do APK no GitHub Pages
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

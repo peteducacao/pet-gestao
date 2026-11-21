@@ -114,8 +114,11 @@ async function devicesFor(db,userIds,preference){
 async function notifyMany(env,userIds,message,preference,dedupeForUser=null,channel="both"){
  const totals={android:0,pc:0};
  if(!userIds.length)return totals;
- // Browser e Android compartilham destinatários, mas NÃO as preferências ou inscrições.
- if(channel!=="android")totals.pc=await notifyBrowserUsers(env,userIds,message,preference,dedupeForUser)
+ // Celular usa FCM no Android e Web Push oficial da Apple no iPhone/iPad.
+ // As inscrições do computador continuam separadas.
+ if(channel==="android")totals.android=await notifyBrowserUsers(env,userIds,message,null,dedupeForUser,"ios")
+  .catch(error=>{console.error("PET Gestão — envio para iOS indisponível:",String(error.message||error).slice(0,160));return 0;});
+ if(channel==="pc")totals.pc=await notifyBrowserUsers(env,userIds,message,preference,dedupeForUser,"pc")
   .catch(error=>{console.error("PET Gestão — envio para PC indisponível:",String(error.message||error).slice(0,160));return 0;});
  if(channel==="pc"||!fcmConfiguration(env))return totals;
  const db=env.DB,devices=await devicesFor(db,userIds,preference);

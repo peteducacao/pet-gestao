@@ -46,7 +46,7 @@ const config={
 fs.writeFileSync("wrangler.json",JSON.stringify(config,null,2));
 const out="_site";
 fs.mkdirSync(out,{recursive:true});
-for(const file of ["index.html","styles.css","live.css","app-live.js"]){
+for(const file of ["index.html","privacidade.html","styles.css","live.css","app-live.js"]){
  fs.copyFileSync(file,path.join(out,file));
 }
 fs.cpSync("assets",path.join(out,"assets"),{recursive:true});

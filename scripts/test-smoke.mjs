@@ -9,7 +9,7 @@ async function test(name,fn){await fn();console.log("PASS",++tests,name)}
 const good=(r,status=200)=>{assert.equal(r.status,status,JSON.stringify(r));return r};
 const dueAt=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
 await test("saúde",async()=>{assert.equal(good(await api("/health")).database,true)});
-await test("bootstrap público",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,10,"Dez comissões reais preservadas");assert.equal(r.session,null)});
+await test("bootstrap público sem divulgação de demandas privadas",async()=>{const r=good(await api("/bootstrap"));assert.equal(r.committees.length,10,"Dez comissões reais preservadas");assert.equal(r.session,null);assert.deepEqual(r.tasks,[],"Visitantes não devem receber nomes ou estados de demandas")});
 await test("controle de acesso",async()=>{assert.equal((await api("/admin/users")).status,401)});
 await test("login único da Administração",async()=>{
  const r=good(await api("/auth/login","POST",{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD}));
@@ -26,6 +26,34 @@ await test("avisos começam desligados e só ativam após Salvar todas",async()=
  const enabled=Object.fromEntries(Object.keys(before).map(kind=>[kind,{email:true,android:false,pc:false}]));
  good(await api("/notification-preferences","PUT",enabled));
  assert.deepEqual(good(await api("/notification-preferences")).preferences,enabled);
+});
+await test("CRUD completo de lembretes pessoais, canais e isolamento de conta",async()=>{
+ const base={taskId:null,title:"Lembrete CRUD de teste",message:"Preparar atividade",channels:{email:false,android:false,pc:true},
+  autoDelete:false,recurrence:"once",schedules:[{at:"2099-02-17T09:00"}]};
+ const bad=await api("/personal-reminders","POST",{...base,channels:{email:false,android:false,pc:false}});
+ assert.equal(bad.status,400,"Não aceitar lembrete sem celular ou PC");
+ const duplicate=await api("/personal-reminders","POST",{...base,schedules:[base.schedules[0],base.schedules[0]]});
+ assert.equal(duplicate.status,400,"Horários duplicados devem ser recusados");
+ const created=good(await api("/personal-reminders","POST",base),201);
+ assert.ok(created.id,"Criar lembrete e devolver ID");
+ let found=good(await api("/personal-reminders")).items.find(x=>x.id===created.id);
+ assert.equal(found.title,base.title,"Lembrete criado fica visível somente ao titular");
+ assert.equal(found.schedules.length,1);
+ good(await api("/personal-reminders/"+created.id,"PUT",{...base,title:"Lembrete editado",message:"Nova instrução",
+  recurrence:"weekly",schedules:[{weekday:3,time:"13:30"}]}));
+ found=good(await api("/personal-reminders")).items.find(x=>x.id===created.id);
+ assert.equal(found.title,"Lembrete editado");
+ assert.equal(found.message,"Nova instrução");
+ assert.equal(found.recurrence,"weekly");
+ assert.equal(found.schedules.length,1,"Editar horários substitui anteriores sem duplicar");
+ const held=token;token="";
+ try{
+  assert.equal((await api("/personal-reminders")).status,401,"Não listar lembretes sem sessão");
+  assert.equal((await api("/personal-reminders/"+created.id,"DELETE")).status,401,"Não excluir lembrete sem sessão");
+ }finally{token=held}
+ good(await api("/personal-reminders/"+created.id,"DELETE"));
+ assert.equal(good(await api("/personal-reminders")).items.some(x=>x.id===created.id),false,"Exclusão remove lembrete");
+ assert.equal((await api("/personal-reminders/"+created.id,"DELETE")).status,404,"Exclusão repetida não deve passar");
 });
 await test("autor não recebe e-mail sobre própria criação/revisão; demais responsáveis recebem",async()=>{
  const adminToken=token,actor=good(await api("/auth/me")).user;
@@ -220,7 +248,7 @@ await test("Usuário só recebe resumo das demandas, sem conteúdo de Atas",asyn
   token="";
   const anon=good(await api("/bootstrap"));
   assert.equal(anon.meetings.length,0,"Sem login também não vê Atas");
-  assert.equal(Object.hasOwn(anon.tasks.find(t=>t.id===taskId),"deadlines"),false);
+  assert.equal(anon.tasks.length,0,"Visitantes anônimos não recebem qualquer demanda, inclusive título/status");
  }finally{
   token=adminToken;
   good(await api("/tasks/"+taskId,"DELETE"));

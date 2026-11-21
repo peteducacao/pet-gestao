@@ -4533,6 +4533,13 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  flex:none;width:20px;height:20px;accent-color:#7443c8;margin-top:1px;
 }
 #screen .account-channel-email .field-hint{margin:0;font-size:12px;line-height:1.65}
+#screen .account-download-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr))}
+#screen .account-download-grid .account-ios-install{
+ border-color:#e0d0f3;background:linear-gradient(140deg,#fffcff,#f5efff);
+}
+#screen .account-download-grid .account-ios-install .account-app-install-icon{
+ color:#6a349d;background:#efe4fc;
+}
 #screen .account-download-grid .account-app-install{
  margin:0;min-width:0;align-content:start;min-height:100%;
  border-radius:17px;
