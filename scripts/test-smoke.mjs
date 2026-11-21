@@ -1243,6 +1243,34 @@ await test("senha administrativa temporária pode ser trocada sem login comum",a
  good(await api("/auth/change-password","POST",{password:temporary,newPassword:"SenhaNovaAdminSegura123!"}));
  assert.equal((await api("/auth/me")).status,401);
 });
+await test("CRUD completo de lembretes pessoais, canais e isolamento de conta",async()=>{
+ const base={taskId:null,title:"Lembrete CRUD de teste",message:"Preparar atividade",channels:{email:false,android:false,pc:true},
+  autoDelete:false,recurrence:"once",schedules:[{at:"2099-02-17T09:00"}]};
+ const bad=await api("/personal-reminders","POST",{...base,channels:{email:false,android:false,pc:false}});
+ assert.equal(bad.status,400,"Não aceitar lembrete sem celular ou PC");
+ const duplicate=await api("/personal-reminders","POST",{...base,schedules:[base.schedules[0],base.schedules[0]]});
+ assert.equal(duplicate.status,400,"Horários duplicados devem ser recusados");
+ const created=good(await api("/personal-reminders","POST",base),201);
+ assert.ok(created.id,"Criar lembrete e devolver ID");
+ let found=good(await api("/personal-reminders")).items.find(x=>x.id===created.id);
+ assert.equal(found.title,base.title,"Lembrete criado fica visível somente ao titular");
+ assert.equal(found.schedules.length,1);
+ good(await api("/personal-reminders/"+created.id,"PUT",{...base,title:"Lembrete editado",message:"Nova instrução",
+  recurrence:"weekly",schedules:[{weekday:3,time:"13:30"}]}));
+ found=good(await api("/personal-reminders")).items.find(x=>x.id===created.id);
+ assert.equal(found.title,"Lembrete editado");
+ assert.equal(found.message,"Nova instrução");
+ assert.equal(found.recurrence,"weekly");
+ assert.equal(found.schedules.length,1,"Editar horários substitui anteriores sem duplicar");
+ const held=token;token="";
+ try{
+  assert.equal((await api("/personal-reminders")).status,401,"Não listar lembretes sem sessão");
+  assert.equal((await api("/personal-reminders/"+created.id,"DELETE")).status,401,"Não excluir lembrete sem sessão");
+ }finally{token=held}
+ good(await api("/personal-reminders/"+created.id,"DELETE"));
+ assert.equal(good(await api("/personal-reminders")).items.some(x=>x.id===created.id),false,"Exclusão remove lembrete");
+ assert.equal((await api("/personal-reminders/"+created.id,"DELETE")).status,404,"Exclusão repetida não deve passar");
+});
 await test("logout",async()=>{good(await api("/auth/logout","POST"));assert.equal((await api("/auth/me")).status,401)});
 
 await test("seleção múltipla de e-mails executa sem erro de map",async()=>{
