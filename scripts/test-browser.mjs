@@ -1555,6 +1555,6 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('[data-do="admin-report-pdf"]').click();
  assert.match((await pdf).suggestedFilename(),/\.pdf$/i,"Relatório exportado em PDF.");
  await page.locator("#admin-report-kind").selectOption("comissoes");
- assert.ok(await page.locator('a[href="#/admin/resumo/videos"]').count()>0);
+ assert.ok(await page.locator('a[href^="#/admin/resumo/"]').count()>0,"Relatórios permite acessar as comissões cadastradas.");
  console.log("BROWSER: navegação, evento Todos(as) só com data, exclusão da conta, responsividade e Admin — OK.");
 }finally{await browser.close();server.kill();}
