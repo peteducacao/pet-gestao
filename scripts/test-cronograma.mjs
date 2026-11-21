@@ -75,6 +75,22 @@ assert.equal(overview.users[0].commissions,2);
 assert.equal(overview.users[0].completed,1);
 // Contrato entre o identificador interno de Demandas e o seletor único do Cronograma.
 const front=fs.readFileSync("app-live.js","utf8");
+// A sugestão do botão Lembrar usa o início do evento, e não a hora em que a janela foi aberta.
+const remindStart=front.indexOf("const cronReminderSuggestedAt=item=>");
+const remindEnd=front.indexOf("// A atividade institucional conclui ao terminar",remindStart);
+assert.ok(remindStart>0&&remindEnd>remindStart,"Regra da sugestão deve existir no Cronograma.");
+const remindDefault=new Function("reminderLocalValue",front.slice(remindStart,remindEnd)+
+ "\nreturn cronReminderSuggestedAt;")(()=>"FUTURO");
+assert.equal(remindDefault({startDate:"2099-11-23",startTime:"10:30"}),"2099-11-23T10:30",
+ "O lembrete acompanha data e hora exatas do evento.");
+assert.equal(remindDefault({date:"2099-11-23",startTime:"15:40"}),"2099-11-23T15:40",
+ "Prazos projetados de demandas também podem sugerir a hora cadastrada.");
+assert.equal(remindDefault({startDate:"2099-11-23",timeNote:"10h30"}),"2099-11-23T10:30",
+ "Registros importados com hora textual recebem sugestão correta.");
+assert.equal(remindDefault({startDate:"2099-11-23"}),"2099-11-23T09:00",
+ "Sem horário exato, mantém a data do evento e sugere um horário editável.");
+assert.equal(remindDefault({startDate:"2001-11-23",startTime:"10:30"}),"FUTURO",
+ "Não pré-selecionar um horário já passado.");
 const sourceBegin=front.indexOf("const cronEndInstant=entry=>"),sourceEnd=front.indexOf("async function loadCronYear",sourceBegin);
 assert.ok(sourceBegin>0&&sourceEnd>sourceBegin,"Cronograma mantém projeção independente das Demandas.");
 const projection=new Function("data","state","stages","taskDate","cronIso","taskStatus",front.slice(sourceBegin,sourceEnd)+"\nreturn {source:cronSources(),visible:cronVisible()};");
