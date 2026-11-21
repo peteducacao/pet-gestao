@@ -1,4 +1,4 @@
-// PET Gestão — Web Push para PWA no computador (RFC 8291 + VAPID).
+// PET Gestão — Web Push para PWA no computador, iPhone e iPad (RFC 8291 + VAPID).
 // Sem Firebase no navegador: o par VAPID é criado uma única vez e protegido no D1.
 const enc=new TextEncoder();
 const stamp=()=>new Date().toISOString();
@@ -61,9 +61,9 @@ export async function webPushPublicKey(db){
 export async function webPushStatus(db,user){
  const [prefs,devices]=await Promise.all([
   db.prepare("SELECT new_demands,deadlines,overdue FROM web_push_preferences WHERE user_id=?").bind(user.id).first(),
-  db.prepare("SELECT COUNT(*) AS total FROM web_push_subscriptions WHERE user_id=?").bind(user.id).first()
+  db.prepare("SELECT platform,COUNT(*) AS total FROM web_push_subscriptions WHERE user_id=? GROUP BY platform").bind(user.id).all()
  ]);
- return {preferences:preferencesFor(prefs),registeredComputers:Number(devices?.total||0)};
+ return {preferences:preferencesFor(prefs),registeredComputers:Number(devices?.results?.find(x=>x.platform==="pc")?.total||0),registeredIphones:Number(devices?.results?.find(x=>x.platform==="ios")?.total||0)};
 }
 export async function webPushCheck(db,user,payload){
  const endpoint=String(payload?.endpoint||"");
@@ -87,9 +87,14 @@ export async function webPushSavePreferences(db,user,payload){
 export async function webPushSubscribe(db,user,payload){
  if(user.must_change_password)fail("Altere sua senha temporária antes de ativar os avisos.",403);
  const sub=checkSubscription(payload);
+ const platform=payload?.platform==="ios"?"ios":payload?.platform===undefined||payload?.platform==="pc"?"pc":null;
+ if(!platform)fail("Tipo de dispositivo inválido.");
+ // Inscrições iOS devem corresponder ao serviço Web Push oficial da Apple.
+ if(platform==="ios"&&!new URL(sub.endpoint).hostname.toLowerCase().endsWith(".push.apple.com"))
+  fail("O iPhone não forneceu um endpoint de notificações Apple.");
  // O navegador pertence apenas à conta atualmente ativa: evita vazamento entre logins.
- await db.prepare("INSERT INTO web_push_subscriptions(id,user_id,endpoint,p256dh,auth,created_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth,updated_at=excluded.updated_at")
-  .bind(crypto.randomUUID(),user.id,sub.endpoint,sub.p256dh,sub.auth,stamp(),stamp()).run();
+ await db.prepare("INSERT INTO web_push_subscriptions(id,user_id,endpoint,p256dh,auth,platform,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth,platform=excluded.platform,updated_at=excluded.updated_at")
+  .bind(crypto.randomUUID(),user.id,sub.endpoint,sub.p256dh,sub.auth,platform,stamp(),stamp()).run();
  return {ok:true};
 }
 export async function webPushUnsubscribe(db,user,payload){
@@ -145,16 +150,16 @@ export async function deliverWebPush(db,sub,message){
 }
 export async function webPushTest(env,user,payload){
  const endpoint=String(payload?.endpoint||"");
- if(!endpointAllowed(endpoint))fail("Este computador não possui uma inscrição de notificações válida.");
+ if(!endpointAllowed(endpoint))fail("Este dispositivo não possui uma inscrição de notificações válida.");
  const sub=await env.DB.prepare("SELECT * FROM web_push_subscriptions WHERE user_id=? AND endpoint=?").bind(user.id,endpoint).first();
- if(!sub)fail("Ative as notificações neste computador antes de testar.",409);
+ if(!sub)fail("Ative as notificações neste dispositivo antes de testar.",409);
  const key="web-test|"+sub.id+"|"+Math.floor(now()/120000);
  const claimed=await env.DB.prepare("INSERT OR IGNORE INTO web_push_log(dedupe_key,subscription_id,created_at) VALUES(?,?,?)").bind(key,sub.id,stamp()).run();
  if(!claimed.meta?.changes)fail("Aguarde dois minutos antes de outro teste neste computador.",429);
  try{
   const result=await deliverWebPush(env.DB,sub,{
    title:"PET Gestão • Notificações ativadas",
-   body:"Teste recebido! Este computador está pronto para receber avisos.",
+   body:sub.platform==="ios"?"Teste recebido! Seu iPhone/iPad está pronto para receber avisos.":"Teste recebido! Este computador está pronto para receber avisos.",
    route:"/inicio",kind:"test"
   });
   if(result.status==="invalid"){
@@ -169,13 +174,13 @@ export async function webPushTest(env,user,payload){
   fail("Não foi possível enviar a notificação ao serviço deste navegador.",503);
  }
 }
-export async function notifyBrowserUsers(env,userIds,message,preference,dedupe){
+export async function notifyBrowserUsers(env,userIds,message,preference,dedupe,platform="pc"){
  const members=[...new Set(userIds.map(String).filter(Boolean))].slice(0,300);
  if(!members.length)return 0;
  const column=preference==="newDemands"?"new_demands":preference==="overdue"?"overdue":"deadlines";
- const clause=preference?" AND COALESCE(p."+column+",1)=1":"";
- const rows=(await env.DB.prepare("SELECT s.* FROM web_push_subscriptions s LEFT JOIN web_push_preferences p ON p.user_id=s.user_id WHERE s.user_id IN ("+
-  members.map(()=>"?").join(",")+")"+clause+" LIMIT 300").bind(...members).all()).results;
+ const clause=platform==="pc"&&preference?" AND COALESCE(p."+column+",1)=1":"";
+ const rows=(await env.DB.prepare("SELECT s.* FROM web_push_subscriptions s LEFT JOIN web_push_preferences p ON p.user_id=s.user_id WHERE s.platform=? AND s.user_id IN ("+
+  members.map(()=>"?").join(",")+")"+clause+" LIMIT 300").bind(platform,...members).all()).results;
  let delivered=0;
  for(const sub of rows){
   let key=null;
