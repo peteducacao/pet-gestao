@@ -1150,6 +1150,20 @@ function renderDemandas(){
 const cronIso=(year,month,day)=>year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
 const cronHours=item=>item.startTime&&item.endTime?item.startTime+" às "+item.endTime:
  item.timeNote||item.startTime||"Horário a definir";
+// Ao tocar em Lembrar, sugerir o início efetivo da atividade, no horário de Sergipe.
+// Não usar a hora atual quando há uma data/hora futura registrada no Cronograma.
+const cronReminderSuggestedAt=item=>{
+ const day=String(item?.startDate||item?.date||"").slice(0,10);
+ const direct=String(item?.startTime||"").slice(0,5);
+ const note=String(item?.timeNote||"").trim().match(/^(\d{1,2})h(?:([0-5]\d))?(?!\d)/i);
+ const fromNote=note?String(Number(note[1])).padStart(2,"0")+":"+(note[2]||"00"):"";
+ const time=[direct,fromNote].find(value=>/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))||"09:00";
+ const date=/^\d{4}-\d{2}-\d{2}$/.test(day)?day:"";
+ const at=date?date+"T"+time:"";
+ // Eventos em andamento ou dados sem uma data futura recebem um horário editável futuro.
+ return at&&Number.isFinite(Date.parse(at+":00-03:00"))&&Date.parse(at+":00-03:00")>Date.now()?
+  at:reminderLocalValue(3600000);
+};
 // A atividade institucional conclui ao terminar a data/horário, sem ação humana.
 // Horário local do PET Educação: Sergipe, UTC-3.
 const cronEndInstant=entry=>{
@@ -1219,7 +1233,7 @@ function cronCard(entry){
   (entry.location&&entry.location!=="—"?'<div class="chron-meta">'+ico("folder")+' '+esc(entry.location)+'</div>':"")+
   (entry.description?'<p class="chron-desc">'+esc(entry.description)+'</p>':"")+
   ((canRemind||actions)?'<div class="chron-actions">'+
-   (canRemind?'<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>':"")+
+   (canRemind?'<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" data-date="'+esc(entry.date)+'" data-time="'+esc(entry.startTime||"")+'" data-time-note="'+esc(entry.timeNote||"")+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>':"")+
    actions+'</div>':"")+'</div>'+open+'</article>';
 }
 function closeCronDetails(){
@@ -1280,7 +1294,8 @@ function cronReminderDialog(){
  return '<div class="chron-reminder-overlay" role="presentation"><section class="chron-reminder-panel" role="dialog" aria-modal="true" aria-labelledby="cron-reminder-title">'+
  '<div class="chron-editor-head"><div><span class="chron-kicker">AVISO PESSOAL</span><h2 id="cron-reminder-title">Lembrar: '+esc(item.title)+'</h2></div>'+
  '<button type="button" class="chron-icon-action" data-do="cron-remind-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
- '<form id="cron-reminder-form"><label>Quando deseja ser lembrado?<input type="datetime-local" name="at" value="'+esc(reminderLocalValue(3600000))+'" required></label>'+
+ '<form id="cron-reminder-form"><label>Quando deseja ser lembrado?<input type="datetime-local" name="at" value="'+esc(item.at||reminderLocalValue(3600000))+'" required></label>'+
+ '<p class="chron-legacy">Data e horário sugeridos a partir da atividade. Você pode alterar antes de salvar.</p>'+
  '<p class="chron-legacy">Será enviado ao celular ou PC conectado. Depois do envio, o lembrete é excluído de Meus lembretes.</p>'+
  '<button class="button primary" type="submit">'+ico("bell")+' Salvar lembrete</button></form></section></div>';
 }
@@ -3593,7 +3608,9 @@ async function handleClick(e){
   const task=b.dataset.kind==="demandas"?(data.tasks||[]).find(x=>x.id===tid):null;
   if(!entry&&!task)return setToast("Registro não encontrado.");
   if((entry&&cronHasEnded(entry))||(task&&["concluida","nao_concluida"].includes(taskStatus(task))))return setToast("O registro já foi concluído.");
-  state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||""};state.cronDetails=null;
+  const scheduleSource=entry||{date:b.dataset.date,startTime:b.dataset.time,timeNote:b.dataset.timeNote};
+  state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||"",
+   at:cronReminderSuggestedAt(scheduleSource)};state.cronDetails=null;
   state.cronEditing=null;render();$("#cron-reminder-form input[name='at']")?.focus();return;
  }
  if(action==="cron-remind-close"){state.cronReminder=null;render();return}
