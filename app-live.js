@@ -2807,6 +2807,80 @@ function closeAdminMenu(){
   setTimeout(()=>{if(overlay.isConnected)overlay.remove()},230);
  }
 }
+
+function reportPdf(filename,title,lines){
+ // PDF local, sem serviços externos: fonte WinAnsi para caracteres em português.
+ const cp={"€":128,"‚":130,"ƒ":131,"„":132,"…":133,"†":134,"‡":135,"ˆ":136,"‰":137,"Š":138,"‹":139,"Œ":140,"Ž":142,"‘":145,"’":146,"“":147,"”":148,"•":149,"–":150,"—":151,"˜":152,"™":153,"š":154,"›":155,"œ":156,"ž":158,"Ÿ":159};
+ const encode=v=>Array.from(String(v)).map(c=>{
+  if("()\\".includes(c))return "\\"+c;
+  const n=cp[c]??c.charCodeAt(0);
+  if(n<32||n>255)return "?";
+  return n>126?"\\"+n.toString(8).padStart(3,"0"):c;
+ }).join("");
+ const chunks=[];for(let i=0;i<lines.length;i+=43)chunks.push(lines.slice(i,i+43));
+ if(!chunks.length)chunks.push([]);
+ const objects=[],n=chunks.length,fontId=3+n*2;
+ objects[1]="<< /Type /Catalog /Pages 2 0 R >>";
+ objects[2]="<< /Type /Pages /Count "+n+" /Kids ["+chunks.map((_,i)=>(3+i*2)+" 0 R").join(" ")+"] >>";
+ objects[fontId]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+ chunks.forEach((lines,i)=>{
+  const pageId=3+i*2,contentId=pageId+1;
+  objects[pageId]="<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 "+fontId+" 0 R >> >> /Contents "+contentId+" 0 R >>";
+  const cmds=["0.44 0.25 0.72 rg","40 792 515 5 re f",
+   "0.22 0.14 0.36 rg","BT /F1 17 Tf 42 753 Td ("+encode(title)+") Tj ET",
+   "0.44 0.39 0.52 rg","BT /F1 9 Tf 42 730 Td ("+encode("PET Educação · Universidade Federal de Sergipe")+") Tj ET",
+   "0.27 0.22 0.34 rg"];
+  lines.forEach((line,j)=>cmds.push("BT /F1 10 Tf 44 "+(700-j*15)+" Td ("+encode(line)+") Tj ET"));
+  cmds.push("0.55 0.5 0.6 rg","BT /F1 9 Tf 44 39 Td ("+encode("Página "+(i+1)+" / "+n)+") Tj ET");
+  const stream=cmds.join("\n")+"\n";
+  objects[contentId]="<< /Length "+stream.length+" >>\nstream\n"+stream+"endstream";
+ });
+ let output="%PDF-1.4\n",pos=[0];
+ for(let i=1;i<objects.length;i++){pos[i]=output.length;output+=i+" 0 obj\n"+objects[i]+"\nendobj\n"}
+ const xref=output.length;
+ output+="xref\n0 "+objects.length+"\n0000000000 65535 f \n";
+ for(let i=1;i<objects.length;i++)output+=String(pos[i]).padStart(10,"0")+" 00000 n \n";
+ output+="trailer\n<< /Size "+objects.length+" /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF";
+ const bytes=Uint8Array.from(output,c=>c.charCodeAt(0)&255);
+ const url=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+ const a=document.createElement("a");a.href=url;a.download=filename;
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+async function loadAdminAnnualReport(){
+ if(!isAdmin()||state.adminReportLoading||state.adminReportView!=="cronograma")return;
+ const year=state.adminReportYear,owner=me?.id;
+ state.adminReportLoading=true;
+ try{
+  const result=await request("/admin/annual-report?year="+encodeURIComponent(year),"GET",null,"admin");
+  if(me?.id===owner){state.adminReportData=result;state.adminReportLoadedYear=year;state.adminReportError="";}
+ }catch(e){state.adminReportData=null;state.adminReportLoadedYear=year;state.adminReportError=e.message;}
+ finally{state.adminReportLoading=false;if(routeParts().page==="admin"&&state.adminTab==="relatorios")render()}
+}
+function renderAdminReports(){
+ const commissionView=state.adminReportView==="comissoes";
+ const controls='<div class="chron-report-controls"><label>Visualizar relatório<select class="select" id="admin-report-kind">'+
+  [["cronograma","Cronograma"],["comissoes","Comissões"]].map(([v,l])=>opt(v,l,state.adminReportView)).join("")+'</select></label>'+
+  (!commissionView?'<label>Ano<select class="select" id="admin-report-year">'+Array.from({length:12},(_,i)=>current.getFullYear()-5+i).map(y=>opt(y,y,state.adminReportYear)).join("")+'</select></label>':"")+'</div>';
+ if(commissionView){
+  const cid=state.adminReportCommission||data.committees[0]?.id||"";
+  return '<section class="card card-pad chron-report">'+controls+
+   '<h2>Relatório das comissões</h2><p class="chron-report-note">Selecione a comissão para consultar o relatório já existente.</p>'+
+   '<label>Comissão<select class="select" id="admin-report-commission">'+data.committees.map(c=>opt(c.id,c.name,cid)).join("")+'</select></label>'+
+   (cid?'<a class="button primary" href="#/admin/resumo/'+id(cid)+'">Consultar comissão</a>':"")+'</section>';
+ }
+ const r=state.adminReportLoadedYear===state.adminReportYear?state.adminReportData:null;
+ return '<section class="card card-pad chron-report">'+controls+
+  '<div class="chron-report-head"><h2>Resumo anual · '+state.adminReportYear+'</h2>'+
+  (r?'<button class="button primary" type="button" data-do="admin-report-pdf">'+ico("download")+' Exportar PDF</button>':"")+'</div>'+
+  (!r?'<p class="chron-report-note">'+esc(state.adminReportError||"Carregando dados reais…")+'</p>':
+   '<div class="chron-report-metrics"><div><strong>'+r.demands+'</strong><span>Demandas no ano</span></div>'+
+   '<div><strong>'+r.activities+'</strong><span>Atividades do cronograma</span></div></div>'+
+   '<h3>Quantidade em cada mês</h3><div class="chron-report-table-wrap"><table class="chron-report-table">'+
+   '<thead><tr><th>Mês</th><th>Demandas</th><th>Cronograma</th></tr></thead><tbody>'+
+   r.months.map(x=>'<tr><td>'+MONTHS[x.month-1]+'</td><td>'+x.demands+'</td><td>'+x.activities+'</td></tr>').join("")+
+   '</tbody></table></div>')+'</section>';
+}
+
 function renderAdmin(){
  const adminPart=routeParts().parts;
  if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
