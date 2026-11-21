@@ -35,4 +35,22 @@ await assert.rejects(api.annualReport(db,user,2026),/Administração/);
 const report=await api.annualReport(db,admin,2026);
 assert.equal(report.months.length,12);
 assert.equal(report.demands,0);
+// Contrato entre o identificador interno de Demandas e o seletor único do Cronograma.
+const front=fs.readFileSync("app-live.js","utf8");
+const sourceBegin=front.indexOf("function cronSources(){"),sourceEnd=front.indexOf("async function loadCronYear",sourceBegin);
+assert.ok(sourceBegin>0&&sourceEnd>sourceBegin,"Cronograma mantém projeção independente das Demandas.");
+const projection=new Function("data","state","stages","taskDate","cronIso",front.slice(sourceBegin,sourceEnd)+"\nreturn {source:cronSources(),visible:cronVisible()};");
+const today=new Date(),year=today.getFullYear(),month=today.getMonth();
+const iso=(y,m,d)=>y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+const due=iso(year,month,Math.min(today.getDate(),new Date(year,month+1,0).getDate()))+"T16:00:00";
+const demand={id:"d-ci",title:"Demanda dentro do cronograma",deadlines:[{id:"p-ci",dueAt:due,label:"Apresentação"}]};
+const args=[{tasks:[demand]},{cronItems:[],cronFilter:"demandas",cronYear:year,cronMonth:month},t=>t.deadlines,t=>t.registeredAt,iso];
+const projected=projection(...args);
+assert.equal(projected.visible.length,1,"Selecionar Demandas mostra o prazo projetado.");
+assert.equal(projected.visible[0].kind,"demandas","Nome interno e seletor devem coincidir.");
+args[1].cronFilter="cronograma";
+assert.equal(projection(...args).visible.length,0,"Filtro Cronograma exclui Demandas.");
+args[1].cronFilter="todos";
+assert.equal(projection(...args).visible.length,1,"Filtro Todos inclui Demandas.");
+
 console.log("OK: permissões, horário inicial/final, CRUD, atalhos e relatório anual sem dados reais.");
