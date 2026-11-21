@@ -126,12 +126,14 @@ public class MainActivity extends Activity {
         createNotificationChannel();
         initializePush();
 
-        if (savedInstanceState != null) {
+        // Notificações têm prioridade sobre a restauração de páginas antigas.
+        String launchRoute = safePushRoute(getIntent().getStringExtra("pet_route"));
+        if (launchRoute != null) {
+            webView.loadUrl("https://peteducacao.github.io/pet-gestao/#" + launchRoute);
+        } else if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            String route = safePushRoute(getIntent().getStringExtra("pet_route"));
-            webView.loadUrl(route != null
-                    ? "https://peteducacao.github.io/pet-gestao/#" + route : HOME);
+            webView.loadUrl(HOME);
         }
     }
 
@@ -226,7 +228,7 @@ public class MainActivity extends Activity {
     }
 
     private static String safePushRoute(String route) {
-        if (route == null || !route.matches("^(/inicio|/atividade/[A-Za-z0-9-]{1,100})$"))
+        if (route == null || !route.matches("^(/inicio|/minhas-pendencias|/meus-lembretes|/atividade/[A-Za-z0-9_-]{1,100})$"))
             return null;
         return route;
     }
