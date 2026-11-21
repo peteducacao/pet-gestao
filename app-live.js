@@ -1160,7 +1160,7 @@ function cronSources(){
    if(!slot.dueAt)continue;
    const date=String(slot.dueAt).slice(0,10);
    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
-   all.push({id:t.id,slotId:slot.id||date,kind:"demanda",title:t.title,description:"",
+   all.push({id:t.id,slotId:slot.id||date,kind:"demandas",title:t.title,description:"",
     date,finish:date,startTime:String(slot.dueAt).includes("T")?String(slot.dueAt).slice(11,16):null,
     endTime:null,timeNote:null,location:"",stageName:slot.label||"Prazo",
     done:!!(slot.completedAt||t.archivedAt)});
@@ -1189,7 +1189,7 @@ async function loadCronYear(year){
 }
 function cronCard(entry){
  const date=entry.date,day=Number(date.slice(8,10)),month=MONTHS[Number(date.slice(5,7))-1]?.slice(0,3)||"";
- const isTask=entry.kind==="demanda",finish=entry.finish!==date?" · até "+textDate(entry.finish):"";
+ const isTask=entry.kind==="demandas",finish=entry.finish!==date?" · até "+textDate(entry.finish):"";
  const actions=isTask?
   '<a class="chron-card-link" href="#/atividade/'+id(entry.id)+'" aria-label="Abrir demanda '+esc(entry.title)+'">'+ico("chevron-right")+'</a>':
   '<button type="button" class="chron-icon-action" data-do="cron-toggle" data-id="'+esc(entry.id)+'" title="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'" aria-label="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'">'+ico("check")+'</button>'+
@@ -1254,7 +1254,7 @@ function cronCalendar(items){
   const matching=items.filter(x=>x.date<=date&&x.finish>=date);
   const kinds=[...new Set(matching.map(x=>x.kind))],hasCompleted=matching.some(x=>x.done),hasPending=matching.some(x=>!x.done);
   cells.push('<button type="button" data-do="cron-day" data-date="'+date+'" class="chron-calendar-day '+(selected===date?"active":"")+'" '+(date===dateKey(current)?'aria-current="date"':"")+' aria-label="'+textDate(date)+'; '+matching.length+' registros"><span>'+day+'</span><i>'+
-    (hasPending?'<b class="pending"></b>':"")+(hasCompleted?'<b class="done"></b>':"")+(kinds.includes("demanda")?'<b class="demand"></b>':"")+'</i></button>');
+    (hasPending?'<b class="pending"></b>':"")+(hasCompleted?'<b class="done"></b>':"")+(kinds.includes("demandas")?'<b class="demand"></b>':"")+'</i></button>');
  }
  const picked=items.filter(x=>x.date<=selected&&x.finish>=selected);
  return '<section class="chron-calendar card card-pad"><div class="chron-weekdays">'+week.map(v=>'<span>'+v+'</span>').join("")+'</div>'+
@@ -3437,7 +3437,7 @@ async function handleClick(e){
  }
  if(action==="cron-remind"){
   const entry=b.dataset.kind==="cronograma"?(state.cronItems||[]).find(x=>x.id===tid):null;
-  const task=b.dataset.kind==="demanda"?(data.tasks||[]).find(x=>x.id===tid):null;
+  const task=b.dataset.kind==="demandas"?(data.tasks||[]).find(x=>x.id===tid):null;
   if(!entry&&!task)return setToast("Registro não encontrado.");
   state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||""};
   state.cronEditing=null;render();$("#cron-reminder-form input[name='at']")?.focus();return;
