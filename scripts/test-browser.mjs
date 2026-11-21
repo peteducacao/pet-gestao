@@ -153,12 +153,13 @@ try{
    const buttons=[...nav.querySelectorAll(".account-hub-nav-btn")];
    const box=el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width}};
    return {nav:box(nav),first:box(buttons[0]),fourth:box(buttons[3]),last:box(buttons[4]),
-    gridColumns:getComputedStyle(nav).gridTemplateColumns,overflow:nav.scrollWidth-nav.clientWidth};
+    notifications:box(buttons[2]),gridColumns:getComputedStyle(nav).gridTemplateColumns,overflow:nav.scrollWidth-nav.clientWidth};
   });
   assert.equal(await page.locator(".account-hub-nav-btn").count(),5,"Cinco opções de perfil em "+width+"px");
   assert.ok(layout.last.top>=layout.fourth.bottom-1,"Navegação rápida inicia abaixo da linha anterior em "+width+": "+JSON.stringify(layout));
-  assert.ok(Math.abs(layout.last.left-layout.first.left)<3,"Navegação rápida alinhada à esquerda em "+width+": "+JSON.stringify(layout));
-  assert.ok(layout.last.width>layout.first.width*1.8,"Navegação rápida ocupa as duas colunas em "+width+": "+JSON.stringify(layout));
+  assert.ok(Math.abs((layout.last.left+layout.last.right)/2-(layout.nav.left+layout.nav.right)/2)<3,"Navegação rápida centralizada em "+width+": "+JSON.stringify(layout));
+  assert.ok(Math.abs(layout.last.width-layout.first.width)<3,"Navegação rápida tem largura proporcional aos demais itens em "+width+": "+JSON.stringify(layout));
+  assert.ok(Math.abs(layout.notifications.width-layout.first.width)<3,"Notificações ocupa a mesma largura do primeiro item em "+width+": "+JSON.stringify(layout));
   assert.ok(layout.overflow<=2,"Sem rolagem lateral no menu em "+width+": "+JSON.stringify(layout));
  }
  await page.setViewportSize(initialViewport);
