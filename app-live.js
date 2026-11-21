@@ -1150,12 +1150,25 @@ function renderDemandas(){
 const cronIso=(year,month,day)=>year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
 const cronHours=item=>item.startTime&&item.endTime?item.startTime+" às "+item.endTime:
  item.timeNote||item.startTime||"Horário a definir";
+// A atividade institucional conclui ao terminar a data/horário, sem ação humana.
+// Horário local do PET Educação: Sergipe, UTC-3.
+const cronEndInstant=entry=>{
+ const end=String(entry.endDate||entry.finish||entry.date||"").slice(0,10);
+ const time=String(entry.endTime||"");
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(end))return NaN;
+ return Date.parse(end+"T"+(/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)?time+":00":"23:59:59")+"-03:00");
+};
+const cronHasEnded=entry=>{
+ const at=cronEndInstant(entry);
+ return Number.isFinite(at)&&at<=Date.now();
+};
 function cronSources(){
  const all=[];
- for(const e of state.cronItems||[])all.push({...e,kind:"cronograma",date:e.startDate,finish:e.endDate,done:!!e.completedAt});
+ for(const e of state.cronItems||[])all.push({...e,kind:"cronograma",date:e.startDate,finish:e.endDate,done:cronHasEnded(e)});
  for(const t of data.tasks||[]){
   const due=stages(t).filter(x=>x?.dueAt);
   const slots=due.length?due:[{id:"registro",label:"Data da demanda",dueAt:taskDate(t)}];
+  const status=taskStatus(t); // Respeita exatamente o sistema de Demandas.
   for(const slot of slots){
    if(!slot.dueAt)continue;
    const date=String(slot.dueAt).slice(0,10);
@@ -1163,7 +1176,7 @@ function cronSources(){
    all.push({id:t.id,slotId:slot.id||date,kind:"demandas",title:t.title,description:"",
     date,finish:date,startTime:String(slot.dueAt).includes("T")?String(slot.dueAt).slice(11,16):null,
     endTime:null,timeNote:null,location:"",stageName:slot.label||"Prazo",
-    done:!!(slot.completedAt||t.archivedAt)});
+    status,done:status==="concluida"});
   }
  }
  return all;
@@ -1190,22 +1203,40 @@ async function loadCronYear(year){
 function cronCard(entry){
  const date=entry.date,day=Number(date.slice(8,10)),month=MONTHS[Number(date.slice(5,7))-1]?.slice(0,3)||"";
  const isTask=entry.kind==="demandas",finish=entry.finish!==date?" · até "+textDate(entry.finish):"";
- const actions=isTask?
-  '<a class="chron-card-link" href="#/atividade/'+id(entry.id)+'" aria-label="Abrir demanda '+esc(entry.title)+'">'+ico("chevron-right")+'</a>':
-  '<button type="button" class="chron-icon-action" data-do="cron-toggle" data-id="'+esc(entry.id)+'" title="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'" aria-label="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'">'+ico("check")+'</button>'+
-  '<button type="button" class="chron-icon-action" data-do="cron-edit" data-id="'+esc(entry.id)+'" aria-label="Editar '+esc(entry.title)+'" title="Editar">'+ico("edit")+'</button>'+
-  '<button type="button" class="chron-icon-action" data-do="cron-delete" data-id="'+esc(entry.id)+'" aria-label="Excluir '+esc(entry.title)+'" title="Excluir">'+ico("trash")+'</button>';
+ const status=isTask?(entry.status||"pendente"):(entry.done?"concluida":"pendente");
+ const visualStatus=status==="concluida"?"done":status==="atrasada"?"late":status==="nao_concluida"?"unfinished":"pending";
+ const canRemind=isTask?["pendente","atrasada"].includes(status):!entry.done;
+ const actions=isTask?"":'<button type="button" class="chron-icon-action" data-do="cron-delete" data-id="'+esc(entry.id)+'" aria-label="Excluir '+esc(entry.title)+'" title="Excluir">'+ico("trash")+'</button>';
+ const open=isTask?
+  '<a class="chron-card-open" href="#/atividade/'+id(entry.id)+'" aria-label="Abrir detalhes da demanda '+esc(entry.title)+'"></a>':
+  '<button type="button" class="chron-card-open" data-do="cron-details" data-id="'+esc(entry.id)+'" aria-label="Ver detalhes de '+esc(entry.title)+'"></button>';
  const hour=isTask?(entry.startTime?entry.startTime+" · ":"")+entry.stageName:cronHours(entry);
- return '<article class="chron-card '+(isTask?"chron-card--demand":"")+'">'+
- '<div class="chron-date '+(entry.done?"chron-date--done":"chron-date--pending")+'" aria-label="'+(entry.done?"Concluída":"Pendente")+' em '+textDate(date)+'"><strong>'+day+'</strong><small>'+esc(month)+'</small></div>'+
- '<div class="chron-card-content"><div class="chron-card-top">'+(isTask?'<a class="chron-demand-title" href="#/atividade/'+id(entry.id)+'">'+esc(entry.title)+'</a>':'<strong>'+esc(entry.title)+'</strong>')+
- (isTask?'<span class="chron-demand-mark" title="Demanda">Demanda</span>':"")+'</div>'+
- '<div class="chron-meta">'+ico("clock")+' '+esc(hour)+esc(finish)+'</div>'+
- (entry.location&&entry.location!=="—"?'<div class="chron-meta">'+ico("folder")+' '+esc(entry.location)+'</div>':"")+
- (entry.description?'<p class="chron-desc">'+esc(entry.description)+'</p>':"")+
- '<div class="chron-actions">'+
- '<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>'+
- actions+'</div></div></article>';
+ return '<article class="chron-card '+(isTask?"chron-card--demand chron-card--"+status:"")+'">'+
+  '<div class="chron-date chron-date--'+visualStatus+'" aria-label="'+esc(statusLabel[status]||"Pendente")+' em '+textDate(date)+'"><strong>'+day+'</strong><small>'+esc(month)+'</small></div>'+
+  '<div class="chron-card-content"><div class="chron-card-top"><strong>'+esc(entry.title)+'</strong>'+
+  (isTask?'<span class="chron-demand-mark" title="Demanda">Demanda</span>':"")+'</div>'+
+  '<div class="chron-meta">'+ico("clock")+' '+esc(hour)+esc(finish)+'</div>'+
+  (entry.location&&entry.location!=="—"?'<div class="chron-meta">'+ico("folder")+' '+esc(entry.location)+'</div>':"")+
+  (entry.description?'<p class="chron-desc">'+esc(entry.description)+'</p>':"")+
+  ((canRemind||actions)?'<div class="chron-actions">'+
+   (canRemind?'<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>':"")+
+   actions+'</div>':"")+'</div>'+open+'</article>';
+}
+function cronDetailsDialog(){
+ const entry=(state.cronItems||[]).find(x=>x.id===state.cronDetails);
+ if(!entry)return "";
+ const dates=entry.startDate===entry.endDate?textDate(entry.startDate):textDate(entry.startDate)+" até "+textDate(entry.endDate);
+ const completed=cronHasEnded(entry);
+ return '<div class="chron-reminder-overlay chron-detail-overlay" role="presentation"><section class="chron-reminder-panel chron-detail-panel" role="dialog" aria-modal="true" aria-labelledby="cron-detail-title">'+
+  '<div class="chron-editor-head"><div><span class="chron-kicker">ATIVIDADE DO CRONOGRAMA</span><h2 id="cron-detail-title">'+esc(entry.title)+'</h2></div>'+
+  '<button type="button" class="chron-icon-action" data-do="cron-details-close" aria-label="Fechar detalhes">'+ico("close")+'</button></div>'+
+  '<span class="chron-detail-status '+(completed?"is-done":"is-upcoming")+'">'+(completed?"Concluída automaticamente":"Programada")+'</span>'+
+  '<dl class="chron-detail-info"><div><dt>Data</dt><dd>'+esc(dates)+'</dd></div>'+
+  '<div><dt>Horário</dt><dd>'+esc(cronHours(entry))+'</dd></div>'+
+  '<div><dt>Local</dt><dd>'+esc(entry.location||"Não informado")+'</dd></div>'+
+  '<div><dt>Descrição / observações</dt><dd class="chron-detail-description">'+esc(entry.description||"Nenhuma observação.")+'</dd></div></dl>'+
+  '<div class="chron-detail-actions"><button type="button" class="button ghost" data-do="cron-edit" data-id="'+esc(entry.id)+'">'+ico("edit")+' Editar atividade</button>'+
+  '<button type="button" class="button ghost chron-delete-detail" data-do="cron-delete" data-id="'+esc(entry.id)+'">'+ico("trash")+' Excluir</button></div></section></div>';
 }
 function cronEditor(){
  const editing=state.cronEditing;
@@ -1327,7 +1358,7 @@ function renderCronograma(){
  '<div class="chron-empty">Nenhum registro neste mês para o filtro escolhido.</div>';
  return header("Organização","Cronograma PET","Atividades do PET organizadas por data, horário e local.",
  '<button type="button" class="button primary" data-do="cron-new">'+ico("plus")+' Nova atividade</button>')+
- '<div class="chron-page">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+'</div>';
+ '<div class="chron-page">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+cronDetailsDialog()+'</div>';
 }
 const COMMISSION_PRESET_ARTS=[
  ["videos","Vídeos"],["cards","Cards"],["imaginacao","ImaginAÇÃO"],
@@ -3409,29 +3440,26 @@ async function handleClick(e){
   }finally{if(b.isConnected)b.disabled=false}
   return;
  }
- if(action==="cron-new"){state.cronEditing="new";state.cronReminder=null;render();$("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return}
+ if(action==="cron-new"){state.cronEditing="new";state.cronReminder=null;state.cronDetails=null;render();$("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return}
  if(action==="cron-close"){state.cronEditing=null;render();return}
  if(action==="cron-edit"){
   if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
-  state.cronEditing=tid;state.cronReminder=null;render();
+  state.cronEditing=tid;state.cronReminder=null;state.cronDetails=null;render();
   $("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return;
  }
- if(action==="cron-toggle"){
-  const item=(state.cronItems||[]).find(x=>x.id===tid);
-  if(!item)return setToast("Atividade não encontrada.");
-  b.disabled=true;
-  try{await request("/schedule/"+id(tid),"PATCH",{completed:!item.completedAt});
-   state.cronLoadedYear=null;await loadCronYear(state.cronYear);setToast(item.completedAt?"Atividade reaberta.":"Atividade concluída.");
-  }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
-  return;
+ if(action==="cron-details"){
+  if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
+  state.cronDetails=tid;state.cronReminder=null;render();
+  $('[data-do="cron-details-close"]')?.focus();return;
  }
+ if(action==="cron-details-close"){state.cronDetails=null;render();return;}
  if(action==="cron-delete"){
   const item=(state.cronItems||[]).find(x=>x.id===tid);
   if(!item)return setToast("Atividade não encontrada.");
   if(!await askConfirm('Excluir "'+item.title+'"? Os lembretes vinculados a ela também serão cancelados.',{title:"Excluir atividade?",danger:true,confirmLabel:"Excluir atividade"}))return;
   b.disabled=true;
   try{await request("/schedule/"+id(tid),"DELETE");state.cronEditing=null;state.cronLoadedYear=null;
-   await loadCronYear(state.cronYear);setToast("Atividade excluída.");
+   await loadCronYear(state.cronYear);state.cronDetails=null;setToast("Atividade excluída.");
   }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
   return;
  }
@@ -3439,7 +3467,8 @@ async function handleClick(e){
   const entry=b.dataset.kind==="cronograma"?(state.cronItems||[]).find(x=>x.id===tid):null;
   const task=b.dataset.kind==="demandas"?(data.tasks||[]).find(x=>x.id===tid):null;
   if(!entry&&!task)return setToast("Registro não encontrado.");
-  state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||""};
+  if((entry&&cronHasEnded(entry))||(task&&["concluida","nao_concluida"].includes(taskStatus(task))))return setToast("O registro já foi concluído.");
+  state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||""};state.cronDetails=null;
   state.cronEditing=null;render();$("#cron-reminder-form input[name='at']")?.focus();return;
  }
  if(action==="cron-remind-close"){state.cronReminder=null;render();return}
@@ -4199,7 +4228,7 @@ async function handleSubmit(e){
   const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
   try{
    await request("/schedule"+(eventId?"/"+id(eventId):""),eventId?"PUT":"POST",payload);
-   state.cronEditing=null;state.cronLoadedYear=null;await loadCronYear(state.cronYear);
+   state.cronEditing=null;state.cronDetails=null;state.cronLoadedYear=null;await loadCronYear(state.cronYear);
    setToast(eventId?"Atividade atualizada.":"Atividade cadastrada no Cronograma.");
   }finally{if(button?.isConnected)button.disabled=false}
   return;
@@ -4462,7 +4491,7 @@ function onNavigation(){
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash)state.adminMenuOpen=false;
  if(lastHash!==location.hash&&location.hash==="#/admin/relatorios"){state.adminReportLoadedYear=null;state.adminReportError="";}
- if(lastHash!==location.hash&&lastHash.startsWith("#/cronograma")&&!location.hash.startsWith("#/cronograma")){state.cronFilter="cronograma";state.cronEditing=null;state.cronReminder=null;}
+ if(lastHash!==location.hash&&lastHash.startsWith("#/cronograma")&&!location.hash.startsWith("#/cronograma")){state.cronFilter="cronograma";state.cronEditing=null;state.cronReminder=null;state.cronDetails=null;}
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
  if(state.authTransition){window.scrollTo({top:0});return}
  if(wasAdmin!==nowAdmin){
@@ -4550,6 +4579,8 @@ function start(){
    else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
     else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
+   else if(state.cronDetails){e.preventDefault();state.cronDetails=null;render()}
+   else if(state.cronReminder){e.preventDefault();state.cronReminder=null;render()}
  }});
 
  document.addEventListener("selectionchange",()=>{
