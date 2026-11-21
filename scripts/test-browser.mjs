@@ -349,9 +349,7 @@ try{
  user.role="tutor";
  await page.reload();
  await page.goto(origin+"/#/registrar/t-everyone");
- const editDiagnostic=await page.evaluate(()=>({hash:location.hash,heading:document.querySelector("#screen h1")?.textContent,info:document.querySelector("#screen")?.textContent.slice(0,220),hasDate:!!document.querySelector("#collective-event-day")}));
- console.log("DIAGNÓSTICO DE EDIÇÃO:",JSON.stringify(editDiagnostic));
- await page.locator("#collective-event-day").waitFor({state:"attached"}); // Campo nativo é visualmente oculto por design.
+await page.locator("#collective-event-day").waitFor({state:"attached"}); // Campo nativo é visualmente oculto por design.
  await page.setViewportSize({width:390,height:844});
  const eventSettings=page.locator("#deadline-settings");
  assert.equal(await page.locator(".assignment-all").innerText().then(x=>x.includes("permissão de concluir")),false,
@@ -1606,12 +1604,12 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('[data-do="admin-report-pdf"]').click();
  assert.match((await pdf).suggestedFilename(),/\.pdf$/i,"Relatório exportado em PDF.");
  await page.locator("#admin-report-kind").selectOption("comissoes");
- await page.locator('#admin-report-commission option[value="todos"]').waitFor();
+ await page.locator('#admin-report-commission option[value="todos"]').waitFor({state:"attached"});
  assert.equal(await page.locator("#admin-report-commission").inputValue(),"todos","Todas as comissões é a visão padrão.");
  await page.locator(".admin-overview-table tbody tr").first().waitFor();
  assert.ok(await page.locator('a[href^="#/admin/resumo/"]').count()>0,"Relatórios permite acessar as comissões cadastradas.");
  await page.locator("#admin-report-kind").selectOption("usuarios");
- await page.locator('#admin-report-user option[value="todos"]').waitFor();
+ await page.locator('#admin-report-user option[value="todos"]').waitFor({state:"attached"});
  assert.equal(await page.locator("#admin-report-user").inputValue(),"todos","Todos os usuários ficam disponíveis.");
  await page.locator("#admin-report-kind").selectOption("todos");
  assert.ok(await page.locator(".admin-overview-metrics > div").count()>=7,"Todos reúne os indicadores globais do PET.");
