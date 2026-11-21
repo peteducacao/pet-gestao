@@ -58,8 +58,8 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
+const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma PET",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
 window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();desktopInstallPrompt=event;});
@@ -930,6 +930,7 @@ async function reload(){
    if(beforeUser!==(me?.id||"")){
     state.noticePrefs=null;state.noticeDraft=null;state.noticeDirty=false;
     state.reminderItems=[];state.reminderLoadedFor=null;state.reminderEditing=false;
+    state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;
    }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
@@ -940,8 +941,9 @@ async function reload(){
  }
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
  void loadPushPreferencesForActiveUser();
+ void loadQuickNavPrefs();
 }
-function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
+function allowPage(p){if(canWrite())return true;return ["inicio","demandas","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
@@ -962,7 +964,7 @@ function nav(){
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
    el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
-   if(["minhas-pendencias","meus-lembretes","reunioes"].includes(el.dataset.route))el.hidden=!canWrite();
+   if(["minhas-pendencias","meus-lembretes","reunioes","cronograma"].includes(el.dataset.route))el.hidden=!canWrite();
    if(profile){
      el.hidden=false;el.href=regularMe?"#/conta":"#/login";
      const label=el.querySelector("span");if(label)label.textContent=regularMe?"Meu perfil":"Entrar";
@@ -2876,7 +2878,7 @@ function render(){
  let html="";
  if(page==="inicio")html=renderHome();
  else if(page==="demandas")html=renderDemandas();
- else if(page==="cronograma")html=renderDemandas();
+ else if(page==="cronograma")html=renderCronograma();
  else if(page==="comissoes")html=!parts.length?renderComissoes():parts[0]==="nova"?renderCommitteeEdit(""):parts[0]==="editar"?renderCommitteeEdit(parts.slice(1).join("/")):renderCommittee(parts.join("/"));
  else if(page==="ajuda")html=renderHelp();
  else if(page==="registrar")html=renderTaskForm(parts.join("/"));
@@ -2894,6 +2896,8 @@ function render(){
  else html=renderHome();
  root.innerHTML=html;
  compactContextHelp(root);
+ renderQuickNav();
+ if(page==="cronograma"&&canWrite()&&state.cronLoadedYear!==state.cronYear&&!state.cronLoading)void loadCronYear(state.cronYear);
  if(page==="meus-lembretes"&&state.reminderLoadedFor!==me?.id&&!state.reminderLoading)void loadPersonalReminders();
  if(page==="admin"&&isAdmin()&&parts[0]==="resumo"&&parts[1])
    loadAdminCommissionSummary(parts[1]);
@@ -4072,6 +4076,7 @@ function onNavigation(){
  closeTaskPhoto();closeCommissionImageEditor();
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash)state.adminMenuOpen=false;
+ if(lastHash!==location.hash&&lastHash.startsWith("#/cronograma")&&!location.hash.startsWith("#/cronograma")){state.cronFilter="cronograma";state.cronEditing=null;state.cronReminder=null;}
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
  if(state.authTransition){window.scrollTo({top:0});return}
  if(wasAdmin!==nowAdmin){
