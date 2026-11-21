@@ -60,6 +60,8 @@ jobs:
         run: node scripts/test-commission-cards.mjs
       - name: Testar a tela de abertura do aplicativo
         run: node scripts/test-startup-splash.mjs
+      - name: Validar importação do Cronograma 2026 e integridade referencial
+        run: python3 scripts/test-cronograma-2026.py
       - name: Validar migrações, limpeza dos testes e preservação dos dados reais
         run: |
           python3 - <<'PY'

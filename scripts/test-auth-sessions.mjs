@@ -103,7 +103,7 @@ assert.ok(front.includes('data-do="confirm-account-email"'),"O link pede confirm
 assert.ok(front.includes('Carregando painel administrativo...'),"A entrada na Administração tem carregamento");
 console.log("Troca de e-mail e carregamento de Administração: estrutura presente.");
 
-assert.ok(front.includes('["minhas-pendencias","meus-lembretes","reunioes"].includes(el.dataset.route)'),"Atas ocultas para Usuários");
+assert.ok(front.includes('["minhas-pendencias","meus-lembretes","reunioes","cronograma"].includes(el.dataset.route)'),"Atas ocultas para Usuários");
 assert.ok(front.includes('if(!canWrite())return publicTaskCard(t);'),"Tarefas de Usuário sem interações");
 assert.ok(front.includes('if(!canWrite())return renderViewerHome();'),"Visão geral em modo passivo");
 assert.ok(!front.slice(front.indexOf("function publicTaskCard(t){"),front.indexOf("function taskCard(t,")).includes('href='),"Card de Usuário sem link");

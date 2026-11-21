@@ -26,6 +26,8 @@ const calls=[];
 const notificationKinds=["create","review","due_soon","overdue","event_soon","event_today"];
 let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:false,android:false,pc:false}]));
 let personalMockItems=[];
+let quickNavMock={enabled:true,items:["inicio","cronograma","demandas","meus-lembretes","conta"]};
+let scheduleMock=[{id:"evento-cron-1",title:"Oficina de Fotografia",description:"Formação com fotógrafos",startDate:new Date().toISOString().slice(0,10),endDate:new Date().toISOString().slice(0,10),startTime:"14:00",endTime:"18:00",timeNote:null,location:"Sala do PET",completedAt:null,source:"manual"}];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
  if(method==="OPTIONS")return route.fulfill({status:204,headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PUT,PATCH,DELETE","access-control-allow-headers":"Authorization,Content-Type"}});
@@ -34,6 +36,17 @@ await page.route("**/api/v1/**",async route=>{
  if(p==="/auth/me")result={user:adminMode?admin:user};
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/auth/login"&&method==="POST")result={token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user};
+ else if(p==="/quick-nav"&&method==="GET")result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};
+ else if(p==="/quick-nav"&&method==="PUT"){quickNavMock={enabled:body.enabled,items:body.items};result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};}
+ else if(p==="/schedule"&&method==="GET")result={year:Number(url.searchParams.get("year")),items:scheduleMock.filter(x=>x.startDate.slice(0,4)===url.searchParams.get("year"))};
+ else if(p==="/schedule"&&method==="POST"){const newId="evento-cron-"+(scheduleMock.length+1);scheduleMock.push({id:newId,...body,completedAt:null,source:"manual"});result={ok:true,id:newId};status=201;}
+ else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PUT"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)Object.assign(row,body);result={ok:true};}
+ else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PATCH"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)row.completedAt=body.completed?new Date().toISOString():null;result={ok:true};}
+ else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="DELETE"){scheduleMock=scheduleMock.filter(x=>x.id!==p.split("/").at(-1));result={ok:true};}
+ else if(p==="/admin/annual-report"&&method==="GET"){
+  const year=Number(url.searchParams.get("year")),month=Number(new Date().toISOString().slice(5,7));
+  result={year,demands:tasks.length,activities:scheduleMock.length,months:Array.from({length:12},(_,i)=>({month:i+1,demands:i+1===month?tasks.length:0,activities:i+1===month?scheduleMock.length:0}))};
+ }
  else if(p==="/notification-preferences"&&method==="GET")result={preferences:noticeMatrix};
  else if(p==="/notification-preferences"&&method==="PUT"){noticeMatrix=body;result={preferences:noticeMatrix};}
  else if(p==="/personal-reminders"&&method==="GET")result={items:personalMockItems};
@@ -206,7 +219,7 @@ try{
  await page.unroute("**/config.js*");
  await page.reload({waitUntil:"domcontentloaded"});
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
- assert.equal(await page.locator('a[data-route="cronograma"]').count(),0,"Cronograma duplicado não deve aparecer no menu");
+ assert.equal(await page.locator('a[data-route="cronograma"]').count(),1,"Cronograma anual presente no menu PETiano/Tutor");
  assert.equal(await page.locator('a[data-route="reunioes"]').count(),1,"Atas no menu");
  assert.equal(await page.locator('select[data-filter="status"]').count(),1);
  assert.equal(await page.locator('.task-status-atrasada').count()>0,true);
@@ -1157,19 +1170,8 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(m.buttonTop>=m.helpBottom+4,"Botão fica abaixo do título e do ícone ? em "+width+": "+JSON.stringify(m));
   assert.ok(m.buttonWidth>=m.panelWidth*.80,"Botão abaixo usa largura da seção em "+width);
   assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
-  const top=await page.locator(".admin-commission-item").first().evaluate(row=>{
-   const summary=row.querySelector(".admin-commission-item-top > .admin-commission-summary-link");
-   const identity=row.querySelector(".admin-commission-identity");
-   const controls=row.querySelector(".admin-commission-controls");
-   const box=summary?.getBoundingClientRect(),person=identity?.getBoundingClientRect(),
-     foot=controls?.getBoundingClientRect();
-   return {present:Boolean(summary),right:box?.right,personRight:person?.right,
-    buttonTop:box?.top,footerTop:foot?.top,width:box?.width,
-    vacancyAlign:getComputedStyle(row.querySelector(".admin-vacancy-field input")).textAlign};
-  });
-  assert.equal(top.present,true,"Ver resumo está na faixa superior do cartão");
-  assert.ok(top.buttonTop<top.footerTop&&top.right>=top.personRight-2,"Resumo no alto à direita sem competir com vagas: "+JSON.stringify(top));
-  assert.equal(top.vacancyAlign,"center","Número de vagas centralizado em "+width);
+  assert.equal(await page.locator(".admin-commission-summary-link").count(),0,
+   "Resumo foi movido à aba Relatórios.");
   assert.ok(m.itemOverflow<=2,"Controles administrativos não estouram em "+width+": "+JSON.stringify(m));
   assert.ok(m.vacancyWidth>=51&&m.vacancyWidth<=53,
    "Campo Vagas compacto (52px) no celular em "+width+": "+JSON.stringify(m));
@@ -1180,6 +1182,11 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(Math.abs(m.vacancyBottom-m.arrowsBottom)<5,
    "Campo Vagas e setas alinhados na base em "+width+": "+JSON.stringify(m));
  }
+ await page.goto(origin+"/#/admin/relatorios");
+ await page.locator("#admin-report-kind").waitFor();
+ await page.locator("#admin-report-kind").selectOption("comissoes");
+ await page.locator('a[href="#/admin/resumo/videos"]').waitFor();
+ await page.goto(origin+"/#/admin/comissoes");
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator('[data-do="save-vagas"]').count(),0,"Botões Salvar individuais removidos");
  assert.equal(await page.locator('[data-do="save-all-commissions"]').count(),1,"Único Salvar todas no topo");
@@ -1474,5 +1481,80 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.match(preparedImage,/^data:image\/(?:webp|jpeg);base64,/,"Editor produz imagem otimizada");
  assert.ok(preparedImage.length<950000,"Imagem final respeita limite do servidor");
  assert.equal(await page.locator("#commission-image-preview img").count(),1,"Prévia editada aparece no formulário");
+ 
+ // Cronograma anual e ligação com demandas, sem registros duplicados.
+ const cronToday=new Date().toISOString().slice(0,10);
+ tasks.push({...task,id:"demanda-cron-ci",title:"Demanda vinculada ao cronograma",archivedAt:null,
+  registeredAt:cronToday,deadlines:[{id:"prazo-ci",label:"Apresentação",dueAt:cronToday+"T16:00:00"}]});
+ await page.goto(origin+"/#/cronograma");
+ await page.reload({waitUntil:"domcontentloaded"}); // Recarregar bootstrap após adicionar fixture ao mock.
+ await page.locator("#cron-source").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator("#cron-source").inputValue(),"cronograma","Filtro inicial é Cronograma.");
+ assert.equal(await page.locator("#cron-source option").count(),3,"Filtro usa apenas um seletor.");
+ await page.locator(".chron-card").first().waitFor({timeout:10000});
+ assert.equal(await page.locator(".chron-card--demand").count(),0,"Filtro inicial não mistura demandas.");
+ await page.locator("#cron-source").selectOption("demandas");
+ assert.equal(await page.locator("#cron-source").inputValue(),"demandas","Filtro Demandas permanece selecionado.");
+ assert.ok(await page.locator(".chron-card--demand").count()>0,"Demandas aparecem automaticamente no cronograma.");
+ assert.ok(await page.locator('.chron-card--demand a[href^="#/atividade/"]').count()>0,"Demanda abre página original.");
+ assert.ok(await page.locator('.chron-card--demand .chron-demand-title[href^="#/atividade/"]').count()>0,"Título também abre demanda original.");
+ await page.locator("#cron-source").selectOption("todos");
+ assert.ok(await page.locator(".chron-card").count()>scheduleMock.length,"Todos reúne as duas origens.");
+ await page.locator('[data-do="cron-new"]').click();
+ await page.locator("#cron-form").waitFor();
+ await page.locator('#cron-form [name="title"]').fill("Atividade criada no cronograma");
+ await page.locator('#cron-form [name="startTime"]').fill("09:00");
+ await page.locator('#cron-form [name="endTime"]').fill("11:30");
+ await page.locator('#cron-form [name="location"]').fill("Sala PET");
+ await page.locator('#cron-form [name="description"]').fill("Observação personalizada");
+ const posted=page.waitForResponse(r=>r.url().endsWith("/schedule")&&r.request().method()==="POST");
+ await page.locator('#cron-form button[type="submit"]').click();await posted;
+ await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade criada no cronograma"));
+ const added=scheduleMock.find(x=>x.title==="Atividade criada no cronograma");
+ assert.ok(added&&added.startTime==="09:00"&&added.endTime==="11:30");
+ assert.ok(!tasks.some(x=>x.title===added.title),"Cadastro de cronograma não cria demanda.");
+ await page.locator('[data-do="cron-edit"][data-id="'+added.id+'"]').click();
+ await page.locator('#cron-form [name="title"]').fill("Atividade renomeada");
+ await page.locator('#cron-form button[type="submit"]').click();
+ await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade renomeada"));
+ await page.locator('[data-do="cron-toggle"][data-id="'+added.id+'"]').click();
+ await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card")].some(el=>el.textContent.includes("Atividade renomeada")&&el.querySelector(".chron-date--done")));
+ assert.ok(scheduleMock.find(x=>x.id===added.id)?.completedAt,"Borda verde reflete conclusão.");
+ await page.locator('[data-do="cron-remind"][data-id="'+added.id+'"]').click();
+ await page.locator("#cron-reminder-form").waitFor();
+ const future=new Date(Date.now()+3*3600000-3*3600000).toISOString().slice(0,16);
+ await page.locator('#cron-reminder-form [name="at"]').fill(future);
+ const sent=page.waitForResponse(r=>r.url().endsWith("/personal-reminders")&&r.request().method()==="POST");
+ await page.locator('#cron-reminder-form button[type="submit"]').click();await sent;
+ assert.ok(personalMockItems.some(x=>x.scheduleEntryId===added.id&&x.autoDelete===true),"Aviso pessoal vinculado e autoexcluído.");
+ await page.locator('[data-do="cron-view"][data-view="calendario"]').click();
+ await page.locator(".chron-calendar-day").first().waitFor();
+ await page.locator('[data-do="cron-calendar-mode"]').click();
+ assert.equal(await page.locator(".chron-year-month").count(),12,"Calendário anual mostra 12 meses.");
+ await page.locator('[data-do="cron-view"][data-view="lista"]').click();
+ await page.locator('[data-do="cron-delete"][data-id="'+added.id+'"]').click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await page.waitForFunction(()=>![...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade renomeada"));
+ assert.equal(scheduleMock.some(x=>x.id===added.id),false,"Atividade excluída.");
+ await page.goto(origin+"/#/conta");
+ await page.locator('[data-do="account-tab"][data-tab="atalhos"]').click();
+ await page.locator("#quicknav-enabled").waitFor();
+ await page.locator("#quicknav-enabled").uncheck();
+ await page.locator('[data-do="quicknav-save"]').click();
+ await page.waitForFunction(()=>document.querySelector("#pet-quickbar")?.hidden===true);
+ assert.equal(quickNavMock.enabled,false,"Barra desativada individualmente.");
+ await page.locator("#quicknav-enabled").check();
+ await page.locator('[data-do="quicknav-save"]').click();
+ await page.waitForFunction(()=>document.querySelector("#pet-quickbar")?.hidden===false);
+ assert.equal(quickNavMock.enabled,true,"Barra reativada.");
+ await page.goto(origin+"/#/admin/relatorios");
+ await page.locator("#admin-report-kind").waitFor();
+ await page.locator(".chron-report-table tbody tr").first().waitFor({timeout:10000});
+ assert.equal(await page.locator(".chron-report-table tbody tr").count(),12);
+ const pdf=page.waitForEvent("download",{timeout:10000});
+ await page.locator('[data-do="admin-report-pdf"]').click();
+ assert.match((await pdf).suggestedFilename(),/\.pdf$/i,"Relatório exportado em PDF.");
+ await page.locator("#admin-report-kind").selectOption("comissoes");
+ assert.ok(await page.locator('a[href^="#/admin/resumo/"]').count()>0,"Relatórios permite acessar as comissões cadastradas.");
  console.log("BROWSER: navegação, evento Todos(as) só com data, exclusão da conta, responsividade e Admin — OK.");
 }finally{await browser.close();server.kill();}

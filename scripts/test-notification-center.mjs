@@ -147,7 +147,7 @@ const localTime=new Date(Date.now()+2*3600000-3*3600000).toISOString().slice(0,1
 const once={taskId:null,title:"Tomar água",message:"",channels:{email:false,android:true,pc:false},autoDelete:true,recurrence:"once",schedules:[{at:localTime}]};
 assert.ok((await personal.savePersonalReminder(personalDb,user,once)).ok);
 assert.ok(executed.some(x=>x.sql.startsWith("INSERT INTO personal_reminders")&&x.args[2]===null),"Personalizado não exige demanda");
-assert.ok(executed.some(x=>x.sql.startsWith("INSERT INTO personal_reminders")&&JSON.parse(x.args[5]).email===false),"Alarme pessoal nunca salva e-mail ligado");
+assert.ok(executed.some(x=>x.sql.startsWith("INSERT INTO personal_reminders")&&JSON.parse(x.args[6]).email===false),"Alarme pessoal nunca salva e-mail ligado");
 executed=[];
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,taskId:"mine",title:"Minha entrega"})).ok);
 assert.ok(executed.some(x=>x.sql.startsWith("INSERT INTO personal_reminders")&&x.args[2]==="mine"),"Lembrete vinculado apenas à própria pendência");

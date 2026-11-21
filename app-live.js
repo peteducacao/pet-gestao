@@ -58,8 +58,8 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
-const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Demandas",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
+const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma PET",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
 window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();desktopInstallPrompt=event;});
@@ -597,7 +597,7 @@ function renderAdminCommissionSummary(cid){
  const from=state.summaryFrom||current.getFullYear()+"-01-01",to=state.summaryTo||dateKey(current);
  return header("Administração","Resumo · "+c.name,"Consulta privada de participações e atividades.")+
  '<section class="card card-pad admin-summary">'+
- '<div class="admin-summary-navigation"><a href="#/admin/comissoes" class="button ghost">Voltar às comissões</a></div>'+
+ '<div class="admin-summary-navigation"><a href="#/admin/relatorios" class="button ghost">Voltar aos relatórios</a><button type="button" class="button primary" data-do="admin-commission-pdf">'+ico("download")+' Exportar PDF</button></div>'+
  '<form id="admin-summary-form" class="admin-summary-filters" data-commission-id="'+esc(cid)+'">'+
  '<label>De<input type="date" name="from" value="'+esc(from)+'" required></label>'+
  '<label>Até<input type="date" name="to" value="'+esc(to)+'" required></label>'+
@@ -930,6 +930,7 @@ async function reload(){
    if(beforeUser!==(me?.id||"")){
     state.noticePrefs=null;state.noticeDraft=null;state.noticeDirty=false;
     state.reminderItems=[];state.reminderLoadedFor=null;state.reminderEditing=false;
+    state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;
    }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
@@ -940,8 +941,9 @@ async function reload(){
  }
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
  void loadPushPreferencesForActiveUser();
+ void loadQuickNavPrefs();
 }
-function allowPage(p){if(canWrite())return true;return ["inicio","demandas","cronograma","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
+function allowPage(p){if(canWrite())return true;return ["inicio","demandas","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
 function nav(){
  const {page}=routeParts();const breadcrumb=$("#current-page");
  if(breadcrumb)breadcrumb.innerHTML='<button class="crumb" type="button" data-do="back" aria-label="Voltar">'+ico("chevron-left")+'</button><span class="breadcrumb-current">'+esc(routeNames[page]||"PET Gestão")+'</span>';
@@ -962,7 +964,7 @@ function nav(){
  $$(".nav-link[data-route]").forEach(el=>{
    const profile=el.dataset.route==="conta";
    el.classList.toggle("active",profile?(page==="conta"||page==="login"):el.dataset.route===selectedSection);
-   if(["minhas-pendencias","meus-lembretes","reunioes"].includes(el.dataset.route))el.hidden=!canWrite();
+   if(["minhas-pendencias","meus-lembretes","reunioes","cronograma"].includes(el.dataset.route))el.hidden=!canWrite();
    if(profile){
      el.hidden=false;el.href=regularMe?"#/conta":"#/login";
      const label=el.querySelector("span");if(label)label.textContent=regularMe?"Meu perfil":"Entrar";
@@ -1144,11 +1146,188 @@ function renderDemandas(){
  (picking?'<label class="archive-task-selector"><input type="checkbox" data-archive-select value="'+esc(t.id)+'" '+(state.archiveSelectedIds.has(t.id)?"checked":"")+'><span>'+(state.archiveSelectedIds.has(t.id)?"Selecionada para excluir":"Marcar para excluir")+'</span></label>':"")+
  taskCard(t)+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
+// Agenda institucional. Demandas só entram como projeções de leitura, nunca são duplicadas.
+const cronIso=(year,month,day)=>year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+const cronHours=item=>item.startTime&&item.endTime?item.startTime+" às "+item.endTime:
+ item.timeNote||item.startTime||"Horário a definir";
+function cronSources(){
+ const all=[];
+ for(const e of state.cronItems||[])all.push({...e,kind:"cronograma",date:e.startDate,finish:e.endDate,done:!!e.completedAt});
+ for(const t of data.tasks||[]){
+  const due=stages(t).filter(x=>x?.dueAt);
+  const slots=due.length?due:[{id:"registro",label:"Data da demanda",dueAt:taskDate(t)}];
+  for(const slot of slots){
+   if(!slot.dueAt)continue;
+   const date=String(slot.dueAt).slice(0,10);
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
+   all.push({id:t.id,slotId:slot.id||date,kind:"demandas",title:t.title,description:"",
+    date,finish:date,startTime:String(slot.dueAt).includes("T")?String(slot.dueAt).slice(11,16):null,
+    endTime:null,timeNote:null,location:"",stageName:slot.label||"Prazo",
+    done:!!(slot.completedAt||t.archivedAt)});
+  }
+ }
+ return all;
+}
+function cronVisible(){
+ const first=cronIso(state.cronYear,state.cronMonth,1),last=cronIso(state.cronYear,state.cronMonth,new Date(state.cronYear,state.cronMonth+1,0).getDate());
+ return cronSources().filter(x=>(state.cronFilter==="todos"||x.kind===state.cronFilter)&&x.date<=last&&x.finish>=first)
+  .sort((a,b)=>a.date.localeCompare(b.date)||String(a.startTime||"99:99").localeCompare(String(b.startTime||"99:99"))||a.title.localeCompare(b.title,"pt-BR"));
+}
+async function loadCronYear(year){
+ if(!canWrite()||state.cronLoading)return;
+ state.cronLoading=true;state.cronError="";
+ const owner=me?.id;
+ try{
+  const result=await request("/schedule?year="+encodeURIComponent(year));
+  if(owner===me?.id){state.cronItems=result.items||[];state.cronLoadedYear=year;}
+ }catch(error){
+  if(owner===me?.id){state.cronError=error.message;state.cronLoadedYear=year;}
+ }finally{
+  state.cronLoading=false;
+  if(routeParts().page==="cronograma")render();
+ }
+}
+function cronCard(entry){
+ const date=entry.date,day=Number(date.slice(8,10)),month=MONTHS[Number(date.slice(5,7))-1]?.slice(0,3)||"";
+ const isTask=entry.kind==="demandas",finish=entry.finish!==date?" · até "+textDate(entry.finish):"";
+ const actions=isTask?
+  '<a class="chron-card-link" href="#/atividade/'+id(entry.id)+'" aria-label="Abrir demanda '+esc(entry.title)+'">'+ico("chevron-right")+'</a>':
+  '<button type="button" class="chron-icon-action" data-do="cron-toggle" data-id="'+esc(entry.id)+'" title="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'" aria-label="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'">'+ico("check")+'</button>'+
+  '<button type="button" class="chron-icon-action" data-do="cron-edit" data-id="'+esc(entry.id)+'" aria-label="Editar '+esc(entry.title)+'" title="Editar">'+ico("edit")+'</button>'+
+  '<button type="button" class="chron-icon-action" data-do="cron-delete" data-id="'+esc(entry.id)+'" aria-label="Excluir '+esc(entry.title)+'" title="Excluir">'+ico("trash")+'</button>';
+ const hour=isTask?(entry.startTime?entry.startTime+" · ":"")+entry.stageName:cronHours(entry);
+ return '<article class="chron-card '+(isTask?"chron-card--demand":"")+'">'+
+ '<div class="chron-date '+(entry.done?"chron-date--done":"chron-date--pending")+'" aria-label="'+(entry.done?"Concluída":"Pendente")+' em '+textDate(date)+'"><strong>'+day+'</strong><small>'+esc(month)+'</small></div>'+
+ '<div class="chron-card-content"><div class="chron-card-top">'+(isTask?'<a class="chron-demand-title" href="#/atividade/'+id(entry.id)+'">'+esc(entry.title)+'</a>':'<strong>'+esc(entry.title)+'</strong>')+
+ (isTask?'<span class="chron-demand-mark" title="Demanda">Demanda</span>':"")+'</div>'+
+ '<div class="chron-meta">'+ico("clock")+' '+esc(hour)+esc(finish)+'</div>'+
+ (entry.location&&entry.location!=="—"?'<div class="chron-meta">'+ico("folder")+' '+esc(entry.location)+'</div>':"")+
+ (entry.description?'<p class="chron-desc">'+esc(entry.description)+'</p>':"")+
+ '<div class="chron-actions">'+
+ '<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>'+
+ actions+'</div></div></article>';
+}
+function cronEditor(){
+ const editing=state.cronEditing;
+ if(!editing)return "";
+ const old=editing==="new"?null:(state.cronItems||[]).find(x=>x.id===editing);
+ if(!old&&editing!=="new")return "";
+ const first=old?.startDate||dateKey(current),last=old?.endDate||first;
+ const imported=old?.source==="word-2026";
+ return '<section class="card card-pad chron-editor"><div class="chron-editor-head"><h2>'+(old?"Editar atividade":"Nova atividade")+'</h2><button class="chron-icon-action" type="button" data-do="cron-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
+ '<form id="cron-form" class="register-form" data-id="'+esc(old?.id||"")+'">'+
+ '<label>Nome da atividade *<input name="title" maxlength="180" required placeholder="Ex.: Oficina de Fotografia" value="'+esc(old?.title||"")+'"></label>'+
+ '<div class="chron-form-grid"><label>Data de início *<input type="date" name="startDate" value="'+esc(first)+'" required></label>'+
+ '<label>Data de término *<input type="date" name="endDate" value="'+esc(last)+'" required></label></div>'+
+ '<div class="chron-form-grid"><label>Horário de início'+(imported?"":" *")+'<input type="time" name="startTime" value="'+esc(old?.startTime||"")+'" '+(imported?"":"required")+'></label>'+
+ '<label>Horário de término'+(imported?"":" *")+'<input type="time" name="endTime" value="'+esc(old?.endTime||"")+'" '+(imported?"":"required")+'></label></div>'+
+ (imported&&old?.timeNote?'<p class="chron-legacy">Horário registrado no Word: '+esc(old.timeNote)+'. Se houver horário exato, preencha início e término.</p>':"")+
+ '<input type="hidden" name="timeNote" value="'+esc(old?.timeNote||"")+'">'+
+ '<label>Local<input name="location" maxlength="240" value="'+esc(old?.location||"")+'" placeholder="Ex.: Sala do PET"></label>'+
+ '<label>Descrição / observações<textarea name="description" maxlength="1800" rows="3" placeholder="Texto complementar (opcional)">'+esc(old?.description||"")+'</textarea></label>'+
+ '<div class="chron-form-actions"><button class="button ghost" type="button" data-do="cron-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar atividade</button></div></form></section>';
+}
+function cronReminderDialog(){
+ const item=state.cronReminder;if(!item)return "";
+ return '<div class="chron-reminder-overlay" role="presentation"><section class="chron-reminder-panel" role="dialog" aria-modal="true" aria-labelledby="cron-reminder-title">'+
+ '<div class="chron-editor-head"><div><span class="chron-kicker">AVISO PESSOAL</span><h2 id="cron-reminder-title">Lembrar: '+esc(item.title)+'</h2></div>'+
+ '<button type="button" class="chron-icon-action" data-do="cron-remind-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
+ '<form id="cron-reminder-form"><label>Quando deseja ser lembrado?<input type="datetime-local" name="at" value="'+esc(reminderLocalValue(3600000))+'" required></label>'+
+ '<p class="chron-legacy">Será enviado ao celular ou PC conectado. Depois do envio, o lembrete é excluído de Meus lembretes.</p>'+
+ '<button class="button primary" type="submit">'+ico("bell")+' Salvar lembrete</button></form></section></div>';
+}
+function cronCalendar(items){
+ const y=state.cronYear,m=state.cronMonth;
+ if(state.cronCalendarMode==="ano"){
+  return '<section class="chron-year-grid" aria-label="Calendário anual">'+MONTHS.map((label,index)=>{
+   const n=cronSources().filter(x=>(state.cronFilter==="todos"||x.kind===state.cronFilter)&&x.date<=cronIso(y,index,new Date(y,index+1,0).getDate())&&x.finish>=cronIso(y,index,1)).length;
+   return '<button type="button" class="chron-year-month" data-do="cron-year-month" data-month="'+index+'"><strong>'+esc(label)+'</strong><span>'+n+' '+(n===1?"atividade":"atividades")+'</span></button>';
+  }).join("")+'</section>';
+ }
+ const firstDay=(new Date(y,m,1).getDay()+6)%7,lastDay=new Date(y,m+1,0).getDate();
+ const chosen=state.cronSelectedDay||dateKey(current),isCurrentMonth=chosen.slice(0,7)===cronIso(y,m,1).slice(0,7);
+ const selected=isCurrentMonth?chosen:cronIso(y,m,1);
+ const week=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
+ const cells=Array.from({length:firstDay},()=>'<span class="chron-blank"></span>');
+ for(let day=1;day<=lastDay;day++){
+  const date=cronIso(y,m,day);
+  const matching=items.filter(x=>x.date<=date&&x.finish>=date);
+  const kinds=[...new Set(matching.map(x=>x.kind))],hasCompleted=matching.some(x=>x.done),hasPending=matching.some(x=>!x.done);
+  cells.push('<button type="button" data-do="cron-day" data-date="'+date+'" class="chron-calendar-day '+(selected===date?"active":"")+'" '+(date===dateKey(current)?'aria-current="date"':"")+' aria-label="'+textDate(date)+'; '+matching.length+' registros"><span>'+day+'</span><i>'+
+    (hasPending?'<b class="pending"></b>':"")+(hasCompleted?'<b class="done"></b>':"")+(kinds.includes("demandas")?'<b class="demand"></b>':"")+'</i></button>');
+ }
+ const picked=items.filter(x=>x.date<=selected&&x.finish>=selected);
+ return '<section class="chron-calendar card card-pad"><div class="chron-weekdays">'+week.map(v=>'<span>'+v+'</span>').join("")+'</div>'+
+ '<div class="chron-days">'+cells.join("")+'</div></section>'+
+ '<div class="chron-day-caption">Dia '+textDate(selected)+'</div>'+
+ (picked.length?'<div class="chron-cards">'+picked.map(cronCard).join("")+'</div>':'<div class="chron-empty">Nenhuma atividade neste dia.</div>');
+}
+const QUICK_NAV_ITEMS=[["inicio","Início","grid"],["cronograma","Cronograma","calendar"],["demandas","Demandas","list"],["meus-lembretes","Lembretes","bell"],["conta","Perfil","user"],["minhas-pendencias","Pendências","checklist"],["comissoes","Comissões","users"],["reunioes","Atas","calendar"],["admin","Administração","settings"]];
+const quickAvailable=()=>{
+ const role=me?.role;
+ return QUICK_NAV_ITEMS.filter(([v])=>(role!=="usuario"||!["cronograma","meus-lembretes","minhas-pendencias","reunioes"].includes(v))&&(v!=="admin"||role==="admin"));
+};
+function renderQuickNav(){
+ const bar=$("#pet-quickbar");if(!bar)return;
+ const prefs=state.quickNavPrefs;
+ if(!me||me.mustChangePassword||!prefs?.enabled||routeParts().page==="login"){
+  bar.hidden=true;bar.innerHTML="";return;
+ }
+ const available=new Map(quickAvailable().map(x=>[x[0],x]));
+ const list=(prefs.items||[]).filter(v=>available.has(v)).slice(0,5);
+ bar.innerHTML=list.map(v=>{
+  const [,label,symbol]=available.get(v),active=routeParts().page===v||(v==="admin"&&routeParts().page==="admin");
+  return '<a href="#/'+(v==="admin"?"admin/painel":v)+'" class="pet-quicknav-link '+(active?"active":"")+'" '+(active?'aria-current="page"':'')+'>'+ico(symbol)+'<span>'+esc(label)+'</span></a>';
+ }).join("");
+ bar.hidden=!list.length;
+}
+async function loadQuickNavPrefs(){
+ if(!me||me.mustChangePassword){state.quickNavPrefs=null;renderQuickNav();return}
+ const account=me.id;
+ try{
+  const result=await request("/quick-nav");
+  if(me?.id!==account)return;
+  state.quickNavPrefs=result;state.quickNavDraft={enabled:result.enabled,items:[...result.items]};
+  renderQuickNav();
+  if(routeParts().page==="conta"&&state.accountTab==="atalhos")render();
+ }catch(error){console.warn("PET Gestão: atalhos indisponíveis:",error.message);renderQuickNav()}
+}
+function renderQuickNavSettings(){
+ const available=quickAvailable(),prefs=state.quickNavDraft||state.quickNavPrefs||{enabled:true,items:["inicio","cronograma","demandas","meus-lembretes","conta"]};
+ const selected=prefs.items||[];
+ return '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEU CELULAR</span><h2>Navegação rápida</h2><p>Personalize a barra inferior e escolha até cinco atalhos. A seleção é salva na sua conta.</p></div>'+
+ '<section class="card card-pad chron-quicknav-settings"><label class="chron-switch"><input id="quicknav-enabled" type="checkbox" '+(prefs.enabled?"checked":"")+'> Ativar barra rápida no celular</label>'+
+ '<p class="chron-legacy">O menu lateral continua disponível. Os atalhos respeitam suas permissões.</p>'+
+ '<div class="chron-shortcut-grid">'+available.map(([key,label,icon])=>
+  '<label class="chron-shortcut-option"><input type="checkbox" data-quicknav-choice="'+esc(key)+'" '+(selected.includes(key)?"checked":"")+' '+(!selected.includes(key)&&selected.length>=5?"disabled":"")+'> '+ico(icon)+' '+esc(label)+'</label>').join("")+'</div>'+
+ '<h3>Ordem da barra</h3><div class="chron-shortcut-order">'+selected.map((key,i)=>{
+  const found=available.find(x=>x[0]===key);if(!found)return "";
+  return '<div class="chron-shortcut-selected">'+ico(found[2])+' <span>'+esc(found[1])+'</span>'+
+   '<button type="button" data-do="quicknav-move" data-index="'+i+'" data-direction="-1" aria-label="Mover '+esc(found[1])+' para cima" '+(i===0?"disabled":"")+'>↑</button>'+
+   '<button type="button" data-do="quicknav-move" data-index="'+i+'" data-direction="1" aria-label="Mover '+esc(found[1])+' para baixo" '+(i===selected.length-1?"disabled":"")+'>↓</button></div>';
+ }).join("")+'</div>'+
+ '<button type="button" class="button primary" data-do="quicknav-save">'+ico("check")+' Salvar meus atalhos</button></section>';
+}
 function renderCronograma(){
- const all=data.tasks.filter(t=>active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
- const groups=new Map();for(const t of all){const w=weekFor(taskDate(t));if(!groups.has(w))groups.set(w,[]);groups.get(w).push(t)}
- return header("Planejamento","Cronograma","Acompanhe os prazos das comissões.")+'<section class="card card-pad">'+period()+
- (groups.size?[...groups].sort((a,b)=>a[0]-b[0]).map(([week,items])=>'<section class="committee-group"><h3 class="committee-group-label">Semana '+week+' · '+MONTHS[state.month]+'</h3>'+items.map(t=>taskCard(t)).join("")+'</section>').join(""):empty("Sem atividades neste período"))+'</section>';
+ if(!canWrite())return header("Acesso restrito","Cronograma PET","Área exclusiva de PETianos(as), Tutoria e Administração.");
+ const y=state.cronYear,m=state.cronMonth,items=cronVisible();
+ const loaded=state.cronLoadedYear===y;
+ const monthActions='<div class="chron-month-nav"><button type="button" data-do="cron-prev" aria-label="Mês anterior">'+ico("chevron-left")+'</button>'+
+ '<strong>'+MONTHS[m]+' de '+y+'</strong><button type="button" data-do="cron-next" aria-label="Próximo mês">'+ico("chevron-right")+'</button></div>';
+ const toggle='<div class="chron-view-actions"><button class="button ghost" type="button" data-do="cron-view" data-view="'+(state.cronView==="lista"?"calendario":"lista")+'">'+ico("calendar")+' '+(state.cronView==="lista"?"Ver calendário":"Ver lista")+'</button>'+
+ (state.cronView==="calendario"?'<button class="button ghost" type="button" data-do="cron-calendar-mode">'+(state.cronCalendarMode==="ano"?"Ver mês":"Ver ano inteiro")+'</button>':"")+'</div>';
+ const filters='<div class="chron-toolbar"><label class="chron-origin-picker">Exibir<select class="select" id="cron-source">'+
+ [["cronograma","Cronograma"],["demandas","Demandas"],["todos","Todos"]].map(([v,l])=>opt(v,l,state.cronFilter)).join("")+'</select></label>'+
+ '<label class="chron-year-picker">Ano<select class="select" id="cron-year">'+Array.from({length:12},(_,i)=>current.getFullYear()-4+i).map(v=>opt(v,v,y)).join("")+'</select></label>'+
+ toggle+'</div>';
+ let content=!loaded?'<div class="chron-empty">Carregando atividades…</div>':
+ state.cronError?'<div class="chron-empty">'+esc(state.cronError)+'</div>':
+ state.cronView==="calendario"?cronCalendar(items):
+ items.length?'<div class="chron-cards">'+items.map(cronCard).join("")+'</div>':
+ '<div class="chron-empty">Nenhum registro neste mês para o filtro escolhido.</div>';
+ return header("Organização","Cronograma PET","Atividades do PET organizadas por data, horário e local.",
+ '<button type="button" class="button primary" data-do="cron-new">'+ico("plus")+' Nova atividade</button>')+
+ '<div class="chron-page">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+'</div>';
 }
 const COMMISSION_PRESET_ARTS=[
  ["videos","Vídeos"],["cards","Cards"],["imaginacao","ImaginAÇÃO"],
@@ -2484,7 +2663,7 @@ function renderAccount(){
   '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
   (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
   '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
- const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos"].includes(state.accountTab)?state.accountTab:"perfil");
+ const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
  const tabButton=(key,name,description,iconName)=>
   '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
   '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
@@ -2536,9 +2715,11 @@ function renderAccount(){
   tabButton("seguranca","Segurança","E-mail, senha e exclusão","lock")+
   tabButton("notificacoes","Notificações","E-mail, PC e celular","bell")+
   tabButton("aplicativos","Aplicativos","Instalar no PC, Android ou iOS","download")+
+  tabButton("atalhos","Navegação rápida","Atalhos do celular","grid")+
   '</nav><div class="account-hub-main">'+
   panel("perfil",profileContent)+panel("seguranca",securityContent)+
   panel("notificacoes",notificationContent)+panel("aplicativos",appContent)+
+  panel("atalhos",renderQuickNavSettings())+
   '</div></div>'+
  '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
   '<div class="account-delete-backdrop" data-do="account-delete-close"></div>'+
@@ -2626,9 +2807,84 @@ function closeAdminMenu(){
   setTimeout(()=>{if(overlay.isConnected)overlay.remove()},230);
  }
 }
+
+function reportPdf(filename,title,lines){
+ // PDF local, sem serviços externos: fonte WinAnsi para caracteres em português.
+ const cp={"€":128,"‚":130,"ƒ":131,"„":132,"…":133,"†":134,"‡":135,"ˆ":136,"‰":137,"Š":138,"‹":139,"Œ":140,"Ž":142,"‘":145,"’":146,"“":147,"”":148,"•":149,"–":150,"—":151,"˜":152,"™":153,"š":154,"›":155,"œ":156,"ž":158,"Ÿ":159};
+ const encode=v=>Array.from(String(v)).map(c=>{
+  if("()\\".includes(c))return "\\"+c;
+  const n=cp[c]??c.charCodeAt(0);
+  if(n<32||n>255)return "?";
+  return n>126?"\\"+n.toString(8).padStart(3,"0"):c;
+ }).join("");
+ const chunks=[];for(let i=0;i<lines.length;i+=43)chunks.push(lines.slice(i,i+43));
+ if(!chunks.length)chunks.push([]);
+ const objects=[],n=chunks.length,fontId=3+n*2;
+ objects[1]="<< /Type /Catalog /Pages 2 0 R >>";
+ objects[2]="<< /Type /Pages /Count "+n+" /Kids ["+chunks.map((_,i)=>(3+i*2)+" 0 R").join(" ")+"] >>";
+ objects[fontId]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+ chunks.forEach((lines,i)=>{
+  const pageId=3+i*2,contentId=pageId+1;
+  objects[pageId]="<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 "+fontId+" 0 R >> >> /Contents "+contentId+" 0 R >>";
+  const cmds=["0.44 0.25 0.72 rg","40 792 515 5 re f",
+   "0.22 0.14 0.36 rg","BT /F1 17 Tf 42 753 Td ("+encode(title)+") Tj ET",
+   "0.44 0.39 0.52 rg","BT /F1 9 Tf 42 730 Td ("+encode("PET Educação · Universidade Federal de Sergipe")+") Tj ET",
+   "0.27 0.22 0.34 rg"];
+  lines.forEach((line,j)=>cmds.push("BT /F1 10 Tf 44 "+(700-j*15)+" Td ("+encode(line)+") Tj ET"));
+  cmds.push("0.55 0.5 0.6 rg","BT /F1 9 Tf 44 39 Td ("+encode("Página "+(i+1)+" / "+n)+") Tj ET");
+  const stream=cmds.join("\n")+"\n";
+  objects[contentId]="<< /Length "+stream.length+" >>\nstream\n"+stream+"endstream";
+ });
+ let output="%PDF-1.4\n",pos=[0];
+ for(let i=1;i<objects.length;i++){pos[i]=output.length;output+=i+" 0 obj\n"+objects[i]+"\nendobj\n"}
+ const xref=output.length;
+ output+="xref\n0 "+objects.length+"\n0000000000 65535 f \n";
+ for(let i=1;i<objects.length;i++)output+=String(pos[i]).padStart(10,"0")+" 00000 n \n";
+ output+="trailer\n<< /Size "+objects.length+" /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF";
+ const bytes=Uint8Array.from(output,c=>c.charCodeAt(0)&255);
+ const url=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+ const a=document.createElement("a");a.href=url;a.download=filename;
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+async function loadAdminAnnualReport(){
+ if(!isAdmin()||state.adminReportLoading||state.adminReportView!=="cronograma")return;
+ const year=state.adminReportYear,owner=me?.id;
+ state.adminReportLoading=true;
+ try{
+  const result=await request("/admin/annual-report?year="+encodeURIComponent(year),"GET",undefined,"admin");
+  if(!Array.isArray(result?.months)||result.months.length!==12)throw Error("Resposta do relatório inválida.");
+  if(me?.id===owner){state.adminReportData=result;state.adminReportLoadedYear=year;state.adminReportError="";}
+ }catch(e){state.adminReportData=null;state.adminReportLoadedYear=year;state.adminReportError=e.message;}
+ finally{state.adminReportLoading=false;if(routeParts().page==="admin"&&state.adminTab==="relatorios")render()}
+}
+function renderAdminReports(){
+ const commissionView=state.adminReportView==="comissoes";
+ const controls='<div class="chron-report-controls"><label>Visualizar relatório<select class="select" id="admin-report-kind">'+
+  [["cronograma","Cronograma"],["comissoes","Comissões"]].map(([v,l])=>opt(v,l,state.adminReportView)).join("")+'</select></label>'+
+  (!commissionView?'<label>Ano<select class="select" id="admin-report-year">'+Array.from({length:12},(_,i)=>current.getFullYear()-5+i).map(y=>opt(y,y,state.adminReportYear)).join("")+'</select></label>':"")+'</div>';
+ if(commissionView){
+  const cid=state.adminReportCommission||data.committees[0]?.id||"";
+  return '<section class="card card-pad chron-report">'+controls+
+   '<h2>Relatório das comissões</h2><p class="chron-report-note">Selecione a comissão para consultar o relatório já existente.</p>'+
+   '<label>Comissão<select class="select" id="admin-report-commission">'+data.committees.map(c=>opt(c.id,c.name,cid)).join("")+'</select></label>'+
+   (cid?'<a class="button primary" href="#/admin/resumo/'+id(cid)+'">Consultar comissão</a>':"")+'</section>';
+ }
+ const r=state.adminReportLoadedYear===state.adminReportYear?state.adminReportData:null;
+ return '<section class="card card-pad chron-report">'+controls+
+  '<div class="chron-report-head"><h2>Resumo anual · '+state.adminReportYear+'</h2>'+
+  (r?'<button class="button primary" type="button" data-do="admin-report-pdf">'+ico("download")+' Exportar PDF</button>':"")+'</div>'+
+  (!r?'<p class="chron-report-note">'+esc(state.adminReportError||"Carregando dados reais…")+'</p>':
+   '<div class="chron-report-metrics"><div><strong>'+r.demands+'</strong><span>Demandas no ano</span></div>'+
+   '<div><strong>'+r.activities+'</strong><span>Atividades do cronograma</span></div></div>'+
+   '<h3>Quantidade em cada mês</h3><div class="chron-report-table-wrap"><table class="chron-report-table">'+
+   '<thead><tr><th>Mês</th><th>Demandas</th><th>Cronograma</th></tr></thead><tbody>'+
+   r.months.map(x=>'<tr><td>'+MONTHS[x.month-1]+'</td><td>'+x.demands+'</td><td>'+x.activities+'</td></tr>').join("")+
+   '</tbody></table></div>')+'</section>';
+}
+
 function renderAdmin(){
  const adminPart=routeParts().parts;
- if(adminPart.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
+ if(adminPart.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
  if(!isAdmin()&&hasAdminRole(me)&&!me.mustChangePassword)return header("Administração","Ativar painel administrativo","Seu cargo já é Administração. Confirme sua senha para ativar o acesso nesta sessão.")+
   '<section class="card card-pad live-auth admin-activation-panel"><h2>Ativar Administração</h2>'+
   '<p>O cargo foi concedido, mas sua sessão atual foi iniciada antes da promoção. Por segurança, confirme a senha da sua própria conta. Você não precisa trocar de usuário.</p>'+
@@ -2647,7 +2903,7 @@ function renderAdmin(){
  '<div class="admin-commission-item-top"><div class="admin-commission-identity"><span class="admin-commission-avatar">'+
  (c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
  '</span><div class="admin-commission-title"><strong>'+esc(c.name)+'</strong><small data-commission-position>Posição '+(i+1)+'</small></div></div>'+
- '<a class="button ghost admin-commission-summary-link" href="#/admin/resumo/'+id(c.id)+'">'+ico("list")+' Ver resumo</a></div>'+
+ '</div>'+
  '<div class="admin-commission-controls"><label class="admin-vacancy-field"><span>Vagas</span>'+
  '<input type="number" min="0" max="999" data-vagas="'+esc(c.id)+'" value="'+esc(c.maxMembers||0)+'" inputmode="numeric"></label>'+
  '<div class="admin-order-controls"><button class="button ghost admin-order-button" title="Subir" aria-label="Subir '+esc(c.name)+'" data-do="move-commission" data-id="'+esc(c.id)+'" data-direction="-1" '+(i===0?"disabled":"")+'>↑</button>'+
@@ -2667,8 +2923,9 @@ function renderAdmin(){
  '<label>Canal<select name="channel" id="notification-template-channel" class="select">'+[["email","E-mail"],["app","Aplicativo (celular e PC)"]].map(([v,l])=>opt(v,l,state.templateChannel)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
  '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo</button></div></form></section>'+
- '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>';
- const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
+ '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>'+
+ '<section class="admin-panel" '+(state.adminTab==="relatorios"?"":'hidden')+'>'+renderAdminReports()+'</section>';
+ const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["relatorios","Relatórios","list"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
  const stats=[["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
@@ -2683,11 +2940,11 @@ function renderAdmin(){
  '<section class="admin-box"><div class="admin-history-head"><h2>Últimas alterações</h2>'+
  (recent.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':"")+
  '</div>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
- const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","emails","configuracoes"];
+ const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","relatorios","emails","configuracoes"];
  const tabRoute=adminParts.length===1&&tabNames.includes(adminParts[0])?adminParts[0]:null;
  if(tabRoute)state.adminTab=tabRoute;
  const subroute=tabRoute?[]:adminParts,embedded=subroute.length?adminEmbeddedView(subroute):"";
- const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",configuracoes:"Configurações"};
+ const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",relatorios:"Relatórios",configuracoes:"Configurações"};
  return '<div class="admin-layout">'+
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
@@ -2876,7 +3133,7 @@ function render(){
  let html="";
  if(page==="inicio")html=renderHome();
  else if(page==="demandas")html=renderDemandas();
- else if(page==="cronograma")html=renderDemandas();
+ else if(page==="cronograma")html=renderCronograma();
  else if(page==="comissoes")html=!parts.length?renderComissoes():parts[0]==="nova"?renderCommitteeEdit(""):parts[0]==="editar"?renderCommitteeEdit(parts.slice(1).join("/")):renderCommittee(parts.join("/"));
  else if(page==="ajuda")html=renderHelp();
  else if(page==="registrar")html=renderTaskForm(parts.join("/"));
@@ -2894,6 +3151,8 @@ function render(){
  else html=renderHome();
  root.innerHTML=html;
  compactContextHelp(root);
+ renderQuickNav();
+ if(page==="cronograma"&&canWrite()&&state.cronLoadedYear!==state.cronYear&&!state.cronLoading)void loadCronYear(state.cronYear);
  if(page==="meus-lembretes"&&state.reminderLoadedFor!==me?.id&&!state.reminderLoading)void loadPersonalReminders();
  if(page==="admin"&&isAdmin()&&parts[0]==="resumo"&&parts[1])
    loadAdminCommissionSummary(parts[1]);
@@ -2904,10 +3163,11 @@ function render(){
   meetingFormDraft={route:location.hash,snapshot:meetingDraftSnapshot()};
  else if(!meetingDraftRoute(location.hash))resetMeetingDraft();
  lastStatusSnapshot=statusSnapshot();
- if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","emails","configuracoes"].includes(parts[0])))){
+ if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();updateMailScheduleButton();loadMailHistory();}
    if(state.adminTab==="painel")loadMailHistory();
+   if(state.adminTab==="relatorios"&&state.adminReportLoadedYear!==state.adminReportYear&&!state.adminReportLoading)void loadAdminAnnualReport();
  }
 }
 async function askNotification(participants=null){
@@ -3113,6 +3373,86 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="admin-report-pdf"){
+  const r=state.adminReportData;
+  if(!isAdmin()||!r||r.year!==state.adminReportYear)return setToast("Relatório ainda indisponível.");
+  const lines=["Ano: "+r.year,"Demandas no ano: "+r.demands,"Atividades do cronograma: "+r.activities,"",
+   "MÊS                          DEMANDAS       CRONOGRAMA",
+   ...r.months.map(x=>MONTHS[x.month-1].padEnd(28," ")+"   "+String(x.demands).padStart(5," ")+"              "+String(x.activities).padStart(5," "))];
+  reportPdf("PET-Gestao-Relatorio-"+r.year+".pdf","Relatório anual PET "+r.year,lines);return;
+ }
+ if(action==="admin-commission-pdf"){
+  const r=state.summaryData;
+  if(!isAdmin()||!r)return setToast("Consulte primeiro o resumo da comissão.");
+  const lines=["Período: "+textDate(r.from)+" a "+textDate(r.to),
+   "Cadastradas: "+r.registered,"Concluídas: "+r.concluded,"Com atraso: "+r.concludedLate,
+   "Não concluídas: "+r.notConcluded,"Entradas: "+r.entered,"Saídas: "+r.exited,"",
+   "PARTICIPAÇÃO DOS INTEGRANTES",
+   ...(r.members||[]).map(m=>m.name+" - Atribuídas: "+m.assigned+" - Realizadas: "+m.completed+" - Não realizadas: "+m.notCompleted)];
+  reportPdf("PET-Gestao-Comissao.pdf","Comissão: "+(r.commission?.name||""),lines);return;
+ }
+ if(action==="quicknav-move"){
+  const index=Number(b.dataset.index),other=index+Number(b.dataset.direction);
+  const list=state.quickNavDraft?.items;
+  if(!list||index<0||other<0||other>=list.length)return;
+  [list[index],list[other]]=[list[other],list[index]];render();return;
+ }
+ if(action==="quicknav-save"){
+  if(!state.quickNavDraft)return setToast("Atalhos ainda não carregados.");
+  const prefs={enabled:state.quickNavDraft.enabled,items:state.quickNavDraft.items};
+  if(prefs.items.length<1)return setToast("Selecione ao menos um atalho.");
+  b.disabled=true;
+  try{
+   const saved=await request("/quick-nav","PUT",prefs);
+   state.quickNavPrefs=saved;state.quickNavDraft={enabled:saved.enabled,items:[...saved.items]};
+   render();setToast("Barra rápida configurada!");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="cron-new"){state.cronEditing="new";state.cronReminder=null;render();$("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return}
+ if(action==="cron-close"){state.cronEditing=null;render();return}
+ if(action==="cron-edit"){
+  if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
+  state.cronEditing=tid;state.cronReminder=null;render();
+  $("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return;
+ }
+ if(action==="cron-toggle"){
+  const item=(state.cronItems||[]).find(x=>x.id===tid);
+  if(!item)return setToast("Atividade não encontrada.");
+  b.disabled=true;
+  try{await request("/schedule/"+id(tid),"PATCH",{completed:!item.completedAt});
+   state.cronLoadedYear=null;await loadCronYear(state.cronYear);setToast(item.completedAt?"Atividade reaberta.":"Atividade concluída.");
+  }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="cron-delete"){
+  const item=(state.cronItems||[]).find(x=>x.id===tid);
+  if(!item)return setToast("Atividade não encontrada.");
+  if(!await askConfirm('Excluir "'+item.title+'"? Os lembretes vinculados a ela também serão cancelados.',{title:"Excluir atividade?",danger:true,confirmLabel:"Excluir atividade"}))return;
+  b.disabled=true;
+  try{await request("/schedule/"+id(tid),"DELETE");state.cronEditing=null;state.cronLoadedYear=null;
+   await loadCronYear(state.cronYear);setToast("Atividade excluída.");
+  }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="cron-remind"){
+  const entry=b.dataset.kind==="cronograma"?(state.cronItems||[]).find(x=>x.id===tid):null;
+  const task=b.dataset.kind==="demandas"?(data.tasks||[]).find(x=>x.id===tid):null;
+  if(!entry&&!task)return setToast("Registro não encontrado.");
+  state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||""};
+  state.cronEditing=null;render();$("#cron-reminder-form input[name='at']")?.focus();return;
+ }
+ if(action==="cron-remind-close"){state.cronReminder=null;render();return}
+ if(action==="cron-prev"||action==="cron-next"){
+  const d=new Date(state.cronYear,state.cronMonth+(action==="cron-next"?1:-1),1);
+  state.cronYear=d.getFullYear();state.cronMonth=d.getMonth();state.cronSelectedDay=cronIso(state.cronYear,state.cronMonth,1);render();return;
+ }
+ if(action==="cron-view"){state.cronView=b.dataset.view==="calendario"?"calendario":"lista";state.cronCalendarMode="mes";render();return}
+ if(action==="cron-calendar-mode"){state.cronCalendarMode=state.cronCalendarMode==="mes"?"ano":"mes";render();return}
+ if(action==="cron-year-month"){const month=Number(b.dataset.month);if(!Number.isInteger(month)||month<0||month>11)return;
+  state.cronMonth=month;state.cronCalendarMode="mes";state.cronSelectedDay=cronIso(state.cronYear,month,1);render();return}
+ if(action==="cron-day"){if(!/^\d{4}-\d{2}-\d{2}$/.test(b.dataset.date||""))return;
+  state.cronSelectedDay=b.dataset.date;render();return}
  if(action==="save-notice-matrix"){
   if(!state.noticeDraft)return setToast("Aguarde o carregamento das suas preferências.");
   const settings=JSON.parse(JSON.stringify(state.noticeDraft));
@@ -3197,7 +3537,7 @@ async function handleClick(e){
  }
  if(action==="account-tab"){
   const name=b.dataset.tab;
-  if(!["perfil","seguranca","notificacoes","aplicativos"].includes(name))return;
+  if(!["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(name))return;
   if(me?.mustChangePassword&&name!=="seguranca")return setToast("Altere a senha temporária antes de continuar.");
   state.accountTab=name;
   document.querySelectorAll(".account-hub-nav-btn").forEach(button=>{
@@ -3851,6 +4191,35 @@ async function handleSubmit(e){
    await loadAdminCommissionSummary(cid);
    return;
  }
+ if(form.id==="cron-form"){
+  if(!canWrite())return setToast("Acesso não autorizado.");
+  const fields=userFields(form),eventId=form.dataset.id;
+  const payload={title:fields.title,description:fields.description||"",startDate:fields.startDate,endDate:fields.endDate,
+   startTime:fields.startTime||null,endTime:fields.endTime||null,timeNote:fields.timeNote||null,location:fields.location||""};
+  const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+  try{
+   await request("/schedule"+(eventId?"/"+id(eventId):""),eventId?"PUT":"POST",payload);
+   state.cronEditing=null;state.cronLoadedYear=null;await loadCronYear(state.cronYear);
+   setToast(eventId?"Atividade atualizada.":"Atividade cadastrada no Cronograma.");
+  }finally{if(button?.isConnected)button.disabled=false}
+  return;
+ }
+ if(form.id==="cron-reminder-form"){
+  if(!canWrite()||!state.cronReminder)return setToast("Atividade não disponível.");
+  const date=form.elements.at?.value;
+  if(!date)return setToast("Selecione a data e a hora do lembrete.");
+  const target={...state.cronReminder};
+  const payload={taskId:null,scheduleEntryId:target.entryId,title:target.title,message:"",
+   recurrence:"once",repeatUntil:null,autoDelete:true,
+   channels:{email:false,android:true,pc:true},schedules:[{at:date}]};
+  const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+  try{
+   await request("/personal-reminders","POST",payload);
+   state.cronReminder=null;state.reminderLoadedFor=null;
+   render();setToast("Lembrete salvo em Meus lembretes. Será excluído depois do aviso.");
+  }finally{if(button?.isConnected)button.disabled=false}
+  return;
+ }
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){
@@ -4029,6 +4398,26 @@ async function handleChange(e){
    return;
  }
 
+ if(t.id==="quicknav-enabled"){
+  if(!state.quickNavDraft)return;
+  state.quickNavDraft.enabled=t.checked;render();return;
+ }
+ if(t.hasAttribute("data-quicknav-choice")){
+  if(!state.quickNavDraft)return;
+  const key=t.dataset.quicknavChoice,list=state.quickNavDraft.items;
+  if(t.checked){if(list.length>=5){t.checked=false;return setToast("Escolha até cinco atalhos.");}if(!list.includes(key))list.push(key);}
+  else state.quickNavDraft.items=list.filter(v=>v!==key);
+  render();return;
+ }
+ if(t.id==="admin-report-kind"){state.adminReportView=t.value==="comissoes"?"comissoes":"cronograma";render();return}
+ if(t.id==="admin-report-year"){const y=Number(t.value);if(y>=2000&&y<=2100){state.adminReportYear=y;state.adminReportData=null;state.adminReportLoadedYear=null;state.adminReportError="";render();}return}
+ if(t.id==="admin-report-commission"){state.adminReportCommission=t.value;render();return}
+ if(t.id==="cron-source"){state.cronFilter=["cronograma","demandas","todos"].includes(t.value)?t.value:"cronograma";render();return}
+ if(t.id==="cron-year"){
+  const year=Number(t.value);if(Number.isInteger(year)&&year>=2000&&year<=2100){
+   state.cronYear=year;state.cronSelectedDay=cronIso(year,state.cronMonth,1);render();
+  }return;
+ }
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
  if(t.id==="account-photo-input"){
    const original=t.files?.[0];t.value="";
@@ -4072,6 +4461,8 @@ function onNavigation(){
  closeTaskPhoto();closeCommissionImageEditor();
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash)state.adminMenuOpen=false;
+ if(lastHash!==location.hash&&location.hash==="#/admin/relatorios"){state.adminReportLoadedYear=null;state.adminReportError="";}
+ if(lastHash!==location.hash&&lastHash.startsWith("#/cronograma")&&!location.hash.startsWith("#/cronograma")){state.cronFilter="cronograma";state.cronEditing=null;state.cronReminder=null;}
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
  if(state.authTransition){window.scrollTo({top:0});return}
  if(wasAdmin!==nowAdmin){
