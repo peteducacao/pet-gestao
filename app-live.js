@@ -1428,7 +1428,7 @@ function commissionCardArt(name){
  const motifs={
   videos:'<g filter="url(#petCardShadow)"><circle cx="65" cy="48" r="25" fill="url(#petCardDark)" stroke="#535b80" stroke-width="4"/><circle cx="117" cy="43" r="30" fill="url(#petCardDark)" stroke="#535b80" stroke-width="4"/><circle cx="65" cy="48" r="10" fill="#dce5ef"/><circle cx="117" cy="43" r="12" fill="#dce5ef"/><rect x="35" y="70" width="112" height="76" rx="21" fill="url(#petCardDark)" stroke="#697691" stroke-width="4"/><path d="M145 91 178 73q8-4 8 6v60q0 10-8 6l-33-18z" fill="#303954" stroke="#747d9a" stroke-width="3"/><path d="m82 89 38 22-38 22z" fill="url(#petCardGreen)" stroke="#8ffab0" stroke-width="3"/><path d="M48 82q46-10 83 0" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="4"/></g><path d="m189 82 13-11m-10 33h15m-15 18 11 9" stroke="#ffbd38" stroke-width="7" stroke-linecap="round"/>',
   cards:'<g filter="url(#petCardShadow)"><rect x="42" y="47" width="99" height="102" rx="16" transform="rotate(-9 92 98)" fill="url(#petCardPink)" stroke="#f79ac0" stroke-width="4"/><rect x="64" y="63" width="103" height="95" rx="14" fill="#fff" stroke="#ef94bd" stroke-width="5"/><rect x="72" y="72" width="87" height="68" rx="8" fill="url(#petCardBlue)"/><circle cx="142" cy="86" r="11" fill="#ffcf61"/><path d="m76 137 25-33 21 22 18-25 17 36z" fill="#3c8deb"/><path d="m159 147 20-56" stroke="#ba2b6c" stroke-width="12" stroke-linecap="round"/><path d="m179 92 9-17q5-8 9 3l-3 23z" fill="#f4af53"/></g><path d="m24 78-12-5m16-12-8-12m18 8 2-12" stroke="#f9bb25" stroke-width="6" stroke-linecap="round"/>',
-  imaginacao:'<g filter="url(#petCardShadow)"><path d="M90 31c-34 0-56 23-56 52 0 21 11 32 28 46l7 17h42l7-17c18-14 29-26 29-46 0-30-22-52-57-52z" fill="url(#petCardGold)" stroke="#eba72d" stroke-width="4"/><path d="m72 92 19 20 20-20" stroke="#fff4bb" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M70 145h41v12H70z" fill="#655f7e"/><rect x="74" y="154" width="32" height="10" rx="5" fill="#37395f"/><ellipse cx="77" cy="57" rx="22" ry="12" transform="rotate(-35 77 57)" fill="#fff" opacity=".43"/></g><g stroke="#ffb317" stroke-width="7" stroke-linecap="round"><path d="M89 10V2M37 26 24 15M142 24l14-13M14 72H2M171 69h13M28 134l-13 11m143-9 14 10"/></g>',
+  imaginacao:'<g filter="url(#petCardShadow)"><path d="M109 32C76 32 53 54 53 84c0 22 12 35 26 47l6 15h48l6-15c14-12 26-25 26-47 0-30-23-52-56-52z" fill="url(#petCardGold)" stroke="#eba72d" stroke-width="4" stroke-linejoin="round"/><path d="m93 96 16 17 16-17" stroke="#fff6c4" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M82 67q9-22 33-22" fill="none" stroke="#fff" stroke-opacity=".49" stroke-width="9" stroke-linecap="round"/><rect x="84" y="145" width="50" height="13" rx="4" fill="#625b80"/><rect x="90" y="157" width="38" height="10" rx="5" fill="#393852"/></g><g stroke="#ffb317" stroke-width="7" stroke-linecap="round" fill="none"><path d="M109 17V4M55 36 44 25M163 36l11-11M39 85H25M179 85h14M57 129l-11 10M161 129l11 10"/></g>',
   cinepet:'<g filter="url(#petCardShadow)"><rect x="36" y="71" width="134" height="90" rx="15" fill="url(#petCardPurple)" stroke="#4b3baf" stroke-width="4"/><path d="m85 93 42 24-42 24z" fill="#fff"/><path d="M37 67h130l-6-32H42z" fill="#f4f5ff" stroke="#5554aa" stroke-width="4"/><path d="m56 36 23 31m21-31 23 31m20-31 20 31" stroke="#4b428e" stroke-width="13"/><rect x="37" y="67" width="130" height="12" rx="5" fill="#362e85"/></g><g filter="url(#petCardShadow)"><path d="m158 124 45 0-8 49h-29z" fill="#fff2e6"/><path d="m165 123 8 49m17-49-7 49" stroke="#ef4b57" stroke-width="10"/><g fill="#fff1a1"><circle cx="163" cy="116" r="10"/><circle cx="181" cy="114" r="11"/><circle cx="198" cy="118" r="10"/><circle cx="176" cy="101" r="11"/><circle cx="193" cy="101" r="9"/></g></g>',
   salinha:'<g filter="url(#petCardShadow)"><path d="M53 92 114 41l63 51v71H53z" fill="url(#petCardGold)" stroke="#ed9b45" stroke-width="4"/><path d="m41 95 72-63 75 63" fill="none" stroke="#ef6959" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><rect x="91" y="115" width="32" height="48" rx="7" fill="#795c55"/><rect x="135" y="112" width="26" height="27" rx="5" fill="url(#petCardBlue)"/><circle cx="116" cy="136" r="3" fill="#ffe0a2"/><path d="M63 165h117" stroke="#5cc468" stroke-width="14" stroke-linecap="round"/><circle cx="34" cy="115" r="27" fill="url(#petCardGreen)"/><circle cx="55" cy="136" r="22" fill="#46b870"/></g><path d="M108 67q13-12 27 0m-22 8q8-7 17 0" stroke="#e77944" stroke-width="5" fill="none" stroke-linecap="round"/>',
   financas:'<g filter="url(#petCardShadow)"><ellipse cx="51" cy="146" rx="36" ry="10" fill="#c78300"/><rect x="16" y="105" width="72" height="37" rx="8" fill="url(#petCardGold)" stroke="#dc962b" stroke-width="3"/><path d="M18 116h70m-70 13h70" stroke="#f7ca59" stroke-width="5"/><rect x="100" y="43" width="83" height="122" rx="14" fill="url(#petCardBlue)" stroke="#525dba" stroke-width="5"/><rect x="111" y="54" width="61" height="32" rx="7" fill="#a4e0ff" stroke="#5970b3" stroke-width="3"/><g fill="#faf5f9"><rect x="111" y="98" width="16" height="15" rx="4"/><rect x="135" y="98" width="16" height="15" rx="4"/><rect x="159" y="98" width="15" height="15" rx="4"/><rect x="111" y="121" width="16" height="15" rx="4"/><rect x="135" y="121" width="16" height="15" rx="4"/><rect x="159" y="121" width="15" height="32" rx="4" fill="#3dca8d"/><rect x="111" y="144" width="40" height="11" rx="4"/></g></g>',
@@ -1807,10 +1807,23 @@ const reminderLocalValue=(offset=3600000)=>{
  return new Date(Date.now()+offset-3*3600000).toISOString().slice(0,16);
 };
 // O prazo é apenas uma sugestão inicial. O usuário pode editar livremente a data e a mensagem.
-function reminderSuggestedAt(t){
+// Mesmas etapas exibidas em "Prazos e etapas" nos detalhes da demanda.
+// Não oferecer ao usuário as etapas atribuídas explicitamente a outra pessoa.
+function reminderEligibleStages(task){
+ if(!task||!me)return [];
+ return stages(task).filter(stage=>{
+  if(!stage?.id||!stage.dueAt||stage.completedAt)return false;
+  const owners=Array.isArray(stage.assigneeIds)?stage.assigneeIds:[];
+  return !owners.length||owners.some(uid=>String(uid)===String(me.id));
+ });
+}
+function reminderStageFor(task,stageId){
+ return reminderEligibleStages(task).find(stage=>String(stage.id)===String(stageId||""))||null;
+}
+function reminderSuggestedAt(t,onlyStage=null){
  const nowMs=Date.now();
- const rawDates=[...stages(t||{}).filter(stage=>stage.dueAt&&!stage.completedAt).map(stage=>stage.dueAt),
-  t?.displayDate].filter(Boolean);
+ const rawDates=(onlyStage?[onlyStage.dueAt]:
+  [...reminderEligibleStages(t).map(stage=>stage.dueAt),t?.displayDate]).filter(Boolean);
  const next=rawDates.map(raw=>{
   const value=String(raw),date=value.slice(0,10);
   const hasTime=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
@@ -1821,7 +1834,7 @@ function reminderSuggestedAt(t){
  }).filter(Boolean).sort((a,b)=>a.instant-b.instant)[0];
  return next?.local||reminderLocalValue();
 }
-const reminderDefaultSlot=(mode,task=null)=>mode==="once"?{at:task?reminderSuggestedAt(task):reminderLocalValue()}:
+const reminderDefaultSlot=(mode,task=null,stage=null)=>mode==="once"?{at:task?reminderSuggestedAt(task,stage):reminderLocalValue()}:
  mode==="daily"?{time:"09:00"}:{weekday:1,time:"09:00"};
 async function loadPersonalReminders(){
  const id=me?.id;
@@ -1848,6 +1861,7 @@ function captureReminderEditor(){
  state.reminderDraft={
   reminderType:form.elements.reminderType?.value||"task",
   taskId:form.elements.taskId?.value||"",
+  taskStageId:form.elements.taskStageId?.value||"",
   title:form.elements.title?.value||"",
   message:form.elements.message?.value||"",
   channels:{email:false,android:form.elements.android?.checked===true,pc:form.elements.pc?.checked===true},
@@ -1861,7 +1875,7 @@ function openReminderEditor(item=null){
  state.reminderEditing=item?.id||"new";
  state.reminderRecurrence=item?.recurrence||"once";
  state.reminderDraft={reminderType:item?(item.taskId?"task":"custom"):"task",
-  taskId:item?.taskId||"",title:item?.title||"",message:item?.message||"",
+  taskId:item?.taskId||"",taskStageId:item?.taskStageId||"",title:item?.title||"",message:item?.message||"",
   channels:item?.channels||{email:false,android:true,pc:true},
   autoDelete:item?.autoDelete??true,repeatUntil:item?.repeatUntil||""};
  state.reminderSchedules=item?.schedules?.map(x=>item.recurrence==="once"?{at:x.at}:{time:x.at,weekday:x.weekday})||
@@ -1884,6 +1898,9 @@ function renderPersonalReminders(){
  const pending=data.tasks.filter(isMyPending).sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const draft=state.reminderDraft||{},editing=state.reminderEditing!==false;
  const custom=draft.reminderType==="custom",mode=state.reminderRecurrence;
+ const selectedTask=pending.find(task=>String(task.id)===String(draft.taskId||""));
+ const selectableStages=reminderEligibleStages(selectedTask);
+ const chosenStage=reminderStageFor(selectedTask,draft.taskStageId);
  const headerHtml=header("Pessoal","Meus lembretes","Seus alarmes pessoais, sem alterar o cadastro das demandas.");
  const formHtml=!editing?"":'<section class="card card-pad reminder-editor">'+
   '<div class="section-head"><div><h2>'+(state.reminderEditing==="new"?"Novo lembrete":"Editar lembrete")+'</h2><p>Escolha vários dias e horários para ser avisado (horário de Sergipe).</p></div>'+
@@ -1894,6 +1911,15 @@ function renderPersonalReminders(){
   (custom?'<label>Título do lembrete<input name="title" maxlength="120" required placeholder="Ex.: Ligar para alguém" value="'+esc(draft.title||"")+'"></label>':
    '<label>Minha demanda<select class="select" name="taskId" id="reminder-task" required><option value="">Selecione a demanda</option>'+
    pending.map(t=>opt(t.id,t.title,draft.taskId||"")).join("")+'</select></label>'+
+   (selectedTask?'<label>Minha parte da demanda (Prazos e etapas)<select class="select" name="taskStageId" id="reminder-stage">'+
+    '<option value="">Lembrete geral da demanda</option>'+
+    selectableStages.map(stage=>opt(stage.id,(stage.label||"Etapa")+" · "+textDate(stage.dueAt),draft.taskStageId||"")).join("")+
+    '</select></label>'+
+    (chosenStage?'<div class="reminder-stage-preview">'+ico("calendar")+
+     '<div><strong>'+esc(chosenStage.label||"Etapa selecionada")+'</strong><span>Data cadastrada: '+textDate(chosenStage.dueAt)+
+     (chosenStage.assigneeIds?.length?' · Responsável: '+esc(stageResponsibleNames(chosenStage,selectedTask)):' · Sem responsável individual definido')+
+     '</span></div></div>':"")+
+    '<p class="reminder-stage-hint">Escolha a etapa em que vai atuar. O horário abaixo é apenas uma sugestão: você pode escolher o dia 28, por exemplo, e receber somente nesse dia, sem avisos deste lembrete nos dias anteriores.</p>':"")+
    (!pending.length?'<p class="field-hint">Você não possui pendências ativas. Use Personalizado para criar um aviso pessoal.</p>':""))+
   '<label>Repetir<select class="select" name="recurrence" id="reminder-recurrence">'+
   [["once","Uma vez (um ou vários dias)"],["daily","Todos os dias"],["weekly","Semanalmente"]].map(([v,l])=>opt(v,l,mode)).join("")+'</select></label>'+
@@ -1917,7 +1943,7 @@ function renderPersonalReminders(){
     ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][x.weekday]+" às "+x.at).join(" · ");
    return '<article class="reminder-list-row"><div class="reminder-list-icon">'+ico(item.taskId?"calendar":"bell")+'</div>'+
     '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p>'+esc(dates)+'</p>'+
-    '<small>'+(item.taskId?"Vinculado à minha demanda":"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
+    '<small>'+(item.taskId?(item.taskStageId?"Etapa: "+esc(stages(data.tasks.find(t=>t.id===item.taskId)||{}).find(stage=>String(stage.id)===String(item.taskStageId))?.label||"Etapa da demanda"):"Vinculado à minha demanda"):"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
     '<div class="reminder-list-actions"><button type="button" class="button ghost" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' Editar</button>'+
     '<button type="button" class="button ghost" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' Excluir</button></div></article>';
   }).join(""):'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
@@ -4363,7 +4389,9 @@ async function handleSubmit(e){
    const schedules=readReminderSlots(form).map(slot=>
     f.recurrence==="once"?{at:slot.at}:
     f.recurrence==="daily"?{time:slot.time}:{weekday:slot.weekday,time:slot.time});
-   const payload={taskId:type==="task"?task.id:null,title:type==="task"?task.title:String(f.title||"").trim(),
+   const chosenStage=type==="task"?reminderStageFor(task,f.taskStageId):null;
+   if(type==="task"&&f.taskStageId&&!chosenStage)return setToast("Escolha uma etapa disponível desta demanda.");
+   const payload={taskId:type==="task"?task.id:null,taskStageId:chosenStage?.id||null,title:type==="task"?task.title:String(f.title||"").trim(),
     message:f.message||"",recurrence:f.recurrence,repeatUntil:f.repeatUntil||null,
     channels:{email:false,android:form.elements.android.checked,pc:form.elements.pc.checked},
     autoDelete:form.elements.autoDelete.checked,schedules};
@@ -4498,17 +4526,28 @@ async function handleChange(e){
  }
  if(t.id==="reminder-task"){
   captureReminderEditor();
-  if(state.reminderEditing==="new"&&state.reminderRecurrence==="once"&&state.reminderSchedules.length===1){
+  state.reminderDraft.taskStageId="";
+  if(state.reminderRecurrence==="once"){
    const selected=data.tasks.find(task=>task.id===t.value&&isMyPending(task));
    if(selected)state.reminderSchedules=[reminderDefaultSlot("once",selected)];
   }
+  render();return;
+ }
+ if(t.id==="reminder-stage"){
+  captureReminderEditor();
+  const selected=data.tasks.find(task=>task.id===state.reminderDraft?.taskId&&isMyPending(task));
+  const stage=reminderStageFor(selected,t.value);
+  // Trocar a etapa redefine a agenda para apenas a data da nova etapa.
+  // O titular ainda pode adicionar outros horários explicitamente.
+  if(state.reminderRecurrence==="once"&&selected)
+   state.reminderSchedules=[reminderDefaultSlot("once",selected,stage)];
   render();return;
  }
  if(t.id==="reminder-recurrence"){
   captureReminderEditor();
   state.reminderRecurrence=t.value;
   const selected=data.tasks.find(task=>task.id===state.reminderDraft?.taskId&&isMyPending(task));
-  state.reminderSchedules=[reminderDefaultSlot(t.value,selected)];
+  state.reminderSchedules=[reminderDefaultSlot(t.value,selected,reminderStageFor(selected,state.reminderDraft?.taskStageId))];
   render();return;
  }
  if(t.id==="notification-template-kind"||t.id==="notification-template-channel"){

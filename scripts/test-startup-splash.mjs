@@ -25,7 +25,7 @@ const starts=html.match(/id="startup-loading"/g)||[];
 assert.equal(starts.length,1,"Deve existir apenas uma tela de abertura.");
 assert.match(app,/finally\{document\.documentElement\.classList\.remove\("pet-booting"\)\}/,
  "A tela deve sumir mesmo após falha do bootstrap.");
-assert.match(sw,/CACHE_NAME="pet-gestao-public-shell-v20261121-relatorios-todos-voltar-v3"/,
+assert.match(sw,/CACHE_NAME="pet-gestao-public-shell-v20261121-etapas-e-lampada-v4"/,
  "A nova versão precisa substituir o cache PWA anterior.");
 assert.match(sw,/\.\/index\.html/,"O index deve ficar disponível no cache offline.");
 const openingTags=html.match(/<svg\b/g)||[];
