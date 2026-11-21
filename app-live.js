@@ -1146,11 +1146,142 @@ function renderDemandas(){
  (picking?'<label class="archive-task-selector"><input type="checkbox" data-archive-select value="'+esc(t.id)+'" '+(state.archiveSelectedIds.has(t.id)?"checked":"")+'><span>'+(state.archiveSelectedIds.has(t.id)?"Selecionada para excluir":"Marcar para excluir")+'</span></label>':"")+
  taskCard(t)+'</div>').join(""):empty("Nenhuma demanda encontrada","Selecione outro período ou registre uma demanda."))+'</section>';
 }
+// Agenda institucional. Demandas só entram como projeções de leitura, nunca são duplicadas.
+const cronIso=(year,month,day)=>year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+const cronHours=item=>item.startTime&&item.endTime?item.startTime+" às "+item.endTime:
+ item.timeNote||item.startTime||"Horário a definir";
+function cronSources(){
+ const all=[];
+ for(const e of state.cronItems||[])all.push({...e,kind:"cronograma",date:e.startDate,finish:e.endDate,done:!!e.completedAt});
+ for(const t of data.tasks||[]){
+  const due=stages(t).filter(x=>x?.dueAt);
+  const slots=due.length?due:[{id:"registro",label:"Data da demanda",dueAt:taskDate(t)}];
+  for(const slot of slots){
+   if(!slot.dueAt)continue;
+   const date=String(slot.dueAt).slice(0,10);
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
+   all.push({id:t.id,slotId:slot.id||date,kind:"demanda",title:t.title,description:"",
+    date,finish:date,startTime:String(slot.dueAt).includes("T")?String(slot.dueAt).slice(11,16):null,
+    endTime:null,timeNote:null,location:"",stageName:slot.label||"Prazo",
+    done:!!(slot.completedAt||t.archivedAt)});
+  }
+ }
+ return all;
+}
+function cronVisible(){
+ const first=cronIso(state.cronYear,state.cronMonth,1),last=cronIso(state.cronYear,state.cronMonth,new Date(state.cronYear,state.cronMonth+1,0).getDate());
+ return cronSources().filter(x=>(state.cronFilter==="todos"||x.kind===state.cronFilter)&&x.date<=last&&x.finish>=first)
+  .sort((a,b)=>a.date.localeCompare(b.date)||String(a.startTime||"99:99").localeCompare(String(b.startTime||"99:99"))||a.title.localeCompare(b.title,"pt-BR"));
+}
+async function loadCronYear(year){
+ if(!canWrite()||state.cronLoading)return;
+ state.cronLoading=true;state.cronError="";
+ const owner=me?.id;
+ try{
+  const result=await request("/schedule?year="+encodeURIComponent(year));
+  if(owner===me?.id){state.cronItems=result.items||[];state.cronLoadedYear=year;}
+ }catch(error){
+  if(owner===me?.id){state.cronError=error.message;state.cronLoadedYear=year;}
+ }finally{
+  state.cronLoading=false;
+  if(routeParts().page==="cronograma")render();
+ }
+}
+function cronCard(entry){
+ const date=entry.date,day=Number(date.slice(8,10)),month=MONTHS[Number(date.slice(5,7))-1]?.slice(0,3)||"";
+ const isTask=entry.kind==="demanda",finish=entry.finish!==date?" · até "+textDate(entry.finish):"";
+ const actions=isTask?
+  '<a class="chron-card-link" href="#/atividade/'+id(entry.id)+'" aria-label="Abrir demanda '+esc(entry.title)+'">'+ico("chevron-right")+'</a>':
+  '<button type="button" class="chron-icon-action" data-do="cron-toggle" data-id="'+esc(entry.id)+'" title="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'" aria-label="'+(entry.done?"Reabrir atividade":"Marcar como concluída")+'">'+ico("check")+'</button>'+
+  '<button type="button" class="chron-icon-action" data-do="cron-edit" data-id="'+esc(entry.id)+'" aria-label="Editar '+esc(entry.title)+'" title="Editar">'+ico("edit")+'</button>'+
+  '<button type="button" class="chron-icon-action" data-do="cron-delete" data-id="'+esc(entry.id)+'" aria-label="Excluir '+esc(entry.title)+'" title="Excluir">'+ico("trash")+'</button>';
+ const hour=isTask?(entry.startTime?entry.startTime+" · ":"")+entry.stageName:cronHours(entry);
+ return '<article class="chron-card '+(isTask?"chron-card--demand":"")+'">'+
+ '<div class="chron-date '+(entry.done?"chron-date--done":"chron-date--pending")+'" aria-label="'+(entry.done?"Concluída":"Pendente")+' em '+textDate(date)+'"><strong>'+day+'</strong><small>'+esc(month)+'</small></div>'+
+ '<div class="chron-card-content"><div class="chron-card-top"><strong>'+esc(entry.title)+'</strong>'+
+ (isTask?'<span class="chron-demand-mark" title="Demanda">Demanda</span>':"")+'</div>'+
+ '<div class="chron-meta">'+ico("clock")+' '+esc(hour)+esc(finish)+'</div>'+
+ (entry.location&&entry.location!=="—"?'<div class="chron-meta">'+ico("folder")+' '+esc(entry.location)+'</div>':"")+
+ (entry.description?'<p class="chron-desc">'+esc(entry.description)+'</p>':"")+
+ '<div class="chron-actions">'+
+ '<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>'+
+ actions+'</div></div></article>';
+}
+function cronEditor(){
+ const editing=state.cronEditing;
+ if(!editing)return "";
+ const old=editing==="new"?null:(state.cronItems||[]).find(x=>x.id===editing);
+ if(!old&&editing!=="new")return "";
+ const first=old?.startDate||dateKey(current),last=old?.endDate||first;
+ const imported=old?.source==="word-2026";
+ return '<section class="card card-pad chron-editor"><div class="chron-editor-head"><h2>'+(old?"Editar atividade":"Nova atividade")+'</h2><button class="chron-icon-action" type="button" data-do="cron-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
+ '<form id="cron-form" class="register-form" data-id="'+esc(old?.id||"")+'">'+
+ '<label>Nome da atividade *<input name="title" maxlength="180" required placeholder="Ex.: Oficina de Fotografia" value="'+esc(old?.title||"")+'"></label>'+
+ '<div class="chron-form-grid"><label>Data de início *<input type="date" name="startDate" value="'+esc(first)+'" required></label>'+
+ '<label>Data de término *<input type="date" name="endDate" value="'+esc(last)+'" required></label></div>'+
+ '<div class="chron-form-grid"><label>Horário de início'+(imported?"":" *")+'<input type="time" name="startTime" value="'+esc(old?.startTime||"")+'" '+(imported?"":"required")+'></label>'+
+ '<label>Horário de término'+(imported?"":" *")+'<input type="time" name="endTime" value="'+esc(old?.endTime||"")+'" '+(imported?"":"required")+'></label></div>'+
+ (imported&&old?.timeNote?'<p class="chron-legacy">Horário registrado no Word: '+esc(old.timeNote)+'. Se houver horário exato, preencha início e término.</p>':"")+
+ '<input type="hidden" name="timeNote" value="'+esc(old?.timeNote||"")+'">'+
+ '<label>Local<input name="location" maxlength="240" value="'+esc(old?.location||"")+'" placeholder="Ex.: Sala do PET"></label>'+
+ '<label>Descrição / observações<textarea name="description" maxlength="1800" rows="3" placeholder="Texto complementar (opcional)">'+esc(old?.description||"")+'</textarea></label>'+
+ '<div class="chron-form-actions"><button class="button ghost" type="button" data-do="cron-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar atividade</button></div></form></section>';
+}
+function cronReminderDialog(){
+ const item=state.cronReminder;if(!item)return "";
+ return '<div class="chron-reminder-overlay" role="presentation"><section class="chron-reminder-panel" role="dialog" aria-modal="true" aria-labelledby="cron-reminder-title">'+
+ '<div class="chron-editor-head"><div><span class="chron-kicker">AVISO PESSOAL</span><h2 id="cron-reminder-title">Lembrar: '+esc(item.title)+'</h2></div>'+
+ '<button type="button" class="chron-icon-action" data-do="cron-remind-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
+ '<form id="cron-reminder-form"><label>Quando deseja ser lembrado?<input type="datetime-local" name="at" value="'+esc(reminderLocalValue(3600000))+'" required></label>'+
+ '<p class="chron-legacy">Será enviado ao celular ou PC conectado. Depois do envio, o lembrete é excluído de Meus lembretes.</p>'+
+ '<button class="button primary" type="submit">'+ico("bell")+' Salvar lembrete</button></form></section></div>';
+}
+function cronCalendar(items){
+ const y=state.cronYear,m=state.cronMonth;
+ if(state.cronCalendarMode==="ano"){
+  return '<section class="chron-year-grid" aria-label="Calendário anual">'+MONTHS.map((label,index)=>{
+   const n=cronSources().filter(x=>(state.cronFilter==="todos"||x.kind===state.cronFilter)&&x.date<=cronIso(y,index,new Date(y,index+1,0).getDate())&&x.finish>=cronIso(y,index,1)).length;
+   return '<button type="button" class="chron-year-month" data-do="cron-year-month" data-month="'+index+'"><strong>'+esc(label)+'</strong><span>'+n+' '+(n===1?"atividade":"atividades")+'</span></button>';
+  }).join("")+'</section>';
+ }
+ const firstDay=(new Date(y,m,1).getDay()+6)%7,lastDay=new Date(y,m+1,0).getDate();
+ const chosen=state.cronSelectedDay||dateKey(current),isCurrentMonth=chosen.slice(0,7)===cronIso(y,m,1).slice(0,7);
+ const selected=isCurrentMonth?chosen:cronIso(y,m,1);
+ const week=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
+ const cells=Array.from({length:firstDay},()=>'<span class="chron-blank"></span>');
+ for(let day=1;day<=lastDay;day++){
+  const date=cronIso(y,m,day);
+  const matching=items.filter(x=>x.date<=date&&x.finish>=date);
+  const kinds=[...new Set(matching.map(x=>x.kind))],hasCompleted=matching.some(x=>x.done),hasPending=matching.some(x=>!x.done);
+  cells.push('<button type="button" data-do="cron-day" data-date="'+date+'" class="chron-calendar-day '+(selected===date?"active":"")+'" '+(date===dateKey(current)?'aria-current="date"':"")+' aria-label="'+textDate(date)+'; '+matching.length+' registros"><span>'+day+'</span><i>'+
+    (hasPending?'<b class="pending"></b>':"")+(hasCompleted?'<b class="done"></b>':"")+(kinds.includes("demanda")?'<b class="demand"></b>':"")+'</i></button>');
+ }
+ const picked=items.filter(x=>x.date<=selected&&x.finish>=selected);
+ return '<section class="chron-calendar card card-pad"><div class="chron-weekdays">'+week.map(v=>'<span>'+v+'</span>').join("")+'</div>'+
+ '<div class="chron-days">'+cells.join("")+'</div></section>'+
+ '<div class="chron-day-caption">Dia '+textDate(selected)+'</div>'+
+ (picked.length?'<div class="chron-cards">'+picked.map(cronCard).join("")+'</div>':'<div class="chron-empty">Nenhuma atividade neste dia.</div>');
+}
 function renderCronograma(){
- const all=data.tasks.filter(t=>active(t)&&filtered(t,"mensal")&&(!state.week||weekFor(taskDate(t))===state.week));
- const groups=new Map();for(const t of all){const w=weekFor(taskDate(t));if(!groups.has(w))groups.set(w,[]);groups.get(w).push(t)}
- return header("Planejamento","Cronograma","Acompanhe os prazos das comissões.")+'<section class="card card-pad">'+period()+
- (groups.size?[...groups].sort((a,b)=>a[0]-b[0]).map(([week,items])=>'<section class="committee-group"><h3 class="committee-group-label">Semana '+week+' · '+MONTHS[state.month]+'</h3>'+items.map(t=>taskCard(t)).join("")+'</section>').join(""):empty("Sem atividades neste período"))+'</section>';
+ if(!canWrite())return header("Acesso restrito","Cronograma PET","Área exclusiva de PETianos(as), Tutoria e Administração.");
+ const y=state.cronYear,m=state.cronMonth,items=cronVisible();
+ const loaded=state.cronLoadedYear===y;
+ const monthActions='<div class="chron-month-nav"><button type="button" data-do="cron-prev" aria-label="Mês anterior">'+ico("chevron-left")+'</button>'+
+ '<strong>'+MONTHS[m]+' de '+y+'</strong><button type="button" data-do="cron-next" aria-label="Próximo mês">'+ico("chevron-right")+'</button></div>';
+ const toggle='<div class="chron-view-actions"><button class="button ghost" type="button" data-do="cron-view" data-view="'+(state.cronView==="lista"?"calendario":"lista")+'">'+ico("calendar")+' '+(state.cronView==="lista"?"Ver calendário":"Ver lista")+'</button>'+
+ (state.cronView==="calendario"?'<button class="button ghost" type="button" data-do="cron-calendar-mode">'+(state.cronCalendarMode==="ano"?"Ver mês":"Ver ano inteiro")+'</button>':"")+'</div>';
+ const filters='<div class="chron-toolbar"><label class="chron-origin-picker">Exibir<select class="select" id="cron-source">'+
+ [["cronograma","Cronograma"],["demandas","Demandas"],["todos","Todos"]].map(([v,l])=>opt(v,l,state.cronFilter)).join("")+'</select></label>'+
+ '<label class="chron-year-picker">Ano<select class="select" id="cron-year">'+Array.from({length:12},(_,i)=>current.getFullYear()-4+i).map(v=>opt(v,v,y)).join("")+'</select></label>'+
+ toggle+'</div>';
+ let content=!loaded?'<div class="chron-empty">Carregando atividades…</div>':
+ state.cronError?'<div class="chron-empty">'+esc(state.cronError)+'</div>':
+ state.cronView==="calendario"?cronCalendar(items):
+ items.length?'<div class="chron-cards">'+items.map(cronCard).join("")+'</div>':
+ '<div class="chron-empty">Nenhum registro neste mês para o filtro escolhido.</div>';
+ return header("Organização","Cronograma PET","Atividades do PET organizadas por data, horário e local.",
+ '<button type="button" class="button primary" data-do="cron-new">'+ico("plus")+' Nova atividade</button>')+
+ '<div class="chron-page">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+'</div>';
 }
 const COMMISSION_PRESET_ARTS=[
  ["videos","Vídeos"],["cards","Cards"],["imaginacao","ImaginAÇÃO"],
