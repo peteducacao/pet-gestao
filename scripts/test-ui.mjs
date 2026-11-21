@@ -63,6 +63,14 @@ window.fetch=async (url,options={})=>{
  }
  if(/^\/tasks\/[^/]+$/.test(path)&&method==="PUT"){const t=tasks.find(x=>x.id===path.split("/")[2]);Object.assign(t,body);return reply({ok:true});}
  if(path==="/tasks"&&method==="POST"){tasks.push({id:"t"+(++idNum),...body,commissionDone:{},userDone:{},registeredAt:"2026-11-10",archivedAt:null});return reply({ok:true});}
+ if(path==="/admin/overview"&&method==="GET"){
+  const year=Number(new URL(url).searchParams.get("year"));
+  return reply({year,commissionCount:committees.length,userCount:users.length,activities:0,
+   totals:{registered:tasks.length,concluded:0,concludedLate:0,notConcluded:0},
+   commissions:committees.map(c=>({id:c.id,name:c.name,members:c.memberIds?.length||0,registered:tasks.filter(t=>t.commissionIds?.includes(c.id)).length,concluded:0,concludedLate:0,notConcluded:0})),
+   users:users.map(u=>({id:u.id,name:u.name,role:u.role,commissions:committees.filter(c=>c.memberIds?.includes(u.id)).length,
+    assigned:tasks.filter(t=>t.assigneeIds?.includes(u.id)).length,completed:0,notCompleted:0}))});
+ }
  if(path==="/admin/commissions-batch"&&method==="PUT"){
    const ordered=body.commissions.map(x=>committees.find(c=>c.id===x.id));
    ordered.forEach((c,i)=>{c.maxMembers=body.commissions[i].maxMembers;c.sortOrder=i+1});
@@ -516,6 +524,7 @@ await move("#/admin/relatorios");await wait();
 assert.ok(document.querySelector("#admin-report-kind"),"Aba Relatórios possui seletor único.");
 document.querySelector("#admin-report-kind").value="comissoes";
 document.querySelector("#admin-report-kind").dispatchEvent(new window.Event("change",{bubbles:true}));await wait();
+assert.equal(document.querySelector("#admin-report-commission")?.value,"todos","Todas as comissões fica selecionada por padrão.");
 assert.ok(document.querySelector('a[href="#/admin/resumo/videos"]'),"Comissões agora são consultadas nos Relatórios.");
 await move("#/admin/resumo/videos");await wait();
 assert.ok(document.querySelector("#admin-summary-results"),"Resumo administrativo está disponível por comissão.");
