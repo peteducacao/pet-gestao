@@ -146,6 +146,23 @@ try{
  await page.locator(".profile-commissions").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator(".profile-commissions").innerText()).includes("Vídeos"),
    "Meu perfil mostra minhas comissões sem alterar o cadastro");
+ // Regressão: a quinta opção não fica sozinha na metade esquerda do perfil.
+ const initialViewport=page.viewportSize();
+ for(const width of [320,360,390,414,760]){
+  await page.setViewportSize({width,height:850});
+  const layout=await page.locator(".account-hub-sidebar").evaluate(nav=>{
+   const buttons=[...nav.querySelectorAll(".account-hub-nav-btn")];
+   const box=el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width}};
+   return {nav:box(nav),first:box(buttons[0]),fourth:box(buttons[3]),last:box(buttons[4]),
+    gridColumns:getComputedStyle(nav).gridTemplateColumns,overflow:nav.scrollWidth-nav.clientWidth};
+  });
+  assert.equal(await page.locator(".account-hub-nav-btn").count(),5,"Cinco opções de perfil em "+width+"px");
+  assert.ok(layout.last.top>=layout.fourth.bottom-1,"Navegação rápida inicia abaixo da linha anterior em "+width+": "+JSON.stringify(layout));
+  assert.ok(Math.abs(layout.last.left-layout.first.left)<3,"Navegação rápida alinhada à esquerda em "+width+": "+JSON.stringify(layout));
+  assert.ok(layout.last.width>layout.first.width*1.8,"Navegação rápida ocupa as duas colunas em "+width+": "+JSON.stringify(layout));
+  assert.ok(layout.overflow<=2,"Sem rolagem lateral no menu em "+width+": "+JSON.stringify(layout));
+ }
+ await page.setViewportSize(initialViewport);
  // Central única: os seis avisos compartilham um botão de salvar por destinatário.
  await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
  await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
