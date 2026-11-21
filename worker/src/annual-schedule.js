@@ -2,8 +2,8 @@
 // Autorização repetida no Worker; usuários sem cargo não recebem esses dados.
 const fail=(message,status=400)=>{const e=new Error(message);e.status=status;throw e};
 const text=(x,max=250)=>String(x??"").trim().slice(0,max);
-const dateValid=s=>/^\\d{4}-\\d{2}-\\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s+"T12:00:00Z"))&&new Date(s+"T12:00:00Z").toISOString().slice(0,10)===s;
-const timeValid=s=>/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s);
+const dateValid=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s+"T12:00:00Z"))&&new Date(s+"T12:00:00Z").toISOString().slice(0,10)===s;
+const timeValid=s=>/^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const staff=user=>{if(!user)fail("Entre na sua conta.",401);if(user.must_change_password)fail("Troque sua senha temporária.",403);if(!["petiano","tutor","admin"].includes(user.role_override||user.role))fail("Somente PETianos(as), Tutoria e Administração podem acessar o cronograma.",403)};
 const admin=user=>{staff(user);if((user.role_override||user.role)!=="admin"||user.session_admin_scope!==1)fail("Acesso exclusivo da Administração.",403)};
 const key=row=>({id:row.id,title:row.title,description:row.description,startDate:row.start_date,endDate:row.end_date,startTime:row.start_time,endTime:row.end_time,timeNote:row.time_note,location:row.location,completedAt:row.completed_at,source:row.source,createdAt:row.created_at,updatedAt:row.updated_at});
