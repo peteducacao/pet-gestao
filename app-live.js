@@ -2774,6 +2774,56 @@ function renderMailScheduling(){
 function statusSnapshot(){
  return (data.tasks||[]).map(t=>t.id+":"+taskStatus(t)).join("|");
 }
+
+/* Converte somente explicações gerais em ajuda contextual; não altera avisos críticos. */
+function compactContextHelp(root){
+ const attach=(title,nodes)=>{
+  if(!title)return;
+  const info=nodes.filter(p=>p&&p.isConnected&&p.textContent.trim());
+  if(!info.length)return;
+  const wrap=document.createElement("div");
+  wrap.className="pet-context-title";
+  title.before(wrap);wrap.append(title);
+  const help=document.createElement("details");
+  help.className="pet-context-help";
+  const trigger=document.createElement("summary");
+  trigger.className="pet-context-trigger";
+  trigger.textContent="?";
+  trigger.title="Mostrar explicação";
+  trigger.setAttribute("aria-label","Mostrar orientações sobre "+title.textContent.trim());
+  const popup=document.createElement("div");
+  popup.className="pet-context-popup";
+  popup.setAttribute("role","note");
+  info.forEach(p=>{p.classList.add("pet-context-paragraph");popup.append(p)});
+  help.append(trigger,popup);wrap.append(help);
+ };
+ const matrix=root.querySelector(".account-notification-matrix");
+ if(matrix)attach(matrix.querySelector(".section-head h3"),[
+  matrix.querySelector(".section-head p"),matrix.querySelector(".notice-optin-hint"),
+  matrix.querySelector(".notice-matrix-scroller + .field-hint")
+ ]);
+ root.querySelectorAll(".page-header").forEach(el=>{
+  const eye=el.querySelector(".eyebrow")?.textContent.trim().toLowerCase()||"";
+  if(eye==="acesso restrito"||eye==="acesso")return;
+  attach(el.querySelector(".page-title"),[el.querySelector(".page-subtitle")]);
+ });
+ root.querySelectorAll(".section-head > div").forEach(el=>{
+  if(el.closest(".account-notification-matrix"))return;
+  attach(el.querySelector(":scope > h2, :scope > h3"),[el.querySelector(":scope > p")]);
+ });
+ root.querySelectorAll(".account-pane-intro,.admin-section-heading > div").forEach(el=>
+  attach(el.querySelector(":scope > h2"),[el.querySelector(":scope > p")])
+ );
+ root.querySelectorAll(".admin-reminder-panel").forEach(el=>
+  attach(el.querySelector(".reminder-panel-heading > h2"),[el.querySelector(".reminder-panel-intro")])
+ );
+ root.querySelectorAll(".admin-panel > h2").forEach(title=>{
+  const note=title.nextElementSibling;
+  if(note?.matches("p.field-hint")&&!/privacidade|senha|exclu|consentimento/i.test(note.textContent))
+   attach(title,[note]);
+ });
+}
+
 function render(){
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
  document.body.classList.toggle("admin-ui-active",page==="admin"&&isAdmin()&&!me?.mustChangePassword);
@@ -2799,6 +2849,7 @@ function render(){
  else if(page==="admin")html=renderAdmin();
  else html=renderHome();
  root.innerHTML=html;
+ compactContextHelp(root);
  if(page==="meus-lembretes"&&state.reminderLoadedFor!==me?.id&&!state.reminderLoading)void loadPersonalReminders();
  if(page==="admin"&&isAdmin()&&parts[0]==="resumo"&&parts[1])
    loadAdminCommissionSummary(parts[1]);
@@ -4113,6 +4164,8 @@ function start(){
    if(e.target.closest('[data-do="rich-format"]'))e.preventDefault();
  });
  document.addEventListener("click",e=>{
+   const selectedHelp=e.target.closest?.(".pet-context-help");
+   document.querySelectorAll(".pet-context-help[open]").forEach(help=>{if(help!==selectedHelp)help.open=false});
    const adminLink=e.target.closest("#admin-link");
    if(adminLink&&adminRole(me)&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey)setConnecting(true,"Carregando painel administrativo...");
    const menuLink=e.target.closest(".admin-sidebar a[href^='#/']");
@@ -4146,6 +4199,7 @@ function start(){
    }
    if(e.target.closest("[data-do]"))handleClick(e).catch(err=>setToast(err.message));
  });
+ document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll(".pet-context-help[open]").forEach(help=>help.open=false)});
  document.addEventListener("invalid",e=>{
    const field=e.target;
    if(!field?.closest?.("form"))return;

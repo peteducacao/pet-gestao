@@ -4731,3 +4731,24 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  #screen .reminder-editor .register-form .reminder-auto-card{padding:14px}
  #screen .reminder-auto-card .field-hint{margin-left:33px!important}
 }
+
+
+/* Ajuda contextual discreta nas páginas, configurações e cards. */
+#screen .pet-context-title{display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:100%;min-width:0;vertical-align:middle}
+#screen .pet-context-title>h1,#screen .pet-context-title>h2,#screen .pet-context-title>h3{margin:0;min-width:0;max-width:100%;overflow-wrap:anywhere}
+#screen .pet-context-help{display:inline-flex;align-items:center;flex:none;position:relative;z-index:2;vertical-align:middle}
+#screen .pet-context-help[open]{z-index:200}
+#screen .pet-context-trigger{list-style:none!important;display:inline-grid;place-items:center;width:29px;height:29px;border-radius:50%;box-sizing:border-box;border:1.5px solid #c9b4e8;background:#f8f3ff;color:#6733a8;font:800 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;user-select:none;transition:background .16s,border-color .16s,box-shadow .16s}
+#screen .pet-context-trigger::-webkit-details-marker{display:none}
+#screen .pet-context-trigger::marker{content:""}
+#screen .pet-context-trigger:hover,#screen .pet-context-help[open]>.pet-context-trigger{border-color:#8652ce;background:#ede0fb;color:#4b187f}
+#screen .pet-context-trigger:focus-visible{outline:3px solid #bd90f3;outline-offset:3px}
+#screen .pet-context-popup{position:absolute;top:calc(100% + 10px);left:-38px;z-index:210;box-sizing:border-box;width:min(350px,calc(100vw - 50px));max-height:min(60vh,390px);overflow-y:auto;padding:16px 18px;background:#fff;color:#30283f;border:1px solid #e3d9ef;border-radius:15px;box-shadow:0 16px 46px #2f18522b;text-align:left;line-height:1.55}
+#screen .pet-context-popup .pet-context-paragraph{display:block!important;margin:0!important;padding:0!important;color:#544b60!important;font-size:13px!important;font-weight:450!important;line-height:1.6!important;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+#screen .pet-context-popup .pet-context-paragraph+.pet-context-paragraph{margin-top:10px!important}
+@media(max-width:700px){
+ #screen .pet-context-title{gap:7px}
+ #screen .pet-context-trigger{width:28px;height:28px;min-height:28px}
+ #screen .pet-context-popup{position:fixed;left:16px;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));top:auto;width:auto;max-height:min(60vh,440px);padding:18px 19px;border-radius:17px;box-shadow:0 18px 60px #1f0c414d}
+}
+@media(prefers-reduced-motion:reduce){#screen .pet-context-trigger{transition:none}}
