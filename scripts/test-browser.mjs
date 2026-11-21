@@ -1614,14 +1614,31 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('[data-do="cron-remind"][data-id="'+added.id+'"]').click();
  await page.locator("#cron-reminder-form").waitFor();
  if(cronStartFuture){
-  assert.equal(await page.locator('#cron-reminder-form [name="at"]').inputValue(),added.startDate+"T10:30",
-   "Lembrar sugere dia e horário do evento cadastrado, não hora atual.");
+  assert.equal(await page.locator('#cron-reminder-form [name="reminderDate"]').inputValue(),added.startDate,
+   "Lembrar sugere a data cadastrada no evento.");
+  assert.equal(await page.locator('#cron-reminder-form [name="reminderTime"]').inputValue(),"10:30",
+   "Lembrar sugere o horário cadastrado no evento.");
  }
- const future=new Date(Date.now()+3*3600000-3*3600000).toISOString().slice(0,16);
- await page.locator('#cron-reminder-form [name="at"]').fill(future);
+ assert.equal(await page.locator("#cron-reminder-form").getByText("Data e horário sugeridos a partir da atividade.").count(),0,
+  "A explicação redundante foi removida.");
+ const backdrop=await page.locator(".chron-reminder-overlay").evaluate(el=>({
+  blur:getComputedStyle(el).backdropFilter,background:getComputedStyle(el).backgroundColor
+ }));
+ assert.equal(backdrop.blur,"none","Sem blur ou tela fantasma atrás do aviso.");
+ assert.ok(backdrop.background.includes("0.88"),"Fundo do modal suficientemente opaco: "+backdrop.background);
+ const originalSchedule=JSON.stringify(added);
+ const reminderDay=new Date(Date.parse(added.endDate+"T12:00:00Z")+3*86400000).toISOString().slice(0,10);
+ const reminderHour="19:45";
+ await page.locator('#cron-reminder-form [name="reminderDate"]').fill(reminderDay);
+ await page.locator('#cron-reminder-form [name="reminderTime"]').fill(reminderHour);
  const sent=page.waitForResponse(r=>r.url().endsWith("/personal-reminders")&&r.request().method()==="POST");
  await page.locator('#cron-reminder-form button[type="submit"]').click();await sent;
- assert.ok(personalMockItems.some(x=>x.scheduleEntryId===added.id&&x.autoDelete===true),"Aviso pessoal vinculado e autoexcluído.");
+ const personal=personalMockItems.find(x=>x.title===added.title&&x.autoDelete===true);
+ assert.ok(personal,"Aviso pessoal criado e autoexcluído após envio.");
+ assert.equal(personal.scheduleEntryId,null,"Aviso não fica preso ao encerramento do evento.");
+ assert.deepEqual(personal.schedules.map(slot=>slot.at),[reminderDay+"T"+reminderHour],
+  "Permite programar qualquer data futura mesmo após o fim da atividade.");
+ assert.equal(JSON.stringify(added),originalSchedule,"Salvar lembrete não modifica o Cronograma.");
 
  await page.locator('[data-do="cron-view"][data-view="calendario"]').click();
  await page.locator(".chron-calendar-day").first().waitFor();

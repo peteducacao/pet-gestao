@@ -81,7 +81,9 @@ export async function savePersonalReminder(db,user,input,id=null){
  const count=await db.prepare("SELECT COUNT(*) AS n FROM personal_reminders WHERE user_id=?").bind(user.id).first();
  if(!id&&count.n>=60)fail("Limite de 60 lembretes pessoais atingido.");
  const taskId=input.taskId===null||input.taskId===""?null:String(input.taskId||"");
- const scheduleEntryId=input.scheduleEntryId?String(input.scheduleEntryId):current?.schedule_entry_id||null;
+ // `null` explícito desvincula um aviso do Cronograma (inclusive registros antigos).
+ const scheduleEntryId=input.scheduleEntryId===undefined?(current?.schedule_entry_id||null):
+  (input.scheduleEntryId?String(input.scheduleEntryId):null);
  let schedule=null;
  if(scheduleEntryId){
   if(taskId)fail("Selecione uma atividade ou uma demanda, não ambas.");

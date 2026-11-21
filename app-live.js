@@ -1294,8 +1294,9 @@ function cronReminderDialog(){
  return '<div class="chron-reminder-overlay" role="presentation"><section class="chron-reminder-panel" role="dialog" aria-modal="true" aria-labelledby="cron-reminder-title">'+
  '<div class="chron-editor-head"><div><span class="chron-kicker">AVISO PESSOAL</span><h2 id="cron-reminder-title">Lembrar: '+esc(item.title)+'</h2></div>'+
  '<button type="button" class="chron-icon-action" data-do="cron-remind-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
- '<form id="cron-reminder-form"><label>Quando deseja ser lembrado?<input type="datetime-local" name="at" value="'+esc(item.at||reminderLocalValue(3600000))+'" required></label>'+
- '<p class="chron-legacy">Data e horário sugeridos a partir da atividade. Você pode alterar antes de salvar.</p>'+
+ '<form id="cron-reminder-form"><div class="chron-reminder-date-time">'+
+ '<label>Data do lembrete<input type="date" name="reminderDate" value="'+esc((item.at||reminderLocalValue()).slice(0,10))+'" required></label>'+
+ '<label>Horário do lembrete<input type="time" name="reminderTime" value="'+esc((item.at||reminderLocalValue()).slice(11,16))+'" required></label></div>'+
  '<p class="chron-legacy">Será enviado ao celular ou PC conectado. Depois do envio, o lembrete é excluído de Meus lembretes.</p>'+
  '<button class="button primary" type="submit">'+ico("bell")+' Salvar lembrete</button></form></section></div>';
 }
@@ -3611,7 +3612,7 @@ async function handleClick(e){
   const scheduleSource=entry||{date:b.dataset.date,startTime:b.dataset.time,timeNote:b.dataset.timeNote};
   state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||"",
    at:cronReminderSuggestedAt(scheduleSource)};state.cronDetails=null;
-  state.cronEditing=null;render();$("#cron-reminder-form input[name='at']")?.focus();return;
+  state.cronEditing=null;render();$("#cron-reminder-form input[name='reminderDate']")?.focus();return;
  }
  if(action==="cron-remind-close"){state.cronReminder=null;render();return}
  if(action==="cron-prev"||action==="cron-next"){
@@ -4385,17 +4386,23 @@ async function handleSubmit(e){
  }
  if(form.id==="cron-reminder-form"){
   if(!canWrite()||!state.cronReminder)return setToast("Atividade não disponível.");
-  const date=form.elements.at?.value;
-  if(!date)return setToast("Selecione a data e a hora do lembrete.");
+  const day=form.elements.reminderDate?.value||"";
+  const hour=form.elements.reminderTime?.value||"";
+  const date=day+"T"+hour;
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(date))return setToast("Selecione a data e a hora do lembrete.");
+  const instant=Date.parse(date+":00-03:00");
+  if(!Number.isFinite(instant)||instant<=Date.now())return setToast("Escolha uma data e hora futuras.");
   const target={...state.cronReminder};
-  const payload={taskId:null,scheduleEntryId:target.entryId,title:target.title,message:"",
+  // Aviso pessoal independente: não modifica a atividade nem é limitado pelo fim do evento.
+  // Caso o usuário escolha dias depois do evento, o aviso continua programado até ser enviado.
+  const payload={taskId:null,scheduleEntryId:null,title:target.title,message:"",
    recurrence:"once",repeatUntil:null,autoDelete:true,
    channels:{email:false,android:true,pc:true},schedules:[{at:date}]};
   const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
   try{
    await request("/personal-reminders","POST",payload);
    state.cronReminder=null;state.reminderLoadedFor=null;
-   render();setToast("Lembrete salvo em Meus lembretes. Será excluído depois do aviso.");
+   render();setToast("Lembrete programado para a data escolhida. O Cronograma não foi alterado.");
   }finally{if(button?.isConnected)button.disabled=false}
   return;
  }
@@ -4416,7 +4423,7 @@ async function handleSubmit(e){
     f.recurrence==="daily"?{time:slot.time}:{weekday:slot.weekday,time:slot.time});
    const chosenStage=type==="task"?reminderStageFor(task,f.taskStageId):null;
    if(type==="task"&&f.taskStageId&&!chosenStage)return setToast("Escolha uma etapa disponível desta demanda.");
-   const payload={taskId:type==="task"?task.id:null,taskStageId:chosenStage?.id||null,title:type==="task"?task.title:String(f.title||"").trim(),
+   const payload={taskId:type==="task"?task.id:null,scheduleEntryId:null,taskStageId:chosenStage?.id||null,title:type==="task"?task.title:String(f.title||"").trim(),
     message:f.message||"",recurrence:f.recurrence,repeatUntil:f.repeatUntil||null,
     channels:{email:false,android:form.elements.android.checked,pc:form.elements.pc.checked},
     autoDelete:form.elements.autoDelete.checked,schedules};

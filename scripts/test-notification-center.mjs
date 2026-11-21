@@ -174,6 +174,33 @@ assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,channels
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,recurrence:"daily",schedules:[{time:"09:00"},{time:"18:00"}]})).ok);
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,recurrence:"weekly",schedules:[{time:"08:30",weekday:2}]})).ok);
 console.log("Lembretes: personalizado, demandas próprias, vários horários, repetição e validações OK.");
+// Um lembrete antigo vinculado ao Cronograma pode virar aviso pessoal livre.
+// O horário futuro é aceito mesmo que ultrapasse a data do evento original.
+const previousReminderQueries=[];
+const historicReminderDb={
+ prepare(sql){
+  return {bind(...args){
+   return {
+    async first(){
+     if(sql.startsWith("SELECT id,schedule_entry_id,task_stage_id FROM personal_reminders"))
+      return {id:"antigo",schedule_entry_id:"evento-antigo",task_stage_id:null};
+     if(sql.startsWith("SELECT COUNT(*)"))return {n:1};
+     if(sql.startsWith("SELECT 1 AS yes FROM personal_reminder_times"))return null;
+     throw Error("Lembrete antigo tentou consultar: "+sql);
+    },
+    async run(){previousReminderQueries.push({sql,args});return {meta:{changes:1}};}
+   };
+  }};
+ },
+ async batch(commands){return Promise.all(commands.map(command=>command.run()));}
+};
+const afterEventDate=new Date(Date.now()+12*86400000-3*3600000).toISOString().slice(0,16);
+assert.ok((await personal.savePersonalReminder(historicReminderDb,user,{
+ ...once,scheduleEntryId:null,title:"Evento antigo: lembrar depois",schedules:[{at:afterEventDate}]
+},"antigo")).ok);
+const detached=previousReminderQueries.find(row=>row.sql.startsWith("UPDATE personal_reminders SET"));
+assert.equal(detached?.args[1],null,"Ao remarcar, vínculo antigo não obriga data anterior ao fim do evento.");
+console.log("Lembrete antigo pode ser remarcado para outra data sem alterar atividade.");
 
 const collisionSource=(await readFile(new URL("../worker/src/push-collision.js",import.meta.url),"utf8"))
  .replace('import {pushNotificationToChannels} from "./push.js";','const pushNotificationToChannels=async (...args)=>globalThis.__testSendPush(...args);');
