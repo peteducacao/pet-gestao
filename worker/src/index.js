@@ -233,6 +233,56 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     await db.prepare("INSERT INTO email_queue (id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) VALUES(?,?,?,?,?,?,?,'pendente',?,?)").bind(id,creatorId,kind,JSON.stringify(unique(emails)),subject,message,when||stamp,stamp,taskId).run();
     return id;
   }
+  // Parabéns pessoais: 09h00 de Sergipe (UTC-3), uma vez por ano e canal.
+  // Apenas usuários que informaram sua data e ativaram os canais recebem.
+  async function queueBirthdayGreetings(env){
+    const local=new Date(Date.now()-3*3600000).toISOString();
+    if(Number(local.slice(11,13))!==9)return;
+    const year=Number(local.slice(0,4)),day=local.slice(5,10);
+    const leap=year%4===0&&(year%100!==0||year%400===0);
+    // 29/02 é celebrado em 28/02 nos anos sem 29.
+    const monthDay=day==="02-28"&&!leap?["02-28","02-29"]:[day];
+    const db=env.DB;
+    const entries=(await db.prepare("SELECT id,name,email,birth_date FROM users WHERE birth_date IS NOT NULL AND substr(birth_date,6,5) IN ("+monthDay.map(()=>"?").join(",")+")")
+      .bind(...monthDay).all()).results;
+    if(!entries.length)return;
+    const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
+    const models=asJson(saved?.value,{});
+    const fallback={subject:"🎉 Feliz aniversário, {nome}!",
+      body:"Hoje é o seu dia, {nome}! O PET Educação deseja muita felicidade, saúde e novas conquistas. Parabéns!"};
+    const template=models?.birthday||fallback;
+    const replace=(value,person,isHtml=false)=>String(value||"").replace(/\{nome\}/g,()=>isHtml?mailEscape(person.name):person.name);
+    for(const person of entries){
+      const targets=await notificationRecipients(db,[person.id],"birthday");
+      if(targets.email.some(target=>target.id===person.id)&&validEmail(person.email)){
+        const key=await db.prepare("INSERT OR IGNORE INTO birthday_delivery_log(user_id,year,channel,created_at) VALUES(?,?,'email',?)")
+          .bind(person.id,year,now()).run();
+        if(key.meta.changes){
+          try{
+            const subject=replace(template.subject||fallback.subject,person).slice(0,200);
+            const bodyTemplate=String(template.body||fallback.body).slice(0,10000);
+            await enqueue(db,null,"birthday",[person.email],subject,replace(bodyTemplate,person,mailHasFormatting(bodyTemplate)),now());
+          }catch(error){
+            await db.prepare("DELETE FROM birthday_delivery_log WHERE user_id=? AND year=? AND channel='email'").bind(person.id,year).run();
+            console.error("PET Gestão: falha ao enfileirar parabéns:",String(error.message||error).slice(0,120));
+          }
+        }
+      }
+      if(targets.android.length||targets.pc.length){
+        const key=await db.prepare("INSERT OR IGNORE INTO birthday_delivery_log(user_id,year,channel,created_at) VALUES(?,?,'push',?)")
+          .bind(person.id,year,now()).run();
+        if(key.meta.changes){
+          try{
+            const message=await notificationPushModel(db,"birthday",{nome:person.name});
+            await pushNotificationToChannels(env,targets,message,"birthday:"+year+":"+person.id);
+          }catch(error){
+            await db.prepare("DELETE FROM birthday_delivery_log WHERE user_id=? AND year=? AND channel='push'").bind(person.id,year).run();
+            console.error("PET Gestão: falha na notificação de aniversário:",String(error.message||error).slice(0,120));
+          }
+        }
+      }
+    }
+  }
   // Revalidar cada aviso vinculado a uma demanda antes de entregá-lo.
   // Envios manuais não são cancelados por alterações de demandas.
   async function validQueuedNotification(db,item){
@@ -1703,6 +1753,7 @@ export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()
  await autoCompleteCollectiveEvents(env);
  // Primeiro alarmes pessoais: em coincidência exata de minuto, prevalece a escolha pessoal.
  await processPersonalReminders(env).catch(error=>console.error("PET Gestão — cron pessoal:",String(error?.message||error).slice(0,150)));
+ await queueBirthdayGreetings(env).catch(error=>console.error("PET Gestão — aniversários:",String(error?.message||error).slice(0,130)));
  await queueDeadlineReminders(env);
  await processQueue(env,15);
  const t=new Date();
