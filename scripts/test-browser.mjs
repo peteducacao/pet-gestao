@@ -172,6 +172,13 @@ try{
   assert.ok(Math.abs(layout.last.width-layout.first.width)<3,"Cartões de mesma largura: "+JSON.stringify(layout));
   assert.ok(Math.abs(layout.last.width-layout.second.width)<3,"Terceira linha sem desalinhamento");
   assert.ok(layout.overflow<=2,"Sem rolagem lateral no menu em "+width+": "+JSON.stringify(layout));
+  const title=await page.locator('.account-hub-nav-btn[data-tab="atalhos"]').innerText();
+  assert.equal(title.includes(width<=375?"Atalhos":"Navegação rápida"),true,
+   "Rótulo do atalho deve ser legível e corresponder à largura "+width+": "+title);
+  const titleWrap=await page.locator('.account-hub-nav-btn[data-tab="atalhos"] strong').evaluate(el=>({
+   height:el.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(el).lineHeight)
+  }));
+  assert.ok(titleWrap.height<=titleWrap.lineHeight*1.15,"Atalho fica em uma linha em "+width+"px: "+JSON.stringify(titleWrap));
  }
  await page.setViewportSize(initialViewport);
  await page.locator('[data-do="account-tab"][data-tab="painel"]').click();
