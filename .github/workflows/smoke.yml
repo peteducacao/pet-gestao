@@ -37,6 +37,8 @@ jobs:
           node --check scripts/test-ios-pwa.mjs
       - name: Testar regras e permissões do novo Cronograma
         run: node scripts/test-cronograma.mjs
+      - name: Testar visão geral e contagem única de todos os relatórios
+        run: node scripts/test-overview-report.mjs
       - name: Validar importação do Cronograma 2026 e integridade referencial
         run: python3 scripts/test-cronograma-2026.py
       - name: Verificar iOS, privacidade e rotas de notificações
