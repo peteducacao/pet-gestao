@@ -169,7 +169,7 @@ assert.equal(document.querySelectorAll('.demand-card-cover-link, .activity-detai
 assert.equal(document.querySelector('.viewer-dashboard a'),null,"Visão geral não oferece links");
 const viewerStats=[...document.querySelectorAll(".viewer-stat-grid .stat")];
 assert.equal(viewerStats.length,3,"Modo Usuário apresenta apenas três indicadores úteis");
-assert.deepEqual(viewerStats.map(el=>el.querySelector(".stat-copy span")?.textContent),["Demandas ativas","Prazos vencidos","Concluídas"],"Cartões exibem contagens sem indicador redundante");
+assert.deepEqual(viewerStats.map(el=>el.querySelector(".stat-copy span")?.textContent),["Demandas ativas","Prazos vencidos","Concluídos"],"Cartões exibem contagens sem indicador redundante");
 assert.equal(viewerStats[0].querySelector(".stat-copy strong")?.textContent,String(tasks.filter(t=>!t.archivedAt).length),"Demandas ativas somam todos os cadastros ativos, independentemente da visibilidade");
 assert.ok(!document.querySelector(".viewer-stat-grid")?.textContent.includes("Em acompanhamento"),"Indicador ambíguo foi retirado");
 assert.equal(document.querySelector('a[data-route="reunioes"]').hidden,true,"Atas ocultas no menu Usuário");
