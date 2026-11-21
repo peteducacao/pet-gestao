@@ -137,6 +137,16 @@ try{
  await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
  await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator('.notice-matrix tbody tr').count(),6,"Seis tipos de notificações por três canais");
+ const matrixHelp=page.locator(".account-notification-matrix .pet-context-help");
+ assert.equal(await matrixHelp.count(),1,"Orientações gerais da matriz ficam em um único ?");
+ assert.equal(await matrixHelp.evaluate(el=>el.open),false,"Ajuda começa recolhida");
+ await matrixHelp.locator("summary").click();
+ assert.equal(await matrixHelp.evaluate(el=>el.open),true,"Toque no ? abre a ajuda");
+ const matrixHelpText=await matrixHelp.locator(".pet-context-popup").innerText();
+ for(const phrase of ["Marque os tipos e os canais","Os avisos começam desativados","Os três canais são independentes"])
+  assert.ok(matrixHelpText.includes(phrase),"Ajuda mantém instrução: "+phrase);
+ await page.keyboard.press("Escape");
+ assert.equal(await matrixHelp.evaluate(el=>el.open),false,"Esc fecha a ajuda da matriz");
  assert.equal(await page.locator('[data-do="save-notice-matrix"]').count(),1,"Um só botão para salvar todos os avisos");
  assert.equal(await page.locator('.notice-matrix input:checked').count(),0,"Avisos iniciais desligados até escolha do usuário");
  await page.locator('[data-notice-kind="create"][data-notice-channel="android"]').check();
@@ -596,24 +606,38 @@ try{
  for(const width of [320,360,390,414]){
   await page.setViewportSize({width,height:844});
   const geometry=await page.locator(".dashboard-weekly-card>.section-head").evaluate(head=>{
-   const title=head.querySelector("h2"),description=head.querySelector("p"),button=head.querySelector(".button"),
-    tr=title.getBoundingClientRect(),dr=description.getBoundingClientRect(),
-    br=button.getBoundingClientRect(),hr=head.getBoundingClientRect();
+   const title=head.querySelector("h2"),help=head.querySelector(".pet-context-help"),
+    button=head.querySelector(".button"),tr=title.getBoundingClientRect(),
+    sr=help.querySelector("summary").getBoundingClientRect(),br=button.getBoundingClientRect(),
+    hr=head.getBoundingClientRect();
    return {direction:getComputedStyle(head).flexDirection,
-    width:hr.width,titleWidth:tr.width,titleHeight:tr.height,titleLineHeight:parseFloat(getComputedStyle(title).lineHeight),
-    descriptionBottom:dr.bottom,buttonTop:br.top,buttonWidth:br.width,
-    buttonRight:br.right,headRight:hr.right,pageWidth:document.documentElement.scrollWidth,viewport:window.innerWidth};
+    width:hr.width,titleWidth:tr.width,titleHeight:tr.height,
+    titleLineHeight:parseFloat(getComputedStyle(title).lineHeight),
+    titleBottom:tr.bottom,helpBottom:sr.bottom,helpClosed:!help.open,
+    helpText:help.querySelector(".pet-context-popup").textContent.trim(),
+    buttonTop:br.top,buttonWidth:br.width,buttonRight:br.right,
+    headRight:hr.right,pageWidth:document.documentElement.scrollWidth,viewport:window.innerWidth};
   });
   assert.equal(geometry.direction,"column","Pendências semanais empilhadas em "+width);
   assert.ok(geometry.titleHeight<=geometry.titleLineHeight*1.3,
    "Título inteiro deve caber em uma linha em "+width+": "+JSON.stringify(geometry));
-  assert.ok(geometry.buttonTop>=geometry.descriptionBottom+8,
-   "Descrição aparece inteira acima do botão em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.helpClosed&&geometry.helpText.includes("As próximas seis atividades em aberto"),
+   "Orientação deve iniciar recolhida no ícone ? em "+width+": "+JSON.stringify(geometry));
+  assert.ok(geometry.buttonTop>=Math.max(geometry.titleBottom,geometry.helpBottom)+8,
+   "Botão aparece abaixo do título e da ajuda em "+width+": "+JSON.stringify(geometry));
   assert.ok(geometry.buttonWidth>=geometry.width*.95,
    "Botão utiliza toda a largura do cartão em "+width+": "+JSON.stringify(geometry));
   assert.ok(geometry.buttonRight<=geometry.headRight+2&&geometry.pageWidth<=width+2,
    "Sem transbordamento horizontal em "+width+": "+JSON.stringify(geometry));
  }
+ await page.setViewportSize({width:360,height:844});
+ const weeklyHelp=page.locator(".dashboard-weekly-card .pet-context-help");
+ await weeklyHelp.locator("summary").click();
+ assert.equal(await weeklyHelp.evaluate(el=>el.open),true,"Tocar no ? abre orientação da seção");
+ assert.ok((await weeklyHelp.locator(".pet-context-popup").innerText()).includes("As próximas seis atividades em aberto"),
+  "Popover exibe o texto original completo");
+ await page.keyboard.press("Escape");
+ assert.equal(await weeklyHelp.evaluate(el=>el.open),false,"Esc fecha a orientação sem afetar a tela");
  await page.setViewportSize({width:1280,height:900});
  const desktopWeekly=await page.locator(".dashboard-weekly-card>.section-head").evaluate(head=>({
   direction:getComputedStyle(head).flexDirection,buttonWidth:head.querySelector(".button").getBoundingClientRect().width
@@ -1084,18 +1108,20 @@ await page.locator('a[data-route="reunioes"]').click();
   await page.setViewportSize({width,height:844});
   const m=await page.locator(".admin-commissions").evaluate(panel=>{
    const head=panel.querySelector(".admin-section-heading"),
-    desc=head.querySelector("p"),save=head.querySelector(".admin-save-all-button"),
+    help=head.querySelector(".pet-context-help"),summary=help.querySelector("summary"),
+    save=head.querySelector(".admin-save-all-button"),
     row=panel.querySelector(".admin-commission-item"),
     name=row.querySelector(".admin-commission-title strong"),
     vacancy=row.querySelector(".admin-vacancy-field input"),
     arrows=row.querySelector(".admin-order-controls"),
     controls=row.querySelector(".admin-commission-controls");
-   const d=desc.getBoundingClientRect(),b=save.getBoundingClientRect(),
+   const h=summary.getBoundingClientRect(),b=save.getBoundingClientRect(),
     p=panel.getBoundingClientRect(),n=name.getBoundingClientRect(),
     v=vacancy.getBoundingClientRect(),o=arrows.getBoundingClientRect(),
     ctrl=controls.getBoundingClientRect();
    return {direction:getComputedStyle(head).flexDirection,
-    descWidth:d.width,buttonWidth:b.width,descBottom:d.bottom,buttonTop:b.top,
+    helpClosed:!help.open,helpText:help.querySelector(".pet-context-popup").textContent.trim(),
+    helpBottom:h.bottom,buttonWidth:b.width,buttonTop:b.top,
     panelWidth:p.width,nameWordBreak:getComputedStyle(name).wordBreak,
     itemOverflow:row.scrollWidth-row.clientWidth,buttonRight:b.right,panelRight:p.right,
     nameWidth:n.width,vacancyWidth:v.width,vacancyLeft:v.left,vacancyRight:v.right,
@@ -1103,9 +1129,10 @@ await page.locator('a[data-route="reunioes"]').click();
     vacancyBottom:v.bottom,controlRight:ctrl.right,controlLeft:ctrl.left};
   });
   assert.equal(m.direction,"column","Cabeçalho Admin usa pilha vertical em "+width);
-  assert.ok(m.buttonTop>=m.descBottom+4,"Texto inteiro acima do botão em "+width+": "+JSON.stringify(m));
-  assert.ok(m.descWidth>=m.panelWidth*.65,"Descrição recebe espaço amplo em "+width+": "+JSON.stringify(m));
-  assert.ok(m.buttonWidth>=m.descWidth*.85,"Botão abaixo usa largura da seção em "+width);
+  assert.ok(m.helpClosed&&m.helpText.includes("Defina as vagas"),
+   "Explicação do painel Admin permanece acessível pelo ? em "+width+": "+JSON.stringify(m));
+  assert.ok(m.buttonTop>=m.helpBottom+4,"Botão fica abaixo do título e do ícone ? em "+width+": "+JSON.stringify(m));
+  assert.ok(m.buttonWidth>=m.panelWidth*.80,"Botão abaixo usa largura da seção em "+width);
   assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
   const top=await page.locator(".admin-commission-item").first().evaluate(row=>{
    const summary=row.querySelector(".admin-commission-item-top > .admin-commission-summary-link");
