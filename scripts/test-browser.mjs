@@ -1487,6 +1487,7 @@ await page.locator('a[data-route="reunioes"]').click();
  tasks.push({...task,id:"demanda-cron-ci",title:"Demanda vinculada ao cronograma",archivedAt:null,
   registeredAt:cronToday,deadlines:[{id:"prazo-ci",label:"Apresentação",dueAt:cronToday+"T16:00:00"}]});
  await page.goto(origin+"/#/cronograma");
+ await page.reload({waitUntil:"domcontentloaded"}); // Recarregar bootstrap após adicionar fixture ao mock.
  await page.locator("#cron-source").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#cron-source").inputValue(),"cronograma","Filtro inicial é Cronograma.");
  assert.equal(await page.locator("#cron-source option").count(),3,"Filtro usa apenas um seletor.");
