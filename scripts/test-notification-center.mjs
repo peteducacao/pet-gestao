@@ -151,6 +151,21 @@ assert.ok(executed.some(x=>x.sql.startsWith("INSERT INTO personal_reminders")&&J
 executed=[];
 assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,taskId:"mine",title:"Minha entrega"})).ok);
 assert.ok(executed.some(x=>x.sql.startsWith("INSERT INTO personal_reminders")&&x.args[2]==="mine"),"Lembrete vinculado apenas à própria pendência");
+task.deadlines=JSON.stringify([
+ {id:"postagem",label:"Postagem",dueAt:localTime,assigneeIds:["a"]},
+ {id:"revisao-outra-pessoa",label:"Revisão",dueAt:localTime,assigneeIds:["b"]}
+]);
+executed=[];
+assert.ok((await personal.savePersonalReminder(personalDb,user,{...once,taskId:"mine",taskStageId:"postagem"})).ok);
+const stageInsert=executed.find(x=>x.sql.startsWith("INSERT INTO personal_reminders"));
+assert.equal(stageInsert?.args.at(-1),"postagem","Etapa selecionada é persistida sem mudar a demanda.");
+assert.match(stageInsert?.args[4]||"",/Postagem/,"Título do lembrete destaca a etapa.");
+await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,taskId:"mine",taskStageId:"revisao-outra-pessoa"}),/outra pessoa/);
+await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,taskId:"mine",taskStageId:"inexistente"}),/Etapa indisponível/);
+await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,taskStageId:"postagem"}),/etapa de uma demanda/);
+task.deadlines=JSON.stringify([{id:"postagem",label:"Postagem",dueAt:localTime,assigneeIds:["a"],completedAt:new Date().toISOString()}]);
+await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,taskId:"mine",taskStageId:"postagem"}),/Etapa indisponível/);
+task.deadlines="[]";
 await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,taskId:"other"}),/sua pendência/);
 await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,schedules:[{at:localTime},{at:localTime}]}),/duas vezes/);
 await assert.rejects(personal.savePersonalReminder(personalDb,user,{...once,channels:{email:false,android:false,pc:false}}),/celular ou o PC/);
