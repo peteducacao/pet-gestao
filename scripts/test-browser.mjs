@@ -46,6 +46,13 @@ await page.route("**/api/v1/**",async route=>{
   const year=Number(url.searchParams.get("year")),month=Number(new Date().toISOString().slice(5,7));
   result={year,demands:tasks.length,activities:scheduleMock.length,months:Array.from({length:12},(_,i)=>({month:i+1,demands:i+1===month?tasks.length:0,activities:i+1===month?scheduleMock.length:0}))};
  }
+ else if(p==="/admin/overview"&&method==="GET"){
+  const year=Number(url.searchParams.get("year"));
+  result={year,commissionCount:committees.length,userCount:2,activities:scheduleMock.length,
+   totals:{registered:tasks.length,concluded:0,concludedLate:0,notConcluded:0},
+   commissions:committees.map(c=>({id:c.id,name:c.name,members:c.memberIds?.length||0,registered:tasks.filter(t=>t.commissionIds?.includes(c.id)).length,concluded:0,concludedLate:0,notConcluded:0})),
+   users:[user,admin].map(u=>({id:u.id,name:u.name,role:u.role,commissions:committees.filter(c=>c.memberIds?.includes(u.id)).length,assigned:tasks.filter(t=>t.assigneeIds?.includes(u.id)).length,completed:0,notCompleted:0}))};
+ }
  else if(p==="/notification-preferences"&&method==="GET")result={preferences:noticeMatrix};
  else if(p==="/notification-preferences"&&method==="PUT"){noticeMatrix=body;result={preferences:noticeMatrix};}
  else if(p==="/personal-reminders"&&method==="GET")result={items:personalMockItems};
@@ -342,7 +349,7 @@ try{
  user.role="tutor";
  await page.reload();
  await page.goto(origin+"/#/registrar/t-everyone");
- await page.locator("#collective-event-day").waitFor({state:"attached"}); // Campo nativo é visualmente oculto por design.
+await page.locator("#collective-event-day").waitFor({state:"attached"}); // Campo nativo é visualmente oculto por design.
  await page.setViewportSize({width:390,height:844});
  const eventSettings=page.locator("#deadline-settings");
  assert.equal(await page.locator(".assignment-all").innerText().then(x=>x.includes("permissão de concluir")),false,
@@ -1544,6 +1551,16 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('[data-do="cron-details"][data-id="'+added.id+'"]').click();
  await page.locator("#cron-detail-title").waitFor();
  assert.equal(await page.locator("#cron-detail-title").textContent(),"Atividade criada no cronograma","Tocar no cartão abre detalhes.");
+ assert.equal(await page.evaluate(()=>history.state?.petCronDetails),added.id,"Detalhe possui entrada própria no histórico.");
+ await page.goBack(); // Mesmo comportamento do botão físico/gesto Voltar do Android.
+ await page.waitForFunction(()=>!document.querySelector("#cron-detail-title"));
+ assert.ok(page.url().endsWith("/#/cronograma"),"Voltar fecha modal sem abandonar o cronograma.");
+ await page.locator('[data-do="cron-details"][data-id="'+added.id+'"]').click();
+ await page.locator("#cron-detail-title").waitFor();
+ await page.locator('[data-do="cron-details-close"]').click();
+ await page.waitForFunction(()=>!document.querySelector("#cron-detail-title"));
+ assert.equal(await page.evaluate(()=>Boolean(history.state?.petCronDetails)),false,"Fechar pelo X também limpa a entrada do modal.");
+ await page.locator('[data-do="cron-details"][data-id="'+added.id+'"]').click();
  await page.locator('[data-do="cron-edit"][data-id="'+added.id+'"]').click();
  await page.locator('#cron-form [name="title"]').fill("Atividade renomeada");
  await page.locator('#cron-form button[type="submit"]').click();
@@ -1587,6 +1604,15 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('[data-do="admin-report-pdf"]').click();
  assert.match((await pdf).suggestedFilename(),/\.pdf$/i,"Relatório exportado em PDF.");
  await page.locator("#admin-report-kind").selectOption("comissoes");
+ await page.locator('#admin-report-commission option[value="todos"]').waitFor({state:"attached"});
+ assert.equal(await page.locator("#admin-report-commission").inputValue(),"todos","Todas as comissões é a visão padrão.");
+ await page.locator(".admin-overview-table tbody tr").first().waitFor();
  assert.ok(await page.locator('a[href^="#/admin/resumo/"]').count()>0,"Relatórios permite acessar as comissões cadastradas.");
+ await page.locator("#admin-report-kind").selectOption("usuarios");
+ await page.locator('#admin-report-user option[value="todos"]').waitFor({state:"attached"});
+ assert.equal(await page.locator("#admin-report-user").inputValue(),"todos","Todos os usuários ficam disponíveis.");
+ await page.locator("#admin-report-kind").selectOption("todos");
+ assert.ok(await page.locator(".admin-overview-metrics > div").count()>=7,"Todos reúne os indicadores globais do PET.");
+ assert.ok(await page.locator(".admin-overview-table").count()===2,"Todos reúne comissões e usuários.");
  console.log("BROWSER: navegação, evento Todos(as) só com data, exclusão da conta, responsividade e Admin — OK.");
 }finally{await browser.close();server.kill();}

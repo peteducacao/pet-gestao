@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,cronDetails:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportCommission:'todos',adminReportUser:'todos',adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,adminOverviewData:null,adminOverviewLoadedYear:null,adminOverviewLoading:false,adminOverviewError:'',reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma PET",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
@@ -1221,6 +1221,23 @@ function cronCard(entry){
   ((canRemind||actions)?'<div class="chron-actions">'+
    (canRemind?'<button type="button" class="chron-remind" data-do="cron-remind" data-kind="'+esc(entry.kind)+'" data-id="'+esc(entry.id)+'" data-title="'+esc(entry.title)+'" aria-label="Adicionar lembrete para '+esc(entry.title)+'" title="Adicionar lembrete">'+ico("bell")+' <span>Lembrar</span></button>':"")+
    actions+'</div>':"")+'</div>'+open+'</article>';
+}
+function closeCronDetails(){
+ if(!state.cronDetails)return;
+ if(history.state?.petCronDetails&&location.hash===lastHash){
+  // Consome a entrada adicionada ao abrir a janela, sem abandonar o Cronograma.
+  history.back();
+  return;
+ }
+ state.cronDetails=null;
+ render();
+}
+function openCronDetails(entryId){
+ if(!(state.cronItems||[]).some(x=>x.id===entryId))return setToast("Atividade não encontrada.");
+ state.cronDetails=entryId;state.cronReminder=null;
+ history.pushState({...history.state,petCronDetails:entryId},"",location.href);
+ render();
+ $('[data-do="cron-details-close"]')?.focus();
 }
 function cronDetailsDialog(){
  const entry=(state.cronItems||[]).find(x=>x.id===state.cronDetails);
@@ -2888,31 +2905,100 @@ async function loadAdminAnnualReport(){
  }catch(e){state.adminReportData=null;state.adminReportLoadedYear=year;state.adminReportError=e.message;}
  finally{state.adminReportLoading=false;if(routeParts().page==="admin"&&state.adminTab==="relatorios")render()}
 }
-function renderAdminReports(){
- const commissionView=state.adminReportView==="comissoes";
- const controls='<div class="chron-report-controls"><label>Visualizar relatório<select class="select" id="admin-report-kind">'+
-  [["cronograma","Cronograma"],["comissoes","Comissões"]].map(([v,l])=>opt(v,l,state.adminReportView)).join("")+'</select></label>'+
-  (!commissionView?'<label>Ano<select class="select" id="admin-report-year">'+Array.from({length:12},(_,i)=>current.getFullYear()-5+i).map(y=>opt(y,y,state.adminReportYear)).join("")+'</select></label>':"")+'</div>';
- if(commissionView){
-  const cid=state.adminReportCommission||data.committees[0]?.id||"";
-  return '<section class="card card-pad chron-report">'+controls+
-   '<h2>Relatório das comissões</h2><p class="chron-report-note">Selecione a comissão para consultar o relatório já existente.</p>'+
-   '<label>Comissão<select class="select" id="admin-report-commission">'+data.committees.map(c=>opt(c.id,c.name,cid)).join("")+'</select></label>'+
-   (cid?'<a class="button primary" href="#/admin/resumo/'+id(cid)+'">Consultar comissão</a>':"")+'</section>';
+async function loadAdminOverview(){
+ if(!isAdmin()||state.adminOverviewLoading||!["todos","comissoes","usuarios"].includes(state.adminReportView))return;
+ const year=state.adminReportYear,owner=me?.id;
+ state.adminOverviewLoading=true;
+ try{
+  const result=await request("/admin/overview?year="+encodeURIComponent(year),"GET",undefined,"admin");
+  if(!Array.isArray(result?.commissions)||!Array.isArray(result?.users)||result.year!==year)throw Error("Resposta do resumo geral inválida.");
+  if(me?.id===owner){state.adminOverviewData=result;state.adminOverviewLoadedYear=year;state.adminOverviewError="";}
+ }catch(e){if(me?.id===owner){state.adminOverviewData=null;state.adminOverviewLoadedYear=year;state.adminOverviewError=e.message;}}
+ finally{
+  state.adminOverviewLoading=false;
+  if(routeParts().page==="admin"&&state.adminTab==="relatorios")render();
  }
- const r=state.adminReportLoadedYear===state.adminReportYear?state.adminReportData:null;
- return '<section class="card card-pad chron-report">'+controls+
-  '<div class="chron-report-head"><h2>Resumo anual · '+state.adminReportYear+'</h2>'+
-  (r?'<button class="button primary" type="button" data-do="admin-report-pdf">'+ico("download")+' Exportar PDF</button>':"")+'</div>'+
-  (!r?'<p class="chron-report-note">'+esc(state.adminReportError||"Carregando dados reais…")+'</p>':
-   '<div class="chron-report-metrics"><div><strong>'+r.demands+'</strong><span>Demandas no ano</span></div>'+
-   '<div><strong>'+r.activities+'</strong><span>Atividades do cronograma</span></div></div>'+
-   '<h3>Quantidade em cada mês</h3><div class="chron-report-table-wrap"><table class="chron-report-table">'+
-   '<thead><tr><th>Mês</th><th>Demandas</th><th>Cronograma</th></tr></thead><tbody>'+
-   r.months.map(x=>'<tr><td>'+MONTHS[x.month-1]+'</td><td>'+x.demands+'</td><td>'+x.activities+'</td></tr>').join("")+
-   '</tbody></table></div>')+'</section>';
 }
-
+const adminReportNumber=v=>Number(v||0).toLocaleString("pt-BR");
+function adminOverviewMetrics(data){
+ const metrics=[["Comissões",data.commissionCount],["Usuários",data.userCount],["Demandas cadastradas",data.totals?.registered],
+  ["Concluídas",data.totals?.concluded],["Concluídas com atraso",data.totals?.concludedLate],
+  ["Não concluídas",data.totals?.notConcluded],["Atividades no cronograma",data.activities]];
+ return '<div class="chron-report-metrics admin-overview-metrics">'+metrics.map(([label,n])=>
+  '<div><strong>'+adminReportNumber(n)+'</strong><span>'+esc(label)+'</span></div>').join("")+'</div>';
+}
+function adminCommissionOverviewTable(rows){
+ return '<h3>Todas as comissões</h3>'+
+  '<div class="chron-report-table-wrap"><table class="chron-report-table admin-overview-table"><thead><tr>'+
+  '<th>Comissão</th><th>Integrantes</th><th>Cadastradas</th><th>Concluídas</th><th>Com atraso</th><th>Não concluídas</th><th>Detalhes</th></tr></thead><tbody>'+
+  (rows.length?rows.map(c=>'<tr><td>'+esc(c.name)+'</td><td>'+adminReportNumber(c.members)+'</td>'+
+   '<td>'+adminReportNumber(c.registered)+'</td><td>'+adminReportNumber(c.concluded)+'</td>'+
+   '<td>'+adminReportNumber(c.concludedLate)+'</td><td>'+adminReportNumber(c.notConcluded)+'</td>'+
+   '<td><a href="#/admin/resumo/'+id(c.id)+'">Consultar</a></td></tr>').join(""):
+   '<tr><td colspan="7">Nenhuma comissão cadastrada.</td></tr>')+
+  '</tbody></table></div>';
+}
+function adminUserOverviewTable(rows){
+ const roleNames={admin:"Administração",tutor:"Tutoria",petiano:"PETiano(a)",usuario:"Usuário(a)"};
+ return '<h3>Visão dos usuários</h3>'+
+  '<div class="chron-report-table-wrap"><table class="chron-report-table admin-overview-table"><thead><tr>'+
+  '<th>Usuário</th><th>Perfil</th><th>Comissões atuais</th><th>Atribuídas</th><th>Realizadas</th><th>Não realizadas</th></tr></thead><tbody>'+
+  (rows.length?rows.map(u=>'<tr><td>'+esc(u.name)+'</td><td>'+esc(roleNames[u.role]||u.role)+'</td>'+
+   '<td>'+adminReportNumber(u.commissions)+'</td><td>'+adminReportNumber(u.assigned)+'</td>'+
+   '<td>'+adminReportNumber(u.completed)+'</td><td>'+adminReportNumber(u.notCompleted)+'</td></tr>').join(""):
+   '<tr><td colspan="6">Nenhum usuário cadastrado.</td></tr>')+
+  '</tbody></table></div>';
+}
+function renderAdminReports(){
+ const view=state.adminReportView,year=state.adminReportYear;
+ const controls='<div class="chron-report-controls"><label>Visualizar relatório<select class="select" id="admin-report-kind">'+
+  [["todos","Todos"],["cronograma","Cronograma"],["comissoes","Comissões"],["usuarios","Usuários"]].map(([v,l])=>opt(v,l,view)).join("")+'</select></label>'+
+  '<label>Ano<select class="select" id="admin-report-year">'+Array.from({length:12},(_,i)=>current.getFullYear()-5+i).map(y=>opt(y,y,year)).join("")+'</select></label></div>';
+ if(view==="cronograma"){
+  const r=state.adminReportLoadedYear===year?state.adminReportData:null;
+  return '<section class="card card-pad chron-report">'+controls+
+   '<div class="chron-report-head"><h2>Resumo anual · '+year+'</h2>'+
+   (r?'<button class="button primary" type="button" data-do="admin-report-pdf">'+ico("download")+' Exportar PDF</button>':"")+'</div>'+
+   (!r?'<p class="chron-report-note">'+esc(state.adminReportError||"Carregando dados reais…")+'</p>':
+    '<div class="chron-report-metrics"><div><strong>'+r.demands+'</strong><span>Demandas no ano</span></div>'+
+    '<div><strong>'+r.activities+'</strong><span>Atividades do cronograma</span></div></div>'+
+    '<h3>Quantidade em cada mês</h3><div class="chron-report-table-wrap"><table class="chron-report-table">'+
+    '<thead><tr><th>Mês</th><th>Demandas</th><th>Cronograma</th></tr></thead><tbody>'+
+    r.months.map(x=>'<tr><td>'+MONTHS[x.month-1]+'</td><td>'+x.demands+'</td><td>'+x.activities+'</td></tr>').join("")+
+    '</tbody></table></div>')+'</section>';
+ }
+ const r=state.adminOverviewLoadedYear===year?state.adminOverviewData:null;
+ const loading=!r?'<p class="chron-report-note" role="status">'+esc(state.adminOverviewError||"Carregando visão geral…")+'</p>':"";
+ const note='<p class="chron-report-note">Demandas e atividades referentes a '+year+'. Integrantes e contas representam os cadastros atuais. No total do PET, cada demanda é contada uma única vez, mesmo quando vinculada a várias comissões.</p>';
+ if(view==="comissoes"){
+  const cid=state.adminReportCommission||"todos",c=r?.commissions.find(x=>x.id===cid);
+  return '<section class="card card-pad chron-report">'+controls+
+   '<h2>Relatório das comissões</h2><p class="chron-report-note">Escolha Todas as comissões para visualizar o conjunto ou consulte individualmente.</p>'+
+   '<label>Comissão<select class="select" id="admin-report-commission">'+
+   '<option value="todos" '+(cid==="todos"?"selected":"")+'>Todas as comissões</option>'+
+   data.committees.map(x=>opt(x.id,x.name,cid)).join("")+'</select></label>'+
+   loading+(r?(cid==="todos"?adminCommissionOverviewTable(r.commissions):
+    (c?'<div class="chron-report-metrics"><div><strong>'+adminReportNumber(c.members)+'</strong><span>Integrantes atuais</span></div>'+
+     '<div><strong>'+adminReportNumber(c.registered)+'</strong><span>Demandas cadastradas</span></div>'+
+     '<div><strong>'+adminReportNumber(c.concluded)+'</strong><span>Concluídas</span></div>'+
+     '<div><strong>'+adminReportNumber(c.concludedLate)+'</strong><span>Com atraso</span></div></div>':'')+
+    '<a class="button primary" href="#/admin/resumo/'+id(cid)+'">Consultar comissão</a>'): "")+
+   (r?note:"")+'</section>';
+ }
+ if(view==="usuarios"){
+  const uid=state.adminReportUser||"todos";
+  return '<section class="card card-pad chron-report">'+controls+
+   '<h2>Relatório dos usuários</h2><p class="chron-report-note">Consulte todos os usuários ou escolha uma pessoa específica.</p>'+
+   '<label>Usuário<select class="select" id="admin-report-user">'+
+   '<option value="todos" '+(uid==="todos"?"selected":"")+'>Todos os usuários</option>'+
+   (r?.users||[]).map(u=>opt(u.id,u.name,uid)).join("")+'</select></label>'+
+   loading+(r?adminUserOverviewTable(uid==="todos"?r.users:r.users.filter(u=>u.id===uid))+note:"")+'</section>';
+ }
+ return '<section class="card card-pad chron-report">'+controls+
+  '<div class="chron-report-head"><h2>Visão geral · '+year+'</h2>'+
+  (r?'<button class="button primary" type="button" data-do="admin-overview-pdf">'+ico("download")+' Exportar PDF geral</button>':"")+'</div>'+
+  loading+(r?adminOverviewMetrics(r)+adminCommissionOverviewTable(r.commissions)+adminUserOverviewTable(r.users)+note:"")+'</section>';
+}
 function renderAdmin(){
  const adminPart=routeParts().parts;
  if(adminPart.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
@@ -3198,7 +3284,10 @@ function render(){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();updateMailScheduleButton();loadMailHistory();}
    if(state.adminTab==="painel")loadMailHistory();
-   if(state.adminTab==="relatorios"&&state.adminReportLoadedYear!==state.adminReportYear&&!state.adminReportLoading)void loadAdminAnnualReport();
+   if(state.adminTab==="relatorios"){
+     if(state.adminReportView==="cronograma"&&state.adminReportLoadedYear!==state.adminReportYear&&!state.adminReportLoading)void loadAdminAnnualReport();
+     if(["todos","comissoes","usuarios"].includes(state.adminReportView)&&state.adminOverviewLoadedYear!==state.adminReportYear&&!state.adminOverviewLoading)void loadAdminOverview();
+    }
  }
 }
 async function askNotification(participants=null){
@@ -3404,7 +3493,20 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
- if(action==="admin-report-pdf"){
+ if(action==="admin-overview-pdf"){
+   const r=state.adminOverviewData;
+   if(!isAdmin()||!r||r.year!==state.adminReportYear)return setToast("Relatório geral indisponível.");
+   const t=r.totals||{};
+   reportPdf("PET-Gestao-Visao-Geral-"+r.year+".pdf","Visão geral PET "+r.year,
+    ["Comissões: "+r.commissionCount,"Usuários: "+r.userCount,
+     "Demandas cadastradas: "+(t.registered||0),"Concluídas: "+(t.concluded||0),
+     "Com atraso: "+(t.concludedLate||0),"Não concluídas: "+(t.notConcluded||0),
+     "Atividades no cronograma: "+r.activities,"",
+     "COMISSÕES",...r.commissions.map(c=>c.name+": "+c.registered+" cadastradas; "+c.concluded+" concluídas; "+c.concludedLate+" com atraso"),
+     "","USUÁRIOS",...r.users.map(u=>u.name+": "+u.assigned+" atribuídas; "+u.completed+" realizadas")]);
+   return;
+  }
+  if(action==="admin-report-pdf"){
   const r=state.adminReportData;
   if(!isAdmin()||!r||r.year!==state.adminReportYear)return setToast("Relatório ainda indisponível.");
   const lines=["Ano: "+r.year,"Demandas no ano: "+r.demands,"Atividades do cronograma: "+r.activities,"",
@@ -3444,22 +3546,19 @@ async function handleClick(e){
  if(action==="cron-close"){state.cronEditing=null;render();return}
  if(action==="cron-edit"){
   if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
+  if(state.cronDetails&&history.state?.petCronDetails)history.back();
   state.cronEditing=tid;state.cronReminder=null;state.cronDetails=null;render();
   $("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return;
  }
- if(action==="cron-details"){
-  if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
-  state.cronDetails=tid;state.cronReminder=null;render();
-  $('[data-do="cron-details-close"]')?.focus();return;
- }
- if(action==="cron-details-close"){state.cronDetails=null;render();return;}
+ if(action==="cron-details"){openCronDetails(tid);return;}
+ if(action==="cron-details-close"){closeCronDetails();return;}
  if(action==="cron-delete"){
   const item=(state.cronItems||[]).find(x=>x.id===tid);
   if(!item)return setToast("Atividade não encontrada.");
   if(!await askConfirm('Excluir "'+item.title+'"? Os lembretes vinculados a ela também serão cancelados.',{title:"Excluir atividade?",danger:true,confirmLabel:"Excluir atividade"}))return;
   b.disabled=true;
   try{await request("/schedule/"+id(tid),"DELETE");state.cronEditing=null;state.cronLoadedYear=null;
-   await loadCronYear(state.cronYear);state.cronDetails=null;setToast("Atividade excluída.");
+   await loadCronYear(state.cronYear);if(state.cronDetails&&history.state?.petCronDetails)history.back();state.cronDetails=null;setToast("Atividade excluída.");
   }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
   return;
  }
@@ -3789,13 +3888,13 @@ async function handleClick(e){
  if(action==="mail-monitor-close"){state.mailMonitorOpen=false;render();return}
  if(action==="mail-monitor-refresh"){await loadMailHistory();return}
  if(action==="back"){
-   if(routeParts().page==="admin"){
-     const previous=state.navStack?.at(-2);
-     if(previous?.startsWith("#/admin")){state.navStack.pop();state.goingBack=true;location.hash=previous;}
-     else location.hash="#/admin/painel";
-   }else if(state.navStack?.length>1){state.navStack.pop();state.goingBack=true;location.hash=state.navStack.at(-1)}
-   else location.hash="#/inicio";
-   return;
+  if(state.cronDetails){closeCronDetails();return}
+  if(state.cronReminder){state.cronReminder=null;render();return}
+  // Usa o histórico real, igual ao gesto/botão Voltar do celular.
+  // Se a página foi aberta diretamente, permanece dentro do PET Gestão.
+  if(state.navStack?.length>1)history.back();
+  else location.hash=routeParts().page==="admin"?"#/admin/painel":"#/inicio";
+  return;
  }
  if(action==="mode"){state.mode=b.dataset.value;render();return}
   if(action==="meetings-view"){state.meetingView=b.dataset.value;render();return}
@@ -4438,9 +4537,10 @@ async function handleChange(e){
   else state.quickNavDraft.items=list.filter(v=>v!==key);
   render();return;
  }
- if(t.id==="admin-report-kind"){state.adminReportView=t.value==="comissoes"?"comissoes":"cronograma";render();return}
- if(t.id==="admin-report-year"){const y=Number(t.value);if(y>=2000&&y<=2100){state.adminReportYear=y;state.adminReportData=null;state.adminReportLoadedYear=null;state.adminReportError="";render();}return}
+ if(t.id==="admin-report-kind"){state.adminReportView=["todos","cronograma","comissoes","usuarios"].includes(t.value)?t.value:"cronograma";render();return}
+ if(t.id==="admin-report-year"){const y=Number(t.value);if(y>=2000&&y<=2100){state.adminReportYear=y;state.adminReportData=null;state.adminReportLoadedYear=null;state.adminReportError="";state.adminOverviewData=null;state.adminOverviewLoadedYear=null;state.adminOverviewError="";render();}return}
  if(t.id==="admin-report-commission"){state.adminReportCommission=t.value;render();return}
+  if(t.id==="admin-report-user"){state.adminReportUser=t.value;render();return}
  if(t.id==="cron-source"){state.cronFilter=["cronograma","demandas","todos"].includes(t.value)?t.value:"cronograma";render();return}
  if(t.id==="cron-year"){
   const year=Number(t.value);if(Number.isInteger(year)&&year>=2000&&year<=2100){
@@ -4492,7 +4592,14 @@ function onNavigation(){
  if(lastHash!==location.hash)state.adminMenuOpen=false;
  if(lastHash!==location.hash&&location.hash==="#/admin/relatorios"){state.adminReportLoadedYear=null;state.adminReportError="";}
  if(lastHash!==location.hash&&lastHash.startsWith("#/cronograma")&&!location.hash.startsWith("#/cronograma")){state.cronFilter="cronograma";state.cronEditing=null;state.cronReminder=null;state.cronDetails=null;}
- if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
+ if(lastHash!==location.hash){
+  const stack=state.navStack||[];
+  const index=stack.lastIndexOf(location.hash);
+  if(index>=0&&index===stack.length-2)stack.pop();
+  else if(index>=0)stack.splice(index+1);
+  else stack.push(location.hash);
+  state.previousRoute=lastHash;lastHash=location.hash;
+ }
  if(state.authTransition){window.scrollTo({top:0});return}
  if(wasAdmin!==nowAdmin){
    state.adminMenuOpen=false;
@@ -4524,6 +4631,20 @@ function start(){
  $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
  $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
  $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
+ // Ao voltar pelo Android/Chrome, fechar primeiro qualquer detalhe aberto.
+ // A janela possui sua própria entrada de histórico, mas mantém a URL do Cronograma.
+ window.addEventListener("popstate",event=>{
+  if(state.cronDetails&&location.hash===lastHash&&!event.state?.petCronDetails){
+   const previous=state.cronDetails;
+   state.cronDetails=null;
+   render();
+   $('[data-do="cron-details"][data-id="'+previous+'"]')?.focus();
+   return;
+  }
+  if(location.hash!==lastHash&&event.state?.petCronDetails){
+   state.cronDetails=event.state.petCronDetails;
+  }
+ });
  window.addEventListener("hashchange",()=>{
    // Eventos duplicados para a mesma rota não devem fechar uma confirmação aberta.
    if(location.hash===lastHash)return;
@@ -4579,7 +4700,7 @@ function start(){
    else if(!$("#auth-message-dialog")?.hidden){e.preventDefault();closeAuthMessage()}
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
     else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
-   else if(state.cronDetails){e.preventDefault();state.cronDetails=null;render()}
+   else if(state.cronDetails){e.preventDefault();closeCronDetails()}
    else if(state.cronReminder){e.preventDefault();state.cronReminder=null;render()}
  }});
 
