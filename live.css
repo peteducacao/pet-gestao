@@ -4991,3 +4991,54 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 @media(max-width:430px){
  #screen .chron-detail-actions .button{flex:1;justify-content:center}
 }
+
+
+/* Relatórios administrativos: "Todos" consolida o sistema sem multiplicar usuários
+   ou demandas quando há participação em mais de uma comissão. */
+#screen .admin-overview-panel{max-width:1100px}
+#screen .admin-overview-metrics{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-top:4px;
+}
+#screen .admin-overview-metrics>div{
+ display:flex;flex-direction:column;justify-content:center;gap:7px;
+ padding:17px 14px;border:1px solid #e6d9f0;border-radius:14px;
+ background:linear-gradient(150deg,#fbf9ff,#f4effd);min-width:0;
+}
+#screen .admin-overview-metrics strong{
+ font-size:clamp(24px,3vw,31px);line-height:1.1;color:#6032a5;font-weight:850;
+}
+#screen .admin-overview-metrics span{font-size:12px;line-height:1.4;color:#695b7d;font-weight:650}
+#screen .admin-overview-sections{display:grid;gap:18px}
+#screen .admin-overview-sections>section{display:grid;gap:8px}
+#screen .admin-overview-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+#screen .admin-overview-mini>div{
+ border:1px solid #eee8f3;background:#fcfbff;border-radius:12px;
+ padding:13px 11px;display:flex;flex-direction:column;gap:5px;min-width:0;
+}
+#screen .admin-overview-mini strong{font-weight:850;font-size:20px;color:#4d326f}
+#screen .admin-overview-mini span{font-size:11px;line-height:1.4;color:#786b88}
+#screen .admin-overview-table th:first-child,#screen .admin-overview-table td:first-child{text-align:left}
+#screen .admin-overview-table th:not(:first-child),#screen .admin-overview-table td:not(:first-child){text-align:center}
+#screen .admin-overview-table th{white-space:nowrap}
+#screen .admin-overview-table td{vertical-align:middle}
+#screen .admin-overview-link{
+ display:inline-flex;align-items:center;justify-content:center;min-height:34px;
+ padding:7px 10px;border:1px solid #e3d3f4;background:#f8f3ff;
+ color:#623da2;border-radius:10px;font-size:12px;font-weight:800;
+}
+#screen .admin-overview-link:hover{background:#eee4ff}
+#screen .chron-report-controls{width:100%}
+#screen .chron-report-controls label{flex:1 1 180px}
+#screen .chron-report-controls .select{width:100%}
+@media(max-width:800px){
+ #screen .admin-overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #screen .admin-overview-mini{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #screen .admin-overview-metrics>div{padding:15px 12px}
+ #screen .admin-overview-metrics strong{font-size:26px}
+ #screen .admin-overview-table{min-width:720px}
+ #screen .admin-overview-panel{min-width:0}
+}
+@media(max-width:390px){
+ #screen .chron-report-head .button{max-width:100%}
+ #screen .admin-overview-metrics span{font-size:11px}
+}
