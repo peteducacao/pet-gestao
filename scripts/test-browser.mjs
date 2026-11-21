@@ -1502,18 +1502,28 @@ await page.locator('a[data-route="reunioes"]').click();
  const cronToday=new Date().toISOString().slice(0,10);
  tasks.push({...task,id:"demanda-cron-ci",title:"Demanda vinculada ao cronograma",archivedAt:null,
   registeredAt:cronToday,deadlines:[{id:"prazo-ci",label:"Apresentação",dueAt:cronToday+"T16:00:00"}]});
+ // Evento já encerrado e demanda concluída devem perder a opção Lembrar.
+ const expiredDate=cronToday.slice(0,8)+"01";
+ scheduleMock.push({id:"evento-passado-ci",title:"Evento passado",startDate:expiredDate,endDate:expiredDate,startTime:"09:00",endTime:"10:00",location:"Sala",source:"manual",completedAt:null});
+ tasks.push({...task,id:"demanda-concluida-ci",title:"Demanda já concluída",archivedAt:new Date().toISOString(),closureOutcome:"concluida",registeredAt:cronToday,deadlines:[{id:"prazo-concluido",dueAt:cronToday+"T09:00:00"}]});
  await page.goto(origin+"/#/cronograma");
  await page.reload({waitUntil:"domcontentloaded"}); // Recarregar bootstrap após adicionar fixture ao mock.
  await page.locator("#cron-source").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#cron-source").inputValue(),"cronograma","Filtro inicial é Cronograma.");
  assert.equal(await page.locator("#cron-source option").count(),3,"Filtro usa apenas um seletor.");
  await page.locator(".chron-card").first().waitFor({timeout:10000});
+ const pastCard=page.locator(".chron-card").filter({hasText:"Evento passado"});
+ assert.equal(await pastCard.locator(".chron-date--done").count(),1,"Evento passado fica verde automaticamente.");
+ assert.equal(await pastCard.locator('[data-do="cron-remind"]').count(),0,"Evento passado não exibe Lembrar.");
  assert.equal(await page.locator(".chron-card--demand").count(),0,"Filtro inicial não mistura demandas.");
  await page.locator("#cron-source").selectOption("demandas");
  assert.equal(await page.locator("#cron-source").inputValue(),"demandas","Filtro Demandas permanece selecionado.");
  assert.ok(await page.locator(".chron-card--demand").count()>0,"Demandas aparecem automaticamente no cronograma.");
  assert.ok(await page.locator('.chron-card--demand a[href^="#/atividade/"]').count()>0,"Demanda abre página original.");
  assert.ok(await page.locator('.chron-card--demand .chron-card-open[href^="#/atividade/"]').count()>0,"Tocar no cartão abre a demanda original.");
+ const doneTaskCard=page.locator(".chron-card--demand").filter({hasText:"Demanda já concluída"});
+ assert.equal(await doneTaskCard.locator(".chron-date--done").count(),1,"Demanda concluída conserva o estado próprio.");
+ assert.equal(await doneTaskCard.locator('[data-do="cron-remind"]').count(),0,"Demanda concluída não exibe Lembrar.");
  await page.locator("#cron-source").selectOption("todos");
  assert.ok(await page.locator(".chron-card").count()>scheduleMock.length,"Todos reúne as duas origens.");
  await page.locator('[data-do="cron-new"]').click();
@@ -1547,9 +1557,6 @@ await page.locator('a[data-route="reunioes"]').click();
  const sent=page.waitForResponse(r=>r.url().endsWith("/personal-reminders")&&r.request().method()==="POST");
  await page.locator('#cron-reminder-form button[type="submit"]').click();await sent;
  assert.ok(personalMockItems.some(x=>x.scheduleEntryId===added.id&&x.autoDelete===true),"Aviso pessoal vinculado e autoexcluído.");
- const expiredDate=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
- scheduleMock.push({id:"evento-passado-ci",title:"Evento passado",startDate:expiredDate,endDate:expiredDate,startTime:"09:00",endTime:"10:00",location:"Sala",source:"manual",completedAt:null});
- // Ao voltar à lista, o evento passado estará concluído sem ação humana.
 
  await page.locator('[data-do="cron-view"][data-view="calendario"]').click();
  await page.locator(".chron-calendar-day").first().waitFor();
