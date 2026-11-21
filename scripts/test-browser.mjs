@@ -206,7 +206,7 @@ try{
  await page.unroute("**/config.js*");
  await page.reload({waitUntil:"domcontentloaded"});
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
- assert.equal(await page.locator('a[data-route="cronograma"]').count(),0,"Cronograma duplicado não deve aparecer no menu");
+ assert.equal(await page.locator('a[data-route="cronograma"]').count(),1,"Cronograma anual presente no menu PETiano/Tutor");
  assert.equal(await page.locator('a[data-route="reunioes"]').count(),1,"Atas no menu");
  assert.equal(await page.locator('select[data-filter="status"]').count(),1);
  assert.equal(await page.locator('.task-status-atrasada').count()>0,true);
@@ -1157,19 +1157,8 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(m.buttonTop>=m.helpBottom+4,"Botão fica abaixo do título e do ícone ? em "+width+": "+JSON.stringify(m));
   assert.ok(m.buttonWidth>=m.panelWidth*.80,"Botão abaixo usa largura da seção em "+width);
   assert.equal(m.nameWordBreak,"normal","Nome da comissão não é cortado por letras em "+width);
-  const top=await page.locator(".admin-commission-item").first().evaluate(row=>{
-   const summary=row.querySelector(".admin-commission-item-top > .admin-commission-summary-link");
-   const identity=row.querySelector(".admin-commission-identity");
-   const controls=row.querySelector(".admin-commission-controls");
-   const box=summary?.getBoundingClientRect(),person=identity?.getBoundingClientRect(),
-     foot=controls?.getBoundingClientRect();
-   return {present:Boolean(summary),right:box?.right,personRight:person?.right,
-    buttonTop:box?.top,footerTop:foot?.top,width:box?.width,
-    vacancyAlign:getComputedStyle(row.querySelector(".admin-vacancy-field input")).textAlign};
-  });
-  assert.equal(top.present,true,"Ver resumo está na faixa superior do cartão");
-  assert.ok(top.buttonTop<top.footerTop&&top.right>=top.personRight-2,"Resumo no alto à direita sem competir com vagas: "+JSON.stringify(top));
-  assert.equal(top.vacancyAlign,"center","Número de vagas centralizado em "+width);
+  assert.equal(await page.locator(".admin-commission-summary-link").count(),0,
+   "Resumo foi movido à aba Relatórios.");
   assert.ok(m.itemOverflow<=2,"Controles administrativos não estouram em "+width+": "+JSON.stringify(m));
   assert.ok(m.vacancyWidth>=51&&m.vacancyWidth<=53,
    "Campo Vagas compacto (52px) no celular em "+width+": "+JSON.stringify(m));
@@ -1180,6 +1169,11 @@ await page.locator('a[data-route="reunioes"]').click();
   assert.ok(Math.abs(m.vacancyBottom-m.arrowsBottom)<5,
    "Campo Vagas e setas alinhados na base em "+width+": "+JSON.stringify(m));
  }
+ await page.goto(origin+"/#/admin/relatorios");
+ await page.locator("#admin-report-kind").waitFor();
+ await page.locator("#admin-report-kind").selectOption("comissoes");
+ await page.locator('a[href="#/admin/resumo/videos"]').waitFor();
+ await page.goto(origin+"/#/admin/comissoes");
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator('[data-do="save-vagas"]').count(),0,"Botões Salvar individuais removidos");
  assert.equal(await page.locator('[data-do="save-all-commissions"]').count(),1,"Único Salvar todas no topo");
