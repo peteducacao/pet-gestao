@@ -6,7 +6,14 @@ const dateValid=s=>/^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s+"T1
 const timeValid=s=>/^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const staff=user=>{if(!user)fail("Entre na sua conta.",401);if(user.must_change_password)fail("Troque sua senha temporária.",403);if(!["petiano","tutor","admin"].includes(user.role_override||user.role))fail("Somente PETianos(as), Tutoria e Administração podem acessar o cronograma.",403)};
 const admin=user=>{staff(user);if((user.role_override||user.role)!=="admin"||user.session_admin_scope!==1)fail("Acesso exclusivo da Administração.",403)};
-const key=row=>({id:row.id,title:row.title,description:row.description,startDate:row.start_date,endDate:row.end_date,startTime:row.start_time,endTime:row.end_time,timeNote:row.time_note,location:row.location,completedAt:row.completed_at,source:row.source,createdAt:row.created_at,updatedAt:row.updated_at});
+// Conclusão automática no horário local de Sergipe (UTC-3).
+// O antigo completed_at persistido não controla mais atividades.
+const scheduleEndedAt=row=>{
+ const hour=timeValid(String(row.end_time||""))?row.end_time+":00":"23:59:59";
+ const ms=Date.parse(row.end_date+"T"+hour+"-03:00");
+ return Number.isFinite(ms)&&ms<=Date.now()?new Date(ms).toISOString():null;
+};
+const key=row=>({id:row.id,title:row.title,description:row.description,startDate:row.start_date,endDate:row.end_date,startTime:row.start_time,endTime:row.end_time,timeNote:row.time_note,location:row.location,completedAt:scheduleEndedAt(row),source:row.source,createdAt:row.created_at,updatedAt:row.updated_at});
 function validate(input,old=null){
  const title=text(input?.title,180),description=text(input?.description,1800),location=text(input?.location,240);
  const startDate=text(input?.startDate,10),endDate=text(input?.endDate||startDate,10);
@@ -44,12 +51,6 @@ export async function saveSchedule(db,user,input,id=null){
    .bind(eventId,b.title,b.description,b.startDate,b.endDate,b.startTime,b.endTime,b.timeNote,b.location,user.id,user.id,now,now).run();
  }
  return {ok:true,id:eventId};
-}
-export async function scheduleCompletion(db,user,id,completed){
- staff(user);if(typeof completed!=="boolean")fail("Estado de conclusão inválido.");
- const r=await db.prepare("UPDATE schedule_entries SET completed_at=?,updated_by=?,updated_at=? WHERE id=?").bind(completed?new Date().toISOString():null,user.id,new Date().toISOString(),id).run();
- if(!r.meta?.changes)fail("Atividade não encontrada.",404);
- return {ok:true};
 }
 export async function deleteSchedule(db,user,id){
  staff(user);const r=await db.prepare("DELETE FROM schedule_entries WHERE id=?").bind(id).run();

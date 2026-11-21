@@ -40,6 +40,12 @@ async function mine(db,taskId,userId){
  return task;
 }
 export async function prunePersonalReminders(db,taskId=null){
+ // Alarmes de atividades institucionais terminadas são removidos automaticamente.
+ // Demandas mantêm suas regras próprias de conclusão e atraso.
+ if(!taskId){
+  const today=localDate(),hour=localStamp(Date.now()).slice(11);
+  await db.prepare("DELETE FROM personal_reminders WHERE schedule_entry_id IN (SELECT id FROM schedule_entries WHERE end_date<? OR (end_date=? AND end_time IS NOT NULL AND end_time<=?))").bind(today,today,hour).run();
+ }
  const query=taskId?"SELECT id,task_id,user_id FROM personal_reminders WHERE task_id=?":"SELECT id,task_id,user_id FROM personal_reminders WHERE task_id IS NOT NULL LIMIT 1000";
  const rows=(await (taskId?db.prepare(query).bind(taskId):db.prepare(query)).all()).results;
  for(const r of rows){
@@ -67,8 +73,10 @@ export async function savePersonalReminder(db,user,input,id=null){
  let schedule=null;
  if(scheduleEntryId){
   if(taskId)fail("Selecione uma atividade ou uma demanda, não ambas.");
-  schedule=await db.prepare("SELECT id,title FROM schedule_entries WHERE id=?").bind(scheduleEntryId).first();
+  schedule=await db.prepare("SELECT id,title,end_date,end_time FROM schedule_entries WHERE id=?").bind(scheduleEntryId).first();
   if(!schedule)fail("Atividade do cronograma não encontrada.",404);
+  const end=Date.parse(schedule.end_date+"T"+(TIME.test(String(schedule.end_time||""))?schedule.end_time+":00":"23:59:59")+"-03:00");
+  if(!Number.isFinite(end)||end<=Date.now())fail("Esta atividade já terminou e não aceita novos lembretes.",409);
  }
 
  let task=null;
@@ -86,6 +94,7 @@ export async function savePersonalReminder(db,user,input,id=null){
  const autoDelete=scheduleEntryId?true:input.autoDelete;
  const recurrence=String(input.recurrence||"once");
  if(!["once","daily","weekly"].includes(recurrence))fail("Repetição inválida.");
+ if(scheduleEntryId&&recurrence!=="once")fail("Lembretes de atividades do cronograma são pontuais.");
  const repeatUntil=input.repeatUntil?String(input.repeatUntil):null;
  if(repeatUntil&&(!DATE.test(repeatUntil)||repeatUntil<localDate()))fail("Data final da repetição inválida.");
  const schedules=input.schedules;
@@ -98,6 +107,7 @@ export async function savePersonalReminder(db,user,input,id=null){
    const date=item.at.slice(0,10);time=item.at.slice(11);
    due=asInstant(date,time);
    if(!due||Date.parse(due)<=Date.now())fail("Escolha horários futuros para os lembretes.");
+   if(schedule&&Date.parse(due)>Date.parse(schedule.end_date+"T"+(TIME.test(String(schedule.end_time||""))?schedule.end_time+":00":"23:59:59")+"-03:00"))fail("O lembrete precisa acontecer antes do fim da atividade.");
    display=item.at;
   }else{
    time=String(item?.time||"");

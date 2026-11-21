@@ -4913,59 +4913,81 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 }
 
 
-/* Minha conta: o quinto atalho não pode ficar órfão na última linha. */
+/* Perfil mobile: cinco opções em 2 + 2 + 1, todas com a mesma largura e alinhamento.
+   A última fica centralizada, e Notificações usa o mesmo eixo de ícone/texto. */
 @media (max-width:800px){
  #screen .account-hub-sidebar{
   grid-template-columns:repeat(2,minmax(0,1fr));
   gap:9px;
  }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"]{
-  grid-column:1 / -1;
-  flex-direction:row;
-  align-items:center;
-  justify-content:flex-start;
-  gap:11px;
-  min-height:58px;
-  padding:11px 14px;
-  text-align:left;
-  border:1px solid #ebe1f5;
-  background:#fbf9fe;
- }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"]:hover{
-  background:#f5effd;
- }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"].is-active{
-  background:#f2ebff;
-  border-color:#dcc8f6;
-  box-shadow:inset 0 -3px 0 #8754db;
- }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-icon{
-  width:37px;
-  height:37px;
-  flex:0 0 37px;
- }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-text{
+ #screen .account-hub-sidebar .account-hub-nav-btn{
   display:grid;
-  gap:3px;
-  flex:1;
+  grid-template-columns:32px minmax(0,1fr);
+  align-items:center;
+  justify-items:stretch;
+  gap:8px;
+  min-width:0;
+  min-height:61px;
+  padding:10px 9px;
+  text-align:left;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-icon{
+  width:32px;height:32px;
+  flex:none;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-text{
+  display:block;
   min-width:0;
  }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-text strong{
-  font-size:13px;
-  line-height:1.3;
- }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-text small{
+ #screen .account-hub-sidebar .account-hub-nav-text strong{
   display:block;
-  font-size:11px;
-  line-height:1.35;
+  font-size:clamp(11px,2.45vw,13px);
+  line-height:1.28;
+  overflow-wrap:normal;
  }
- #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"]::after{
-  content:"›";
-  align-self:center;
-  font-size:24px;
-  line-height:1;
-  font-weight:400;
-  color:#9b83b8;
-  padding:0 1px 1px;
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"]{
+  grid-column:1 / -1;
+  width:calc(50% - 4.5px);
+  justify-self:center;
  }
+}
+
+/* Cronograma: o cartão inteiro abre os detalhes; apenas lembrete e excluir
+   continuam como ações diretas, sem botão manual de conclusão/edição. */
+#screen .chron-card{position:relative;isolation:isolate}
+#screen .chron-card-open{
+ position:absolute;inset:0;z-index:1;
+ display:block;width:100%;height:100%;margin:0;padding:0;
+ border:0;border-radius:inherit;background:transparent;
+ cursor:pointer;
+}
+#screen .chron-card-open:focus-visible{
+ outline:3px solid #9c75d9;
+ outline-offset:3px;
+}
+#screen .chron-card:hover{border-color:#d1b9ee;box-shadow:0 7px 23px #4f2c731a}
+#screen .chron-card .chron-actions{position:relative;z-index:2}
+#screen .chron-card .chron-remind{margin-right:auto}
+#screen .chron-card--atrasada{border-left-color:#dc4444}
+#screen .chron-card--nao_concluida{border-left-color:#cc7b3f}
+#screen .chron-card--concluida{border-left-color:#28a260}
+#screen .chron-date--late{border-color:#db424a;background:#fff3f3;color:#b72b34}
+#screen .chron-date--unfinished{border-color:#c47b49;background:#fff6ee;color:#9b491e}
+#screen .chron-detail-panel{width:min(490px,100%);max-height:min(85vh,780px);overflow:auto}
+#screen .chron-detail-status{
+ display:inline-flex;align-items:center;margin:-2px 0 18px;
+ padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800
+}
+#screen .chron-detail-status.is-done{color:#187b4a;background:#e8f8ee}
+#screen .chron-detail-status.is-upcoming{color:#6940ba;background:#f1eafe}
+#screen .chron-detail-info{margin:0;display:grid;gap:13px}
+#screen .chron-detail-info>div{display:grid;gap:4px;min-width:0}
+#screen .chron-detail-info dt{font-size:11px;font-weight:800;color:#78688e;text-transform:uppercase;letter-spacing:.05em}
+#screen .chron-detail-info dd{margin:0;color:#352643;font-size:14px;overflow-wrap:anywhere}
+#screen .chron-detail-description{white-space:pre-wrap;line-height:1.55}
+#screen .chron-detail-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:22px;justify-content:flex-end}
+#screen .chron-detail-actions .button{min-height:42px;font-size:13px}
+#screen .chron-delete-detail{color:#a83d4a;border-color:#edd5db}
+@media(max-width:430px){
+ #screen .chron-detail-actions .button{flex:1;justify-content:center}
 }

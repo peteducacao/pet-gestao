@@ -21,7 +21,7 @@ assert.match(html,/class="startup-splash-waves"/);
 assert.match(html,/pet-splash-pulse 1\.25s/,"Animação de abertura preservada");
 assert.match(html,/rel="apple-touch-icon" sizes="180x180"/);
 assert.match(html,/class="brand-icon brand-mark"[^>]*><img src="assets\/gestao-icon.svg/);
-assert.match(sw,/pet-gestao-public-shell-v20261121-cronograma-anual-v1/);
+assert.match(sw,/pet-gestao-public-shell-v20261121-cronograma-automatico-v2/);
 assert.ok(manifest.icons.some(i=>i.type==="image/svg+xml"&&i.src.includes("gestao-premium-sem-traco-20261120")));
 
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),"pet-gestao-icons-"));

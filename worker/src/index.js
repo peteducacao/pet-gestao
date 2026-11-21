@@ -1,7 +1,7 @@
 import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPushDevice,sendPushTest,pushNotificationToChannels} from "./push.js";
 import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel,noticeAudience,noticeSendPolicy} from "./notification-center.js";
 import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
-import {listSchedule,saveSchedule,scheduleCompletion,deleteSchedule,quickNavGet,quickNavSave,annualReport} from "./annual-schedule.js";
+import {listSchedule,saveSchedule,deleteSchedule,quickNavGet,quickNavSave,annualReport} from "./annual-schedule.js";
 import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
 "use strict";
@@ -736,9 +736,6 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       const schedulePath=path.match(new RegExp("^/api/v1/schedule/([A-Za-z0-9_-]{1,100})$"));
       if(schedulePath&&method==="PUT"){
         ensure(user);return answer(await saveSchedule(db,user,await body(req),schedulePath[1]));
-      }
-      if(schedulePath&&method==="PATCH"){
-        ensure(user);const b=await body(req);return answer(await scheduleCompletion(db,user,schedulePath[1],b.completed));
       }
       if(schedulePath&&method==="DELETE"){
         ensure(user);return answer(await deleteSchedule(db,user,schedulePath[1]));
