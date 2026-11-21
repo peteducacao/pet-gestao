@@ -2851,7 +2851,7 @@ async function loadAdminAnnualReport(){
  const year=state.adminReportYear,owner=me?.id;
  state.adminReportLoading=true;
  try{
-  const result=await request("/admin/annual-report?year="+encodeURIComponent(year),"GET",null,"admin");
+  const result=await request("/admin/annual-report?year="+encodeURIComponent(year),"GET",undefined,"admin");
   if(!Array.isArray(result?.months)||result.months.length!==12)throw Error("Resposta do relatório inválida.");
   if(me?.id===owner){state.adminReportData=result;state.adminReportLoadedYear=year;state.adminReportError="";}
  }catch(e){state.adminReportData=null;state.adminReportLoadedYear=year;state.adminReportError=e.message;}
