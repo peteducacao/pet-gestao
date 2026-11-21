@@ -4461,6 +4461,7 @@ function onNavigation(){
  closeTaskPhoto();closeCommissionImageEditor();
  const wasAdmin=lastHash.startsWith("#/admin"),nowAdmin=location.hash.startsWith("#/admin");
  if(lastHash!==location.hash)state.adminMenuOpen=false;
+ if(lastHash!==location.hash&&location.hash==="#/admin/relatorios"){state.adminReportLoadedYear=null;state.adminReportError="";}
  if(lastHash!==location.hash&&lastHash.startsWith("#/cronograma")&&!location.hash.startsWith("#/cronograma")){state.cronFilter="cronograma";state.cronEditing=null;state.cronReminder=null;}
  if(lastHash!==location.hash){if(!state.goingBack)state.navStack.push(location.hash);else state.goingBack=false;state.previousRoute=lastHash;lastHash=location.hash}
  if(state.authTransition){window.scrollTo({top:0});return}
