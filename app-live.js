@@ -3248,6 +3248,50 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="cron-new"){state.cronEditing="new";state.cronReminder=null;render();$("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return}
+ if(action==="cron-close"){state.cronEditing=null;render();return}
+ if(action==="cron-edit"){
+  if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
+  state.cronEditing=tid;state.cronReminder=null;render();
+  $("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return;
+ }
+ if(action==="cron-toggle"){
+  const item=(state.cronItems||[]).find(x=>x.id===tid);
+  if(!item)return setToast("Atividade não encontrada.");
+  b.disabled=true;
+  try{await request("/schedule/"+id(tid),"PATCH",{completed:!item.completedAt});
+   state.cronLoadedYear=null;await loadCronYear(state.cronYear);setToast(item.completedAt?"Atividade reaberta.":"Atividade concluída.");
+  }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="cron-delete"){
+  const item=(state.cronItems||[]).find(x=>x.id===tid);
+  if(!item)return setToast("Atividade não encontrada.");
+  if(!await askConfirm('Excluir "'+item.title+'"? Os lembretes vinculados a ela também serão cancelados.',{title:"Excluir atividade?",danger:true,confirmLabel:"Excluir atividade"}))return;
+  b.disabled=true;
+  try{await request("/schedule/"+id(tid),"DELETE");state.cronEditing=null;state.cronLoadedYear=null;
+   await loadCronYear(state.cronYear);setToast("Atividade excluída.");
+  }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
+ if(action==="cron-remind"){
+  const entry=b.dataset.kind==="cronograma"?(state.cronItems||[]).find(x=>x.id===tid):null;
+  const task=b.dataset.kind==="demanda"?(data.tasks||[]).find(x=>x.id===tid):null;
+  if(!entry&&!task)return setToast("Registro não encontrado.");
+  state.cronReminder={entryId:entry?.id||null,title:entry?.title||task?.title||""};
+  state.cronEditing=null;render();$("#cron-reminder-form input[name='at']")?.focus();return;
+ }
+ if(action==="cron-remind-close"){state.cronReminder=null;render();return}
+ if(action==="cron-prev"||action==="cron-next"){
+  const d=new Date(state.cronYear,state.cronMonth+(action==="cron-next"?1:-1),1);
+  state.cronYear=d.getFullYear();state.cronMonth=d.getMonth();state.cronSelectedDay=cronIso(state.cronYear,state.cronMonth,1);render();return;
+ }
+ if(action==="cron-view"){state.cronView=b.dataset.view==="calendario"?"calendario":"lista";state.cronCalendarMode="mes";render();return}
+ if(action==="cron-calendar-mode"){state.cronCalendarMode=state.cronCalendarMode==="mes"?"ano":"mes";render();return}
+ if(action==="cron-year-month"){const month=Number(b.dataset.month);if(!Number.isInteger(month)||month<0||month>11)return;
+  state.cronMonth=month;state.cronCalendarMode="mes";state.cronSelectedDay=cronIso(state.cronYear,month,1);render();return}
+ if(action==="cron-day"){if(!/^\d{4}-\d{2}-\d{2}$/.test(b.dataset.date||""))return;
+  state.cronSelectedDay=b.dataset.date;render();return}
  if(action==="save-notice-matrix"){
   if(!state.noticeDraft)return setToast("Aguarde o carregamento das suas preferências.");
   const settings=JSON.parse(JSON.stringify(state.noticeDraft));
@@ -3986,6 +4030,35 @@ async function handleSubmit(e){
    await loadAdminCommissionSummary(cid);
    return;
  }
+ if(form.id==="cron-form"){
+  if(!canWrite())return setToast("Acesso não autorizado.");
+  const fields=userFields(form),eventId=form.dataset.id;
+  const payload={title:fields.title,description:fields.description||"",startDate:fields.startDate,endDate:fields.endDate,
+   startTime:fields.startTime||null,endTime:fields.endTime||null,timeNote:fields.timeNote||null,location:fields.location||""};
+  const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+  try{
+   await request("/schedule"+(eventId?"/"+id(eventId):""),eventId?"PUT":"POST",payload);
+   state.cronEditing=null;state.cronLoadedYear=null;await loadCronYear(state.cronYear);
+   setToast(eventId?"Atividade atualizada.":"Atividade cadastrada no Cronograma.");
+  }finally{if(button?.isConnected)button.disabled=false}
+  return;
+ }
+ if(form.id==="cron-reminder-form"){
+  if(!canWrite()||!state.cronReminder)return setToast("Atividade não disponível.");
+  const date=form.elements.at?.value;
+  if(!date)return setToast("Selecione a data e a hora do lembrete.");
+  const target={...state.cronReminder};
+  const payload={taskId:null,scheduleEntryId:target.entryId,title:target.title,message:"",
+   recurrence:"once",repeatUntil:null,autoDelete:true,
+   channels:{email:false,android:true,pc:true},schedules:[{at:date}]};
+  const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+  try{
+   await request("/personal-reminders","POST",payload);
+   state.cronReminder=null;state.reminderLoadedFor=null;
+   render();setToast("Lembrete salvo em Meus lembretes. Será excluído depois do aviso.");
+  }finally{if(button?.isConnected)button.disabled=false}
+  return;
+ }
  if(form.id==="task-form"){await saveTask(form);return}
  if(form.id==="commission-form"){await saveCommission(form);return}
  if(form.id==="meeting-form"){
@@ -4164,6 +4237,12 @@ async function handleChange(e){
    return;
  }
 
+ if(t.id==="cron-source"){state.cronFilter=["cronograma","demandas","todos"].includes(t.value)?t.value:"cronograma";render();return}
+ if(t.id==="cron-year"){
+  const year=Number(t.value);if(Number.isInteger(year)&&year>=2000&&year<=2100){
+   state.cronYear=year;state.cronSelectedDay=cronIso(year,state.cronMonth,1);render();
+  }return;
+ }
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
  if(t.id==="account-photo-input"){
    const original=t.files?.[0];t.value="";
