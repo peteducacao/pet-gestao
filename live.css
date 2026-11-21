@@ -5015,3 +5015,21 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 @media(max-width:360px){
  #screen .admin-overview-metrics{grid-template-columns:minmax(0,1fr)}
 }
+
+
+/* Etapa associada ao lembrete pessoal: data consultada em Prazos e etapas da demanda. */
+#screen .reminder-stage-hint{
+ margin:-4px 0 2px;padding:11px 13px;
+ border-left:3px solid #9063d5;border-radius:8px;
+ color:#675679;background:#f7f2ff;font-size:12px;line-height:1.55;
+}
+#screen .reminder-stage-preview{
+ display:flex;align-items:flex-start;gap:10px;min-width:0;
+ border:1px solid #e4d6f3;border-radius:12px;
+ background:#fcfaff;padding:13px 14px;
+}
+#screen .reminder-stage-preview>svg{width:19px;height:19px;flex:none;color:#7546b9;margin-top:1px}
+#screen .reminder-stage-preview>div{display:grid;gap:4px;min-width:0}
+#screen .reminder-stage-preview strong{color:#4c2f73;font-size:13px;overflow-wrap:anywhere}
+#screen .reminder-stage-preview span{color:#766781;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+#screen #reminder-stage{max-width:100%;min-width:0}
