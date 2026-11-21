@@ -34,6 +34,9 @@ jobs:
           node --check scripts/test-ui.mjs
           node --check scripts/test-startup-splash.mjs
           node --check scripts/test-pwa-install.mjs
+          node --check scripts/test-ios-pwa.mjs
+      - name: Verificar iOS, privacidade e rotas de notificações
+        run: node scripts/test-ios-pwa.mjs
       - name: Testar tela de abertura antes de publicar
         run: node scripts/test-startup-splash.mjs
       - name: Verificar todas as variações da nova marca, inclusive PNGs
