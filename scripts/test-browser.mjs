@@ -1576,7 +1576,11 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('[data-do="cron-new"]').click();
  await page.locator("#cron-form").waitFor();
  await page.locator('#cron-form [name="title"]').fill("Atividade criada no cronograma");
- await page.locator('#cron-form [name="startTime"]').fill("09:00");
+ const cronOriginalDate=await page.locator('#cron-form [name="startDate"]').inputValue();
+ const cronTomorrow=new Date(Date.parse(cronOriginalDate+"T12:00:00Z")+86400000).toISOString().slice(0,10);
+ const cronStartFuture=cronTomorrow.slice(0,7)===cronOriginalDate.slice(0,7);
+ if(cronStartFuture)await page.locator('#cron-form [name="startDate"]').fill(cronTomorrow);
+ await page.locator('#cron-form [name="startTime"]').fill("10:30");
  await page.locator('#cron-form [name="endDate"]').fill(new Date(Date.now()+7*86400000).toISOString().slice(0,10));
  await page.locator('#cron-form [name="endTime"]').fill("23:50");
  await page.locator('#cron-form [name="location"]').fill("Sala PET");
@@ -1585,7 +1589,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#cron-form button[type="submit"]').click();await posted;
  await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade criada no cronograma"));
  const added=scheduleMock.find(x=>x.title==="Atividade criada no cronograma");
- assert.ok(added&&added.startTime==="09:00"&&added.endTime==="23:50");
+ assert.ok(added&&added.startTime==="10:30"&&added.endTime==="23:50");
  assert.ok(!tasks.some(x=>x.title===added.title),"Cadastro de cronograma não cria demanda.");
  await page.locator('[data-do="cron-details"][data-id="'+added.id+'"]').click();
  await page.locator("#cron-detail-title").waitFor();
@@ -1609,6 +1613,10 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(await page.locator('[data-do="cron-remind"][data-id="'+added.id+'"]').count()>0,"Evento futuro permite lembrete.");
  await page.locator('[data-do="cron-remind"][data-id="'+added.id+'"]').click();
  await page.locator("#cron-reminder-form").waitFor();
+ if(cronStartFuture){
+  assert.equal(await page.locator('#cron-reminder-form [name="at"]').inputValue(),added.startDate+"T10:30",
+   "Lembrar sugere dia e horário do evento cadastrado, não hora atual.");
+ }
  const future=new Date(Date.now()+3*3600000-3*3600000).toISOString().slice(0,16);
  await page.locator('#cron-reminder-form [name="at"]').fill(future);
  const sent=page.waitForResponse(r=>r.url().endsWith("/personal-reminders")&&r.request().method()==="POST");
