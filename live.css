@@ -4911,3 +4911,61 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 @media print{
  .pet-quickbar{display:none!important}
 }
+
+
+/* Minha conta: o quinto atalho não pode ficar órfão na última linha. */
+@media (max-width:800px){
+ #screen .account-hub-sidebar{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"]{
+  grid-column:1 / -1;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  gap:11px;
+  min-height:58px;
+  padding:11px 14px;
+  text-align:left;
+  border:1px solid #ebe1f5;
+  background:#fbf9fe;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"]:hover{
+  background:#f5effd;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"].is-active{
+  background:#f2ebff;
+  border-color:#dcc8f6;
+  box-shadow:inset 0 -3px 0 #8754db;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-icon{
+  width:37px;
+  height:37px;
+  flex:0 0 37px;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-text{
+  display:grid;
+  gap:3px;
+  flex:1;
+  min-width:0;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-text strong{
+  font-size:13px;
+  line-height:1.3;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"] .account-hub-nav-text small{
+  display:block;
+  font-size:11px;
+  line-height:1.35;
+ }
+ #screen .account-hub-sidebar .account-hub-nav-btn[data-tab="atalhos"]::after{
+  content:"›";
+  align-self:center;
+  font-size:24px;
+  line-height:1;
+  font-weight:400;
+  color:#9b83b8;
+  padding:0 1px 1px;
+ }
+}
