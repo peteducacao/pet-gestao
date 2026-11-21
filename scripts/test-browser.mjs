@@ -545,6 +545,28 @@ await page.locator("#collective-event-day").waitFor({state:"attached"}); // Camp
  assert.equal(await page.locator(".live-stage").count(),0,"Edição não recria prazo removido");
  await page.locator('[data-do="add-stage"]').click();
  assert.equal(await page.locator(".live-stage").count(),1,"Botão Adicionar etapa continua disponível");
+ const previousStageId=await page.locator("#stage-rows .live-stage").first().getAttribute("data-stage-id");
+ await page.locator('[data-do="add-stage"]').click();
+ assert.equal(await page.locator(".live-stage").count(),2,"Adicionar outra etapa não apaga a anterior.");
+ const firstStage=page.locator("#stage-rows .live-stage").first();
+ const secondStage=page.locator("#stage-rows .live-stage").nth(1);
+ const latestStageId=await firstStage.getAttribute("data-stage-id");
+ assert.notEqual(latestStageId,previousStageId,"Etapa recém-criada possui identificador independente.");
+ assert.equal(await secondStage.getAttribute("data-stage-id"),previousStageId,
+   "A etapa anterior permanece embaixo: o novo prazo aparece primeiro.");
+ assert.equal(await firstStage.locator('[data-stage-part="day"]').inputValue(),"",
+   "A primeira etapa é a nova, ainda não preenchida.");
+ await firstStage.locator('[data-stage-part="day"]').fill("25");
+ await firstStage.locator('[data-stage-part="month"]').fill("12");
+ await secondStage.locator('[data-stage-part="day"]').fill("24");
+ await secondStage.locator('[data-stage-part="month"]').fill("12");
+ await page.locator(".task-form-header-save").click();
+ await page.waitForTimeout(180);
+ assert.deepEqual(tasks.find(x=>x.id==="t-step-empty").deadlines.map(stage=>stage.id),
+   [latestStageId,previousStageId],"A demanda é salva na ordem visual: etapa nova primeiro.");
+ await page.goto(origin+"/#/registrar/t-step-empty");
+ assert.deepEqual(await page.locator("#stage-rows .live-stage").evaluateAll(rows=>rows.map(row=>row.dataset.stageId)),
+   [latestStageId,previousStageId],"Ao editar novamente, o prazo novo continua no topo.");
  tasks=tasks.filter(x=>!["t-everyone","t-step-empty"].includes(x.id));
  await page.goto(origin+"/#/demandas");
  await page.reload(); // Recarrega o bootstrap após retirar a demanda fictícia.
