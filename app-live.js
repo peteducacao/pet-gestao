@@ -1807,10 +1807,23 @@ const reminderLocalValue=(offset=3600000)=>{
  return new Date(Date.now()+offset-3*3600000).toISOString().slice(0,16);
 };
 // O prazo é apenas uma sugestão inicial. O usuário pode editar livremente a data e a mensagem.
-function reminderSuggestedAt(t){
+// Mesmas etapas exibidas em "Prazos e etapas" nos detalhes da demanda.
+// Não oferecer ao usuário as etapas atribuídas explicitamente a outra pessoa.
+function reminderEligibleStages(task){
+ if(!task||!me)return [];
+ return stages(task).filter(stage=>{
+  if(!stage?.id||!stage.dueAt||stage.completedAt)return false;
+  const owners=Array.isArray(stage.assigneeIds)?stage.assigneeIds:[];
+  return !owners.length||owners.some(uid=>String(uid)===String(me.id));
+ });
+}
+function reminderStageFor(task,stageId){
+ return reminderEligibleStages(task).find(stage=>String(stage.id)===String(stageId||""))||null;
+}
+function reminderSuggestedAt(t,onlyStage=null){
  const nowMs=Date.now();
- const rawDates=[...stages(t||{}).filter(stage=>stage.dueAt&&!stage.completedAt).map(stage=>stage.dueAt),
-  t?.displayDate].filter(Boolean);
+ const rawDates=(onlyStage?[onlyStage.dueAt]:
+  [...reminderEligibleStages(t).map(stage=>stage.dueAt),t?.displayDate]).filter(Boolean);
  const next=rawDates.map(raw=>{
   const value=String(raw),date=value.slice(0,10);
   const hasTime=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
@@ -1821,7 +1834,7 @@ function reminderSuggestedAt(t){
  }).filter(Boolean).sort((a,b)=>a.instant-b.instant)[0];
  return next?.local||reminderLocalValue();
 }
-const reminderDefaultSlot=(mode,task=null)=>mode==="once"?{at:task?reminderSuggestedAt(task):reminderLocalValue()}:
+const reminderDefaultSlot=(mode,task=null,stage=null)=>mode==="once"?{at:task?reminderSuggestedAt(task,stage):reminderLocalValue()}:
  mode==="daily"?{time:"09:00"}:{weekday:1,time:"09:00"};
 async function loadPersonalReminders(){
  const id=me?.id;
@@ -1848,6 +1861,7 @@ function captureReminderEditor(){
  state.reminderDraft={
   reminderType:form.elements.reminderType?.value||"task",
   taskId:form.elements.taskId?.value||"",
+  taskStageId:form.elements.taskStageId?.value||"",
   title:form.elements.title?.value||"",
   message:form.elements.message?.value||"",
   channels:{email:false,android:form.elements.android?.checked===true,pc:form.elements.pc?.checked===true},
@@ -1861,7 +1875,7 @@ function openReminderEditor(item=null){
  state.reminderEditing=item?.id||"new";
  state.reminderRecurrence=item?.recurrence||"once";
  state.reminderDraft={reminderType:item?(item.taskId?"task":"custom"):"task",
-  taskId:item?.taskId||"",title:item?.title||"",message:item?.message||"",
+  taskId:item?.taskId||"",taskStageId:item?.taskStageId||"",title:item?.title||"",message:item?.message||"",
   channels:item?.channels||{email:false,android:true,pc:true},
   autoDelete:item?.autoDelete??true,repeatUntil:item?.repeatUntil||""};
  state.reminderSchedules=item?.schedules?.map(x=>item.recurrence==="once"?{at:x.at}:{time:x.at,weekday:x.weekday})||
@@ -1884,6 +1898,9 @@ function renderPersonalReminders(){
  const pending=data.tasks.filter(isMyPending).sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b))));
  const draft=state.reminderDraft||{},editing=state.reminderEditing!==false;
  const custom=draft.reminderType==="custom",mode=state.reminderRecurrence;
+ const selectedTask=pending.find(task=>String(task.id)===String(draft.taskId||""));
+ const selectableStages=reminderEligibleStages(selectedTask);
+ const chosenStage=reminderStageFor(selectedTask,draft.taskStageId);
  const headerHtml=header("Pessoal","Meus lembretes","Seus alarmes pessoais, sem alterar o cadastro das demandas.");
  const formHtml=!editing?"":'<section class="card card-pad reminder-editor">'+
   '<div class="section-head"><div><h2>'+(state.reminderEditing==="new"?"Novo lembrete":"Editar lembrete")+'</h2><p>Escolha vários dias e horários para ser avisado (horário de Sergipe).</p></div>'+
@@ -1894,6 +1911,15 @@ function renderPersonalReminders(){
   (custom?'<label>Título do lembrete<input name="title" maxlength="120" required placeholder="Ex.: Ligar para alguém" value="'+esc(draft.title||"")+'"></label>':
    '<label>Minha demanda<select class="select" name="taskId" id="reminder-task" required><option value="">Selecione a demanda</option>'+
    pending.map(t=>opt(t.id,t.title,draft.taskId||"")).join("")+'</select></label>'+
+   (selectedTask?'<label>Minha parte da demanda (Prazos e etapas)<select class="select" name="taskStageId" id="reminder-stage">'+
+    '<option value="">Lembrete geral da demanda</option>'+
+    selectableStages.map(stage=>opt(stage.id,(stage.label||"Etapa")+" · "+textDate(stage.dueAt),draft.taskStageId||"")).join("")+
+    '</select></label>'+
+    (chosenStage?'<div class="reminder-stage-preview">'+ico("calendar")+
+     '<div><strong>'+esc(chosenStage.label||"Etapa selecionada")+'</strong><span>Data cadastrada: '+textDate(chosenStage.dueAt)+
+     (chosenStage.assigneeIds?.length?' · Responsável: '+esc(stageResponsibleNames(chosenStage,selectedTask)):' · Sem responsável individual definido')+
+     '</span></div></div>':"")+
+    '<p class="reminder-stage-hint">Escolha a etapa em que vai atuar. O horário abaixo é apenas uma sugestão: você pode escolher o dia 28, por exemplo, e receber somente nesse dia, sem avisos deste lembrete nos dias anteriores.</p>':"")+
    (!pending.length?'<p class="field-hint">Você não possui pendências ativas. Use Personalizado para criar um aviso pessoal.</p>':""))+
   '<label>Repetir<select class="select" name="recurrence" id="reminder-recurrence">'+
   [["once","Uma vez (um ou vários dias)"],["daily","Todos os dias"],["weekly","Semanalmente"]].map(([v,l])=>opt(v,l,mode)).join("")+'</select></label>'+
@@ -1917,7 +1943,7 @@ function renderPersonalReminders(){
     ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][x.weekday]+" às "+x.at).join(" · ");
    return '<article class="reminder-list-row"><div class="reminder-list-icon">'+ico(item.taskId?"calendar":"bell")+'</div>'+
     '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p>'+esc(dates)+'</p>'+
-    '<small>'+(item.taskId?"Vinculado à minha demanda":"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
+    '<small>'+(item.taskId?(item.taskStageId?"Etapa: "+esc(stages(data.tasks.find(t=>t.id===item.taskId)||{}).find(stage=>String(stage.id)===String(item.taskStageId))?.label||"Etapa da demanda"):"Vinculado à minha demanda"):"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
     '<div class="reminder-list-actions"><button type="button" class="button ghost" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' Editar</button>'+
     '<button type="button" class="button ghost" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' Excluir</button></div></article>';
   }).join(""):'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
@@ -4363,7 +4389,9 @@ async function handleSubmit(e){
    const schedules=readReminderSlots(form).map(slot=>
     f.recurrence==="once"?{at:slot.at}:
     f.recurrence==="daily"?{time:slot.time}:{weekday:slot.weekday,time:slot.time});
-   const payload={taskId:type==="task"?task.id:null,title:type==="task"?task.title:String(f.title||"").trim(),
+   const chosenStage=type==="task"?reminderStageFor(task,f.taskStageId):null;
+   if(type==="task"&&f.taskStageId&&!chosenStage)return setToast("Escolha uma etapa disponível desta demanda.");
+   const payload={taskId:type==="task"?task.id:null,taskStageId:chosenStage?.id||null,title:type==="task"?task.title:String(f.title||"").trim(),
     message:f.message||"",recurrence:f.recurrence,repeatUntil:f.repeatUntil||null,
     channels:{email:false,android:form.elements.android.checked,pc:form.elements.pc.checked},
     autoDelete:form.elements.autoDelete.checked,schedules};
@@ -4498,17 +4526,26 @@ async function handleChange(e){
  }
  if(t.id==="reminder-task"){
   captureReminderEditor();
+  state.reminderDraft.taskStageId="";
   if(state.reminderEditing==="new"&&state.reminderRecurrence==="once"&&state.reminderSchedules.length===1){
    const selected=data.tasks.find(task=>task.id===t.value&&isMyPending(task));
    if(selected)state.reminderSchedules=[reminderDefaultSlot("once",selected)];
   }
   render();return;
  }
+ if(t.id==="reminder-stage"){
+  captureReminderEditor();
+  const selected=data.tasks.find(task=>task.id===state.reminderDraft?.taskId&&isMyPending(task));
+  const stage=reminderStageFor(selected,t.value);
+  if(state.reminderRecurrence==="once"&&state.reminderSchedules.length===1&&selected)
+   state.reminderSchedules=[reminderDefaultSlot("once",selected,stage)];
+  render();return;
+ }
  if(t.id==="reminder-recurrence"){
   captureReminderEditor();
   state.reminderRecurrence=t.value;
   const selected=data.tasks.find(task=>task.id===state.reminderDraft?.taskId&&isMyPending(task));
-  state.reminderSchedules=[reminderDefaultSlot(t.value,selected)];
+  state.reminderSchedules=[reminderDefaultSlot(t.value,selected,reminderStageFor(selected,state.reminderDraft?.taskStageId))];
   render();return;
  }
  if(t.id==="notification-template-kind"||t.id==="notification-template-channel"){
