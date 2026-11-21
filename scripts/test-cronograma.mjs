@@ -43,6 +43,36 @@ await assert.rejects(api.annualReport(db,user,2026),/Administração/);
 const report=await api.annualReport(db,admin,2026);
 assert.equal(report.months.length,12);
 assert.equal(report.demands,0);
+await assert.rejects(api.adminOverview(db,user,2026),/Administração/);
+await assert.rejects(api.adminOverview(db,admin,1999),/Ano inválido/);
+const overviewEmpty=await api.adminOverview(db,admin,2026);
+assert.equal(overviewEmpty.userCount,0);
+assert.equal(overviewEmpty.commissionCount,0);
+assert.equal(overviewEmpty.totals.registered,0);
+const testRows={
+ commissions:[{id:"videos",name:"Vídeos"},{id:"site",name:"Site"}],
+ users:[{id:"u1",name:"Pessoa",role:"petiano"},{id:"u2",name:"Tutoria",role:"tutor"}],
+ members:[{commission_id:"videos",user_id:"u1"},{commission_id:"site",user_id:"u1"}],
+ tasks:[{id:"d1",registered_at:"2026-11-01",archived_at:"2026-11-19T12:00:00Z",closure_outcome:"concluida",
+   completed_late:1,commission_ids:'["videos","site"]',assignee_ids:'["u1"]',
+   user_done:'{"u1":{"at":"2026-11-19T11:00:00Z"}}',deadlines:"[]"}]
+};
+const overviewDb={prepare(sql){return {bind(){return this},
+ async all(){return {results:sql.includes("FROM commissions")?testRows.commissions:
+  sql.includes("FROM users")?testRows.users:
+  sql.includes("FROM commission_members")?testRows.members:
+  sql.includes("FROM tasks")?testRows.tasks:[]}},
+ async first(){return {n:3}}}}};
+const overview=await api.adminOverview(overviewDb,admin,2026);
+assert.equal(overview.commissionCount,2);
+assert.equal(overview.userCount,2);
+assert.equal(overview.activities,3);
+assert.equal(overview.totals.registered,1,"Demanda vinculada a duas comissões conta uma vez no total.");
+assert.equal(overview.totals.concludedLate,1);
+assert.equal(overview.commissions[0].registered,1);
+assert.equal(overview.commissions[1].registered,1);
+assert.equal(overview.users[0].commissions,2);
+assert.equal(overview.users[0].completed,1);
 // Contrato entre o identificador interno de Demandas e o seletor único do Cronograma.
 const front=fs.readFileSync("app-live.js","utf8");
 const sourceBegin=front.indexOf("const cronEndInstant=entry=>"),sourceEnd=front.indexOf("async function loadCronYear",sourceBegin);
