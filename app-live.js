@@ -1262,6 +1262,52 @@ function cronCalendar(items){
  '<div class="chron-day-caption">Dia '+textDate(selected)+'</div>'+
  (picked.length?'<div class="chron-cards">'+picked.map(cronCard).join("")+'</div>':'<div class="chron-empty">Nenhuma atividade neste dia.</div>');
 }
+const QUICK_NAV_ITEMS=[["inicio","Início","grid"],["cronograma","Cronograma","calendar"],["demandas","Demandas","list"],["meus-lembretes","Lembretes","bell"],["conta","Perfil","user"],["minhas-pendencias","Pendências","checklist"],["comissoes","Comissões","users"],["reunioes","Atas","calendar"],["admin","Administração","settings"]];
+const quickAvailable=()=>{
+ const role=me?.role;
+ return QUICK_NAV_ITEMS.filter(([v])=>(role!=="usuario"||!["cronograma","meus-lembretes","minhas-pendencias","reunioes"].includes(v))&&(v!=="admin"||role==="admin"));
+};
+function renderQuickNav(){
+ const bar=$("#pet-quickbar");if(!bar)return;
+ const prefs=state.quickNavPrefs;
+ if(!me||me.mustChangePassword||!prefs?.enabled||routeParts().page==="login"){
+  bar.hidden=true;bar.innerHTML="";return;
+ }
+ const available=new Map(quickAvailable().map(x=>[x[0],x]));
+ const list=(prefs.items||[]).filter(v=>available.has(v)).slice(0,5);
+ bar.innerHTML=list.map(v=>{
+  const [,label,symbol]=available.get(v),active=routeParts().page===v||(v==="admin"&&routeParts().page==="admin");
+  return '<a href="#/'+(v==="admin"?"admin/painel":v)+'" class="pet-quicknav-link '+(active?"active":"")+'" '+(active?'aria-current="page"':'')+'>'+ico(symbol)+'<span>'+esc(label)+'</span></a>';
+ }).join("");
+ bar.hidden=!list.length;
+}
+async function loadQuickNavPrefs(){
+ if(!me||me.mustChangePassword){state.quickNavPrefs=null;renderQuickNav();return}
+ const account=me.id;
+ try{
+  const result=await request("/quick-nav");
+  if(me?.id!==account)return;
+  state.quickNavPrefs=result;state.quickNavDraft={enabled:result.enabled,items:[...result.items]};
+  renderQuickNav();
+  if(routeParts().page==="conta"&&state.accountTab==="atalhos")render();
+ }catch(error){console.warn("PET Gestão: atalhos indisponíveis:",error.message);renderQuickNav()}
+}
+function renderQuickNavSettings(){
+ const available=quickAvailable(),prefs=state.quickNavDraft||state.quickNavPrefs||{enabled:true,items:["inicio","cronograma","demandas","meus-lembretes","conta"]};
+ const selected=prefs.items||[];
+ return '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEU CELULAR</span><h2>Navegação rápida</h2><p>Personalize a barra inferior e escolha até cinco atalhos. A seleção é salva na sua conta.</p></div>'+
+ '<section class="card card-pad chron-quicknav-settings"><label class="chron-switch"><input id="quicknav-enabled" type="checkbox" '+(prefs.enabled?"checked":"")+'> Ativar barra rápida no celular</label>'+
+ '<p class="chron-legacy">O menu lateral continua disponível. Os atalhos respeitam suas permissões.</p>'+
+ '<div class="chron-shortcut-grid">'+available.map(([key,label,icon])=>
+  '<label class="chron-shortcut-option"><input type="checkbox" data-quicknav-choice="'+esc(key)+'" '+(selected.includes(key)?"checked":"")+' '+(!selected.includes(key)&&selected.length>=5?"disabled":"")+'> '+ico(icon)+' '+esc(label)+'</label>').join("")+'</div>'+
+ '<h3>Ordem da barra</h3><div class="chron-shortcut-order">'+selected.map((key,i)=>{
+  const found=available.find(x=>x[0]===key);if(!found)return "";
+  return '<div class="chron-shortcut-selected">'+ico(found[2])+' <span>'+esc(found[1])+'</span>'+
+   '<button type="button" data-do="quicknav-move" data-index="'+i+'" data-direction="-1" aria-label="Mover '+esc(found[1])+' para cima" '+(i===0?"disabled":"")+'>↑</button>'+
+   '<button type="button" data-do="quicknav-move" data-index="'+i+'" data-direction="1" aria-label="Mover '+esc(found[1])+' para baixo" '+(i===selected.length-1?"disabled":"")+'>↓</button></div>';
+ }).join("")+'</div>'+
+ '<button type="button" class="button primary" data-do="quicknav-save">'+ico("check")+' Salvar meus atalhos</button></section>';
+}
 function renderCronograma(){
  if(!canWrite())return header("Acesso restrito","Cronograma PET","Área exclusiva de PETianos(as), Tutoria e Administração.");
  const y=state.cronYear,m=state.cronMonth,items=cronVisible();
@@ -2617,7 +2663,7 @@ function renderAccount(){
   '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
   (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
   '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
- const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos"].includes(state.accountTab)?state.accountTab:"perfil");
+ const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
  const tabButton=(key,name,description,iconName)=>
   '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
   '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
@@ -2669,9 +2715,11 @@ function renderAccount(){
   tabButton("seguranca","Segurança","E-mail, senha e exclusão","lock")+
   tabButton("notificacoes","Notificações","E-mail, PC e celular","bell")+
   tabButton("aplicativos","Aplicativos","Instalar no PC, Android ou iOS","download")+
+  tabButton("atalhos","Navegação rápida","Atalhos do celular","grid")+
   '</nav><div class="account-hub-main">'+
   panel("perfil",profileContent)+panel("seguranca",securityContent)+
   panel("notificacoes",notificationContent)+panel("aplicativos",appContent)+
+  panel("atalhos",renderQuickNavSettings())+
   '</div></div>'+
  '<div id="account-delete-dialog" class="account-delete-dialog" role="presentation" hidden>'+
   '<div class="account-delete-backdrop" data-do="account-delete-close"></div>'+
@@ -3248,6 +3296,24 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="quicknav-move"){
+  const index=Number(b.dataset.index),other=index+Number(b.dataset.direction);
+  const list=state.quickNavDraft?.items;
+  if(!list||index<0||other<0||other>=list.length)return;
+  [list[index],list[other]]=[list[other],list[index]];render();return;
+ }
+ if(action==="quicknav-save"){
+  if(!state.quickNavDraft)return setToast("Atalhos ainda não carregados.");
+  const prefs={enabled:state.quickNavDraft.enabled,items:state.quickNavDraft.items};
+  if(prefs.items.length<1)return setToast("Selecione ao menos um atalho.");
+  b.disabled=true;
+  try{
+   const saved=await request("/quick-nav","PUT",prefs);
+   state.quickNavPrefs=saved;state.quickNavDraft={enabled:saved.enabled,items:[...saved.items]};
+   render();setToast("Barra rápida configurada!");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
  if(action==="cron-new"){state.cronEditing="new";state.cronReminder=null;render();$("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return}
  if(action==="cron-close"){state.cronEditing=null;render();return}
  if(action==="cron-edit"){
@@ -3376,7 +3442,7 @@ async function handleClick(e){
  }
  if(action==="account-tab"){
   const name=b.dataset.tab;
-  if(!["perfil","seguranca","notificacoes","aplicativos"].includes(name))return;
+  if(!["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(name))return;
   if(me?.mustChangePassword&&name!=="seguranca")return setToast("Altere a senha temporária antes de continuar.");
   state.accountTab=name;
   document.querySelectorAll(".account-hub-nav-btn").forEach(button=>{
@@ -4237,6 +4303,17 @@ async function handleChange(e){
    return;
  }
 
+ if(t.id==="quicknav-enabled"){
+  if(!state.quickNavDraft)return;
+  state.quickNavDraft.enabled=t.checked;render();return;
+ }
+ if(t.hasAttribute("data-quicknav-choice")){
+  if(!state.quickNavDraft)return;
+  const key=t.dataset.quicknavChoice,list=state.quickNavDraft.items;
+  if(t.checked){if(list.length>=5){t.checked=false;return setToast("Escolha até cinco atalhos.");}if(!list.includes(key))list.push(key);}
+  else state.quickNavDraft.items=list.filter(v=>v!==key);
+  render();return;
+ }
  if(t.id==="cron-source"){state.cronFilter=["cronograma","demandas","todos"].includes(t.value)?t.value:"cronograma";render();return}
  if(t.id==="cron-year"){
   const year=Number(t.value);if(Number.isInteger(year)&&year>=2000&&year<=2100){
