@@ -227,6 +227,9 @@ try{
  const postingDate=new Date(Date.now()+9*86400000).toISOString().slice(0,10);
  commissionOnly.deadlines.push({id:"postagem-propria-ci",label:"Postagem",dueAt:postingDate+"T18:00:00",assigneeIds:["u1"]});
  commissionOnly.deadlines.push({id:"revisao-alheia-ci",label:"Revisão alheia",dueAt:postingDate+"T19:00:00",assigneeIds:["outro-usuario"]});
+ // O bootstrap é uma cópia JSON: recarregar para incluir novas etapas no aplicativo simulado.
+ await page.reload();
+ await page.locator('[data-do="reminder-new"]').waitFor();
  await page.locator('[data-do="reminder-new"]').click();
  await page.locator('#personal-reminder-form select[name="taskId"]').selectOption("t2");
  const suggestedAt=await page.locator('#personal-reminder-form [data-reminder-field="at"]').inputValue();
