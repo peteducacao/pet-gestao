@@ -2777,7 +2777,7 @@ function statusSnapshot(){
 
 /* Converte somente explicações gerais em ajuda contextual; não altera avisos críticos. */
 function compactContextHelp(root){
- const attach=(title,nodes)=>{
+ const attach=(title,nodes,placement="inline")=>{
   if(!title)return;
   const info=nodes.filter(p=>p&&p.isConnected&&p.textContent.trim());
   if(!info.length)return;
@@ -2785,17 +2785,61 @@ function compactContextHelp(root){
   wrap.className="pet-context-title";
   title.before(wrap);wrap.append(title);
   const help=document.createElement("details");
-  help.className="pet-context-help";
+  help.className="pet-context-help"+(placement==="page"?" pet-context-help--page":"");
   const trigger=document.createElement("summary");
   trigger.className="pet-context-trigger";
-  trigger.textContent="?";
-  trigger.title="Mostrar explicação";
-  trigger.setAttribute("aria-label","Mostrar orientações sobre "+title.textContent.trim());
+  trigger.title="Ver ajuda";
+  trigger.setAttribute("aria-label","Ver ajuda sobre "+title.textContent.trim());
+  const symbol=document.createElement("span");
+  symbol.className="pet-context-trigger-symbol";
+  symbol.textContent="?";
+  symbol.setAttribute("aria-hidden","true");
+  const label=document.createElement("span");
+  label.className="pet-context-trigger-label";
+  label.textContent="Ajuda";
+  trigger.append(symbol,label);
   const popup=document.createElement("div");
   popup.className="pet-context-popup";
   popup.setAttribute("role","note");
-  info.forEach(p=>{p.classList.add("pet-context-paragraph");popup.append(p)});
-  help.append(trigger,popup);wrap.append(help);
+  const popupHead=document.createElement("div");
+  popupHead.className="pet-context-popup-head";
+  const popupHeading=document.createElement("div");
+  const popupEyebrow=document.createElement("span");
+  popupEyebrow.className="pet-context-popup-eyebrow";
+  popupEyebrow.textContent="AJUDA RÁPIDA";
+  const popupTitle=document.createElement("strong");
+  popupTitle.className="pet-context-popup-title";
+  popupTitle.textContent=title.textContent.trim();
+  popupHeading.append(popupEyebrow,popupTitle);
+  const close=document.createElement("button");
+  close.type="button";
+  close.className="pet-context-popup-close";
+  close.setAttribute("aria-label","Fechar ajuda");
+  close.textContent="×";
+  close.addEventListener("click",event=>{event.stopPropagation();help.open=false;trigger.focus()});
+  popupHead.append(popupHeading,close);
+  const body=document.createElement("div");
+  body.className="pet-context-popup-body";
+  info.forEach(p=>{p.classList.add("pet-context-paragraph");body.append(p)});
+  popup.append(popupHead,body);
+  help.append(trigger,popup);
+  if(placement==="page"){
+   const eyebrow=wrap.parentElement?.querySelector(":scope > .eyebrow");
+   if(eyebrow){
+    const kicker=document.createElement("div");
+    kicker.className="pet-context-kicker";
+    eyebrow.before(kicker);
+    kicker.append(eyebrow,help);
+   }else wrap.append(help);
+  }else wrap.append(help);
+  help.addEventListener("toggle",()=>{
+   if(!help.open)return;
+   const rect=trigger.getBoundingClientRect();
+   const maximum=Math.min(popup.scrollHeight||270,Math.round(window.innerHeight*.48),340);
+   const below=window.innerHeight-rect.bottom-14;
+   const top=below>=Math.min(maximum,180)?rect.bottom+9:Math.max(12,rect.top-maximum-9);
+   help.style.setProperty("--pet-help-top",Math.round(top)+"px");
+  });
  };
  const matrix=root.querySelector(".account-notification-matrix");
  if(matrix)attach(matrix.querySelector(".section-head h3"),[
@@ -2805,7 +2849,7 @@ function compactContextHelp(root){
  root.querySelectorAll(".page-header").forEach(el=>{
   const eye=el.querySelector(".eyebrow")?.textContent.trim().toLowerCase()||"";
   if(eye==="acesso restrito"||eye==="acesso")return;
-  attach(el.querySelector(".page-title"),[el.querySelector(".page-subtitle")]);
+  attach(el.querySelector(".page-title"),[el.querySelector(".page-subtitle")],"page");
  });
  root.querySelectorAll(".section-head > div").forEach(el=>{
   if(el.closest(".account-notification-matrix"))return;
