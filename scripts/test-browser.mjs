@@ -1625,7 +1625,7 @@ await page.locator('a[data-route="reunioes"]').click();
   blur:getComputedStyle(el).backdropFilter,background:getComputedStyle(el).backgroundColor
  }));
  assert.equal(backdrop.blur,"none","Sem blur ou tela fantasma atrás do aviso.");
- assert.ok(/0\\.88/.test(backdrop.background),"Fundo do modal suficientemente opaco: "+backdrop.background);
+ assert.ok(backdrop.background.includes("0.88"),"Fundo do modal suficientemente opaco: "+backdrop.background);
  const originalSchedule=JSON.stringify(added);
  const reminderDay=new Date(Date.parse(added.endDate+"T12:00:00Z")+3*86400000).toISOString().slice(0,10);
  const reminderHour="19:45";
