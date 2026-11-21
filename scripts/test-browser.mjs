@@ -26,6 +26,8 @@ const calls=[];
 const notificationKinds=["create","review","due_soon","overdue","event_soon","event_today"];
 let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:false,android:false,pc:false}]));
 let personalMockItems=[];
+let quickNavMock={enabled:true,items:["inicio","cronograma","demandas","meus-lembretes","conta"]};
+let scheduleMock=[{id:"evento-cron-1",title:"Oficina de Fotografia",description:"Formação com fotógrafos",startDate:new Date().toISOString().slice(0,10),endDate:new Date().toISOString().slice(0,10),startTime:"14:00",endTime:"18:00",timeNote:null,location:"Sala do PET",completedAt:null,source:"manual"}];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
  if(method==="OPTIONS")return route.fulfill({status:204,headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PUT,PATCH,DELETE","access-control-allow-headers":"Authorization,Content-Type"}});
@@ -34,6 +36,17 @@ await page.route("**/api/v1/**",async route=>{
  if(p==="/auth/me")result={user:adminMode?admin:user};
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/auth/login"&&method==="POST")result={token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user};
+ else if(p==="/quick-nav"&&method==="GET")result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};
+ else if(p==="/quick-nav"&&method==="PUT"){quickNavMock={enabled:body.enabled,items:body.items};result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};}
+ else if(p==="/schedule"&&method==="GET")result={year:Number(url.searchParams.get("year")),items:scheduleMock.filter(x=>x.startDate.slice(0,4)===url.searchParams.get("year"))};
+ else if(p==="/schedule"&&method==="POST"){const newId="evento-cron-"+(scheduleMock.length+1);scheduleMock.push({id:newId,...body,completedAt:null,source:"manual"});result={ok:true,id:newId};status=201;}
+ else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PUT"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)Object.assign(row,body);result={ok:true};}
+ else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PATCH"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)row.completedAt=body.completed?new Date().toISOString():null;result={ok:true};}
+ else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="DELETE"){scheduleMock=scheduleMock.filter(x=>x.id!==p.split("/").at(-1));result={ok:true};}
+ else if(p==="/admin/annual-report"&&method==="GET"){
+  const year=Number(url.searchParams.get("year")),month=Number(new Date().toISOString().slice(5,7));
+  result={year,demands:tasks.length,activities:scheduleMock.length,months:Array.from({length:12},(_,i)=>({month:i+1,demands:i+1===month?tasks.length:0,activities:i+1===month?scheduleMock.length:0}))};
+ }
  else if(p==="/notification-preferences"&&method==="GET")result={preferences:noticeMatrix};
  else if(p==="/notification-preferences"&&method==="PUT"){noticeMatrix=body;result={preferences:noticeMatrix};}
  else if(p==="/personal-reminders"&&method==="GET")result={items:personalMockItems};
