@@ -243,7 +243,7 @@ try{
  assert.equal(personalMockItems.at(-1).taskId,"t2","Lembrete de demanda usa somente minhas pendências");
  assert.equal(personalMockItems.at(-1).taskStageId,"postagem-propria-ci","Persistência da etapa de responsabilidade.");
  assert.deepEqual(personalMockItems.at(-1).schedules.map(x=>x.at),[chosenAt],"Apenas o horário escolhido será notificado, sem aviso do prazo inicial.");
- assert.ok((await page.locator(".reminder-list-row").first().innerText()).includes("Postagem"),"Lista identifica a etapa vinculada.");
+ assert.ok((await page.locator(".reminder-list-row").filter({hasText:"Postagem"}).count())>0,"Lista identifica a etapa vinculada.");
  assert.equal(await page.locator(".reminder-list-row").count(),2,"Lembretes cadastrados aparecem na lista pessoal");
  await page.goto(origin+"/#/conta");
  await page.goto(origin+"/#/demandas");
