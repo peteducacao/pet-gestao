@@ -7,9 +7,10 @@ if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const src=await readFile(new URL("../worker/src/web-push.js",import.meta.url),"utf8");
 const api=await import("data:text/javascript;charset=utf-8,"+encodeURIComponent(src));
 const {webPushPublicKey,webPushSubscribe,webPushCheck,webPushStatus,webPushSavePreferences,
-       webPushTest,webPushUnsubscribe}=api;
+       webPushTest,webPushUnsubscribe,notifyBrowserUsers}=api;
 const user={id:"pessoa-teste",must_change_password:0},another={id:"pessoa-2",must_change_password:0};
 const endpoint="https://fcm.googleapis.com/fcm/send/teste-web-local";
+const appleEndpoint="https://web.push.apple.com/a/teste-ios-simulado";
 const b64=bytes=>Buffer.from(bytes).toString("base64url");
 const unb64=text=>Buffer.from(text,"base64url");
 const ua=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]);
@@ -28,8 +29,7 @@ const db={
     return {
      async first(){
       if(sql.startsWith("SELECT public_key,private_key FROM web_push_vapid"))return vapid;
-      if(sql.startsWith("SELECT COUNT(*) AS total FROM web_push_subscriptions"))
-       return {total:[...subscriptions.values()].filter(x=>x.user_id===args[0]).length};
+
       if(sql.startsWith("SELECT new_demands,deadlines,overdue FROM web_push_preferences"))
        return preferences.get(args[0])||null;
       if(sql.startsWith("SELECT id FROM web_push_subscriptions WHERE user_id="))
@@ -38,11 +38,20 @@ const db={
        return [...subscriptions.values()].find(x=>x.user_id===args[0]&&x.endpoint===args[1])||null;
       throw Error("Consulta inesperada: "+sql);
      },
+     async all(){
+      if(sql.startsWith("SELECT platform,COUNT(*) AS total FROM web_push_subscriptions")){
+       return {results:["pc","ios"].map(platform=>({platform,total:[...subscriptions.values()].filter(x=>x.user_id===args[0]&&x.platform===platform).length}))};
+      }
+      if(sql.startsWith("SELECT s.* FROM web_push_subscriptions s")){
+       return {results:[...subscriptions.values()].filter(x=>x.platform===args[0]&&args.slice(1).includes(x.user_id))};
+      }
+      throw Error("Consulta all inesperada: "+sql);
+     },
      async run(){
       if(sql.startsWith("INSERT OR IGNORE INTO web_push_vapid")){
        vapid??={public_key:args[0],private_key:args[1]};
       }else if(sql.startsWith("INSERT INTO web_push_subscriptions")){
-       subscriptions.set(args[2],{id:args[0],user_id:args[1],endpoint:args[2],p256dh:args[3],auth:args[4]});
+       subscriptions.set(args[2],{id:args[0],user_id:args[1],endpoint:args[2],p256dh:args[3],auth:args[4],platform:args[5]});
       }else if(sql.startsWith("INSERT INTO web_push_preferences")){
        preferences.set(args[0],{new_demands:args[1],deadlines:args[2],overdue:args[3]});
       }else if(sql.startsWith("INSERT OR IGNORE INTO web_push_log")){
@@ -93,6 +102,11 @@ await assert.rejects(()=>webPushSubscribe(db,user,{endpoint:"https://localhost/p
  /reconhecido/);
 await webPushSubscribe(db,user,{endpoint,keys:{p256dh,auth}});
 assert.equal((await webPushStatus(db,user)).registeredComputers,1);
+assert.equal((await webPushStatus(db,user)).registeredIphones,0);
+await assert.rejects(()=>webPushSubscribe(db,user,{endpoint,keys:{p256dh,auth},platform:"ios"}),/Apple/);
+await assert.rejects(()=>webPushSubscribe(db,user,{endpoint:appleEndpoint,keys:{p256dh,auth},platform:"desconhecida"}),/dispositivo/);
+await webPushSubscribe(db,user,{endpoint:appleEndpoint,keys:{p256dh,auth},platform:"ios"});
+assert.equal((await webPushStatus(db,user)).registeredIphones,1,"PWA iOS separado do PC");
 assert.equal((await webPushCheck(db,user,{endpoint})).connected,true);
 assert.equal((await webPushCheck(db,another,{endpoint})).connected,false);
 const {preferences:changed}=await webPushSavePreferences(db,user,{newDemands:false,deadlines:true,overdue:false});
@@ -100,7 +114,7 @@ assert.deepEqual(changed,{newDemands:false,deadlines:true,overdue:false});
 let messages=0;
 const oldFetch=globalThis.fetch;
 globalThis.fetch=async (url,options)=>{
- assert.equal(url,endpoint);
+ assert.ok([endpoint,appleEndpoint].includes(url),"Destinatário deve ser PC ou serviço Apple");
  assert.equal(options.method,"POST");
  assert.equal(options.headers["Content-Encoding"],"aes128gcm");
  assert.match(options.headers.Authorization,/^vapid t=[A-Za-z0-9._-]+, k=[A-Za-z0-9_-]+$/);
@@ -109,11 +123,11 @@ globalThis.fetch=async (url,options)=>{
  const verifyKey=await crypto.subtle.importKey("raw",unb64(publicKey),{name:"ECDSA",namedCurve:"P-256"},false,["verify"]);
  assert.equal(await crypto.subtle.verify({name:"ECDSA",hash:"SHA-256"},verifyKey,signature,text.encode(signed)),true);
  const payload=JSON.parse(decode.decode(unb64(jwt[1])));
- assert.equal(payload.aud,"https://fcm.googleapis.com");
+ assert.equal(payload.aud,new URL(url).origin);
  assert.equal(payload.sub,"https://peteducacao.github.io/pet-gestao/");
  const notification=await decryptPush(options.body);
- assert.equal(notification.kind,"test");
- assert.match(notification.body,/computador/);
+ assert.ok(["test","personal"].includes(notification.kind));
+ if(notification.kind==="test")assert.match(notification.body,url===appleEndpoint?/iPhone/:/computador/);
  messages++;
  return new Response("",{status:201});
 };
@@ -121,10 +135,21 @@ try{
  const result=await webPushTest({DB:db},user,{endpoint});
  assert.deepEqual(result,{ok:true,acceptedByService:true});
  assert.equal(messages,1);
+ assert.deepEqual(await webPushTest({DB:db},user,{endpoint:appleEndpoint}),{ok:true,acceptedByService:true},"Entrega de teste para iPhone/iPad");
+ assert.equal(messages,2);
+ const sentIOS=await notifyBrowserUsers({DB:db},[user.id],{title:"Lembrete",body:"Meu horário",kind:"personal",route:"/meus-lembretes"},null,"iphone-only","ios");
+ assert.equal(sentIOS,1,"Aviso de lembrete chega a inscrição iOS");
+ assert.equal(messages,3);
+ const sentPC=await notifyBrowserUsers({DB:db},[user.id],{title:"Aviso PC",body:"Prazo",kind:"personal"},null,"pc-only","pc");
+ assert.equal(sentPC,1,"Canal de PC independente do iPhone");
+ assert.equal(messages,4);
  await assert.rejects(()=>webPushTest({DB:db},user,{endpoint}),/Aguarde dois minutos/);
  await webPushUnsubscribe(db,another,{endpoint});
  assert.equal((await webPushStatus(db,user)).registeredComputers,1,"Não excluir inscrição de outra conta");
  await webPushUnsubscribe(db,user,{endpoint});
  assert.equal((await webPushStatus(db,user)).registeredComputers,0);
- console.log("OK: VAPID ES256, AES128GCM descriptografável, permissões por conta e teste de push desktop.");
+ assert.equal((await webPushStatus(db,user)).registeredIphones,1,"Remover PC não apaga iPhone");
+ await webPushUnsubscribe(db,user,{endpoint:appleEndpoint});
+ assert.equal((await webPushStatus(db,user)).registeredIphones,0);
+ console.log("OK: AES128GCM e VAPID, inscrição Apple isolada, avisos para iOS e PC, desligamento por aparelho.");
 }finally{globalThis.fetch=oldFetch;}
