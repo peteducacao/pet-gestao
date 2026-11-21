@@ -4991,3 +4991,27 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 @media(max-width:430px){
  #screen .chron-detail-actions .button{flex:1;justify-content:center}
 }
+
+
+/* Relatórios da Administração — leitura consolidada sem quebrar a largura no celular. */
+#screen .admin-overview-metrics{grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}
+#screen .admin-overview-table{min-width:660px}
+#screen .admin-overview-table th:first-child,
+#screen .admin-overview-table td:first-child{text-align:left;min-width:126px}
+#screen .admin-overview-table a{color:#683eb0;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+#screen .chron-report-controls{align-items:end}
+#screen .chron-report-controls label{flex:1 1 180px;min-width:0}
+#screen .chron-report-controls select{width:100%;max-width:100%}
+@media(max-width:560px){
+ #screen .chron-report-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+ #screen .chron-report-controls label{min-width:0}
+ #screen .chron-report-controls .select{min-width:0}
+ #screen .chron-report-head .button{width:100%;justify-content:center}
+ #screen .admin-overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #screen .admin-overview-metrics>div{padding:13px 11px}
+ #screen .admin-overview-metrics strong{font-size:24px}
+ #screen .admin-overview-table{font-size:12px}
+}
+@media(max-width:360px){
+ #screen .admin-overview-metrics{grid-template-columns:minmax(0,1fr)}
+}
