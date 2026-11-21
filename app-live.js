@@ -3558,7 +3558,7 @@ async function handleClick(e){
   if(!await askConfirm('Excluir "'+item.title+'"? Os lembretes vinculados a ela também serão cancelados.',{title:"Excluir atividade?",danger:true,confirmLabel:"Excluir atividade"}))return;
   b.disabled=true;
   try{await request("/schedule/"+id(tid),"DELETE");state.cronEditing=null;state.cronLoadedYear=null;
-   await loadCronYear(state.cronYear);state.cronDetails=null;setToast("Atividade excluída.");
+   await loadCronYear(state.cronYear);if(state.cronDetails&&history.state?.petCronDetails)history.back();state.cronDetails=null;setToast("Atividade excluída.");
   }catch(error){setToast(error.message)}finally{if(b.isConnected)b.disabled=false}
   return;
  }
@@ -4595,7 +4595,7 @@ function onNavigation(){
  if(lastHash!==location.hash){
   const stack=state.navStack||[];
   const index=stack.lastIndexOf(location.hash);
-  if(index===stack.length-2)stack.pop();
+  if(index>=0&&index===stack.length-2)stack.pop();
   else if(index>=0)stack.splice(index+1);
   else stack.push(location.hash);
   state.previousRoute=lastHash;lastHash=location.hash;
