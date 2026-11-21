@@ -601,6 +601,29 @@ try{
   "A opção Visão geral, Demandas e comissões inclui a demanda na listagem");
  await page.goto(origin+"/#/inicio");
  await page.locator(".dashboard-weekly-card>.section-head").waitFor({state:"visible",timeout:10000});
+ // O título da página fica limpo; ajuda discreta aparece acima, junto ao contexto.
+ const contextHeader=page.locator(".page-header .pet-context-kicker");
+ assert.equal(await contextHeader.count(),1,"Ajuda posicionada na faixa superior do cabeçalho");
+ assert.equal(await page.locator(".page-header .pet-context-title .pet-context-help").count(),0,
+  "Ícone de ajuda não fica ao lado do título principal");
+ const topHelp=contextHeader.locator(".pet-context-help--page");
+ assert.equal(await topHelp.count(),1,"Ajuda superior discreta acessível");
+ await page.setViewportSize({width:360,height:844});
+ const helpSize=await topHelp.locator("summary").evaluate(el=>{
+  const b=el.getBoundingClientRect();
+  return {w:b.width,h:b.height,label:el.innerText};
+ });
+ assert.ok(helpSize.w<100&&helpSize.h<=34&&helpSize.label.includes("Ajuda"),
+  "Atalho pequeno, com rótulo Ajuda, em vez de círculo grande: "+JSON.stringify(helpSize));
+ await topHelp.locator("summary").click();
+ assert.equal(await topHelp.evaluate(el=>el.open),true,"Ajuda superior abre ao toque");
+ assert.ok((await topHelp.locator(".pet-context-popup-title").innerText()).length>0,
+  "Card flutuante exibe título contextual");
+ assert.equal(await topHelp.locator(".pet-context-popup").evaluate(el=>getComputedStyle(el).position),"fixed",
+  "No celular o card aparece flutuante próximo do botão");
+ await topHelp.locator(".pet-context-popup-close").click();
+ assert.equal(await topHelp.evaluate(el=>el.open),false,"Botão fechar encerra a ajuda");
+
  // Pendências semanais: título inteiro em linha própria, subtítulo abaixo
  // e CTA na linha seguinte, sem rolagem lateral no Android.
  for(const width of [320,360,390,414]){
