@@ -275,6 +275,28 @@ try{
  assert.deepEqual(personalMockItems.at(-1).schedules.map(x=>x.at),[chosenAt],"Apenas o horário escolhido será notificado, sem aviso do prazo inicial.");
  assert.ok((await page.locator(".reminder-list-row").filter({hasText:"Postagem"}).count())>0,"Lista identifica a etapa vinculada.");
  assert.equal(await page.locator(".reminder-list-row").count(),2,"Lembretes cadastrados aparecem na lista pessoal");
+ // Conferência no simulador móvel: ações centralizadas e leitura de cartões sem overflow.
+ for(const width of [320,360,390,414]){
+  await page.setViewportSize({width,height:844});
+  const listLayouts=await page.locator(".reminder-list-row").evaluateAll(rows=>rows.map(row=>{
+   const info=row.querySelector(".reminder-list-info"),
+    actions=row.querySelector(".reminder-list-actions"),
+    buttons=[...actions.querySelectorAll("button")],
+    r=row.getBoundingClientRect(),a=actions.getBoundingClientRect();
+   return {width:row.clientWidth,scroll:row.scrollWidth,
+    infoWidth:info.getBoundingClientRect().width,
+    actionWidth:a.width,actionRight:a.right,rowRight:r.right,
+    centers:buttons.map(b=>{const rect=b.getBoundingClientRect();return {y:rect.top+rect.height/2,
+       buttonHeight:rect.height,textCenterY:rect.top+rect.height/2};}),
+    buttons:buttons.map(b=>({label:b.innerText,rect:b.getBoundingClientRect().toJSON()}))};
+  }));
+  assert.ok(listLayouts.every(item=>item.scroll<=item.width+2),"Cartões sem overflow horizontal em "+width+"px: "+JSON.stringify(listLayouts));
+  assert.ok(listLayouts.every(item=>item.actionRight<=item.rowRight+2),"Editar e Excluir permanecem no cartão em "+width+"px");
+  assert.ok(listLayouts.every(item=>item.buttons.length===2&&item.buttons.every(b=>b.rect.height>=39)),
+   "Ações legíveis e tocáveis no celular em "+width+"px");
+ }
+ await page.setViewportSize(initialViewport);
+
  await page.goto(origin+"/#/conta");
  await page.goto(origin+"/#/demandas");
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
