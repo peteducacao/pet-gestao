@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS user_quicknav (
  items TEXT NOT NULL DEFAULT '["inicio","cronograma","demandas","meus-lembretes","conta"]',
  updated_at TEXT NOT NULL
 );
+ALTER TABLE personal_reminders ADD COLUMN schedule_entry_id TEXT REFERENCES schedule_entries(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS ix_personal_reminders_schedule ON personal_reminders(schedule_entry_id);
 -- Importação única: não repõe atividades que o usuário tenha excluído depois.
 INSERT INTO schedule_entries(id,title,description,start_date,end_date,start_time,end_time,time_note,location,source,created_at,updated_at)
  VALUES('pet-word-2026-001','Organização para o evento','','2026-11-06','2026-11-06','08:00',NULL,'08h','Hall de entrada do bloco C','word-2026','2026-11-21T00:00:00Z','2026-11-21T00:00:00Z');
