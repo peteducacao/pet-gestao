@@ -22,6 +22,7 @@ const db={
    bind(...params){
     return {
      async all(){
+      if(statement.startsWith("SELECT s.* FROM web_push_subscriptions s"))return {results:[]};
       if(statement.startsWith("SELECT d.user_id,d.token,d.device_id"))
        return {results:[...devices.values()].filter(d=>params.includes(d.user_id)).map(d=>({
         ...d,new_demands:1,deadlines:1,overdue:1
