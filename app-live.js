@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,cronDetails:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportCommission:'todos',adminReportUser:'todos',adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,adminOverviewData:null,adminOverviewLoadedYear:null,adminOverviewLoading:false,adminOverviewError:'',reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={presentationPrefs:null,presentationDraft:null,presentationLoading:false,pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,cronDetails:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportCommission:'todos',adminReportUser:'todos',adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,adminOverviewData:null,adminOverviewLoadedYear:null,adminOverviewLoading:false,adminOverviewError:'',reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma PET",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
@@ -842,7 +842,7 @@ const NOTICE_KINDS_UI=[["create","Nova demanda","Quando uma demanda é cadastrad
  ["due_soon","Prazo vencendo","Aviso antecipado de uma etapa"],
  ["overdue","Prazo vencido","Uma etapa ultrapassou seu prazo"],
  ["event_soon","Evento se aproximando","Aviso antecipado de evento"],
- ["event_today","Evento hoje","Lembrete no próprio dia do evento"]];
+ ["event_today","Evento hoje","Lembrete no próprio dia do evento"],["birthday","Meu aniversário","Parabéns enviados na data do meu aniversário"]];
 async function loadNotificationPreferences(){
  const userId=me?.id;if(!userId||me?.mustChangePassword)return;
  try{
@@ -930,7 +930,7 @@ async function reload(){
    if(beforeUser!==(me?.id||"")){
     state.noticePrefs=null;state.noticeDraft=null;state.noticeDirty=false;
     state.reminderItems=[];state.reminderLoadedFor=null;state.reminderEditing=false;
-    state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;
+    state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;state.presentationPrefs=null;state.presentationDraft=null;
    }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
@@ -942,6 +942,7 @@ async function reload(){
  try{render()}finally{document.documentElement.classList.remove("pet-booting")}
  void loadPushPreferencesForActiveUser();
  void loadQuickNavPrefs();
+ void loadPresentationPrefs();
 }
 function allowPage(p){if(canWrite())return true;return ["inicio","demandas","comissoes","ajuda","login","cadastro","esqueci","redefinir","confirmar-email","conta","admin"].includes(p)}
 function nav(){
@@ -1067,28 +1068,89 @@ document.addEventListener("keydown",e=>{
   for(const el of document.querySelectorAll(".demand-card-picker[open]"))el.open=false;
  }
 });
+const PRESENTATION_DASHBOARD_DEFAULT={active:true,mine:true,overdue:true,completed:true,updates:true};
+const PRESENTATION_THEMES=[
+ ["lavender","Lilás"],["ocean","Azul"],["forest","Verde"],
+ ["sunset","Rosa"],["midnight","Noturno"],["neutral","Neutro"]
+];
+const presentationDefault=()=>({dashboard:{...PRESENTATION_DASHBOARD_DEFAULT},profileTheme:"lavender",profileImage:null});
+function dashboardVisibility(){
+ return {...PRESENTATION_DASHBOARD_DEFAULT,...(state.presentationPrefs?.dashboard||{})};
+}
+function profileThemeClass(prefs=state.presentationPrefs){
+ const theme=prefs?.profileTheme||"lavender";
+ return ["lavender","ocean","forest","sunset","midnight","neutral","photo"].includes(theme)?theme:"lavender";
+}
+const profileBackgroundStyle=prefs=>profileThemeClass(prefs)==="photo"&&prefs?.profileImage?
+ ' style="--profile-photo:url('+esc(prefs.profileImage)+')"':"";
+async function loadPresentationPrefs(){
+ if(!me||me.mustChangePassword){state.presentationPrefs=null;state.presentationDraft=null;return}
+ if(state.presentationLoading)return;
+ const account=me.id;state.presentationLoading=true;
+ try{
+  const r=await request("/user-presentation");
+  if(me?.id!==account)return;
+  state.presentationPrefs=r;
+  state.presentationDraft=JSON.parse(JSON.stringify(r));
+  if(["inicio","conta"].includes(routeParts().page))render();
+ }catch(error){console.warn("PET Gestão: personalização indisponível:",error.message)}
+ finally{state.presentationLoading=false}
+}
+function renderPresentationSettings(){
+ const p=state.presentationDraft||state.presentationPrefs||presentationDefault();
+ const entries=[
+  ["active","Demandas ativas","Total de demandas em andamento","list"],
+  ["mine","Minhas atividades","Demandas que dependem de você","checklist"],
+  ["overdue","Prazos vencidos","Pendências fora do prazo","alert"],
+  ["completed","Concluídos","Demandas já encerradas","check"],
+  ["updates","Últimas atualizações","Histórico recente da equipe","bell"]
+ ];
+ return '<div class="account-pane-intro"><span class="profile-section-eyebrow">PERSONALIZAÇÃO</span>'+
+  '<h2>Painel e aparência</h2><p>Escolha o que aparece na sua Visão geral e personalize a identificação. As preferências acompanham sua conta.</p></div>'+
+  '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("grid")+'</span><div><h3>Indicadores da Visão geral</h3><p>Ative apenas o que deseja acompanhar. Os cartões se reorganizam automaticamente.</p></div></div>'+
+  '<div class="presentation-options">'+entries.map(([key,label,desc,iconName])=>
+   '<label class="presentation-option"><span class="presentation-option-icon">'+ico(iconName)+'</span>'+
+   '<span class="presentation-option-label"><strong>'+label+'</strong><small>'+desc+'</small></span>'+
+   '<input type="checkbox" data-presentation-key="'+key+'" '+(p.dashboard?.[key]?"checked":"")+' aria-label="Exibir '+label+' no painel"></label>').join("")+'</div></section>'+
+  '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("image")+'</span><div><h3>Fundo da identificação</h3><p>Escolha uma cor ou utilize uma fotografia. Seu nome e sua foto continuam legíveis.</p></div></div>'+
+  '<div class="profile-background-preview profile-hero theme-'+profileThemeClass(p)+'"'+profileBackgroundStyle(p)+'>'+
+  '<span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><strong>'+esc(me?.name||"Meu perfil")+'</strong><small>PET EDUCAÇÃO · UFS</small></div>'+
+  '<div class="presentation-theme-grid">'+PRESENTATION_THEMES.map(([id,label])=>
+   '<button type="button" class="presentation-theme-swatch theme-'+id+(profileThemeClass(p)===id?" selected":"")+'" data-do="presentation-theme" data-theme="'+id+'" aria-pressed="'+(profileThemeClass(p)===id)+'">'+
+   '<span class="presentation-theme-color"></span><span>'+label+'</span>'+(profileThemeClass(p)===id?ico("check"):"")+'</button>').join("")+'</div>'+
+  '<div class="presentation-upload-actions"><label class="button ghost presentation-upload-btn">'+ico("image")+' Escolher imagem de fundo'+
+  '<input id="profile-background-upload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Enviar imagem para fundo do perfil"></label>'+
+  (p.profileImage?'<button type="button" class="button ghost" data-do="presentation-remove-photo">'+ico("trash")+' Remover imagem</button>':"")+
+  '</div><p class="field-hint">Imagem comprimida automaticamente para até 150 KB. A personalização afeta apenas o seu perfil.</p></section>'+
+  '<div class="presentation-save-row"><button type="button" class="button primary" data-do="presentation-save">'+ico("check")+' Salvar preferências</button>'+
+  '<span>Essas opções não alteram demandas ou notificações.</span></div>';
+}
 function renderViewerHome(){
  const all=data.tasks.filter(t=>active(t)),visible=all.filter(t=>t.overviewVisible!==false);
  const next=[...visible].sort((a,b)=>String(taskDate(a)).localeCompare(String(taskDate(b)))).slice(0,6);
- const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length;
+ const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length,prefs=dashboardVisibility();
+ const metrics=[[all.length,"Demandas ativas","list","active"],[late,"Prazos vencidos","alert","overdue"],[complete,"Concluídos","check","completed"]].filter(x=>prefs[x[3]]);
  return header("Organização","Visão geral","Acompanhe as demandas da equipe em modo de visualização.")+
-  '<div class="stat-grid viewer-stat-grid">'+[[all.length,"Demandas ativas","list"],[late,"Prazos vencidos","alert"],[complete,"Concluídas","check"]].map(x=>
-   '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+  (metrics.length?'<div class="stat-grid viewer-stat-grid">'+metrics.map(x=>
+   '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
   '<div class="dashboard-grid viewer-dashboard"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>Próximas atividades cadastradas para acompanhamento.</p></div></div>'+
   (next.length?next.map(publicTaskCard).join(""):empty("Sem pendências neste momento"))+'</section></div>';
 }
 function renderHome(){
  if(!canWrite())return renderViewerHome();
  const all=data.tasks.filter(t=>active(t)),visible=all.filter(t=>t.overviewVisible!==false),next=[...visible].sort((a,b)=>(dt(taskDate(a))||Infinity)-(dt(taskDate(b))||Infinity)).slice(0,6),late=visible.filter(isLate).length;
- const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4);
+ const recentEvents=(data.events||[]).filter(e=>!me?.activityClearedAt||e.createdAt>me.activityClearedAt).slice(0,4),prefs=dashboardVisibility();
+ const metrics=[[all.length,"Demandas ativas","list","active"],
+  [data.tasks.filter(isMyPending).length,"Minhas atividades","checklist","mine"],
+  [late,"Prazos vencidos","alert","overdue"],
+  [data.tasks.filter(t=>t.archivedAt).length,"Concluídos","check","completed"]].filter(x=>prefs[x[3]]);
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- '<div class="stat-grid">'+[[all.length,"Demandas ativas","list"],[data.tasks.filter(isMyPending).length,"Minhas atividades","checklist"],[late,"Prazos vencidos","alert"],[data.tasks.filter(t=>t.archivedAt).length,"Concluídas","check"]].map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>'+
+ (metrics.length?'<div class="stat-grid">'+metrics.map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
  '<div class="dashboard-grid"><section class="card card-pad dashboard-weekly-card"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
- '<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
+ (prefs.updates?'<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
  (me&&recentEvents.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':ico("bell"))+
- '</div>'+(recentEvents.length?recentEvents.map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section></div>';
+ '</div>'+(recentEvents.length?recentEvents.map(e=>'<div class="placeholder-row"><div><strong>'+esc(e.summary)+'</strong><small>'+esc(e.actorName)+' · '+textDate(e.createdAt)+'</small></div></div>').join(""):empty("Nenhuma atualização recente"))+'</section>':"")+'</div>';
 }
-
 const VISUALIZATIONS=[["todas","Todas as demandas"],["pendente","Pendentes"],["atrasada","Atrasadas"],["concluida","Concluídas"],["nao_concluida","Não concluídas"]];
 function visualizationSelect(filter,value,options=VISUALIZATIONS){
  return '<label class="visualization-control"><span class="visualization-label">Visualização:</span>'+
@@ -1950,19 +2012,26 @@ function renderPersonalReminders(){
   '<div class="reminder-form-actions"><button type="button" class="button ghost" data-do="reminder-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar lembrete</button></div>'+
   '</form></section>';
  const items=state.reminderItems||[];
- const list='<section class="card card-pad reminder-list"><div class="section-head"><div><h2>Lembretes cadastrados</h2><p>Somente você pode visualizar ou modificar seus alarmes.</p></div></div>'+
+ const list='<section class="card card-pad reminder-list"><div class="section-head reminder-list-heading"><div><span class="reminder-section-kicker">SEUS AVISOS</span><h2>Lembretes cadastrados</h2>'+
+  '<p>Escolha quando receber cada aviso e acompanhe seus horários.</p></div>'+
+  '<span class="reminder-list-count">'+items.length+' '+(items.length===1?"lembrete":"lembretes")+'</span></div>'+
  (state.reminderLoadedFor!==me?.id?'<p class="field-hint">Carregando lembretes...</p>':
-  items.length?items.map(item=>{
+  items.length?'<div class="reminder-list-items">'+items.map(item=>{
    const times=item.schedules||[],active=times.filter(x=>x.status!=="disparado");
-   const dates=times.slice(0,3).map(x=>item.recurrence==="once"?x.at.replace("T"," às "):
+   const dates=times.slice(0,3).map(x=>item.recurrence==="once"&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x.at||"")?
+    textDate(x.at.slice(0,10))+" às "+x.at.slice(11,16):
     item.recurrence==="daily"?"Diariamente às "+x.at:
     ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][x.weekday]+" às "+x.at).join(" · ");
+   const origin=item.taskId?(item.taskStageId?
+    "Etapa: "+(stages(data.tasks.find(t=>t.id===item.taskId)||{}).find(stage=>String(stage.id)===String(item.taskStageId))?.label||"Etapa da demanda"):
+    "Demanda vinculada"):"Lembrete pessoal";
    return '<article class="reminder-list-row"><div class="reminder-list-icon">'+ico(item.taskId?"calendar":"bell")+'</div>'+
-    '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p>'+esc(dates)+'</p>'+
-    '<small>'+(item.taskId?(item.taskStageId?"Etapa: "+esc(stages(data.tasks.find(t=>t.id===item.taskId)||{}).find(stage=>String(stage.id)===String(item.taskStageId))?.label||"Etapa da demanda"):"Vinculado à minha demanda"):"Personalizado")+' · '+active.length+' horário(s) ativo(s)'+(item.autoDelete?" · Exclusão automática":"")+'</small></div>'+
-    '<div class="reminder-list-actions"><button type="button" class="button ghost" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' Editar</button>'+
-    '<button type="button" class="button ghost" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' Excluir</button></div></article>';
-  }).join(""):'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
+    '<div class="reminder-list-info"><strong>'+esc(item.title)+'</strong><p class="reminder-list-dates">'+ico("clock")+' '+esc(dates)+'</p>'+
+    '<div class="reminder-list-meta"><span>'+esc(origin)+'</span><span>'+active.length+' '+(active.length===1?"horário ativo":"horários ativos")+'</span>'+
+    (item.autoDelete?'<span>Exclusão automática</span>':"")+'</div></div>'+
+    '<div class="reminder-list-actions"><button type="button" class="button ghost reminder-edit-action" data-do="reminder-edit" data-id="'+esc(item.id)+'">'+ico("edit")+' <span>Editar</span></button>'+
+    '<button type="button" class="button ghost reminder-delete-action" data-do="reminder-delete" data-id="'+esc(item.id)+'">'+ico("trash")+' <span>Excluir</span></button></div></article>';
+  }).join("")+'</div>':'<p class="field-hint">Nenhum lembrete cadastrado. Crie seu primeiro aviso acima.</p>')+'</section>';
  return headerHtml+'<div class="reminder-page"><div class="reminder-page-actions"><button type="button" class="button primary" data-do="reminder-new">'+ico("plus")+' Novo lembrete</button>'+
  '<span class="field-hint">Se a demanda for excluída ou sua pendência terminar, o lembrete vinculado será removido.</span></div>'+formHtml+list+'</div>';
 }
@@ -2677,9 +2746,10 @@ function refreshPasswordStrength(input){
  }
 }
 function renderRegisterAccount(){
- return header("Conta","Criar conta","Usuário, e-mail e senha.")+
+ return header("Conta","Criar conta","Dados pessoais e acesso.")+
  '<section class="card card-pad live-auth"><form id="register-account-form" class="register-form">'+
  '<label>Usuário<input name="name" required minlength="2" maxlength="120" autocomplete="name"></label>'+
+ '<label>Data de nascimento<input type="date" name="birthDate" required min="1900-01-01" max="'+new Date().toISOString().slice(0,10)+'" autocomplete="bday"></label>'+
  '<label>E-mail<input name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false"></label>'+
  '<label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="new-password" spellcheck="false"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span>'+
  passwordStrengthMarkup()+'</label>'+
@@ -2728,8 +2798,9 @@ function renderAccount(){
  const commissionCount=myCommissions.length;
  const commissionCountLabel=commissionCount===1?"comissão":"comissões";
  const commissionsHtml='<section class="profile-commissions" aria-label="Minhas comissões: '+commissionCount+' '+commissionCountLabel+'">'+
-  '<div class="profile-commissions-heading"><div><span class="profile-section-eyebrow">PARTICIPAÇÃO</span><h3>Minhas comissões</h3></div>'+
-  '<div class="profile-commission-counter" aria-live="polite"><strong>'+commissionCount+'</strong><span>'+commissionCountLabel+'</span></div></div>'+
+  '<div class="profile-commissions-heading"><div><span class="profile-section-eyebrow">MINHAS EQUIPES</span><h3>Comissões</h3>'+
+  '<p class="profile-commissions-subtitle">Equipes das quais você participa no PET</p></div>'+
+  '<div class="profile-commission-counter" aria-live="polite" aria-label="'+commissionCount+' '+commissionCountLabel+'"><strong>'+commissionCount+'</strong><span>'+commissionCountLabel+'</span></div></div>'+
   (myCommissions.length?'<div class="profile-commission-list">'+myCommissions.map(c=>
    '<a class="profile-commission-chip" href="'+workspaceHash("comissoes/"+c.id)+'">'+
     '<span class="profile-commission-avatar">'+(c.imageData?'<img src="'+esc(c.imageData)+'" alt="">':commissionDefaultArt(c.name))+
@@ -2753,21 +2824,29 @@ function renderAccount(){
   '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
   (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
   '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
- const tab=me.mustChangePassword?"seguranca":(["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
+ const tab=me.mustChangePassword?"seguranca":(["perfil","painel","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
  const tabButton=(key,name,description,iconName)=>
   '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
   '<span class="account-hub-nav-icon">'+ico(iconName)+'</span><span class="account-hub-nav-text"><strong>'+name+'</strong><small>'+description+'</small></span></button>';
  const panel=(key,content)=>
   '<section class="account-hub-pane '+(key==="perfil"?"account-profile":"")+'" id="account-pane-'+key+'" role="tabpanel" aria-labelledby="account-tab-'+key+'" '+(tab!==key?"hidden":"")+'>'+content+'</section>';
  const profileContent=
-  '<div class="profile-hero"><div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span></div>'+
+  '<div class="profile-hero theme-'+profileThemeClass()+'"'+profileBackgroundStyle(state.presentationPrefs)+'><div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span>'+
+  '<span class="profile-hero-top-actions"><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span>'+
+  '<button type="button" class="profile-customize-link" data-do="profile-open-appearance">'+ico("image")+' Alterar fundo</button></span></div>'+
   '<div class="account-profile-info">'+profilePhoto+
   '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
   '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
   (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
     '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
     '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
-  commissionsHtml;
+  commissionsHtml+
+  '<section class="account-birthday-panel"><div class="account-birthday-heading"><span class="account-birthday-icon">'+ico("calendar")+'</span>'+
+  '<div><h3>Meu aniversário</h3><p>Atualize a sua data de nascimento. Só você poderá consultá-la. Os parabéns são opcionais e podem ser ativados em Notificações.</p></div></div>'+
+  '<form id="account-birthday-form" class="account-birthday-form"><label>Data de nascimento<input type="date" name="birthDate" value="'+esc(me.birthDate||"")+'" min="1900-01-01" max="'+new Date().toISOString().slice(0,10)+'" autocomplete="bday"></label>'+
+  '<button type="submit" class="button primary">'+ico("check")+' Salvar data</button></form>'+
+  (me.birthDate?'<button type="button" class="button ghost birthday-remove" data-do="account-birthday-remove">Remover data</button>':"")+
+  '<p class="field-hint">Para receber o e-mail e o aviso no celular ou PC, ative “Meu aniversário” na aba Notificações.</p></section>';
  const passwordManagement=
   '<section class="profile-security-panel account-setting-card"><div><h3>Senha de acesso</h3><p>Altere sua senha com segurança sempre que precisar.</p></div>'+
   '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">'+ico("lock")+' Alterar senha</button>'+
@@ -2792,7 +2871,7 @@ function renderAccount(){
   '<p class="field-hint">E-mails essenciais, como confirmação de endereço e recuperação de senha, permanecem ativos por segurança.</p></section>';
  const notificationContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEUS AVISOS</span><h2>Central de notificações</h2>'+
-  '<p>Escolha quais dos seis avisos recebe por e-mail, Android ou PC. Salve todas as opções de uma só vez.</p></div>'+
+  '<p>Escolha quais avisos recebe por e-mail, Android ou PC. Salve todas as opções de uma só vez.</p></div>'+
   renderNotificationMatrix()+'<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
  const appContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">INSTALAÇÃO</span><h2>Aplicativos PET Gestão</h2>'+
@@ -2802,12 +2881,13 @@ function renderAccount(){
   '<div class="account-hub"><nav class="account-hub-sidebar" role="tablist" aria-label="Configurações da conta">'+
   '<div class="account-hub-side-title">CONFIGURAÇÕES</div>'+
   tabButton("perfil","Meu perfil","Dados e comissões","user")+
+  tabButton("painel","Painel","Indicadores e aparência","settings")+
   tabButton("seguranca","Segurança","E-mail, senha e exclusão","lock")+
   tabButton("notificacoes","Notificações","E-mail, PC e celular","bell")+
   tabButton("aplicativos","Aplicativos","Instalar no PC, Android ou iOS","download")+
   tabButton("atalhos","Navegação rápida","Atalhos do celular","grid")+
   '</nav><div class="account-hub-main">'+
-  panel("perfil",profileContent)+panel("seguranca",securityContent)+
+  panel("perfil",profileContent)+panel("painel",renderPresentationSettings())+panel("seguranca",securityContent)+
   panel("notificacoes",notificationContent)+panel("aplicativos",appContent)+
   panel("atalhos",renderQuickNavSettings())+
   '</div></div>'+
@@ -2823,7 +2903,7 @@ function renderAccount(){
     '<button class="button account-delete-confirm" type="submit">'+ico("close")+' Excluir definitivamente</button></div>'+
    '</form></section></div>';
 }
-const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"],["due_soon","Prazo vencendo"],["event_soon","Evento se aproximando"],["event_today","No dia do evento"],["overdue","Prazo vencido"]];
+const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"],["due_soon","Prazo vencendo"],["event_soon","Evento se aproximando"],["event_today","No dia do evento"],["overdue","Prazo vencido"],["birthday","Aniversário"]];
 function notificationTemplateFor(kind){
  const fallbacks={
   create:{subject:"PET Gestão — Nova demanda: {demanda}",body:"Olá!\n\n{autor} cadastrou uma nova demanda: {demanda}.\n\nAcesse o PET Gestão para consultar os prazos e os responsáveis.\n\nPET Educação"},
@@ -2831,7 +2911,8 @@ function notificationTemplateFor(kind){
   due_soon:{subject:"PET Gestão — Prazo vencendo: {demanda}",body:"Olá!\n\nA etapa {etapa} da demanda {demanda} vence em {dias} dia(s), em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
   event_soon:{subject:"PET Gestão — Evento se aproximando: {demanda}",body:"Olá!\n\nLembrete: o evento {demanda} acontecerá em {prazo}, daqui a {dias} dia(s).\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"},
   overdue:{subject:"PET Gestão — Prazo vencido: {demanda}",body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
-  event_today:{subject:"PET Gestão — É hoje: {demanda}",body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"}
+  event_today:{subject:"PET Gestão — É hoje: {demanda}",body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"},
+  birthday:{subject:"🎉 Feliz aniversário, {nome}!",body:"Hoje é o seu dia, {nome}! O PET Educação deseja muita felicidade, saúde e conquistas. Parabéns!"}
  };
  return state.templateDrafts?.["email:"+kind]||data.settings.notificationTemplates?.[kind]||
   (["create","review"].includes(kind)?data.settings.notificationTemplate:null)||fallbacks[kind]||fallbacks.create;
@@ -2845,14 +2926,16 @@ const templateVariableInfo={
  etapa:"Nome da etapa ou prazo vinculado à demanda.",
  prazo:"Data e horário do prazo ou data do evento.",
  dias:"Antecedência configurada, disponível apenas nos avisos de prazo vencendo e evento se aproximando.",
- link:"Endereço para abrir a demanda no PET Gestão."
+ link:"Endereço para abrir a demanda no PET Gestão.",
+ nome:"Nome do aniversariante, preenchido automaticamente pelo sistema."
 };
 const templateVariables={
  create:["autor","acao","demanda","tipo"],review:["autor","acao","demanda","tipo"],
  due_soon:["autor","acao","tipo","demanda","etapa","prazo","dias","link"],
  event_soon:["autor","acao","tipo","demanda","prazo","dias","link"],
  event_today:["autor","acao","tipo","demanda","prazo","link"],
- overdue:["autor","acao","tipo","demanda","etapa","prazo","link"]
+ overdue:["autor","acao","tipo","demanda","etapa","prazo","link"],
+ birthday:["nome"]
 };
 function notificationVariableGuide(kind){
  const keys=templateVariables[kind]||templateVariables.create;
@@ -2869,7 +2952,8 @@ const pushTemplateFallbacks={
  due_soon:{title:"Prazo vencendo",body:"{demanda} · {etapa} · {prazo}"},
  overdue:{title:"Prazo vencido",body:"{demanda} · {etapa} · {prazo}"},
  event_soon:{title:"Evento se aproximando",body:"{demanda} · {prazo}"},
- event_today:{title:"Evento hoje",body:"{demanda}"}
+ event_today:{title:"Evento hoje",body:"{demanda}"},
+ birthday:{title:"Feliz aniversário, {nome}! 🎉",body:"O PET Educação deseja um dia maravilhoso para você!"}
 };
 function notificationPushTemplateFor(kind){
  return state.templateDrafts?.["app:"+kind]||data.settings.notificationPushTemplates?.[kind]||pushTemplateFallbacks[kind]||pushTemplateFallbacks.create;
@@ -3077,7 +3161,7 @@ function renderAdmin(){
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-event-today" '+(reminderConfig.eventTodayEnabled?"checked":"")+'> Enviar aviso no dia do evento</label><button type="button" class="button primary" data-do="save-reminder-event-today">Salvar aviso do dia do evento</button></div></section>'+
  '<section class="card card-pad admin-panel admin-reminder-panel" data-reminder-card="after" '+(state.adminTab==="configuracoes"?"":'hidden')+'><div class="reminder-panel-heading"><span class="reminder-panel-icon" aria-hidden="true">'+ico("clock")+'</span><h2>Aviso após o vencimento do prazo</h2></div><p class="field-hint reminder-panel-intro">Envie um aviso automático quando uma etapa vencer e a demanda ainda estiver ativa. Esse envio acontece depois do vencimento, sem antecedência.</p>'+
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> Enviar aviso quando o prazo vencer</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas, conforme o público selecionado. Endereços repetidos são unificados por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-overdue">Salvar aviso de prazo vencido</button></div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de notificações</h2><p class="field-hint">Edite os seis tipos de avisos por e-mail ou por notificação do aplicativo (celular e PC). Os e-mails de segurança permanecem protegidos.</p>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de notificações</h2><p class="field-hint">Edite os tipos de avisos por e-mail ou por notificação do aplicativo (celular e PC). Os e-mails de segurança permanecem protegidos.</p>'+
  '<form id="notification-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
  '<label>Canal<select name="channel" id="notification-template-channel" class="select">'+[["email","E-mail"],["app","Aplicativo (celular e PC)"]].map(([v,l])=>opt(v,l,state.templateChannel)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
@@ -3136,7 +3220,7 @@ function showMailPreview(mode){
  const sample={
    autor:"Equipe PET Educação",acao:"registrou uma atualização",demanda:"Exemplo de demanda",
    tipo:"Notificação",etapa:"Prazo",prazo:exampleDate+" às 17:00",
-   dias:String(days),link:"https://peteducacao.github.io/pet-gestao/#/atividade/exemplo"
+   dias:String(days),nome:"Integrante do PET",link:"https://peteducacao.github.io/pet-gestao/#/atividade/exemplo"
  };
  if(mode!=="manual"){
    if(f.kind==="due_soon"){sample.tipo="Prazo vencendo";sample.acao="avisa que o prazo está vencendo"}
@@ -3145,11 +3229,12 @@ function showMailPreview(mode){
    if(f.kind==="overdue"){sample.tipo="Prazo vencido";sample.acao="avisa que o prazo venceu"}
    if(f.kind==="create")sample.tipo="Nova demanda";
    if(f.kind==="review")sample.tipo="Texto para revisão";
+   if(f.kind==="birthday")sample.tipo="Aniversário";
  }
- const hydrate=(value,escapeValue=false)=>String(value).replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link)\}/g,(_,key)=>escapeValue?esc(sample[key]):sample[key]);
+ const hydrate=(value,escapeValue=false)=>String(value).replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link|nome)\}/g,(_,key)=>escapeValue?esc(sample[key]):sample[key]);
  const subject=mode!=="manual"?hydrate(title):title;
  const html=mode!=="manual"?hydrate(safeRich(message),true):safeRich(message);
- let audience="Responsáveis vinculados à demanda";
+ let audience=f.kind==="birthday"?"Aniversariante (envio pessoal)":"Responsáveis vinculados à demanda";
  if(mode==="manual"){
    const ids=$('input[name="mail-target"]:checked');
    if(state.mailAudience==="todos")audience="Todos(as) os usuários cadastrados";
@@ -3707,9 +3792,45 @@ async function handleClick(e){
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
  }
+ if(action==="account-birthday-remove"){
+  if(!await askConfirm("Remover sua data de nascimento? Os parabéns automáticos deixarão de ser enviados.",{
+    title:"Remover data de nascimento?",confirmLabel:"Remover data",cancelLabel:"Cancelar"
+  }))return;
+  const result=await request("/account/birthday","PUT",{birthDate:null});
+  me.birthDate=result.birthDate;render();setToast("Data de nascimento removida.");return;
+ }
+ if(action==="profile-open-appearance"){
+  state.accountTab="painel";render();
+  $("#account-pane-painel h2")?.scrollIntoView({block:"nearest",behavior:"smooth"});
+  return;
+ }
+ if(action==="presentation-theme"){
+  if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+  const theme=b.dataset.theme;
+  if(!PRESENTATION_THEMES.some(p=>p[0]===theme))return;
+  state.presentationDraft.profileTheme=theme;
+  render();return;
+ }
+ if(action==="presentation-remove-photo"){
+  if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+  state.presentationDraft.profileImage=null;
+  if(state.presentationDraft.profileTheme==="photo")state.presentationDraft.profileTheme="lavender";
+  render();return;
+ }
+ if(action==="presentation-save"){
+  if(!me||!state.presentationDraft)return setToast("Configurações ainda não carregadas.");
+  b.disabled=true;
+  try{
+   const saved=await request("/user-presentation","PUT",state.presentationDraft);
+   state.presentationPrefs=saved;
+   state.presentationDraft=JSON.parse(JSON.stringify(saved));
+   render();setToast("Aparência e indicadores salvos na sua conta.");
+  }finally{if(b.isConnected)b.disabled=false}
+  return;
+ }
  if(action==="account-tab"){
   const name=b.dataset.tab;
-  if(!["perfil","seguranca","notificacoes","aplicativos","atalhos"].includes(name))return;
+  if(!["perfil","painel","seguranca","notificacoes","aplicativos","atalhos"].includes(name))return;
   if(me?.mustChangePassword&&name!=="seguranca")return setToast("Altere a senha temporária antes de continuar.");
   state.accountTab=name;
   document.querySelectorAll(".account-hub-nav-btn").forEach(button=>{
@@ -4304,6 +4425,12 @@ async function handleSubmit(e){
    try{await reload();}finally{state.authTransition=false;}
    setToast("Acesso autorizado.");return;
  }
+ if(form.id==="account-birthday-form"){
+  const value=String(form.elements.birthDate?.value||"");
+  if(!value)return setToast("Selecione uma data de nascimento.");
+  const result=await request("/account/birthday","PUT",{birthDate:value});
+  me.birthDate=result.birthDate;render();setToast("Data de nascimento atualizada.");return;
+ }
  if(form.id==="register-account-form"){
    const fields=userFields(form);
    fields.email=String(fields.email||"").trim().toLowerCase();
@@ -4619,6 +4746,32 @@ async function handleChange(e){
   }return;
  }
  if(t.id==="mail-audience"){state.mailAudience=t.value;renderMailRecipients();return}
+ if(t.matches?.("[data-presentation-key]")){
+  if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+  const key=t.dataset.presentationKey;
+  if(!Object.hasOwn(PRESENTATION_DASHBOARD_DEFAULT,key))return;
+  state.presentationDraft.dashboard[key]=Boolean(t.checked);
+  return;
+ }
+ if(t.id==="profile-background-upload"){
+  const photo=t.files?.[0];t.value="";
+  if(!photo)return;
+  try{
+   const optimized=await shrinkPhoto(photo,{edge:1080,maxBytes:145*1024,square:false});
+   const encoded=await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(String(reader.result||""));
+    reader.onerror=()=>reject(Error("Não foi possível preparar o fundo."));
+    reader.readAsDataURL(optimized);
+   });
+   if(!state.presentationDraft)state.presentationDraft=presentationDefault();
+   state.presentationDraft.profileImage=encoded;
+   state.presentationDraft.profileTheme="photo";
+   render();
+   setToast("Prévia atualizada. Clique em Salvar preferências para confirmar.");
+  }catch(error){setToast(error.message)}
+  return;
+ }
  if(t.id==="account-photo-input"){
    const original=t.files?.[0];t.value="";
    if(!original)return;

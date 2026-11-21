@@ -9,7 +9,7 @@ for(let i=0;i<50;i++){try{const r=await fetch(origin);if(r.ok)break}catch{}await
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1420,height:900}});
 const page=await context.newPage();
-const user={id:"u1",name:"Usuário de teste",role:"tutor",email:"exemplo@local.test",notificationEnabled:false};
+const user={id:"u1",name:"Usuário de teste",role:"tutor",email:"exemplo@local.test",notificationEnabled:false,birthDate:null};
 const admin={id:"admin",name:"Admin",role:"admin",email:"admin@local.test",notificationEnabled:false,adminSession:true};
 const task={id:"t1",title:"Poesia no PET",description:"Ideias 📚",captionText:"Olá!\n\n#PET",
   assigneeIds:["u1"],commissionIds:["videos"],userDone:{},commissionDone:{},
@@ -23,10 +23,12 @@ const history=[{task_id:"t1",action:"Criou a demanda",actor_name:"Usuário de te
 const settings={autoMonth:true,autoWeek:true,notificationTemplates:{}};
  const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user,admin],committees,tasks,meetings,events:[],history,settings});
 const calls=[];
-const notificationKinds=["create","review","due_soon","overdue","event_soon","event_today"];
+const notificationKinds=["create","review","due_soon","overdue","event_soon","event_today","birthday"];
 let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:false,android:false,pc:false}]));
 let personalMockItems=[];
 let quickNavMock={enabled:true,items:["inicio","cronograma","demandas","meus-lembretes","conta"]};
+let presentationMock={dashboard:{active:true,mine:true,overdue:true,completed:true,updates:true},
+ profileTheme:"lavender",profileImage:null};
 let scheduleMock=[{id:"evento-cron-1",title:"Oficina de Fotografia",description:"Formação com fotógrafos",startDate:new Date().toISOString().slice(0,10),endDate:new Date().toISOString().slice(0,10),startTime:"14:00",endTime:"18:00",timeNote:null,location:"Sala do PET",completedAt:null,source:"manual"}];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
@@ -36,6 +38,10 @@ await page.route("**/api/v1/**",async route=>{
  if(p==="/auth/me")result={user:adminMode?admin:user};
  else if(p==="/bootstrap")result=bootstrap(adminMode);
  else if(p==="/auth/login"&&method==="POST")result={token:body.email===admin.email?"admin-token":"user-token",user:body.email===admin.email?admin:user};
+ else if(p==="/user-presentation"&&method==="GET")result=presentationMock;
+ else if(p==="/user-presentation"&&method==="PUT"){presentationMock=body;result=presentationMock;}
+ else if(p==="/account/birthday"&&method==="PUT"){user.birthDate=body.birthDate||null;result={ok:true,birthDate:user.birthDate};}
+ else if(p==="/auth/register"&&method==="POST"){if(!body.birthDate){status=400;result={error:"Data obrigatória"};}else result={ok:true};}
  else if(p==="/quick-nav"&&method==="GET")result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};
  else if(p==="/quick-nav"&&method==="PUT"){quickNavMock={enabled:body.enabled,items:body.items};result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};}
  else if(p==="/schedule"&&method==="GET")result={year:Number(url.searchParams.get("year")),items:scheduleMock.filter(x=>x.startDate.slice(0,4)===url.searchParams.get("year"))};
@@ -152,28 +158,49 @@ try{
  await page.locator(".profile-commissions").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator(".profile-commissions").innerText()).includes("Vídeos"),
    "Meu perfil mostra minhas comissões sem alterar o cadastro");
- // Regressão: a quinta opção não fica sozinha na metade esquerda do perfil.
+ // Regressão: seis opções do perfil devem formar três linhas completas no celular.
  const initialViewport=page.viewportSize();
  for(const width of [320,360,390,414,760]){
   await page.setViewportSize({width,height:850});
   const layout=await page.locator(".account-hub-sidebar").evaluate(nav=>{
    const buttons=[...nav.querySelectorAll(".account-hub-nav-btn")];
    const box=el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width}};
-   return {nav:box(nav),first:box(buttons[0]),fourth:box(buttons[3]),last:box(buttons[4]),
-    notifications:box(buttons[2]),gridColumns:getComputedStyle(nav).gridTemplateColumns,overflow:nav.scrollWidth-nav.clientWidth};
+   return {nav:box(nav),first:box(buttons[0]),second:box(buttons[1]),fourth:box(buttons[3]),last:box(buttons[5]),gridColumns:getComputedStyle(nav).gridTemplateColumns,overflow:nav.scrollWidth-nav.clientWidth};
   });
-  assert.equal(await page.locator(".account-hub-nav-btn").count(),5,"Cinco opções de perfil em "+width+"px");
-  assert.ok(layout.last.top>=layout.fourth.bottom-1,"Navegação rápida inicia abaixo da linha anterior em "+width+": "+JSON.stringify(layout));
-  assert.ok(Math.abs((layout.last.left+layout.last.right)/2-(layout.nav.left+layout.nav.right)/2)<3,"Navegação rápida centralizada em "+width+": "+JSON.stringify(layout));
-  assert.ok(Math.abs(layout.last.width-layout.first.width)<3,"Navegação rápida tem largura proporcional aos demais itens em "+width+": "+JSON.stringify(layout));
-  assert.ok(Math.abs(layout.notifications.width-layout.first.width)<3,"Notificações ocupa a mesma largura do primeiro item em "+width+": "+JSON.stringify(layout));
+  assert.equal(await page.locator(".account-hub-nav-btn").count(),6,"Seis opções do perfil em "+width+"px");
+  assert.ok(layout.last.top>=layout.fourth.bottom-1,"Última linha abaixo da anterior: "+JSON.stringify(layout));
+  assert.ok(Math.abs(layout.last.width-layout.first.width)<3,"Cartões de mesma largura: "+JSON.stringify(layout));
+  assert.ok(Math.abs(layout.last.width-layout.second.width)<3,"Terceira linha sem desalinhamento");
   assert.ok(layout.overflow<=2,"Sem rolagem lateral no menu em "+width+": "+JSON.stringify(layout));
  }
  await page.setViewportSize(initialViewport);
- // Central única: os seis avisos compartilham um botão de salvar por destinatário.
+ await page.locator('[data-do="account-tab"][data-tab="painel"]').click();
+ await page.locator('[data-presentation-key="mine"]').uncheck();
+ await page.locator('[data-presentation-key="overdue"]').uncheck();
+ await page.locator('[data-presentation-key="updates"]').uncheck();
+ await page.locator('[data-do="presentation-theme"][data-theme="ocean"]').click();
+ const presentationSave=page.waitForResponse(r=>r.url().endsWith("/user-presentation")&&r.request().method()==="PUT");
+ await page.locator('[data-do="presentation-save"]').click();await presentationSave;
+ assert.equal(presentationMock.dashboard.mine,false);
+ assert.equal(presentationMock.dashboard.updates,false);
+ assert.equal(presentationMock.profileTheme,"ocean");
+ await page.goto(origin+"/#/inicio");
+ await page.locator(".stat-grid").waitFor({state:"visible"});
+ assert.equal(await page.locator(".stat-grid .stat").count(),2,"Somente indicadores ativados ocupam espaço.");
+ assert.equal(await page.locator(".dashboard-grid section").count(),1,"Atualizações ocultadas deixam o painel alinhado.");
+ await page.goto(origin+"/#/conta");
+ await page.locator('[data-do="account-tab"][data-tab="perfil"]').click();
+ await page.locator(".account-birthday-panel").waitFor({state:"visible"});
+ await page.locator('#account-birthday-form [name="birthDate"]').fill("2001-05-14");
+ const birthdaySaved=page.waitForResponse(r=>r.url().endsWith("/account/birthday")&&r.request().method()==="PUT");
+ await page.locator("#account-birthday-form button[type=submit]").click();await birthdaySaved;
+ assert.equal(user.birthDate,"2001-05-14","Contas antigas podem informar aniversário.");
+ await page.locator('[data-do="profile-open-appearance"]').click();
+ assert.ok(await page.locator(".profile-background-preview.theme-ocean").isVisible(),"Aparência salva aparece na prévia.");
+ // Central única: os sete tipos compartilham um botão de salvar por destinatário.
  await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
  await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
- assert.equal(await page.locator('.notice-matrix tbody tr').count(),6,"Seis tipos de notificações por três canais");
+ assert.equal(await page.locator('.notice-matrix tbody tr').count(),7,"Sete notificações, incluindo aniversário, por três canais");
  const matrixHelp=page.locator(".account-notification-matrix .pet-context-help");
  assert.equal(await matrixHelp.count(),1,"Orientações gerais da matriz ficam em um único ?");
  assert.equal(await matrixHelp.evaluate(el=>el.open),false,"Ajuda começa recolhida");
@@ -248,6 +275,28 @@ try{
  assert.deepEqual(personalMockItems.at(-1).schedules.map(x=>x.at),[chosenAt],"Apenas o horário escolhido será notificado, sem aviso do prazo inicial.");
  assert.ok((await page.locator(".reminder-list-row").filter({hasText:"Postagem"}).count())>0,"Lista identifica a etapa vinculada.");
  assert.equal(await page.locator(".reminder-list-row").count(),2,"Lembretes cadastrados aparecem na lista pessoal");
+ // Conferência no simulador móvel: ações centralizadas e leitura de cartões sem overflow.
+ for(const width of [320,360,390,414]){
+  await page.setViewportSize({width,height:844});
+  const listLayouts=await page.locator(".reminder-list-row").evaluateAll(rows=>rows.map(row=>{
+   const info=row.querySelector(".reminder-list-info"),
+    actions=row.querySelector(".reminder-list-actions"),
+    buttons=[...actions.querySelectorAll("button")],
+    r=row.getBoundingClientRect(),a=actions.getBoundingClientRect();
+   return {width:row.clientWidth,scroll:row.scrollWidth,
+    infoWidth:info.getBoundingClientRect().width,
+    actionWidth:a.width,actionRight:a.right,rowRight:r.right,
+    centers:buttons.map(b=>{const rect=b.getBoundingClientRect();return {y:rect.top+rect.height/2,
+       buttonHeight:rect.height,textCenterY:rect.top+rect.height/2};}),
+    buttons:buttons.map(b=>({label:b.innerText,rect:b.getBoundingClientRect().toJSON()}))};
+  }));
+  assert.ok(listLayouts.every(item=>item.scroll<=item.width+2),"Cartões sem overflow horizontal em "+width+"px: "+JSON.stringify(listLayouts));
+  assert.ok(listLayouts.every(item=>item.actionRight<=item.rowRight+2),"Editar e Excluir permanecem no cartão em "+width+"px");
+  assert.ok(listLayouts.every(item=>item.buttons.length===2&&item.buttons.every(b=>b.rect.height>=39)),
+   "Ações legíveis e tocáveis no celular em "+width+"px");
+ }
+ await page.setViewportSize(initialViewport);
+
  await page.goto(origin+"/#/conta");
  await page.goto(origin+"/#/demandas");
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
@@ -1300,9 +1349,9 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.setViewportSize({width:390,height:844});
 
  const kindSelector=page.locator("#notification-template-kind");
- assert.equal(await kindSelector.locator("option").count(),6,"Seis modelos em um único seletor de Configurações");
+ assert.equal(await kindSelector.locator("option").count(),7,"Sete modelos, incluindo aniversário, em Configurações");
  assert.deepEqual(await kindSelector.locator("option").evaluateAll(items=>items.map(o=>o.value)),
-  ["create","review","due_soon","event_soon","event_today","overdue"]);
+  ["create","review","due_soon","event_soon","event_today","overdue","birthday"]);
  assert.equal(await page.locator("#notification-template-form .mail-template-guide-item").count(),4,"Criação possui suas quatro chaves");
  assert.equal(await page.locator("#overdue-template-form").count(),0,"Modelo vencido integrado");
  assert.equal(await page.locator("#deadline-template-form").count(),0,"Modelos de prazo integrados");
@@ -1331,6 +1380,14 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(settings.reminderSettings?.eventTodayEnabled,true,"Evento hoje ativado independentemente");
  assert.equal(settings.reminderSettings?.daysBefore,5,"Configurar evento hoje não altera dias do antecipado");
  await page.locator("#notice-dialog").waitFor({state:"hidden",timeout:5500});
+ await kindSelector.selectOption("birthday");
+ assert.equal(await page.locator("#notification-template-form .mail-template-guide-item").count(),1,"Aniversário oferece {nome}.");
+ await page.locator('#notification-template-form input[name=subject]').fill("Parabéns, {nome}! 🎂");
+ await page.locator("#notification-template-form button[type=submit]").click();
+ await page.waitForTimeout(180);
+ assert.equal(settings.notificationTemplates.birthday?.subject,"Parabéns, {nome}! 🎂","Admin edita o email de aniversário.");
+ if(await page.locator('#notice-dialog').isVisible())await page.locator('#notice-dialog button[data-do="notice-cancel"]').click();
+ await kindSelector.selectOption("create");
  await page.locator("#notification-template-form input[name=subject]").fill("Nova demanda personalizada");
  await page.locator("#notification-template-form button[type=submit]").click();
  await page.waitForTimeout(180);

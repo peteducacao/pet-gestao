@@ -2,6 +2,7 @@ import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPush
 import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel,noticeAudience,noticeSendPolicy} from "./notification-center.js";
 import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
 import {listSchedule,saveSchedule,deleteSchedule,quickNavGet,quickNavSave,annualReport,adminOverview} from "./annual-schedule.js";
+import {presentationGet,presentationSave} from "./user-presentation.js";
 import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
 "use strict";
@@ -32,6 +33,16 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
   const arrayToJson=v=>JSON.stringify(v);
   const standardTime=d=>/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(String(d||""))?String(d):"";
   const currentYear=()=>new Date().getUTCFullYear();
+  function validateBirthDate(value,optional=false){
+    const v=String(value??"").trim();
+    if(optional&&!v)return null;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(v))fail("Informe uma data de nascimento válida.");
+    const date=new Date(v+"T12:00:00Z");
+    if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==v||
+       Number(v.slice(0,4))<1900||v>new Date().toISOString().slice(0,10))
+      fail("Data de nascimento inválida ou futura.");
+    return v;
+  }
   const isoAfter=minutes=>new Date(Date.now()+minutes*60000).toISOString();
   async function body(req){
     const size=Number(req.headers.get("content-length")||0);
@@ -91,7 +102,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     const browser=/^[a-f0-9-]{36}$/i.test(String(browserId||""))?String(browserId):null;
     if(browser)await db.prepare("DELETE FROM sessions WHERE browser_id=?").bind(browser).run();
     await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at,created_at,admin_scope,browser_id) VALUES(?,?,?,?,?,?)").bind(digest,user.id,expiresAt,now(),adminScope&&user.role==="admin"?1:0,browser).run();
-    return {token,user:{...userPublic(user),adminSession:adminScope===true&&user.role==="admin"},expiresAt};
+    return {token,user:{...userPublic(user),birthDate:user.birth_date||null,adminSession:adminScope===true&&user.role==="admin"},expiresAt};
   }
   async function resetRate(db,mail){await db.prepare("DELETE FROM auth_attempts WHERE email=?").bind(mail).run()}
   async function rateFail(db,mail){
@@ -141,7 +152,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     for(const m of members){(counts[m.commission_id]??=[]).push(m.user_id)}
     const pendingEmailChange=user?await db.prepare("SELECT new_email,expires_at FROM email_change_requests WHERE user_id=? AND expires_at>?").bind(user.id,now()).first():null;
     const visibleSettings=privateView?settings:{autoMonth:settings.autoMonth,autoWeek:settings.autoWeek};
-    return {session:user?{user:{...userPublic(user),pendingEmailChange:pendingEmailChange?{newEmail:pendingEmailChange.new_email,expiresAt:pendingEmailChange.expires_at}:null}}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
+    return {session:user?{user:{...userPublic(user),birthDate:user.birth_date||null,pendingEmailChange:pendingEmailChange?{newEmail:pendingEmailChange.new_email,expiresAt:pendingEmailChange.expires_at}:null}}:null,users,committees:committees.map(c=>({id:c.id,name:c.name,description:c.description,backgroundColor:c.background_color,imageData:c.image_data,maxMembers:c.max_members,sortOrder:c.sort_order,memberCount:c.member_count,memberIds:privateView?(counts[c.id]||[]):[]})),
       tasks:user?rawTasks.map(t=>privateView?{...privateTask(t),attachments:attachmentsByTask[t.id]||[],tutorReviewedByMe:tutorReviewedIds.has(t.id)}:publicTask(t)):[],meetings,events:history.filter(x=>["tutor","admin"].includes(x.actor_role)&&/observa|corrig|praz|aprov|liber|conclu/i.test(x.action)).slice(0,12).map(x=>({taskId:x.task_id,summary:x.action,actorName:x.actor_name,createdAt:x.created_at})),history:privateView?history:[],settings:visibleSettings};
   }
   const bridgeUrlOk=url=>/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url||"");
@@ -221,6 +232,56 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     const id=uid(),stamp=now();
     await db.prepare("INSERT INTO email_queue (id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) VALUES(?,?,?,?,?,?,?,'pendente',?,?)").bind(id,creatorId,kind,JSON.stringify(unique(emails)),subject,message,when||stamp,stamp,taskId).run();
     return id;
+  }
+  // Parabéns pessoais: 09h00 de Sergipe (UTC-3), uma vez por ano e canal.
+  // Apenas usuários que informaram sua data e ativaram os canais recebem.
+  async function queueBirthdayGreetings(env){
+    const local=new Date(Date.now()-3*3600000).toISOString();
+    if(Number(local.slice(11,13))!==9)return;
+    const year=Number(local.slice(0,4)),day=local.slice(5,10);
+    const leap=year%4===0&&(year%100!==0||year%400===0);
+    // 29/02 é celebrado em 28/02 nos anos sem 29.
+    const monthDay=day==="02-28"&&!leap?["02-28","02-29"]:[day];
+    const db=env.DB;
+    const entries=(await db.prepare("SELECT id,name,email,birth_date FROM users WHERE birth_date IS NOT NULL AND substr(birth_date,6,5) IN ("+monthDay.map(()=>"?").join(",")+")")
+      .bind(...monthDay).all()).results;
+    if(!entries.length)return;
+    const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
+    const models=asJson(saved?.value,{});
+    const fallback={subject:"🎉 Feliz aniversário, {nome}!",
+      body:"Hoje é o seu dia, {nome}! O PET Educação deseja muita felicidade, saúde e novas conquistas. Parabéns!"};
+    const template=models?.birthday||fallback;
+    const replace=(value,person,isHtml=false)=>String(value||"").replace(/\{nome\}/g,()=>isHtml?mailEscape(person.name):person.name);
+    for(const person of entries){
+      const targets=await notificationRecipients(db,[person.id],"birthday");
+      if(targets.email.some(target=>target.id===person.id)&&validEmail(person.email)){
+        const key=await db.prepare("INSERT OR IGNORE INTO birthday_delivery_log(user_id,year,channel,created_at) VALUES(?,?,'email',?)")
+          .bind(person.id,year,now()).run();
+        if(key.meta.changes){
+          try{
+            const subject=replace(template.subject||fallback.subject,person).slice(0,200);
+            const bodyTemplate=String(template.body||fallback.body).slice(0,10000);
+            await enqueue(db,null,"birthday",[person.email],subject,replace(bodyTemplate,person,mailHasFormatting(bodyTemplate)),now());
+          }catch(error){
+            await db.prepare("DELETE FROM birthday_delivery_log WHERE user_id=? AND year=? AND channel='email'").bind(person.id,year).run();
+            console.error("PET Gestão: falha ao enfileirar parabéns:",String(error.message||error).slice(0,120));
+          }
+        }
+      }
+      if(targets.android.length||targets.pc.length){
+        const key=await db.prepare("INSERT OR IGNORE INTO birthday_delivery_log(user_id,year,channel,created_at) VALUES(?,?,'push',?)")
+          .bind(person.id,year,now()).run();
+        if(key.meta.changes){
+          try{
+            const message=await notificationPushModel(db,"birthday",{nome:person.name});
+            await pushNotificationToChannels(env,targets,message,"birthday:"+year+":"+person.id);
+          }catch(error){
+            await db.prepare("DELETE FROM birthday_delivery_log WHERE user_id=? AND year=? AND channel='push'").bind(person.id,year).run();
+            console.error("PET Gestão: falha na notificação de aniversário:",String(error.message||error).slice(0,120));
+          }
+        }
+      }
+    }
   }
   // Revalidar cada aviso vinculado a uma demanda antes de entregá-lo.
   // Envios manuais não são cancelados por alterações de demandas.
@@ -740,6 +801,12 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       if(schedulePath&&method==="DELETE"){
         ensure(user);return answer(await deleteSchedule(db,user,schedulePath[1]));
       }
+      if(path==="/api/v1/user-presentation"&&method==="GET"){
+        requireLogin(user);return answer(await presentationGet(db,user));
+      }
+      if(path==="/api/v1/user-presentation"&&method==="PUT"){
+        requireLogin(user);return answer(await presentationSave(db,user,await body(req)));
+      }
       if(path==="/api/v1/quick-nav"&&method==="GET"){
         requireLogin(user);return answer(await quickNavGet(db,user));
       }
@@ -774,14 +841,14 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       }
       diagnosticStage="request";
       if(path==="/api/v1/auth/register"&&method==="POST"){
-        const b=await body(req),name=str(b.name,120),mail=email(b.email),pw=String(b.password||"");
+        const b=await body(req),name=str(b.name,120),mail=email(b.email),pw=String(b.password||""),birthDate=validateBirthDate(b.birthDate);
         // Não impor 10 caracteres: senhas fracas são avisadas no cliente, não bloqueadas na API.
         if(name.length<2||!validEmail(mail)||!pw)fail("Informe nome, e-mail válido e uma senha.");
         // Comparação canônica também cobre cadastros legados com maiúsculas/espaços.
         if(await db.prepare("SELECT id FROM users WHERE lower(trim(email))=? LIMIT 1").bind(mail).first())fail("E-mail já cadastrado.",409);
         const salt=randomToken(),stamp=now();
         try{
-          await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,stamp,stamp).run();
+          await db.prepare("INSERT INTO users(id,name,email,pass_hash,pass_salt,role,role_override,birth_date,created_at,updated_at) VALUES(?,?,?,?,?,'petiano','usuario',?,?,?)").bind(uid(),name,mail,await pwHash(pw,salt),salt,birthDate,stamp,stamp).run();
         }catch(err){
           // O gatilho D1 e o UNIQUE original impedem cadastros paralelos do mesmo e-mail.
           if(/EMAIL_ALREADY_REGISTERED|UNIQUE constraint failed: users\.email/i.test(String(err.message||"")))fail("E-mail já cadastrado.",409);
@@ -823,7 +890,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         if(user){const token=(req.headers.get("authorization")||"").slice(7);await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await sha(token)).run()}
         return answer({ok:true});
       }
-      if(path==="/api/v1/auth/me"&&method==="GET"){requireLogin(user);return answer({user:userPublic(user)})}
+      if(path==="/api/v1/auth/me"&&method==="GET"){requireLogin(user);return answer({user:{...userPublic(user),birthDate:user.birth_date||null}})}
       if(path==="/api/v1/activity/clear"&&method==="POST"){
         requireLogin(user);
         await db.prepare("UPDATE users SET activity_cleared_at=? WHERE id=?").bind(now(),user.id).run();
@@ -1040,6 +1107,14 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         await db.batch(updates);
         return answer({ok:true,deleted:true});
       }
+      if(path==="/api/v1/account/birthday"&&method==="PUT"){
+        requireLogin(user);
+        if(user.must_change_password)fail("Altere a senha temporária antes de editar seu perfil.",403);
+        const input=await body(req),birthDate=validateBirthDate(input.birthDate,true);
+        await db.prepare("UPDATE users SET birth_date=?,updated_at=? WHERE id=?")
+          .bind(birthDate,now(),user.id).run();
+        return answer({ok:true,birthDate});
+      }
       if(path==="/api/v1/account/photo"&&method==="PUT"){
         requireLogin(user);
         const b=await body(req),photo=String(b.photo||"");
@@ -1192,7 +1267,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
           // Compatibilidade com o modelo único anterior.
           await db.prepare("INSERT INTO app_settings(key,value) VALUES('notificationTemplate',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({subject,body:message})).run();
         }else{
-          if(!["create","review","due_soon","event_soon","event_today","overdue"].includes(b.kind))fail("Tipo de notificação inválido.");
+          if(!NOTICE_KINDS.includes(b.kind))fail("Tipo de notificação inválido.");
           const saved=await db.prepare("SELECT value FROM app_settings WHERE key='notificationTemplates'").first();
           const models=asJson(saved?.value,{});
           models[b.kind]={subject,body:message};
@@ -1678,6 +1753,7 @@ export default {fetch:fetchApi,scheduled:(event,env,ctx)=>ctx.waitUntil((async()
  await autoCompleteCollectiveEvents(env);
  // Primeiro alarmes pessoais: em coincidência exata de minuto, prevalece a escolha pessoal.
  await processPersonalReminders(env).catch(error=>console.error("PET Gestão — cron pessoal:",String(error?.message||error).slice(0,150)));
+ await queueBirthdayGreetings(env).catch(error=>console.error("PET Gestão — aniversários:",String(error?.message||error).slice(0,130)));
  await queueDeadlineReminders(env);
  await processQueue(env,15);
  const t=new Date();

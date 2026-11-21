@@ -4,7 +4,7 @@ import {webcrypto} from "node:crypto";
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 const src=await readFile(new URL("../worker/src/notification-center.js",import.meta.url),"utf8");
 const api=await import("data:text/javascript,"+encodeURIComponent(src));
-const kinds=["create","review","due_soon","overdue","event_soon","event_today"];
+const kinds=["create","review","due_soon","overdue","event_soon","event_today","birthday"];
 const stored=new Map(),legacyAndroid={new_demands:0,deadlines:1,overdue:0},legacyPC={new_demands:1,deadlines:0,overdue:1};
 const people=[{id:"a",email:"a@pet.test",role:"petiano",role_override:null},
  {id:"b",email:"b@pet.test",role:"tutor",role_override:null},
@@ -67,14 +67,14 @@ const audience=await api.noticeAudience(audienceDb,
  {assigneeIds:["a"],commissionIds:["videos","textos"]});
 assert.deepEqual(audience,["a","b"],"Autor que faz parte da comissão também recebe; não duplica");
 const defaults=await api.preferencesForUser(db,"a");
-assert.equal(Object.keys(defaults).length,6);
+assert.equal(Object.keys(defaults).length,7);
 assert.deepEqual(defaults.create,{email:false,android:false,pc:false},"Sem escolha explícita, todos os canais começam desligados");
 assert.deepEqual(defaults.event_today,{email:false,android:false,pc:false},"Evento também depende de consentimento");
 const choices=Object.fromEntries(kinds.map(kind=>[kind,{email:true,android:true,pc:true}]));
 choices.create={email:false,android:true,pc:false};
 choices.event_today={email:false,android:false,pc:false};
 await api.saveNotificationPreferences(db,{id:"a"},choices);
-assert.equal(statements.length,6,"Salvar tudo grava os seis tipos juntos");
+assert.equal(statements.length,7,"Salvar tudo grava os sete tipos juntos");
 assert.deepEqual(await api.preferencesForUser(db,"a"),choices);
 const unsaved=await api.notificationRecipients(db,["b","v"],"create");
 assert.equal(unsaved.email.length+unsaved.android.length+unsaved.pc.length,0,"Pessoa sem preferências salvas não recebe avisos");
@@ -120,8 +120,14 @@ const none=await api.notificationRecipients(db,["a"],"event_today");
 assert.equal(none.email.length+none.android.length+none.pc.length,0,"Nenhum = nenhum aviso");
 const push=await api.notificationPushModel(db,"create",{demanda:"Relatório",autor:"Ana"});
 assert.deepEqual(push,{title:"Nova: Relatório",body:"Ana registrou Relatório"});
-await assert.rejects(api.saveNotificationPreferences(db,{id:"a"},{create:choices.create}),/seis notificações/);
-console.log("Notificações: seis tipos, um único salvamento, canais independentes, opt-out e modelos push OK.");
+await assert.rejects(api.saveNotificationPreferences(db,{id:"a"},{create:choices.create}),/todos os tipos/);
+assert.deepEqual(defaults.birthday,{email:false,android:false,pc:false},"Aniversário requer autorização explícita por canal.");
+const birthTargets=await api.notificationRecipients(db,["a","b","v"],"birthday");
+assert.deepEqual(birthTargets.email.map(u=>u.id),["a","b"],"Aniversário respeita escolha pessoal de email.");
+assert.ok(birthTargets.pc.some(u=>u.id==="v")===false,"Sem preferências, usuário de visualização não recebe aviso.");
+const greet=await api.notificationPushModel(db,"birthday",{nome:"Pessoa de Teste"});
+assert.match(greet.title,/Pessoa de Teste/);
+console.log("Notificações: sete tipos, incluindo aniversário privado e opt-in por canal.");
 const personalSource=(await readFile(new URL("../worker/src/personal-reminders.js",import.meta.url),"utf8"))
  .replace('import {pushWithoutMinuteDuplicates} from "./push-collision.js";','const pushWithoutMinuteDuplicates=async()=>({android:0,pc:0,skipped:{android:0,pc:0}});');
 const personal=await import("data:text/javascript,"+encodeURIComponent(personalSource));
@@ -244,3 +250,74 @@ pushAccepted=true;
 const retry=await collision.pushWithoutMinuteDuplicates(collisionEnv,{android:["a"],pc:[]},notice,"personal-retry",minute+120000);
 assert.equal(retry.android,1,"Sem aceitação, a chave do minuto é liberada para retentativa");
 console.log("Deduplicação: mesmo minuto/canal só uma notificação, horários diferentes independentes, falhas recuperáveis OK.");
+
+
+
+// Teste do cron de aniversários isolado: horário de Sergipe, preferência e deduplicação.
+const workerCode=await readFile(new URL("../worker/src/index.js",import.meta.url),"utf8");
+const birthStart=workerCode.indexOf("  async function queueBirthdayGreetings(env){");
+const birthEnd=workerCode.indexOf("  // Revalidar cada aviso vinculado",birthStart);
+assert.ok(birthStart>0&&birthEnd>birthStart,"Rotina de aniversários está presente no cron.");
+const birthSource=workerCode.slice(birthStart,birthEnd);
+let localNow="2026-11-21T12:00:00Z";
+class LocalDate extends Date{
+ constructor(...args){super(...(args.length?args:[localNow]))}
+ static now(){return Date.parse(localNow)}
+}
+const birthLog=new Set(),queuedBirthdayEmails=[],pushedBirthdays=[];
+let birthOptIn=true,birthUser={id:"a",name:"Aniversariante",email:"a@pet.test",birth_date:"2000-11-21"};
+const birthDb={prepare(sql){
+ let args=[];
+ return {
+  bind(...values){args=values;return this},
+  async first(){
+   if(sql.includes("key='notificationTemplates'"))return {value:JSON.stringify({birthday:{subject:"Viva, {nome}!",body:"Parabéns, {nome}!"}})};
+   throw Error("birthday first: "+sql);
+  },
+  async all(){
+   if(sql.includes("FROM users WHERE birth_date IS NOT NULL")){
+    return {results:args.includes(birthUser.birth_date.slice(5))?[birthUser]:[]};
+   }
+   throw Error("birthday all: "+sql);
+  },
+  async run(){
+   if(sql.startsWith("INSERT OR IGNORE INTO birthday_delivery_log")){
+    const k=args[0]+":"+args[1]+":"+sql.match(/'(email|push)'/)[1];
+    const added=!birthLog.has(k);birthLog.add(k);
+    return {meta:{changes:Number(added)}};
+   }
+   if(sql.startsWith("DELETE FROM birthday_delivery_log"))return {meta:{changes:0}};
+   throw Error("birthday run: "+sql);
+  }
+ };
+}};
+const birthdayTest=new Function("Date","notificationRecipients","notificationPushModel","pushNotificationToChannels",
+ "enqueue","now","asJson","validEmail","mailEscape","mailHasFormatting","console",
+ birthSource+"\nreturn queueBirthdayGreetings;")(
+ LocalDate,
+ async(db,ids)=>birthOptIn?{email:[birthUser],android:[birthUser],pc:[]}:{email:[],android:[],pc:[]},
+ async(db,kind,values)=>({title:"Viva "+values.nome,body:"Parabéns"}),
+ async(env,targets,message,key)=>{pushedBirthdays.push({message,key});return {android:1,pc:0}},
+ async(db,creatorId,kind,emails,subject,body)=>{queuedBirthdayEmails.push({kind,emails,subject,body});},
+ ()=>new Date(localNow).toISOString(),
+ (v,f)=>{try{return JSON.parse(v||"")}catch{return f}},
+ email=>email.includes("@"),
+ value=>String(value).replace(/</g,"&lt;"),
+ ()=>false,console);
+await birthdayTest({DB:birthDb});
+await birthdayTest({DB:birthDb});
+assert.equal(queuedBirthdayEmails.length,1,"Aniversário envia um e-mail por ano mesmo se cron repetir.");
+assert.equal(pushedBirthdays.length,1,"Aniversário gera apenas um aviso por ano.");
+assert.equal(queuedBirthdayEmails[0].subject,"Viva, Aniversariante!");
+assert.equal(queuedBirthdayEmails[0].kind,"birthday");
+birthOptIn=false;birthUser={...birthUser,id:"b"};
+await birthdayTest({DB:birthDb});
+assert.equal(queuedBirthdayEmails.length,1,"Sem opt-in, nenhum parabéns sai.");
+localNow="2026-11-21T11:00:00Z";
+birthUser={...birthUser,id:"c"};birthOptIn=true;
+await birthdayTest({DB:birthDb});
+assert.equal(pushedBirthdays.length,1,"Fora de 9h em Sergipe, cron não envia.");
+localNow="2027-02-28T12:00:00Z";birthUser={id:"leap",name:"Pessoa 29 de fevereiro",email:"leap@pet.test",birth_date:"2000-02-29"};
+await birthdayTest({DB:birthDb});
+assert.equal(queuedBirthdayEmails.length,2,"Nascidos em 29/02 recebem parabéns em 28/02 nos anos comuns.");
+console.log("Aniversários: cron local, privacidade por canal e disparo único anual OK.");
