@@ -2,6 +2,7 @@ import {getPushPreferences,savePushPreferences,registerPushDevice,unregisterPush
 import {NOTICE_KINDS,preferencesForUser,saveNotificationPreferences,notificationRecipients,notificationPushModel,noticeAudience,noticeSendPolicy} from "./notification-center.js";
 import {listPersonalReminders,savePersonalReminder,deletePersonalReminder,prunePersonalReminders,processPersonalReminders} from "./personal-reminders.js";
 import {listSchedule,saveSchedule,deleteSchedule,quickNavGet,quickNavSave,annualReport,adminOverview} from "./annual-schedule.js";
+import {presentationGet,presentationSave} from "./user-presentation.js";
 import {pushWithoutMinuteDuplicates} from "./push-collision.js";
 import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPushSubscribe,webPushUnsubscribe,webPushTest} from "./web-push.js";
 "use strict";
@@ -739,6 +740,12 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       }
       if(schedulePath&&method==="DELETE"){
         ensure(user);return answer(await deleteSchedule(db,user,schedulePath[1]));
+      }
+      if(path==="/api/v1/user-presentation"&&method==="GET"){
+        requireLogin(user);return answer(await presentationGet(db,user));
+      }
+      if(path==="/api/v1/user-presentation"&&method==="PUT"){
+        requireLogin(user);return answer(await presentationSave(db,user,await body(req)));
       }
       if(path==="/api/v1/quick-nav"&&method==="GET"){
         requireLogin(user);return answer(await quickNavGet(db,user));
