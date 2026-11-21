@@ -1,7 +1,7 @@
-// PET Gestão — preferências individuais dos seis avisos por e-mail/Android/PC.
-export const NOTICE_KINDS=["create","review","due_soon","overdue","event_soon","event_today"];
+// PET Gestão — preferências individuais dos avisos por e-mail/Android/PC.
+export const NOTICE_KINDS=["create","review","due_soon","overdue","event_soon","event_today","birthday"];
 const stamp=()=>new Date().toISOString();
-const mapping={create:"new_demands",review:"new_demands",due_soon:"deadlines",event_soon:"deadlines",event_today:"deadlines",overdue:"overdue"};
+const mapping={create:"new_demands",review:"new_demands",due_soon:"deadlines",event_soon:"deadlines",event_today:"deadlines",overdue:"overdue",birthday:"new_demands"};
 const flag=v=>v===1||v===true;
 function fail(message,status=400){const e=new Error(message);e.status=status;throw e}
 const unique=items=>[...new Set((Array.isArray(items)?items:[]).filter(Boolean).map(String))].slice(0,300);
@@ -19,7 +19,7 @@ export async function preferencesForUser(db,userId){
 export async function saveNotificationPreferences(db,user,payload){
  if(!payload||typeof payload!=="object"||Array.isArray(payload))fail("Configurações inválidas.");
  const keys=Object.keys(payload);
- if(keys.length!==NOTICE_KINDS.length||keys.some(k=>!NOTICE_KINDS.includes(k)))fail("Informe as seis notificações.");
+ if(keys.length!==NOTICE_KINDS.length||keys.some(k=>!NOTICE_KINDS.includes(k)))fail("Informe todos os tipos de notificação.");
  const commands=[];
  for(const kind of NOTICE_KINDS){
   const row=payload[kind];
@@ -64,7 +64,7 @@ export async function notificationRecipients(db,rawIds,kind){
  const list=(await db.prepare(sql).bind(kind,...ids).all()).results;
  const recipients={email:[],android:[],pc:[],users:list};
  for(const person of list){
-  if(!["petiano","tutor","admin"].includes(person.role_override||person.role))continue;
+  if(kind!=="birthday"&&!["petiano","tutor","admin"].includes(person.role_override||person.role))continue;
   const rowPresent=person.email_enabled!==null&&person.email_enabled!==undefined;
   const allowed={
    email:rowPresent&&flag(person.email_enabled),
@@ -81,13 +81,14 @@ const pushFallbacks={
  due_soon:{title:"Prazo vencendo",body:"{demanda} · {etapa} · {prazo}"},
  overdue:{title:"Prazo vencido",body:"{demanda} · {etapa} · {prazo}"},
  event_soon:{title:"Evento se aproximando",body:"{demanda} · {prazo}"},
- event_today:{title:"Evento hoje",body:"{demanda}"}
+ event_today:{title:"Evento hoje",body:"{demanda}"},
+ birthday:{title:"Feliz aniversário, {nome}! 🎉",body:"O PET Educação deseja um dia cheio de alegrias, {nome}!"}
 };
 export const defaultPushModels=pushFallbacks;
 export async function notificationPushModel(db,kind,values){
  const row=await db.prepare("SELECT value FROM app_settings WHERE key='notificationPushTemplates'").first();
  let models={};try{models=JSON.parse(row?.value||"{}")}catch{}
  const template=models[kind]||pushFallbacks[kind]||pushFallbacks.create;
- const render=(s,max)=>String(s||"").replace(/\{(autor|acao|tipo|demanda|etapa|prazo|dias|link)\}/g,(_,key)=>String(values[key]??"")).replace(/<[^>]*>/g,"").slice(0,max);
+ const render=(s,max)=>String(s||"").replace(/\{(autor|acao|tipo|demanda|etapa|prazo|dias|link|nome)\}/g,(_,key)=>String(values[key]??"")).replace(/<[^>]*>/g,"").slice(0,max);
  return {title:render(template.title||pushFallbacks[kind]?.title,90),body:render(template.body||pushFallbacks[kind]?.body,220)};
 }
