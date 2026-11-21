@@ -137,6 +137,16 @@ try{
  await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
  await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator('.notice-matrix tbody tr').count(),6,"Seis tipos de notificações por três canais");
+ const matrixHelp=page.locator(".account-notification-matrix .pet-context-help");
+ assert.equal(await matrixHelp.count(),1,"Orientações gerais da matriz ficam em um único ?");
+ assert.equal(await matrixHelp.evaluate(el=>el.open),false,"Ajuda começa recolhida");
+ await matrixHelp.locator("summary").click();
+ assert.equal(await matrixHelp.evaluate(el=>el.open),true,"Toque no ? abre a ajuda");
+ const matrixHelpText=await matrixHelp.locator(".pet-context-popup").innerText();
+ for(const phrase of ["Marque os tipos e os canais","Os avisos começam desativados","Os três canais são independentes"])
+  assert.ok(matrixHelpText.includes(phrase),"Ajuda mantém instrução: "+phrase);
+ await page.keyboard.press("Escape");
+ assert.equal(await matrixHelp.evaluate(el=>el.open),false,"Esc fecha a ajuda da matriz");
  assert.equal(await page.locator('[data-do="save-notice-matrix"]').count(),1,"Um só botão para salvar todos os avisos");
  assert.equal(await page.locator('.notice-matrix input:checked').count(),0,"Avisos iniciais desligados até escolha do usuário");
  await page.locator('[data-notice-kind="create"][data-notice-channel="android"]').check();
