@@ -1360,6 +1360,8 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await apkButton.getAttribute("href"),"https://github.com/peteducacao/pet-gestao/releases/download/android-apk/PET-Gestao.apk","Botão principal entrega o APK da versão publicada");
  assert.equal(await page.locator('a[href="./downloads/PET-Gestao.apk"][download="PET-Gestao.apk"]').count(),1,"Link alternativo local permanece disponível");
  assert.equal(await page.locator('[data-do="install-pet-app"]').count(),0,"Android continua com APK nativo");
+  assert.equal(await page.locator('[data-do="install-ios-app"]').count(),1,"A área de aplicativos inclui iPhone/iPad");
+  assert.equal(await page.locator('a[href="./privacidade.html"]').count(),1,"Rodapé oferece transparência sobre dados pessoais");
  await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
  assert.equal(await page.locator("#profile-web-push-title").isVisible(),true,"Notificações no PC isoladas");
  assert.equal(await page.locator("#profile-push-title").isVisible(),true,"Notificações Android permanecem");
