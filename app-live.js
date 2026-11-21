@@ -3220,7 +3220,7 @@ function showMailPreview(mode){
  const sample={
    autor:"Equipe PET Educação",acao:"registrou uma atualização",demanda:"Exemplo de demanda",
    tipo:"Notificação",etapa:"Prazo",prazo:exampleDate+" às 17:00",
-   dias:String(days),link:"https://peteducacao.github.io/pet-gestao/#/atividade/exemplo"
+   dias:String(days),nome:"Integrante do PET",link:"https://peteducacao.github.io/pet-gestao/#/atividade/exemplo"
  };
  if(mode!=="manual"){
    if(f.kind==="due_soon"){sample.tipo="Prazo vencendo";sample.acao="avisa que o prazo está vencendo"}
@@ -3229,11 +3229,12 @@ function showMailPreview(mode){
    if(f.kind==="overdue"){sample.tipo="Prazo vencido";sample.acao="avisa que o prazo venceu"}
    if(f.kind==="create")sample.tipo="Nova demanda";
    if(f.kind==="review")sample.tipo="Texto para revisão";
+   if(f.kind==="birthday")sample.tipo="Aniversário";
  }
- const hydrate=(value,escapeValue=false)=>String(value).replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link)\}/g,(_,key)=>escapeValue?esc(sample[key]):sample[key]);
+ const hydrate=(value,escapeValue=false)=>String(value).replace(/\{(autor|acao|demanda|tipo|etapa|prazo|dias|link|nome)\}/g,(_,key)=>escapeValue?esc(sample[key]):sample[key]);
  const subject=mode!=="manual"?hydrate(title):title;
  const html=mode!=="manual"?hydrate(safeRich(message),true):safeRich(message);
- let audience="Responsáveis vinculados à demanda";
+ let audience=f.kind==="birthday"?"Aniversariante (envio pessoal)":"Responsáveis vinculados à demanda";
  if(mode==="manual"){
    const ids=$('input[name="mail-target"]:checked');
    if(state.mailAudience==="todos")audience="Todos(as) os usuários cadastrados";
