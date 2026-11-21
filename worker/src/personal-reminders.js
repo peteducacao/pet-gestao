@@ -48,24 +48,32 @@ export async function prunePersonalReminders(db,taskId=null){
 }
 export async function listPersonalReminders(db,user){
  await prunePersonalReminders(db);
- const rows=(await db.prepare("SELECT id,task_id,title,message,channels,auto_delete,recurrence,repeat_until,created_at FROM personal_reminders WHERE user_id=? ORDER BY created_at DESC LIMIT 100").bind(user.id).all()).results;
+ const rows=(await db.prepare("SELECT id,task_id,schedule_entry_id,title,message,channels,auto_delete,recurrence,repeat_until,created_at FROM personal_reminders WHERE user_id=? ORDER BY created_at DESC LIMIT 100").bind(user.id).all()).results;
  const reminders=[];
  for(const r of rows){
   const slots=(await db.prepare("SELECT id,time_local,weekday,next_at,status,notified_at FROM personal_reminder_times WHERE reminder_id=? ORDER BY next_at,time_local").bind(r.id).all()).results;
-  reminders.push({id:r.id,taskId:r.task_id,title:r.title,message:r.message,channels:asJson(r.channels,{}),autoDelete:!!r.auto_delete,recurrence:r.recurrence,repeatUntil:r.repeat_until,schedules:slots.map(x=>({id:x.id,at:x.time_local,weekday:x.weekday,nextAt:x.next_at,status:x.status,notifiedAt:x.notified_at}))});
+  reminders.push({id:r.id,taskId:r.task_id,scheduleEntryId:r.schedule_entry_id,title:r.title,message:r.message,channels:asJson(r.channels,{}),autoDelete:!!r.auto_delete,recurrence:r.recurrence,repeatUntil:r.repeat_until,schedules:slots.map(x=>({id:x.id,at:x.time_local,weekday:x.weekday,nextAt:x.next_at,status:x.status,notifiedAt:x.notified_at}))});
  }
  return {items:reminders};
 }
 export async function savePersonalReminder(db,user,input,id=null){
  if(!input||typeof input!=="object")fail("Lembrete inválido.");
- const current=id?await db.prepare("SELECT id FROM personal_reminders WHERE id=? AND user_id=?").bind(id,user.id).first():null;
+ const current=id?await db.prepare("SELECT id,schedule_entry_id FROM personal_reminders WHERE id=? AND user_id=?").bind(id,user.id).first():null;
  if(id&&!current)fail("Lembrete não encontrado.",404);
  const count=await db.prepare("SELECT COUNT(*) AS n FROM personal_reminders WHERE user_id=?").bind(user.id).first();
  if(!id&&count.n>=60)fail("Limite de 60 lembretes pessoais atingido.");
  const taskId=input.taskId===null||input.taskId===""?null:String(input.taskId||"");
+ const scheduleEntryId=input.scheduleEntryId?String(input.scheduleEntryId):current?.schedule_entry_id||null;
+ let schedule=null;
+ if(scheduleEntryId){
+  if(taskId)fail("Selecione uma atividade ou uma demanda, não ambas.");
+  schedule=await db.prepare("SELECT id,title FROM schedule_entries WHERE id=?").bind(scheduleEntryId).first();
+  if(!schedule)fail("Atividade do cronograma não encontrada.",404);
+ }
+
  let task=null;
  if(taskId){task=await mine(db,taskId,user.id);if(!task)fail("Selecione uma demanda que ainda seja sua pendência.",403);}
- const title=String(input.title||task?.title||"").trim().slice(0,120);
+ const title=String(schedule?.title||input.title||task?.title||"").trim().slice(0,120);
  if(!title)fail("Informe o título do lembrete pessoal.");
  const message=String(input.message||"").trim().slice(0,200);
  const requestedChannels=input.channels;
@@ -75,6 +83,7 @@ export async function savePersonalReminder(db,user,input,id=null){
  const channels={email:false,android:requestedChannels.android,pc:requestedChannels.pc};
  if(!channels.android&&!channels.pc)fail("Ative o celular ou o PC para receber o lembrete.");
  if(typeof input.autoDelete!=="boolean")fail("Escolha se deseja excluir o lembrete após notificar.");
+ const autoDelete=scheduleEntryId?true:input.autoDelete;
  const recurrence=String(input.recurrence||"once");
  if(!["once","daily","weekly"].includes(recurrence))fail("Repetição inválida.");
  const repeatUntil=input.repeatUntil?String(input.repeatUntil):null;
@@ -111,12 +120,12 @@ export async function savePersonalReminder(db,user,input,id=null){
  if(id){
   const processing=await db.prepare("SELECT 1 AS yes FROM personal_reminder_times WHERE reminder_id=? AND status='processando' LIMIT 1").bind(id).first();
   if(processing)fail("Um aviso está sendo enviado. Atualize a página antes de editar.",409);
-  statements.push(db.prepare("UPDATE personal_reminders SET task_id=?,title=?,message=?,channels=?,auto_delete=?,recurrence=?,repeat_until=?,updated_at=? WHERE id=? AND user_id=?")
-   .bind(taskId,title,message,JSON.stringify(channels),+input.autoDelete,recurrence,repeatUntil,stamp,id,user.id));
+  statements.push(db.prepare("UPDATE personal_reminders SET task_id=?,schedule_entry_id=?,title=?,message=?,channels=?,auto_delete=?,recurrence=?,repeat_until=?,updated_at=? WHERE id=? AND user_id=?")
+   .bind(taskId,scheduleEntryId,title,message,JSON.stringify(channels),+autoDelete,recurrence,repeatUntil,stamp,id,user.id));
   statements.push(db.prepare("DELETE FROM personal_reminder_times WHERE reminder_id=?").bind(id));
  }else{
-  statements.push(db.prepare("INSERT INTO personal_reminders(id,user_id,task_id,title,message,channels,auto_delete,recurrence,repeat_until,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-   .bind(reminderId,user.id,taskId,title,message,JSON.stringify(channels),+input.autoDelete,recurrence,repeatUntil,stamp,stamp));
+  statements.push(db.prepare("INSERT INTO personal_reminders(id,user_id,task_id,schedule_entry_id,title,message,channels,auto_delete,recurrence,repeat_until,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+   .bind(reminderId,user.id,taskId,scheduleEntryId,title,message,JSON.stringify(channels),+autoDelete,recurrence,repeatUntil,stamp,stamp));
  }
  for(const slot of slots)statements.push(db.prepare("INSERT INTO personal_reminder_times(id,reminder_id,time_local,weekday,next_at,status,updated_at) VALUES(?,?,?,?,?,'pendente',?)")
   .bind(slot.id,reminderId,slot.display,slot.weekday,slot.due,stamp));
@@ -134,7 +143,7 @@ export async function processPersonalReminders(env){
  // Recuperar uma execução interrompida após 15 minutos, sem prender alarmes para sempre.
  await db.prepare("UPDATE personal_reminder_times SET status='pendente' WHERE status='processando' AND updated_at<?").bind(new Date(Date.now()-900000).toISOString()).run();
  // Há uma única cobrança por horário. Cron concorrente não pode ocupar a mesma linha.
- const pending=(await db.prepare("SELECT t.*,r.user_id,r.task_id,r.title,r.message,r.channels,r.auto_delete,r.recurrence,r.repeat_until,r.id AS parent_id FROM personal_reminder_times t JOIN personal_reminders r ON r.id=t.reminder_id JOIN users u ON u.id=r.user_id WHERE t.status='pendente' AND t.next_at<=? AND (t.retry_after IS NULL OR t.retry_after<=?) ORDER BY t.next_at LIMIT 20").bind(now(),now()).all()).results;
+ const pending=(await db.prepare("SELECT t.*,r.user_id,r.task_id,r.schedule_entry_id,r.title,r.message,r.channels,r.auto_delete,r.recurrence,r.repeat_until,r.id AS parent_id FROM personal_reminder_times t JOIN personal_reminders r ON r.id=t.reminder_id JOIN users u ON u.id=r.user_id WHERE t.status='pendente' AND t.next_at<=? AND (t.retry_after IS NULL OR t.retry_after<=?) ORDER BY t.next_at LIMIT 20").bind(now(),now()).all()).results;
  for(const slot of pending){
   const claim=await db.prepare("UPDATE personal_reminder_times SET status='processando',attempts=attempts+1,updated_at=? WHERE id=? AND status='pendente'").bind(now(),slot.id).run();
   if(!claim.meta?.changes)continue;
@@ -147,7 +156,7 @@ export async function processPersonalReminders(env){
    }
    const channels=asJson(slot.channels,{}),title="PET Gestão • "+slot.title.slice(0,70);
    const message=slot.message||"Lembrete: "+slot.title+". Confira suas atividades no PET Gestão.";
-   const route=slot.task_id?"/atividade/"+slot.task_id:"/meus-lembretes";
+   const route=slot.task_id?"/atividade/"+slot.task_id:slot.schedule_entry_id?"/cronograma":"/meus-lembretes";
    const results={android:0,pc:0,skipped:{android:0,pc:0}};
    if(channels.android||channels.pc){
     const push=await pushWithoutMinuteDuplicates(env,{
