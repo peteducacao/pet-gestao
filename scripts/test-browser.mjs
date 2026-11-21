@@ -189,6 +189,7 @@ try{
  assert.equal(await page.locator(".stat-grid .stat").count(),2,"Somente indicadores ativados ocupam espaço.");
  assert.equal(await page.locator(".dashboard-grid section").count(),1,"Atualizações ocultadas deixam o painel alinhado.");
  await page.goto(origin+"/#/conta");
+ await page.locator('[data-do="account-tab"][data-tab="perfil"]').click();
  await page.locator(".account-birthday-panel").waitFor({state:"visible"});
  await page.locator('#account-birthday-form [name="birthDate"]').fill("2001-05-14");
  const birthdaySaved=page.waitForResponse(r=>r.url().endsWith("/account/birthday")&&r.request().method()==="PUT");
