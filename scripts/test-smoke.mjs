@@ -19,6 +19,27 @@ await test("login único da Administração",async()=>{
  assert.equal(r.user.adminSession,true,"Admin autenticado pela entrada comum recebe escopo legítimo");
  assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
+await test("nascimento reservado ao titular e editável em contas antigas",async()=>{
+ assert.equal((await api("/account/birthday","PUT",{birthDate:"2099-03-31"})).status,400,"Não aceitar nascimento futuro");
+ assert.equal((await api("/account/birthday","PUT",{birthDate:"2000-02-31"})).status,400,"Não aceitar data impossível");
+ good(await api("/account/birthday","PUT",{birthDate:"2002-08-09"}));
+ assert.equal(good(await api("/auth/me")).user.birthDate,"2002-08-09","Titular pode consultar sua data.");
+ assert.equal(good(await api("/bootstrap")).session.user.birthDate,"2002-08-09","Conta existente recebe data na área de perfil.");
+ assert.ok(good(await api("/admin/users")).users.every(user=>!Object.hasOwn(user,"birthDate")&&!Object.hasOwn(user,"birth_date")),
+  "Nascimentos não são expostos nem na listagem administrativa.");
+ good(await api("/account/birthday","PUT",{birthDate:null}));
+ assert.equal(good(await api("/auth/me")).user.birthDate,null,"Pessoa pode remover sua data.");
+});
+await test("painel e fundo persistem por usuário sem alterar demandas",async()=>{
+ const initial=good(await api("/user-presentation"));
+ assert.equal(initial.dashboard.active,true);
+ assert.equal(initial.dashboard.updates,true);
+ const changed={dashboard:{active:true,mine:false,overdue:false,completed:true,updates:false},
+  profileTheme:"ocean",profileImage:null};
+ assert.deepEqual(good(await api("/user-presentation","PUT",changed)).dashboard,changed.dashboard);
+ assert.equal(good(await api("/user-presentation")).profileTheme,"ocean");
+ assert.deepEqual(good(await api("/user-presentation")).dashboard,changed.dashboard);
+});
 await test("avisos começam desligados e só ativam após Salvar todas",async()=>{
  const before=good(await api("/notification-preferences")).preferences;
  assert.equal(Object.keys(before).length,7);
