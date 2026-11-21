@@ -842,7 +842,7 @@ const NOTICE_KINDS_UI=[["create","Nova demanda","Quando uma demanda é cadastrad
  ["due_soon","Prazo vencendo","Aviso antecipado de uma etapa"],
  ["overdue","Prazo vencido","Uma etapa ultrapassou seu prazo"],
  ["event_soon","Evento se aproximando","Aviso antecipado de evento"],
- ["event_today","Evento hoje","Lembrete no próprio dia do evento"]];
+ ["event_today","Evento hoje","Lembrete no próprio dia do evento"],["birthday","Meu aniversário","Parabéns enviados na data do meu aniversário"]];
 async function loadNotificationPreferences(){
  const userId=me?.id;if(!userId||me?.mustChangePassword)return;
  try{
@@ -2746,9 +2746,10 @@ function refreshPasswordStrength(input){
  }
 }
 function renderRegisterAccount(){
- return header("Conta","Criar conta","Usuário, e-mail e senha.")+
+ return header("Conta","Criar conta","Dados pessoais e acesso.")+
  '<section class="card card-pad live-auth"><form id="register-account-form" class="register-form">'+
  '<label>Usuário<input name="name" required minlength="2" maxlength="120" autocomplete="name"></label>'+
+ '<label>Data de nascimento<input type="date" name="birthDate" required min="1900-01-01" max="'+new Date().toISOString().slice(0,10)+'" autocomplete="bday"></label>'+
  '<label>E-mail<input name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false"></label>'+
  '<label>Senha<span class="password-control"><input name="password" type="password" required autocomplete="new-password" spellcheck="false"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span>'+
  passwordStrengthMarkup()+'</label>'+
@@ -2839,7 +2840,13 @@ function renderAccount(){
   (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
     '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
     '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
-  commissionsHtml;
+  commissionsHtml+
+  '<section class="account-birthday-panel"><div class="account-birthday-heading"><span class="account-birthday-icon">'+ico("calendar")+'</span>'+
+  '<div><h3>Meu aniversário</h3><p>Atualize a sua data de nascimento. Só você poderá consultá-la. Os parabéns são opcionais e podem ser ativados em Notificações.</p></div></div>'+
+  '<form id="account-birthday-form" class="account-birthday-form"><label>Data de nascimento<input type="date" name="birthDate" value="'+esc(me.birthDate||"")+'" min="1900-01-01" max="'+new Date().toISOString().slice(0,10)+'" autocomplete="bday"></label>'+
+  '<button type="submit" class="button primary">'+ico("check")+' Salvar data</button></form>'+
+  (me.birthDate?'<button type="button" class="button ghost birthday-remove" data-do="account-birthday-remove">Remover data</button>':"")+
+  '<p class="field-hint">Para receber o e-mail e o aviso no celular ou PC, ative “Meu aniversário” na aba Notificações.</p></section>';
  const passwordManagement=
   '<section class="profile-security-panel account-setting-card"><div><h3>Senha de acesso</h3><p>Altere sua senha com segurança sempre que precisar.</p></div>'+
   '<button class="button ghost" type="button" data-do="change-password-toggle" aria-expanded="false">'+ico("lock")+' Alterar senha</button>'+
@@ -2864,7 +2871,7 @@ function renderAccount(){
   '<p class="field-hint">E-mails essenciais, como confirmação de endereço e recuperação de senha, permanecem ativos por segurança.</p></section>';
  const notificationContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">SEUS AVISOS</span><h2>Central de notificações</h2>'+
-  '<p>Escolha quais dos seis avisos recebe por e-mail, Android ou PC. Salve todas as opções de uma só vez.</p></div>'+
+  '<p>Escolha quais avisos recebe por e-mail, Android ou PC. Salve todas as opções de uma só vez.</p></div>'+
   renderNotificationMatrix()+'<div class="account-channel-grid">'+emailNotifications+renderWebPushPreferences()+renderPushPreferences()+'</div>';
  const appContent=
   '<div class="account-pane-intro"><span class="profile-section-eyebrow">INSTALAÇÃO</span><h2>Aplicativos PET Gestão</h2>'+
@@ -2896,7 +2903,7 @@ function renderAccount(){
     '<button class="button account-delete-confirm" type="submit">'+ico("close")+' Excluir definitivamente</button></div>'+
    '</form></section></div>';
 }
-const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"],["due_soon","Prazo vencendo"],["event_soon","Evento se aproximando"],["event_today","No dia do evento"],["overdue","Prazo vencido"]];
+const notificationKinds=[["create","Criação de demanda"],["review","Correção / revisão do texto"],["due_soon","Prazo vencendo"],["event_soon","Evento se aproximando"],["event_today","No dia do evento"],["overdue","Prazo vencido"],["birthday","Aniversário"]];
 function notificationTemplateFor(kind){
  const fallbacks={
   create:{subject:"PET Gestão — Nova demanda: {demanda}",body:"Olá!\n\n{autor} cadastrou uma nova demanda: {demanda}.\n\nAcesse o PET Gestão para consultar os prazos e os responsáveis.\n\nPET Educação"},
@@ -2904,7 +2911,8 @@ function notificationTemplateFor(kind){
   due_soon:{subject:"PET Gestão — Prazo vencendo: {demanda}",body:"Olá!\n\nA etapa {etapa} da demanda {demanda} vence em {dias} dia(s), em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
   event_soon:{subject:"PET Gestão — Evento se aproximando: {demanda}",body:"Olá!\n\nLembrete: o evento {demanda} acontecerá em {prazo}, daqui a {dias} dia(s).\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"},
   overdue:{subject:"PET Gestão — Prazo vencido: {demanda}",body:"Olá!\n\nO prazo da etapa {etapa} da demanda {demanda} venceu em {prazo}.\n\nConfira a atividade no PET Gestão: {link}\n\nPET Educação"},
-  event_today:{subject:"PET Gestão — É hoje: {demanda}",body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"}
+  event_today:{subject:"PET Gestão — É hoje: {demanda}",body:"Olá!\n\nO evento {demanda} acontece hoje, {prazo}.\n\nConfira os detalhes no PET Gestão: {link}\n\nPET Educação"},
+  birthday:{subject:"🎉 Feliz aniversário, {nome}!",body:"Hoje é o seu dia, {nome}! O PET Educação deseja muita felicidade, saúde e conquistas. Parabéns!"}
  };
  return state.templateDrafts?.["email:"+kind]||data.settings.notificationTemplates?.[kind]||
   (["create","review"].includes(kind)?data.settings.notificationTemplate:null)||fallbacks[kind]||fallbacks.create;
@@ -2918,14 +2926,16 @@ const templateVariableInfo={
  etapa:"Nome da etapa ou prazo vinculado à demanda.",
  prazo:"Data e horário do prazo ou data do evento.",
  dias:"Antecedência configurada, disponível apenas nos avisos de prazo vencendo e evento se aproximando.",
- link:"Endereço para abrir a demanda no PET Gestão."
+ link:"Endereço para abrir a demanda no PET Gestão.",
+ nome:"Nome do aniversariante, preenchido automaticamente pelo sistema."
 };
 const templateVariables={
  create:["autor","acao","demanda","tipo"],review:["autor","acao","demanda","tipo"],
  due_soon:["autor","acao","tipo","demanda","etapa","prazo","dias","link"],
  event_soon:["autor","acao","tipo","demanda","prazo","dias","link"],
  event_today:["autor","acao","tipo","demanda","prazo","link"],
- overdue:["autor","acao","tipo","demanda","etapa","prazo","link"]
+ overdue:["autor","acao","tipo","demanda","etapa","prazo","link"],
+ birthday:["nome"]
 };
 function notificationVariableGuide(kind){
  const keys=templateVariables[kind]||templateVariables.create;
@@ -2942,7 +2952,8 @@ const pushTemplateFallbacks={
  due_soon:{title:"Prazo vencendo",body:"{demanda} · {etapa} · {prazo}"},
  overdue:{title:"Prazo vencido",body:"{demanda} · {etapa} · {prazo}"},
  event_soon:{title:"Evento se aproximando",body:"{demanda} · {prazo}"},
- event_today:{title:"Evento hoje",body:"{demanda}"}
+ event_today:{title:"Evento hoje",body:"{demanda}"},
+ birthday:{title:"Feliz aniversário, {nome}! 🎉",body:"O PET Educação deseja um dia maravilhoso para você!"}
 };
 function notificationPushTemplateFor(kind){
  return state.templateDrafts?.["app:"+kind]||data.settings.notificationPushTemplates?.[kind]||pushTemplateFallbacks[kind]||pushTemplateFallbacks.create;
@@ -3150,7 +3161,7 @@ function renderAdmin(){
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-event-today" '+(reminderConfig.eventTodayEnabled?"checked":"")+'> Enviar aviso no dia do evento</label><button type="button" class="button primary" data-do="save-reminder-event-today">Salvar aviso do dia do evento</button></div></section>'+
  '<section class="card card-pad admin-panel admin-reminder-panel" data-reminder-card="after" '+(state.adminTab==="configuracoes"?"":'hidden')+'><div class="reminder-panel-heading"><span class="reminder-panel-icon" aria-hidden="true">'+ico("clock")+'</span><h2>Aviso após o vencimento do prazo</h2></div><p class="field-hint reminder-panel-intro">Envie um aviso automático quando uma etapa vencer e a demanda ainda estiver ativa. Esse envio acontece depois do vencimento, sem antecedência.</p>'+
  '<div class="deadline-notice-settings"><label class="live-toggle"><input type="checkbox" id="reminder-overdue" '+(reminderConfig.overdueEnabled?"checked":"")+'> Enviar aviso quando o prazo vencer</label><label class="deadline-notice-audience">Destinatários do prazo vencido<select class="select" id="reminder-overdue-audience">'+[["pending","Somente participantes pendentes"],["all","Todos(as) que fazem parte da demanda"]].map(([v,label])=>opt(v,label,reminderConfig.overdueAudience||"pending")).join("")+'</select><small>Inclui pessoas designadas e integrantes das comissões vinculadas, conforme o público selecionado. Endereços repetidos são unificados por etapa.</small></label><button class="button primary" type="button" data-do="save-reminder-overdue">Salvar aviso de prazo vencido</button></div></section>'+
- '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de notificações</h2><p class="field-hint">Edite os seis tipos de avisos por e-mail ou por notificação do aplicativo (celular e PC). Os e-mails de segurança permanecem protegidos.</p>'+
+ '<section class="card card-pad admin-panel" '+(state.adminTab==="configuracoes"?"":'hidden')+'><h2>Modelos de notificações</h2><p class="field-hint">Edite os tipos de avisos por e-mail ou por notificação do aplicativo (celular e PC). Os e-mails de segurança permanecem protegidos.</p>'+
  '<form id="notification-template-form" class="register-form"><label>Tipo de aviso<select name="kind" id="notification-template-kind" class="select">'+notificationKinds.map(([kind,label])=>opt(kind,label,state.templateKind)).join("")+'</select></label>'+
  '<label>Canal<select name="channel" id="notification-template-channel" class="select">'+[["email","E-mail"],["app","Aplicativo (celular e PC)"]].map(([v,l])=>opt(v,l,state.templateChannel)).join("")+'</select></label>'+
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
@@ -3780,6 +3791,13 @@ async function handleClick(e){
    try{picker.showPicker()}catch{picker.focus();picker.click()}
    return;
  }
+ if(action==="account-birthday-remove"){
+  if(!await askConfirm("Remover sua data de nascimento? Os parabéns automáticos deixarão de ser enviados.",{
+    title:"Remover data de nascimento?",confirmLabel:"Remover data",cancelLabel:"Cancelar"
+  }))return;
+  const result=await request("/account/birthday","PUT",{birthDate:null});
+  me.birthDate=result.birthDate;render();setToast("Data de nascimento removida.");return;
+ }
  if(action==="profile-open-appearance"){
   state.accountTab="painel";render();
   $("#account-pane-painel h2")?.scrollIntoView({block:"nearest",behavior:"smooth"});
@@ -4405,6 +4423,12 @@ async function handleSubmit(e){
    location.hash=destination;
    try{await reload();}finally{state.authTransition=false;}
    setToast("Acesso autorizado.");return;
+ }
+ if(form.id==="account-birthday-form"){
+  const value=String(form.elements.birthDate?.value||"");
+  if(!value)return setToast("Selecione uma data de nascimento.");
+  const result=await request("/account/birthday","PUT",{birthDate:value});
+  me.birthDate=result.birthDate;render();setToast("Data de nascimento atualizada.");return;
  }
  if(form.id==="register-account-form"){
    const fields=userFields(form);
