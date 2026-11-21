@@ -555,8 +555,8 @@ assert.ok(reminderCards[0].querySelector("#reminder-days")&&reminderCards[1].que
 assert.equal(reminderCards[1].querySelector("#reminder-days"),null,"No próprio dia não exige antecedência");
 
 const select=document.querySelector("#notification-template-kind");
-assert.equal(select.options.length,6,"Todos os seis modelos automáticos ficam em um único seletor");
-assert.deepEqual([...select.options].map(x=>x.value),["create","review","due_soon","event_soon","event_today","overdue"]);
+assert.equal(select.options.length,7,"Os sete modelos, incluindo aniversário, ficam em um único seletor");
+assert.deepEqual([...select.options].map(x=>x.value),["create","review","due_soon","event_soon","event_today","overdue","birthday"]);
 assert.equal(document.querySelectorAll("#notification-template-form .mail-template-guide-item").length,4,"Criação exibe suas chaves");
 assert.equal(document.querySelector("#deadline-template-form"),null,"Não há outro editor de prazos");
 assert.equal(document.querySelector("#overdue-template-form"),null,"Vencido fica no mesmo seletor, sem editor duplicado");
