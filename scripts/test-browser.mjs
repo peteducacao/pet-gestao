@@ -342,7 +342,7 @@ try{
  user.role="tutor";
  await page.reload();
  await page.goto(origin+"/#/registrar/t-everyone");
- await page.locator("#collective-event-day").waitFor();
+ await page.locator("#collective-event-day").waitFor({state:"attached"}); // Campo nativo é visualmente oculto por design.
  await page.setViewportSize({width:390,height:844});
  const eventSettings=page.locator("#deadline-settings");
  assert.equal(await page.locator(".assignment-all").innerText().then(x=>x.includes("permissão de concluir")),false,
