@@ -91,3 +91,45 @@ export async function annualReport(db,user,year){
  const taskMap=new Map(monthlyTasks.results.map(x=>[Number(x.m),Number(x.n)])),activityMap=new Map(monthlySchedule.results.map(x=>[Number(x.m),Number(x.n)]));
  return {year:y,demands:Number(tasks.n),activities:Number(activities.n),months:Array.from({length:12},(_,i)=>({month:i+1,demands:taskMap.get(i+1)||0,activities:activityMap.get(i+1)||0}))};
 }
+
+// Resumo geral da Administração. Totais de demandas sempre contam IDs únicos;
+// na distribuição por comissão uma mesma demanda pode aparecer em várias equipes.
+export async function adminOverviewReport(db,user,year){
+ admin(user);
+ const annual=await annualReport(db,user,year);
+ const y=String(annual.year);
+ const [commissions,members,users,tasks,meetings,emails]=await Promise.all([
+  db.prepare("SELECT id,name FROM commissions ORDER BY sort_order,name").all(),
+  db.prepare("SELECT commission_id,user_id FROM commission_members").all(),
+  db.prepare("SELECT role,role_override FROM users").all(),
+  db.prepare("SELECT id,commission_ids,archived_at,closure_outcome FROM tasks WHERE substr(registered_at,1,4)=?").bind(y).all(),
+  db.prepare("SELECT COUNT(*) AS n FROM meetings WHERE substr(meeting_date,1,4)=?").bind(y).first(),
+  db.prepare("SELECT COUNT(*) AS n FROM email_queue WHERE substr(created_at,1,4)=?").bind(y).first()
+ ]);
+ const parseIds=value=>{try{
+  const ids=JSON.parse(value||"[]");
+  return Array.isArray(ids)?new Set(ids.filter(x=>typeof x==="string")):new Set();
+ }catch{return new Set()}};
+ const allTasks=tasks.results||[],memberRows=members.results||[],people=users.results||[];
+ const roles={petiano:0,tutor:0,admin:0,usuario:0};
+ for(const person of people){
+  const role=person.role_override||person.role;
+  if(Object.hasOwn(roles,role))roles[role]++;
+ }
+ const taskLinks=allTasks.map(t=>({...t,linked:parseIds(t.commission_ids)}));
+ const teams=(commissions.results||[]).map(c=>{
+  const linked=taskLinks.filter(t=>t.linked.has(c.id));
+  return {id:c.id,name:c.name,members:memberRows.filter(x=>x.commission_id===c.id).length,
+   demands:linked.length,concluded:linked.filter(t=>t.archived_at&&t.closure_outcome!=="nao_concluida").length,
+   notConcluded:linked.filter(t=>t.archived_at&&t.closure_outcome==="nao_concluida").length,
+   pending:linked.filter(t=>!t.archived_at).length};
+ });
+ return {year:annual.year,demands:annual.demands,activities:annual.activities,
+  months:annual.months,commissions:teams,commissionCount:teams.length,
+  users:people.length,roles,activeMembers:new Set(memberRows.map(x=>x.user_id)).size,
+  concluded:taskLinks.filter(t=>t.archived_at&&t.closure_outcome!=="nao_concluida").length,
+  notConcluded:taskLinks.filter(t=>t.archived_at&&t.closure_outcome==="nao_concluida").length,
+  pending:taskLinks.filter(t=>!t.archived_at).length,
+  demandsWithoutCommission:taskLinks.filter(t=>!t.linked.size).length,
+  meetings:Number(meetings?.n||0),emails:Number(emails?.n||0)};
+}
