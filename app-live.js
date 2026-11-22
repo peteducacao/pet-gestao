@@ -5049,7 +5049,7 @@ function start(){
    toggleMobileSidebar(false);
    closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog();closeMailPreview();
    const destination=location.hash;
-   if(destination!==lastHash&&(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges())){
+   if(destination!==lastHash&&(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges()||hasUnsavedCronChanges())){
      // Restaura a URL sem apagar os campos; confirmação só prossegue se aceita.
      history.replaceState(history.state,"",lastHash);
      askConfirm("Deseja sair sem salvar as alterações? As informações não salvas serão perdidas.",{
@@ -5076,7 +5076,7 @@ function start(){
  // Ao voltar de outra aba, o perfil pode ter sido promovido por outro Admin.
  // Atualiza apenas quando o cargo/escopo mudou, preservando formulários em edição.
  async function refreshPermissionOnFocus(){
-  if(!token||hasUnsavedTaskChanges()||hasUnsavedMeetingChanges())return;
+  if(!token||hasUnsavedTaskChanges()||hasUnsavedMeetingChanges()||hasUnsavedCronChanges())return;
   try{
    const response=await request("/auth/me");
    if(response.user?.role!==me?.role||response.user?.adminSession!==me?.adminSession||
@@ -5085,7 +5085,7 @@ function start(){
  }
  window.addEventListener("focus",()=>{syncBrowserSession();void refreshPermissionOnFocus()});
  window.addEventListener("beforeunload",e=>{
-   if(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges()){e.preventDefault();e.returnValue="";}
+   if(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges()||hasUnsavedCronChanges()){e.preventDefault();e.returnValue="";}
  });
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
    if(!$("#history-drawer")?.hidden){e.preventDefault();$("#history-drawer").hidden=true;document.body.classList.remove("history-drawer-open");$(".history-edge-trigger")?.focus();return}
