@@ -516,7 +516,8 @@ body.auth-message-open{overflow:hidden}
 /* Popups personalizados: feedback, campos obrigatórios e confirmações. */
 body.notice-open{overflow:hidden}
 .notice-dialog[hidden]{display:none!important}
-.notice-dialog{position:fixed;inset:0;z-index:320;display:grid;place-items:center;padding:18px}
+/* A confirmação global fica acima de janelas de detalhes, gavetas e modais internos. */
+.notice-dialog{position:fixed;inset:0;z-index:1100;display:grid;place-items:center;padding:18px}
 .notice-dialog-shade{position:absolute;inset:0;background:rgba(19,15,40,.65);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .notice-dialog-card{position:relative;z-index:1;width:min(465px,100%);padding:34px 32px 28px;background:white;border:1px solid #eadff8;border-radius:24px;box-shadow:0 32px 90px rgba(21,13,53,.3);text-align:center;animation:commission-pop .2s ease-out}
 .notice-dialog-icon{display:grid;place-items:center;width:66px;height:66px;margin:0 auto 21px;border-radius:18px;background:#eee5ff;color:#6440b6}
