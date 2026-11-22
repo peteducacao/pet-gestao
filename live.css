@@ -5859,22 +5859,44 @@ body.history-drawer-open{overflow:hidden}
  #screen .admin-cloud-numbers strong{font-size:19px}
 }
 
-/* Mobile: o drawer inteiro rola, mesmo dentro do PWA Android. */
+/* Android WebView: painel rolável com bloqueio da página de fundo. */
 @media (max-width: 680px) {
-  /* Rolagem no próprio painel elimina dependência de overflow em flex children. */
+  html.pet-menu-open {
+    overflow: hidden !important;
+  }
+  body.pet-menu-open {
+    position: fixed !important;
+    top: var(--pet-menu-background-offset, 0px) !important;
+    left: 0;
+    right: 0;
+    width: 100%;
+    overflow: hidden !important;
+  }
   .app-shell > #sidebar.sidebar {
+    position: fixed;
     top: 0;
     bottom: 0;
     height: auto;
     max-height: none;
     min-height: 0;
     display: block;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
-    touch-action: pan-y;
     z-index: 110;
+    scrollbar-width: thin;
+    scrollbar-color: #ac90d4 transparent;
+  }
+  .app-shell > #sidebar.sidebar.open {
+    touch-action: none;
+  }
+  .app-shell > #sidebar::-webkit-scrollbar {
+    width: 5px;
+  }
+  .app-shell > #sidebar::-webkit-scrollbar-thumb {
+    background: #ac90d4;
+    border-radius: 999px;
   }
   .app-shell > #sidebar .brand {
     position: sticky;
