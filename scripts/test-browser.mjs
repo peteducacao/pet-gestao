@@ -1691,6 +1691,8 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#cron-source").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#cron-source").inputValue(),"cronograma","Filtro inicial é Cronograma.");
  assert.equal(await page.locator("#cron-source option").count(),3,"Filtro usa apenas um seletor.");
+ assert.equal(await page.locator('.chron-page--approved .chron-view-option').count(),2,"Lista e Calendário estão lado a lado.");
+ assert.equal(await page.locator('[data-do="cron-view"][data-view="lista"]').getAttribute("aria-pressed"),"true","Lista marcada como selecionada.");
  // Regressão: no desktop o calendário não deve ter dias quadrados enormes.
  await page.setViewportSize({width:1440,height:900});
  await page.locator('[data-do="cron-view"][data-view="calendario"]').click();
@@ -1716,16 +1718,24 @@ await page.locator('a[data-route="reunioes"]').click();
   const source=rect(".chron-origin-picker"),year=rect(".chron-year-picker"),
    actions=rect(".chron-view-actions");
   const pageRect=element.getBoundingClientRect(),bar=toolbar.getBoundingClientRect();
-  return {page:pageRect.width,toolbar:bar.width,centerOffset:Math.abs((bar.left+bar.right)/2-(pageRect.left+pageRect.right)/2),
-   sourceToYear:year.left-source.right,yearToActions:actions.left-year.right};
+  return {page:pageRect.width,toolbar:bar.width,sourceWidth:source.width,yearWidth:year.width,
+   centerOffset:Math.abs((bar.left+bar.right)/2-(pageRect.left+pageRect.right)/2),
+   sourceToYear:year.left-source.right,actionGap:actions.left-year.right,
+   sourceTop:source.top,yearTop:year.top,actionsTop:actions.top};
  });
  assert.ok(listGeometry.page>desktopChron.pageWidth+65,
-  "A lista recupera a largura original, sem estreitamento indevido: "+JSON.stringify({listGeometry,desktopChron}));
- assert.ok(listGeometry.toolbar<listGeometry.page-180&&listGeometry.centerOffset<15,
-  "Barra de filtros compacta e centralizada: "+JSON.stringify(listGeometry));
- assert.ok(listGeometry.sourceToYear>=0&&listGeometry.sourceToYear<=18&&
-  listGeometry.yearToActions>=0&&listGeometry.yearToActions<=18,
-  "Controles próximos uns dos outros, sem espaço vazio: "+JSON.stringify(listGeometry));
+  "A lista recupera a largura confortável de antes: "+JSON.stringify({listGeometry,desktopChron}));
+ assert.ok(Math.abs(listGeometry.toolbar-listGeometry.page)<12&&listGeometry.centerOffset<8,
+  "Faixa de controles alinhada à lista: "+JSON.stringify(listGeometry));
+ assert.ok(listGeometry.sourceWidth<=280&&listGeometry.yearWidth<=145,
+  "Seletores proporcionais, não gigantes: "+JSON.stringify(listGeometry));
+ assert.ok(listGeometry.sourceToYear>=0&&listGeometry.sourceToYear<=18&&listGeometry.actionGap>=0,
+  "Filtros mantêm espaçamentos coerentes: "+JSON.stringify(listGeometry));
+ assert.ok(Math.abs(listGeometry.sourceTop-listGeometry.yearTop)<2&&
+  Math.abs(listGeometry.yearTop-listGeometry.actionsTop)<12,
+  "Botões e seletores na mesma linha: "+JSON.stringify(listGeometry));
+ assert.equal(await page.locator('.chron-page--approved .chron-month-nav strong svg').count(),1,
+  "Faixa mensal conserva ícone de calendário.");
  await page.setViewportSize({width:1420,height:900});
  const pastCard=page.locator(".chron-card").filter({hasText:"Evento passado"});
  assert.equal(await pastCard.locator(".chron-date--done").count(),1,"Evento passado fica verde automaticamente.");
