@@ -1865,7 +1865,22 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.evaluate(()=>Boolean(history.state?.petCronDetails)),false,"Fechar pelo X também limpa a entrada do modal.");
  await page.locator('[data-do="cron-details"][data-id="'+added.id+'"]').click();
  await page.locator('[data-do="cron-edit"][data-id="'+added.id+'"]').click();
+ await page.locator(".chron-edit-overlay .chron-editor-dialog").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator(".chron-edit-overlay [role='dialog']").count(),1,
+  "Editar atividade abre diálogo na tela, não formulário no topo do cronograma.");
+ await page.setViewportSize({width:390,height:690});
+ const chronEditGeometry=await page.locator(".chron-editor-dialog").evaluate(el=>{
+  const box=el.getBoundingClientRect();
+  return {top:box.top,bottom:box.bottom,left:box.left,right:box.right,
+    vh:innerHeight,vw:innerWidth,clientHeight:el.clientHeight,scrollHeight:el.scrollHeight};
+ });
+ assert.ok(chronEditGeometry.top>=0&&chronEditGeometry.bottom<=chronEditGeometry.vh+1&&
+  chronEditGeometry.left>=0&&chronEditGeometry.right<=chronEditGeometry.vw+1,
+  "Janela de edição deve aparecer dentro da tela, inclusive em celular.");
+ assert.ok(chronEditGeometry.scrollHeight>chronEditGeometry.clientHeight,
+  "Formulário alto deve ter rolagem interna em telas pequenas.");
  await page.locator('#cron-form [name="title"]').fill("Atividade renomeada");
+ await page.setViewportSize({width:1440,height:900});
  await page.locator('#cron-form button[type="submit"]').click();
  await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade renomeada"));
  assert.equal(await page.locator('[data-do="cron-toggle"]').count(),0,"Nenhuma conclusão manual aparece no cronograma.");
