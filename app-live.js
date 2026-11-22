@@ -3252,7 +3252,8 @@ function renderAdmin(){
  
  '<a href="#/admin/comissoes">'+ico("users")+'<span>Gerenciar comissões</span></a>'+
  '<a href="#/admin/usuarios">'+ico("user")+'<span>Gerenciar usuários</span></a>'+
- '<a href="#/admin/emails">'+ico("mail")+'<span>Enviar e-mail</span></a></div></section>'+
+ '<a href="#/admin/emails">'+ico("mail")+'<span>Enviar e-mail</span></a>'+
+ '<a href="#/admin/armazenamento">'+ico("folder")+'<span>Armazenamento</span></a></div></section>'+
  '<section class="admin-box"><div class="admin-history-head"><h2>Últimas alterações</h2>'+
  (recent.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':"")+
  '</div>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
