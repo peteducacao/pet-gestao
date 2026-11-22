@@ -158,7 +158,7 @@ try{
  const previousViewport=page.viewportSize();
  await page.goto(origin+"/#/inicio");
  await page.locator(".stat-grid.stat-grid-refined .stat").first().waitFor({state:"visible"});
- for(const width of [320,360,390,414]){
+ for(const width of [320,360,390,414,700,760,800]){
   await page.setViewportSize({width,height:780});
   const metrics=await page.locator(".stat-grid.stat-grid-refined").evaluate(grid=>{
    const cards=[...grid.querySelectorAll(".stat")];
@@ -1691,6 +1691,21 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#cron-source").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#cron-source").inputValue(),"cronograma","Filtro inicial é Cronograma.");
  assert.equal(await page.locator("#cron-source option").count(),3,"Filtro usa apenas um seletor.");
+ // Regressão: no desktop o calendário não deve ter dias quadrados enormes.
+ await page.setViewportSize({width:1440,height:900});
+ await page.locator('[data-do="cron-view"][data-view="calendario"]').click();
+ await page.locator(".chron-calendar-day").first().waitFor({state:"visible"});
+ const desktopChron=await page.locator(".chron-calendar-day").first().evaluate(day=>{
+  const height=day.getBoundingClientRect().height,bar=document.querySelector(".chron-toolbar").getBoundingClientRect(),
+   page=document.querySelector(".chron-page").getBoundingClientRect();
+  return {dayHeight:height,toolbarWidth:bar.width,pageWidth:page.width};
+ });
+ assert.ok(desktopChron.dayHeight>=45&&desktopChron.dayHeight<=75,
+  "Altura dos dias deve ser compacta no desktop: "+JSON.stringify(desktopChron));
+ assert.ok(desktopChron.toolbarWidth<desktopChron.pageWidth-35,
+  "Filtros não devem criar faixa vazia enorme no desktop: "+JSON.stringify(desktopChron));
+ await page.locator('[data-do="cron-view"][data-view="lista"]').click();
+ await page.setViewportSize({width:1420,height:900});
  await page.locator(".chron-card").first().waitFor({timeout:10000});
  const pastCard=page.locator(".chron-card").filter({hasText:"Evento passado"});
  assert.equal(await pastCard.locator(".chron-date--done").count(),1,"Evento passado fica verde automaticamente.");
