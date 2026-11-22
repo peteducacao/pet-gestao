@@ -1734,16 +1734,18 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('.chron-detail-overlay [data-do="cron-delete"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').waitFor({state:"visible"});
  const noticeLayer=await page.locator('#notice-dialog [data-do="notice-confirm"]').evaluate(button=>{
+  const dialog=document.querySelector("#notice-dialog");
   const rect=button.getBoundingClientRect();
   const top=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
   return {
+   nativeDialog:dialog.tagName==="DIALOG",open:dialog.open,inTopLayer:dialog.matches(":modal"),
    hit:button===top||button.contains(top),
-   noticeZ:parseInt(getComputedStyle(document.querySelector("#notice-dialog")).zIndex,10),
+   noticeZ:parseInt(getComputedStyle(dialog).zIndex,10),
    chronZ:parseInt(getComputedStyle(document.querySelector(".chron-detail-overlay")).zIndex,10)
   };
  });
- assert.ok(noticeLayer.hit&&noticeLayer.noticeZ>noticeLayer.chronZ,
-  "A confirmação Excluir deve ficar clicável ACIMA dos detalhes do Cronograma: "+JSON.stringify(noticeLayer));
+ assert.ok(noticeLayer.nativeDialog&&noticeLayer.open&&noticeLayer.inTopLayer&&noticeLayer.hit,
+  "A confirmação Excluir deve entrar na camada nativa ACIMA dos detalhes do Cronograma: "+JSON.stringify(noticeLayer));
  await page.locator('#notice-dialog [data-do="notice-cancel"]').last().click();
  assert.equal(await page.locator(".chron-detail-overlay").isVisible(),true,"Cancelar mantém os detalhes abertos.");
  assert.equal(scheduleMock.some(x=>x.id===added.id),true,"Cancelar não exclui a atividade.");
