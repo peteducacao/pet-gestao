@@ -5384,7 +5384,12 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
   width:82px;height:82px;min-width:82px;min-height:82px;
   max-width:82px;max-height:82px;align-self:center;justify-self:end;
  }
- #screen .commission-v2-copy h3{font-size:18px;line-height:1.25}
+ #screen .commission-v2-copy h3{
+  grid-column:1/-1;grid-row:2;
+  font-size:18px;line-height:1.25;padding-right:25px;
+ }
+ #screen .commission-v2-members{grid-column:1;grid-row:3}
+ #screen .commission-v2-view{grid-column:1;grid-row:4}
 }
 
 /* Expansíveis sem caracteres que parecem 'v'. Um + indica abrir, − indica fechar. */
