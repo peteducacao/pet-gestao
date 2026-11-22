@@ -3198,7 +3198,7 @@ async function loadAdminCloudStorage(force=false){
 }
 function renderAdmin(){
  const adminPart=routeParts().parts;
- if(adminPart.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
+ if(adminPart.length===1&&["painel","usuarios","comissoes","relatorios","emails","armazenamento","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
  if(!isAdmin()&&hasAdminRole(me)&&!me.mustChangePassword)return header("Administração","Ativar painel administrativo","Seu cargo já é Administração. Confirme sua senha para ativar o acesso nesta sessão.")+
   '<section class="card card-pad live-auth admin-activation-panel"><h2>Ativar Administração</h2>'+
   '<p>O cargo foi concedido, mas sua sessão atual foi iniciada antes da promoção. Por segurança, confirme a senha da sua própria conta. Você não precisa trocar de usuário.</p>'+
@@ -3238,15 +3238,16 @@ function renderAdmin(){
  '<div id="notification-template-fields">'+notificationTemplateFields(state.templateKind)+'</div>'+
  '<div class="mail-compose-actions"><button class="button ghost" type="button" data-do="mail-preview-template">Pré-visualizar mensagem</button><button class="button primary" type="submit">Salvar modelo</button></div></form></section>'+
  '<section class="card card-pad admin-mail-history admin-panel" '+(state.adminTab==="emails"?"":'hidden')+'><div class="section-head"><h2>Fila e histórico do Gmail</h2><button class="button primary" type="button" data-do="mail-monitor-open">Acompanhar envios</button></div><div id="mail-history"><p>Carregando status...</p></div><button type="button" class="button ghost" data-do="clear-mail">Limpar registros finalizados</button></section>'+
- '<section class="admin-panel" '+(state.adminTab==="relatorios"?"":'hidden')+'>'+renderAdminReports()+'</section>';
- const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["relatorios","Relatórios","list"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
+ '<section class="admin-panel" '+(state.adminTab==="relatorios"?"":'hidden')+'>'+renderAdminReports()+'</section>'+
+ '<section class="admin-panel" '+(state.adminTab==="armazenamento"?"":'hidden')+'>'+
+ '<div id="admin-cloud-storage">'+renderAdminCloudStorage()+'</div></section>';
+ const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["relatorios","Relatórios","list"],["emails","E-mails","mail"],["armazenamento","Armazenamento","folder"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
  const stats=[["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
  const metric=([name,value,iconName])=>'<div class="admin-metric"><span class="admin-metric-icon">'+ico(iconName)+'</span><strong '+(name==="E-mails"?'id="admin-mail-count"':"")+'>'+value+'</strong><span>'+name+'</span></div>';
  const recent=(data.history||[]).filter(x=>!me?.activityClearedAt||x.created_at>me.activityClearedAt).slice(0,4);
  const dashboard=state.adminTab==="painel"?'<div class="admin-metrics">'+stats.map(metric).join("")+'</div>'+
- '<div id="admin-cloud-storage">'+renderAdminCloudStorage()+'</div>'+
  '<section class="admin-box"><h2>Ações rápidas</h2><div class="admin-shortcuts">'+
  
  '<a href="#/admin/comissoes">'+ico("users")+'<span>Gerenciar comissões</span></a>'+
@@ -3255,11 +3256,11 @@ function renderAdmin(){
  '<section class="admin-box"><div class="admin-history-head"><h2>Últimas alterações</h2>'+
  (recent.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':"")+
  '</div>'+(recent.length?recent.map(x=>'<div class="admin-history-row"><span class="admin-history-icon">'+ico("list")+'</span><div><strong>'+esc(x.action||"Alteração")+'</strong><small>'+esc(x.actor_name||"")+'</small></div><time>'+textDate(x.created_at)+'</time></div>').join(""):'<p class="admin-muted">Nenhuma alteração registrada.</p>')+'</section>':"";
- const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","relatorios","emails","configuracoes"];
+ const adminParts=routeParts().parts,tabNames=["painel","usuarios","comissoes","relatorios","emails","armazenamento","configuracoes"];
  const tabRoute=adminParts.length===1&&tabNames.includes(adminParts[0])?adminParts[0]:null;
  if(tabRoute)state.adminTab=tabRoute;
  const subroute=tabRoute?[]:adminParts,embedded=subroute.length?adminEmbeddedView(subroute):"";
- const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",relatorios:"Relatórios",configuracoes:"Configurações"};
+ const headings={painel:"Painel administrativo",usuarios:"Usuários",comissoes:"Comissões",emails:"E-mails",relatorios:"Relatórios",armazenamento:"Armazenamento",configuracoes:"Configurações"};
  return '<div class="admin-layout">'+
  '<aside class="admin-sidebar '+(state.adminMenuOpen?"open":"")+'" aria-label="Menu administrativo">'+
  '<div class="admin-brand">'+ico("checklist")+'<div><strong>PET Gestão</strong><small>'+esc(me?.name||"Administração")+'</small></div></div>'+
@@ -3267,7 +3268,7 @@ function renderAdmin(){
  '<div class="admin-sidebar-footer"><button type="button" data-do="admin-signout">'+ico("chevron-left")+' Voltar ao PET Gestão</button></div></aside>'+
  (state.adminMenuOpen?'<button type="button" class="admin-screen-overlay" aria-label="Fechar menu" data-do="admin-menu"></button>':"")+
  '<div class="admin-workspace"><div class="admin-toolbar"><button type="button" class="admin-open-menu" data-do="admin-menu" aria-label="Abrir menu administrativo">'+ico("menu")+'</button><div class="admin-toolbar-account">'+ico("user")+'<span><strong>Administração</strong></span></div></div>'+
- '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">'+esc(state.adminTab==="usuarios"?"Localize integrantes e gerencie cargos e permissões.":"Gerencie demandas, comissões, usuários e envios de e-mails.")+'</p>'+
+ '<div class="admin-page">'+(subroute.length?'<div class="admin-embedded-view">'+embedded+'</div>':'<div class="admin-page-kicker">ADMINISTRAÇÃO</div><h1>'+esc(headings[state.adminTab]||headings.painel)+'</h1><p class="admin-page-description">'+esc(state.adminTab==="usuarios"?"Localize integrantes e gerencie cargos e permissões.":state.adminTab==="armazenamento"?"Acompanhe o espaço utilizado no Cloudflare D1 e os arquivos das demandas.":"Gerencie demandas, comissões, usuários e envios de e-mails.")+'</p>'+
  dashboard+adminPanels)+'</div></div><div id="mail-monitor-container">'+(state.mailMonitorOpen?renderMailMonitorModal():"")+'</div></div>';
 }
 
@@ -3488,10 +3489,11 @@ function render(){
   meetingFormDraft={route:location.hash,snapshot:meetingDraftSnapshot()};
  else if(!meetingDraftRoute(location.hash))resetMeetingDraft();
  lastStatusSnapshot=statusSnapshot();
- if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(parts[0])))){
+ if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","relatorios","emails","armazenamento","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();updateMailScheduleButton();loadMailHistory();}
-   if(state.adminTab==="painel"){loadMailHistory();void loadAdminCloudStorage();}
+   if(state.adminTab==="painel")loadMailHistory();
+   if(state.adminTab==="armazenamento")void loadAdminCloudStorage();
    if(state.adminTab==="relatorios"){
      if(state.adminReportView==="cronograma"&&state.adminReportLoadedYear!==state.adminReportYear&&!state.adminReportLoading)void loadAdminAnnualReport();
      if(["todos","comissoes","usuarios"].includes(state.adminReportView)&&state.adminOverviewLoadedYear!==state.adminReportYear&&!state.adminOverviewLoading)void loadAdminOverview();
