@@ -3241,7 +3241,7 @@ function renderAdmin(){
  '<section class="admin-panel" '+(state.adminTab==="relatorios"?"":'hidden')+'>'+renderAdminReports()+'</section>'+
  '<section class="admin-panel" '+(state.adminTab==="armazenamento"?"":'hidden')+'>'+
  '<div id="admin-cloud-storage">'+renderAdminCloudStorage()+'</div></section>';
- const tabs=[["painel","Painel","grid"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["relatorios","Relatórios","list"],["emails","E-mails","mail"],["armazenamento","Armazenamento","folder"],["configuracoes","Configurações","settings"]];
+ const tabs=[["painel","Painel","grid"],["armazenamento","Armazenamento","folder"],["usuarios","Usuários","user"],["comissoes","Comissões","users"],["relatorios","Relatórios","list"],["emails","E-mails","mail"],["configuracoes","Configurações","settings"]];
  const nav=tab=>'<a href="#/admin/'+tab[0]+'" class="admin-menu-link '+(state.adminTab===tab[0]?"active":"")+'">'+ico(tab[2])+'<span>'+tab[1]+'</span></a>';
  const mailCount=Array.isArray(state.mailItems)?state.mailItems.length:0;
  const stats=[["Comissões",data.committees.length,"users"],["Usuários",data.users.length,"user"],["E-mails",mailCount,"mail"]];
