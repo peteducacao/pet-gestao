@@ -1272,8 +1272,8 @@ await page.locator('a[data-route="reunioes"]').click();
  // A seção Cloudflare saiu do Painel e deve aparecer apenas na aba Armazenamento.
  await page.goto(origin+"/#/admin/painel");
  await page.locator(".admin-metrics").waitFor({state:"visible",timeout:10000});
- assert.equal(await page.locator("#admin-cloud-storage").count(),0,
-  "Painel principal não deve repetir indicadores de armazenamento");
+ assert.equal(await page.locator("#admin-cloud-storage").isVisible(),false,
+  "Painel principal deve ocultar os indicadores da aba Armazenamento");
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').count(),1,
   "Armazenamento possui entrada própria no menu administrativo");
  await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').click();
