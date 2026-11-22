@@ -154,6 +154,25 @@ async function loginAs(person){
 try{
  await page.goto(origin+"/#/demandas",{waitUntil:"domcontentloaded"});
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
+ // Teste prioritário: reproduz Excluir dentro dos detalhes antes dos demais fluxos.
+ await page.goto(origin+"/#/cronograma");
+ await page.locator('[data-do="cron-details"][data-id="evento-cron-1"]').waitFor({state:"visible",timeout:10000});
+ await page.locator('[data-do="cron-details"][data-id="evento-cron-1"]').click();
+ await page.locator(".chron-detail-overlay").waitFor({state:"visible"});
+ await page.locator('.chron-detail-overlay [data-do="cron-delete"]').click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').waitFor({state:"visible"});
+ const initialModal=await page.locator("#notice-dialog").evaluate(dialog=>{
+  const button=dialog.querySelector('[data-do="notice-confirm"]'),r=button.getBoundingClientRect();
+  const target=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+  return {tag:dialog.tagName,topLayer:dialog.matches(":modal"),hit:target===button||button.contains(target)};
+ });
+ assert.deepEqual(initialModal,{tag:"DIALOG",topLayer:true,hit:true},
+  "A confirmação precisa ficar NA FRENTE e o botão Excluir precisa ser clicável.");
+ await page.locator('#notice-dialog [data-do="notice-cancel"]').last().click();
+ assert.equal(scheduleMock.some(x=>x.id==="evento-cron-1"),true,"Cancelar preserva atividade do Cronograma.");
+ await page.locator('[data-do="cron-details-close"]').click();
+ await page.waitForFunction(()=>!document.querySelector("#cron-detail-title"));
+ console.log("OK: confirmação nativa de exclusão aparece acima do Cronograma.");
  await page.goto(origin+"/#/conta");
  await page.locator(".profile-commissions").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator(".profile-commissions").innerText()).includes("Vídeos"),
