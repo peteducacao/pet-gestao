@@ -5382,20 +5382,20 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  #screen .stat-grid.stat-grid-refined .stat .stat-copy span{font-size:10px}
  #screen .stat-grid.stat-grid-refined .stat .stat-copy strong{font-size:24px}
 }
-/* Indicadores no celular: sempre dois por linha, em cartões compactos. */
-@media(max-width:620px){
+/* Indicadores no celular e no PWA: manter duas colunas também em telas de viewport maior. */
+@media(max-width:800px){
  #screen .stat-grid.stat-grid-refined{
-  width:100%;max-width:100%;
-  grid-template-columns:repeat(2,minmax(0,1fr));
+  display:grid!important;width:100%;max-width:100%;min-width:0;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
   gap:9px;margin-bottom:17px;
  }
  #screen .stat-grid.stat-grid-refined[data-count="2"],
  #screen .stat-grid.stat-grid-refined[data-count="3"],
  #screen .stat-grid.stat-grid-refined[data-count="4"]{
-  grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
  }
  #screen .stat-grid.stat-grid-refined[data-count="1"]{
-  grid-template-columns:minmax(0,1fr);
+  grid-template-columns:minmax(0,1fr)!important;
   max-width:310px;
  }
  #screen .stat-grid.stat-grid-refined[data-count="3"] .stat:last-child{
@@ -5404,8 +5404,8 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
   justify-self:center;
  }
  #screen .stat-grid.stat-grid-refined .stat{
-  min-width:0;min-height:98px;padding:12px 10px;
-  display:flex;align-items:center;gap:9px;border-radius:16px;
+  min-width:0;max-width:100%;min-height:98px;padding:12px 10px;
+  box-sizing:border-box;display:flex;align-items:center;gap:9px;border-radius:16px;
  }
  #screen .stat-grid.stat-grid-refined .stat-icon{
   width:37px;height:37px;flex:0 0 37px;border-radius:11px;
