@@ -766,11 +766,14 @@ await page.locator("#collective-event-day").waitFor({state:"attached"}); // Camp
   "Rótulo informa a presença em Demandas");
  assert.ok((await page.locator('.task-visibility').innerText()).includes("Visível na Visão geral, em Demandas e nas comissões vinculadas."),
   "Ajuda informa os três destinos");
- // A Tutoria não visualiza o seletor e não recebe anexos de PETianos.
+ // A Tutoria compartilha o acesso às fotos com PETianos(as) e Administração.
  user.role="tutor";
  await page.reload({waitUntil:"domcontentloaded"});
- assert.equal(await page.locator("#task-file-input").count(),0,
-  "Tutoria não possui acesso aos anexos das demandas");
+ await page.locator("#task-file-input").waitFor({state:"attached",timeout:10000});
+ assert.equal(await page.locator(".task-file-picker-button").isVisible(),true,
+  "Tutoria pode anexar fotos nas demandas, assim como PETianos(as)");
+ assert.ok((await page.locator(".task-file-help").innerText()).includes("20 fotos"),
+  "Tutoria recebe limite de 20 fotos em qualidade original");
  await page.locator('input[name="overviewVisibility"][value="comissao"]').check();
  assert.equal(await page.locator('#task-form button[type="submit"]').count(),0,"Nenhum Salvar demanda duplicado abaixo do formulário de edição");
  assert.equal(await page.locator('.page-actions button[form="task-form"].task-form-header-save').count(),1,"Salvar demanda permanece no cabeçalho");

@@ -296,7 +296,7 @@ await test("senha com quantidade livre de caracteres no cadastro e alteração",
   token=original;
  }
 });
-await test("fotos privadas: PETianos(as) e Administração; bloqueio para Tutoria e visitantes",async()=>{
+await test("fotos privadas: PETianos(as), Tutoria e Administração; bloqueio para visitantes e contas de visualização",async()=>{
  const adminToken=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
  assert.ok(person);
  const taskId=good(await api("/tasks","POST",{
@@ -374,12 +374,19 @@ await test("fotos privadas: PETianos(as) e Administração; bloqueio para Tutori
   token=adminToken;
   good(await api("/admin/users/"+person.id,"PATCH",{role:"tutor",notificationEnabled:false}));
   token=petToken;
-  assert.equal((await api(prefix)).status,403,"Tutoria não acessa fotos");
-  assert.ok(!good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments?.length,
-   "Tutoria não recebe metadados de arquivos no bootstrap");
-  assert.equal((await fetch(base+prefix+"/"+first.id+"/download",{
+  assert.equal(good(await api(prefix)).attachments.length,3,"Tutoria pode consultar fotos");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,3,
+   "Tutoria recebe metadados das fotos no bootstrap");
+  const tutorDownload=await fetch(base+prefix+"/"+first.id+"/download",{
    headers:{Authorization:"Bearer "+token}
-  })).status,403);
+  });
+  assert.equal(tutorDownload.status,200,"Tutoria pode baixar as fotos");
+  assert.deepEqual(new Uint8Array(await tutorDownload.arrayBuffer()),raw,"Tutoria baixa o original intacto");
+  const tutorUpload=good(await api(prefix,"POST",{name:"foto-tutoria.jpg",size:image2.length,mimeType:"image/jpeg"}),201);
+  await sendChunk(tutorUpload.id,0,image2);
+  good(await api(prefix+"/"+tutorUpload.id+"/complete","POST",{}));
+  assert.equal(good(await api(prefix)).attachments.length,4,"Tutoria pode anexar fotos");
+  good(await api(prefix+"/"+tutorUpload.id,"DELETE",{}));
   token=adminToken;
   good(await api("/admin/users/"+person.id,"PATCH",{role:"petiano",notificationEnabled:false}));
   token=petToken;
