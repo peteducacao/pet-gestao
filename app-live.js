@@ -933,6 +933,7 @@ async function reload(){
     state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;state.presentationPrefs=null;state.presentationDraft=null;
    }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
+   if(!me)applyAppearanceMode("light");
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
 
  }catch(e){
@@ -1073,7 +1074,17 @@ const PRESENTATION_THEMES=[
  ["lavender","Lilás"],["ocean","Azul"],["forest","Verde"],
  ["sunset","Rosa"],["midnight","Noturno"],["neutral","Neutro"]
 ];
-const presentationDefault=()=>({dashboard:{...PRESENTATION_DASHBOARD_DEFAULT},profileTheme:"lavender",profileImage:null});
+const presentationDefault=()=>({dashboard:{...PRESENTATION_DASHBOARD_DEFAULT},profileTheme:"lavender",profileImage:null,appearanceMode:"light"});
+function applyAppearanceMode(mode){
+ const dark=mode==="dark";
+ document.documentElement.dataset.petMode=dark?"dark":"light";
+ const meta=document.querySelector('meta[name="theme-color"]');
+ if(meta)meta.content=dark?"#151124":"#6400A8";
+}
+function accountPhotoPreview(){
+ if(me?.profilePhoto)return '<button type="button" class="account-photo-preview account-photo-preview-clickable" data-do="person-photo-open" data-person-id="'+esc(me.id)+'" aria-label="Ampliar minha foto de perfil" title="Clique para ampliar"><img src="'+esc(me.profilePhoto)+'" alt="Minha foto de perfil"></button>';
+ return '<div class="account-photo-preview"><span aria-label="Sem foto de perfil">'+esc((me?.name||"P").trim().charAt(0).toUpperCase())+'</span></div>';
+}
 function dashboardVisibility(){
  return {...PRESENTATION_DASHBOARD_DEFAULT,...(state.presentationPrefs?.dashboard||{})};
 }
@@ -1084,7 +1095,7 @@ function profileThemeClass(prefs=state.presentationPrefs){
 const profileBackgroundStyle=prefs=>profileThemeClass(prefs)==="photo"&&prefs?.profileImage?
  ' style="--profile-photo:url('+esc(prefs.profileImage)+')"':"";
 async function loadPresentationPrefs(){
- if(!me||me.mustChangePassword){state.presentationPrefs=null;state.presentationDraft=null;return}
+ if(!me||me.mustChangePassword){state.presentationPrefs=null;state.presentationDraft=null;applyAppearanceMode("light");return}
  if(state.presentationLoading)return;
  const account=me.id;state.presentationLoading=true;
  try{
@@ -1092,6 +1103,7 @@ async function loadPresentationPrefs(){
   if(me?.id!==account)return;
   state.presentationPrefs=r;
   state.presentationDraft=JSON.parse(JSON.stringify(r));
+  applyAppearanceMode(r.appearanceMode);
   if(["inicio","conta"].includes(routeParts().page))render();
  }catch(error){console.warn("PET Gestão: personalização indisponível:",error.message)}
  finally{state.presentationLoading=false}
@@ -1107,9 +1119,14 @@ function renderPresentationSettings(){
  ];
  return '<div class="account-pane-intro"><span class="profile-section-eyebrow">PERSONALIZAÇÃO</span>'+
   '<h2>Painel e aparência</h2><p>Escolha o que aparece na sua Visão geral e personalize a identificação. As preferências acompanham sua conta.</p></div>'+
-  '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("image")+'</span><div><h3>Fundo da identificação</h3><p>Escolha uma cor ou utilize uma fotografia. Seu nome e sua foto continuam legíveis.</p></div></div>'+
+  '<section class="presentation-settings-card"><div class="presentation-section-title"><div><h3>Fundo da identificação</h3><p>Escolha uma cor ou utilize uma fotografia. Seu nome e sua foto continuam legíveis.</p></div></div>'+
   '<div class="profile-background-preview profile-hero theme-'+profileThemeClass(p)+'"'+profileBackgroundStyle(p)+'>'+
   '<span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><strong>'+esc(me?.name||"Meu perfil")+'</strong><small>PET EDUCAÇÃO · UFS</small></div>'+
+  '<div class="presentation-photo-tools"><div class="presentation-photo-avatar">'+accountPhotoPreview()+'</div>'+
+  '<div class="presentation-photo-actions"><strong>Foto do perfil</strong><p>Escolha ou remova sua foto aqui, sem sobrecarregar o perfil principal.</p><div class="presentation-photo-buttons">'+
+  '<label class="button ghost account-photo-choose">Alterar foto<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
+  (me?.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
+  '</div></div></div>'+
   '<div class="presentation-theme-grid">'+PRESENTATION_THEMES.map(([id,label])=>
    '<button type="button" class="presentation-theme-swatch theme-'+id+(profileThemeClass(p)===id?" selected":"")+'" data-do="presentation-theme" data-theme="'+id+'" aria-pressed="'+(profileThemeClass(p)===id)+'">'+
    '<span class="presentation-theme-color"></span><span>'+label+'</span>'+(profileThemeClass(p)===id?ico("check"):"")+'</button>').join("")+'</div>'+
@@ -1117,6 +1134,11 @@ function renderPresentationSettings(){
   '<input id="profile-background-upload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Enviar imagem para fundo do perfil"></label>'+
   (p.profileImage?'<button type="button" class="button ghost" data-do="presentation-remove-photo">'+ico("trash")+' Remover imagem</button>':"")+
   '</div><p class="field-hint">Imagem comprimida automaticamente para até 150 KB. A personalização afeta apenas o seu perfil.</p></section>'+
+  '<section class="presentation-settings-card appearance-mode-panel"><div class="presentation-section-title"><div><h3>Modo de exibição</h3><p>Alterne entre o visual claro e o escuro. A escolha vale para todo o site e fica salva na sua conta.</p></div></div>'+
+  '<div class="appearance-mode-picker" role="group" aria-label="Modo de exibição">'+
+  [["light","Claro","☀"],["dark","Escuro","☾"]].map(([mode,label,symbol])=>
+   '<button type="button" class="appearance-mode-option '+((p.appearanceMode||"light")===mode?"is-active":"")+'" data-do="appearance-mode" data-mode="'+mode+'" aria-pressed="'+((p.appearanceMode||"light")===mode)+'" '+(state.appearanceSwitching?"disabled":"")+'><span aria-hidden="true">'+symbol+'</span>'+label+'</button>').join("")+
+  '</div></section>'+
   '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("grid")+'</span><div><h3>Indicadores da Visão geral</h3><p>Ative apenas o que deseja acompanhar. Os cartões se reorganizam automaticamente.</p></div></div>'+
   '<div class="presentation-options">'+entries.map(([key,label,desc,iconName])=>
    '<label class="presentation-option"><span class="presentation-option-icon">'+ico(iconName)+'</span>'+
@@ -1131,8 +1153,8 @@ function renderViewerHome(){
  const late=visible.filter(isLate).length,complete=data.tasks.filter(t=>t.archivedAt).length,prefs=dashboardVisibility();
  const metrics=[[all.length,"Demandas ativas","list","active"],[late,"Prazos vencidos","alert","overdue"],[complete,"Concluídos","check","completed"]].filter(x=>prefs[x[3]]);
  return header("Organização","Visão geral","Acompanhe as demandas da equipe em modo de visualização.")+
-  (metrics.length?'<div class="stat-grid viewer-stat-grid">'+metrics.map(x=>
-   '<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
+  (metrics.length?'<div class="stat-grid stat-grid-refined viewer-stat-grid" data-count="'+metrics.length+'">'+metrics.map(x=>
+   '<div class="card stat'+(x[3]==="active"?" stat-featured":"")+'"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
   '<div class="dashboard-grid viewer-dashboard"><section class="card card-pad"><div class="section-head"><div><h2>Pendências semanais</h2><p>Próximas atividades cadastradas para acompanhamento.</p></div></div>'+
   (next.length?next.map(publicTaskCard).join(""):empty("Sem pendências neste momento"))+'</section></div>';
 }
@@ -1145,7 +1167,7 @@ function renderHome(){
   [late,"Prazos vencidos","alert","overdue"],
   [data.tasks.filter(t=>t.archivedAt).length,"Concluídos","check","completed"]].filter(x=>prefs[x[3]]);
  return header("Organização","Visão geral","Demandas da equipe e prazos prioritários.")+
- (metrics.length?'<div class="stat-grid">'+metrics.map(x=>'<div class="card stat"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
+ (metrics.length?'<div class="stat-grid stat-grid-refined" data-count="'+metrics.length+'">'+metrics.map(x=>'<div class="card stat'+(x[3]==="active"?" stat-featured":"")+'"><div class="stat-icon purple">'+ico(x[2])+'</div><div class="stat-copy"><span>'+x[1]+'</span><strong>'+x[0]+'</strong></div></div>').join("")+'</div>':"")+
  '<div class="dashboard-grid"><section class="card card-pad dashboard-weekly-card"><div class="section-head"><div><h2>Pendências semanais</h2><p>As próximas seis atividades em aberto</p></div>'+button("Ver todas as demandas","demandas")+'</div>'+ (next.length?next.map(t=>taskCard(t)).join(""):empty("Sem pendências neste momento"))+'</section>'+
  (prefs.updates?'<section class="card card-pad"><div class="section-head"><h2>Últimas atualizações</h2>'+
  (me&&recentEvents.length?'<button type="button" class="button ghost clear-updates-button" data-do="clear-activity">'+ico("trash")+' Limpar tudo</button>':ico("bell"))+
@@ -2817,13 +2839,7 @@ function renderAccount(){
   '<label>Novo e-mail<input type="email" name="newEmail" required maxlength="254" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="seunovoemail@exemplo.com"></label>'+
   '<label>Senha atual<span class="password-control"><input type="password" name="password" required autocomplete="current-password"><button type="button" class="password-toggle" data-password-toggle aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">Mostrar</button></span></label>'+
   '<button type="submit" class="button primary">Enviar link de confirmação</button></form></section>';
- const profilePhoto='<div class="account-photo-editor">'+
-  (me.profilePhoto?'<button type="button" class="account-photo-preview account-photo-preview-clickable" data-do="person-photo-open" data-person-id="'+esc(me.id)+'" aria-label="Ampliar minha foto de perfil" title="Clique para ampliar"><img src="'+esc(me.profilePhoto)+'" alt="Minha foto de perfil"></button>':
-    '<div class="account-photo-preview"><span aria-label="Sem foto de perfil">'+esc((me.name||"P").trim().charAt(0).toUpperCase())+'</span></div>')+
-  '<div class="account-photo-controls"><label class="button ghost account-photo-choose">Alterar foto'+
-  '<input type="file" id="account-photo-input" accept="image/*" aria-label="Escolher foto de perfil"></label>'+
-  (me.profilePhoto?'<button type="button" class="button ghost" data-do="account-photo-delete">Remover foto</button>':"")+
-  '<small>Foto quadrada, reduzida automaticamente para até 100 KB.</small></div></div>';
+ const profilePhoto='<div class="account-photo-editor">'+accountPhotoPreview()+'</div>';
  const tab=me.mustChangePassword?"seguranca":(["perfil","painel","seguranca","notificacoes","aplicativos","atalhos"].includes(state.accountTab)?state.accountTab:"perfil");
  const tabButton=(key,name,description,iconName)=>
   '<button type="button" class="account-hub-nav-btn '+(tab===key?"is-active":"")+'" data-do="account-tab" data-tab="'+key+'" role="tab" aria-selected="'+(tab===key)+'" aria-controls="account-pane-'+key+'" id="account-tab-'+key+'" tabindex="0">'+
@@ -2832,8 +2848,7 @@ function renderAccount(){
   '<section class="account-hub-pane '+(key==="perfil"?"account-profile":"")+'" id="account-pane-'+key+'" role="tabpanel" aria-labelledby="account-tab-'+key+'" '+(tab!==key?"hidden":"")+'>'+content+'</section>';
  const profileContent=
   '<div class="profile-hero theme-'+profileThemeClass()+'"'+profileBackgroundStyle(state.presentationPrefs)+'><div class="profile-hero-top"><span class="profile-section-eyebrow">IDENTIFICAÇÃO</span>'+
-  '<span class="profile-hero-top-actions"><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span>'+
-  '<button type="button" class="profile-customize-link" data-do="profile-open-appearance">'+ico("image")+' Alterar fundo</button></span></div>'+
+  '<span class="profile-hero-top-actions"><span class="profile-hero-brand">PET EDUCAÇÃO · UFS</span></span></div>'+
   '<div class="account-profile-info">'+profilePhoto+
   '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
   '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
@@ -3804,6 +3819,31 @@ async function handleClick(e){
   $("#account-pane-painel h2")?.scrollIntoView({block:"nearest",behavior:"smooth"});
   return;
  }
+ if(action==="appearance-mode"){
+  if(!me||!state.presentationPrefs||state.appearanceSwitching)return;
+  const mode=b.dataset.mode;
+  if(!["light","dark"].includes(mode))return;
+  const previous=state.presentationPrefs.appearanceMode||"light";
+  if(mode===previous)return;
+  const account=me.id;
+  state.appearanceSwitching=true;
+  if(state.presentationDraft)state.presentationDraft.appearanceMode=mode;
+  applyAppearanceMode(mode);render();
+  try{
+   // Salvar somente a aparência publicada: não aplicar outras edições ainda pendentes.
+   const saved=await request("/user-presentation","PUT",{...state.presentationPrefs,appearanceMode:mode});
+   if(me?.id!==account)return;
+   state.presentationPrefs=saved;
+   if(state.presentationDraft)state.presentationDraft.appearanceMode=saved.appearanceMode;
+   setToast(mode==="dark"?"Modo escuro ativado.":"Modo claro ativado.");
+  }catch(error){
+   if(me?.id===account){
+    if(state.presentationDraft)state.presentationDraft.appearanceMode=previous;
+    applyAppearanceMode(previous);setToast("Não foi possível salvar o modo de exibição: "+error.message);
+   }
+  }finally{state.appearanceSwitching=false;if(me?.id===account)render()}
+  return;
+ }
  if(action==="presentation-theme"){
   if(!state.presentationDraft)state.presentationDraft=presentationDefault();
   const theme=b.dataset.theme;
@@ -3824,6 +3864,7 @@ async function handleClick(e){
    const saved=await request("/user-presentation","PUT",state.presentationDraft);
    state.presentationPrefs=saved;
    state.presentationDraft=JSON.parse(JSON.stringify(saved));
+   applyAppearanceMode(saved.appearanceMode);
    render();setToast("Aparência e indicadores salvos na sua conta.");
   }finally{if(b.isConnected)b.disabled=false}
   return;
