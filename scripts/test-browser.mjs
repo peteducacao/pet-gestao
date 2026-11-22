@@ -1846,7 +1846,12 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#cron-form [name="location"]').fill("Sala PET");
  await page.locator('#cron-form [name="description"]').fill("Observação personalizada");
  const posted=page.waitForResponse(r=>r.url().endsWith("/schedule")&&r.request().method()==="POST");
- await page.locator('#cron-form button[type="submit"]').click();await posted;
+ await page.locator('#cron-form button[type="submit"]').click();
+ await page.locator("#notice-dialog [data-do='notice-confirm']").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator("#notice-dialog [data-do='notice-confirm']").innerText(),"Cadastrar atividade",
+  "Novo evento exige confirmação antes do cadastro.");
+ await page.locator("#notice-dialog [data-do='notice-confirm']").click();
+ await posted;
  await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade criada no cronograma"));
  const added=scheduleMock.find(x=>x.title==="Atividade criada no cronograma");
  assert.ok(added&&added.startTime==="10:30"&&added.endTime==="23:50");
@@ -1879,9 +1884,24 @@ await page.locator('a[data-route="reunioes"]').click();
   "Janela de edição deve aparecer dentro da tela, inclusive em celular.");
  assert.ok(chronEditGeometry.scrollHeight>chronEditGeometry.clientHeight,
   "Formulário alto deve ter rolagem interna em telas pequenas.");
+ await page.locator('#cron-form [name="title"]').fill("Rascunho a confirmar");
+ await page.locator(".chron-edit-overlay .chron-form-actions [data-do='cron-close']").click();
+ await page.locator("#notice-dialog [data-do='notice-confirm']").waitFor({state:"visible"});
+ assert.equal(await page.locator("#notice-dialog #notice-title").innerText(),"Alterações não salvas",
+  "Cancelar edição com dados modificados precisa confirmar saída sem salvar.");
+ await page.locator("#notice-dialog [data-do='notice-cancel']").last().click();
+ assert.equal(await page.locator('#cron-form [name="title"]').inputValue(),"Rascunho a confirmar",
+  "Continuar editando preserva o rascunho.");
  await page.locator('#cron-form [name="title"]').fill("Atividade renomeada");
  await page.setViewportSize({width:1440,height:900});
  await page.locator('#cron-form button[type="submit"]').click();
+ await page.locator("#notice-dialog [data-do='notice-confirm']").waitFor({state:"visible"});
+ assert.equal(await page.locator("#notice-dialog [data-do='notice-confirm']").innerText(),"Salvar alterações",
+  "Editar exige confirmação explícita antes do PUT.");
+ await page.locator("#notice-dialog [data-do='notice-cancel']").last().click();
+ assert.equal(await page.locator(".chron-editor-dialog").isVisible(),true,"Não salvar mantém a edição aberta.");
+ await page.locator('#cron-form button[type="submit"]').click();
+ await page.locator("#notice-dialog [data-do='notice-confirm']").click();
  await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade renomeada"));
  assert.equal(await page.locator('[data-do="cron-toggle"]').count(),0,"Nenhuma conclusão manual aparece no cronograma.");
  assert.equal(await page.locator('[data-do="cron-edit"]').count(),0,"Sem quadrado vazio de edição no cartão.");
