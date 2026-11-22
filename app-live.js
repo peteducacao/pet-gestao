@@ -1232,7 +1232,7 @@ function renderDemandas(){
 // Agenda institucional. Demandas só entram como projeções de leitura, nunca são duplicadas.
 const cronIso=(year,month,day)=>year+"-"+String(month+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
 const cronHours=item=>item.startTime&&item.endTime?item.startTime+" às "+item.endTime:
- item.timeNote||item.startTime||"Horário a definir";
+ item.timeNote||item.startTime||(item.endTime?"Até "+item.endTime:"Horário a definir");
 // Ao tocar em Lembrar, sugerir o início efetivo da atividade, no horário de Sergipe.
 // Não usar a hora atual quando há uma data/hora futura registrada no Cronograma.
 const cronReminderSuggestedAt=item=>{
@@ -1370,7 +1370,7 @@ function cronEditor(){
  if(!editing)return "";
  const old=editing==="new"?null:(state.cronItems||[]).find(x=>x.id===editing);
  if(!old&&editing!=="new")return "";
- const first=old?.startDate||dateKey(current),last=old?.endDate||first;
+ const first=old?.startDate||dateKey(current),last=old?.endDate||"";
  const imported=old?.source==="word-2026";
  const inDialog=Boolean(old);
  return (inDialog?'<div class="chron-reminder-overlay chron-edit-overlay" role="presentation">':"")+
@@ -1378,9 +1378,9 @@ function cronEditor(){
  '<form id="cron-form" class="register-form" data-id="'+esc(old?.id||"")+'">'+
  '<label>Nome da atividade *<input name="title" maxlength="180" required placeholder="Ex.: Oficina de Fotografia" value="'+esc(old?.title||"")+'"></label>'+
  '<div class="chron-form-grid"><label>Data de início *<input type="date" name="startDate" value="'+esc(first)+'" required></label>'+
- '<label>Data de término *<input type="date" name="endDate" value="'+esc(last)+'" required></label></div>'+
- '<div class="chron-form-grid"><label>Horário de início'+(imported?"":" *")+'<input type="time" name="startTime" value="'+esc(old?.startTime||"")+'" '+(imported?"":"required")+'></label>'+
- '<label>Horário de término'+(imported?"":" *")+'<input type="time" name="endTime" value="'+esc(old?.endTime||"")+'" '+(imported?"":"required")+'></label></div>'+
+ '<label>Data de término<input type="date" name="endDate" value="'+esc(last)+'"></label></div>'+
+ '<div class="chron-form-grid"><label>Horário de início<input type="time" name="startTime" value="'+esc(old?.startTime||"")+'"></label>'+
+ '<label>Horário de término<input type="time" name="endTime" value="'+esc(old?.endTime||"")+'"></label></div>'+
  (imported&&old?.timeNote?'<p class="chron-legacy">Horário registrado no Word: '+esc(old.timeNote)+'. Se houver horário exato, preencha início e término.</p>':"")+
  '<input type="hidden" name="timeNote" value="'+esc(old?.timeNote||"")+'">'+
  '<label>Local<input name="location" maxlength="240" value="'+esc(old?.location||"")+'" placeholder="Ex.: Sala do PET"></label>'+
