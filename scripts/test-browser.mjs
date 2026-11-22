@@ -46,8 +46,8 @@ await page.route("**/api/v1/**",async route=>{
  else if(p==="/quick-nav"&&method==="GET")result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};
  else if(p==="/quick-nav"&&method==="PUT"){quickNavMock={enabled:body.enabled,items:body.items};result={...quickNavMock,available:["inicio","cronograma","demandas","meus-lembretes","conta","comissoes","minhas-pendencias","admin"]};}
  else if(p==="/schedule"&&method==="GET")result={year:Number(url.searchParams.get("year")),items:scheduleMock.filter(x=>x.startDate.slice(0,4)===url.searchParams.get("year"))};
- else if(p==="/schedule"&&method==="POST"){const newId="evento-cron-"+(scheduleMock.length+1);scheduleMock.push({id:newId,...body,completedAt:null,source:"manual"});result={ok:true,id:newId};status=201;}
- else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PUT"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)Object.assign(row,body);result={ok:true};}
+ else if(p==="/schedule"&&method==="POST"){const newId="evento-cron-"+(scheduleMock.length+1);scheduleMock.push({id:newId,...body,endDate:body.endDate||body.startDate,completedAt:null,source:"manual"});result={ok:true,id:newId};status=201;}
+ else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="PUT"){const row=scheduleMock.find(x=>x.id===p.split("/").at(-1));if(row)Object.assign(row,body,{endDate:body.endDate||body.startDate});result={ok:true};}
  else if(/^\/schedule\/[A-Za-z0-9_-]+$/.test(p)&&method==="DELETE"){scheduleMock=scheduleMock.filter(x=>x.id!==p.split("/").at(-1));result={ok:true};}
  else if(p==="/admin/annual-report"&&method==="GET"){
   const year=Number(url.searchParams.get("year")),month=Number(new Date().toISOString().slice(5,7));
@@ -1975,6 +1975,32 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
  await page.waitForFunction(()=>![...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade renomeada"));
  assert.equal(scheduleMock.some(x=>x.id===added.id),false,"Atividade excluída.");
+ // Cadastro mínimo: apenas nome e início obrigatórios; demais datas e horários vazios.
+ await page.locator('[data-do="cron-new"]').click();
+ await page.locator("#cron-form").waitFor({state:"visible",timeout:10000});
+ const cronRequired=await page.locator("#cron-form [required]").evaluateAll(nodes=>nodes.map(n=>n.name).sort());
+ assert.deepEqual(cronRequired,["startDate","title"],"Somente nome e data inicial são obrigatórios.");
+ assert.equal(await page.locator('#cron-form [name="endDate"]').inputValue(),"",
+  "Data de término opcional inicia vazia.");
+ assert.equal(await page.locator('#cron-form [name="startTime"]').inputValue(),"",
+  "Hora de início opcional inicia vazia.");
+ assert.equal(await page.locator('#cron-form [name="endTime"]').inputValue(),"",
+  "Hora de término opcional inicia vazia.");
+ const minimalDate=await page.locator('#cron-form [name="startDate"]').inputValue();
+ await page.locator('#cron-form [name="title"]').fill("Atividade apenas com nome e data");
+ const minimalPosted=page.waitForResponse(r=>r.url().endsWith("/schedule")&&r.request().method()==="POST");
+ await page.locator('#cron-form button[type="submit"]').click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await minimalPosted;
+ const minimalCreated=scheduleMock.find(x=>x.title==="Atividade apenas com nome e data");
+ assert.ok(minimalCreated,"Atividade mínima foi cadastrada.");
+ assert.equal(minimalCreated.endDate,minimalDate,"Sem término, evento vale para o dia inicial.");
+ assert.equal(minimalCreated.startTime,null,"Sem início de hora, servidor guarda null.");
+ assert.equal(minimalCreated.endTime,null,"Sem horário final, servidor guarda null.");
+ await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade apenas com nome e data"));
+ await page.locator('[data-do="cron-delete"][data-id="'+minimalCreated.id+'"]').click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
+ await page.waitForFunction(()=>!document.querySelector('[data-do="cron-delete"][data-id="'+minimalCreated.id+'"]'));
  await page.goto(origin+"/#/conta");
  await page.locator('[data-do="account-tab"][data-tab="atalhos"]').click();
  await page.locator("#quicknav-enabled").waitFor();
