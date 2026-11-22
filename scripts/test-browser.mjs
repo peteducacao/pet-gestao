@@ -412,6 +412,7 @@ try{
  await page.setViewportSize({width:1420,height:900});
  await page.goto(origin+"/#/demandas");
  const oneCommittee=page.locator(".demand-activity-card").filter({hasText:"Atividade exclusiva da comissão"});
+ await oneCommittee.waitFor({state:"visible",timeout:10000});
  assert.equal(await oneCommittee.locator(".demand-card-single.demand-card-committee").count(),1,"Comissão única visível");
  assert.equal(await oneCommittee.locator(".demand-card-person").count(),0,"Integrante não vira responsável individual automaticamente");
  tasks=tasks.filter(x=>x.id!=="t-selectors");
