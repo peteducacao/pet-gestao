@@ -213,8 +213,9 @@ try{
  await page.locator(".stat-grid").waitFor({state:"visible"});
  assert.equal(await page.locator(".stat-grid .stat svg use[href='#i-arrow']").count(),0,"Indicadores não têm setas decorativas.");
  const metricsBox=await page.locator(".stat-grid").boundingBox();
- const viewport=page.viewportSize();
- assert.ok(Math.abs((metricsBox.x+metricsBox.width/2)-viewport.width/2)<100,"Indicadores centralizados no desktop.");
+ const contentBox=await page.locator("#screen").boundingBox();
+ assert.ok(Math.abs((metricsBox.x+metricsBox.width/2)-(contentBox.x+contentBox.width/2))<12,
+  "Indicadores centralizados em relação à área de conteúdo.");
  await page.goto(origin+"/#/conta");
  await page.locator('[data-do="account-tab"][data-tab="painel"]').click();
  // Central única: os sete tipos compartilham um botão de salvar por destinatário.
