@@ -1728,6 +1728,28 @@ await page.locator('a[data-route="reunioes"]').click();
   "Permite programar qualquer data futura mesmo após o fim da atividade.");
  assert.equal(JSON.stringify(added),originalSchedule,"Salvar lembrete não modifica o Cronograma.");
 
+ // Regressão: Excluir a partir do detalhe deve mostrar a confirmação NA FRENTE do modal.
+ await page.locator('[data-do="cron-details"][data-id="'+added.id+'"]').click();
+ await page.locator(".chron-detail-overlay").waitFor({state:"visible"});
+ await page.locator('.chron-detail-overlay [data-do="cron-delete"]').click();
+ await page.locator('#notice-dialog [data-do="notice-confirm"]').waitFor({state:"visible"});
+ const noticeLayer=await page.locator('#notice-dialog [data-do="notice-confirm"]').evaluate(button=>{
+  const rect=button.getBoundingClientRect();
+  const top=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+  return {
+   hit:button===top||button.contains(top),
+   noticeZ:parseInt(getComputedStyle(document.querySelector("#notice-dialog")).zIndex,10),
+   chronZ:parseInt(getComputedStyle(document.querySelector(".chron-detail-overlay")).zIndex,10)
+  };
+ });
+ assert.ok(noticeLayer.hit&&noticeLayer.noticeZ>noticeLayer.chronZ,
+  "A confirmação Excluir deve ficar clicável ACIMA dos detalhes do Cronograma: "+JSON.stringify(noticeLayer));
+ await page.locator('#notice-dialog [data-do="notice-cancel"]').last().click();
+ assert.equal(await page.locator(".chron-detail-overlay").isVisible(),true,"Cancelar mantém os detalhes abertos.");
+ assert.equal(scheduleMock.some(x=>x.id===added.id),true,"Cancelar não exclui a atividade.");
+ await page.locator('[data-do="cron-details-close"]').click();
+ await page.waitForFunction(()=>!document.querySelector("#cron-detail-title"));
+
  await page.locator('[data-do="cron-view"][data-view="calendario"]').click();
  await page.locator(".chron-calendar-day").first().waitFor();
  await page.locator('[data-do="cron-calendar-mode"]').click();
