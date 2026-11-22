@@ -1359,7 +1359,9 @@ function cronEditor(){
  if(!old&&editing!=="new")return "";
  const first=old?.startDate||dateKey(current),last=old?.endDate||first;
  const imported=old?.source==="word-2026";
- return '<section class="card card-pad chron-editor"><div class="chron-editor-head"><h2>'+(old?"Editar atividade":"Nova atividade")+'</h2><button class="chron-icon-action" type="button" data-do="cron-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
+ const inDialog=Boolean(old);
+ return (inDialog?'<div class="chron-reminder-overlay chron-edit-overlay" role="presentation">':"")+
+ '<section class="card card-pad chron-editor '+(inDialog?"chron-editor-dialog":"")+'" '+(inDialog?'role="dialog" aria-modal="true" aria-labelledby="cron-editor-title"':"")+'><div class="chron-editor-head"><h2 id="cron-editor-title">'+(old?"Editar atividade":"Nova atividade")+'</h2><button class="chron-icon-action" type="button" data-do="cron-close" aria-label="Fechar">'+ico("close")+'</button></div>'+
  '<form id="cron-form" class="register-form" data-id="'+esc(old?.id||"")+'">'+
  '<label>Nome da atividade *<input name="title" maxlength="180" required placeholder="Ex.: Oficina de Fotografia" value="'+esc(old?.title||"")+'"></label>'+
  '<div class="chron-form-grid"><label>Data de início *<input type="date" name="startDate" value="'+esc(first)+'" required></label>'+
@@ -1370,7 +1372,8 @@ function cronEditor(){
  '<input type="hidden" name="timeNote" value="'+esc(old?.timeNote||"")+'">'+
  '<label>Local<input name="location" maxlength="240" value="'+esc(old?.location||"")+'" placeholder="Ex.: Sala do PET"></label>'+
  '<label>Descrição / observações<textarea name="description" maxlength="1800" rows="3" placeholder="Texto complementar (opcional)">'+esc(old?.description||"")+'</textarea></label>'+
- '<div class="chron-form-actions"><button class="button ghost" type="button" data-do="cron-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar atividade</button></div></form></section>';
+ '<div class="chron-form-actions"><button class="button ghost" type="button" data-do="cron-close">Cancelar</button><button class="button primary" type="submit">'+ico("check")+' Salvar atividade</button></div></form></section>'+
+ (inDialog?"</div>":"");
 }
 function cronReminderDialog(){
  const item=state.cronReminder;if(!item)return "";
@@ -3771,7 +3774,7 @@ async function handleClick(e){
   if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
   if(state.cronDetails&&history.state?.petCronDetails)history.back();
   state.cronEditing=tid;state.cronReminder=null;state.cronDetails=null;render();
-  $("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return;
+  $(".chron-editor-dialog [data-do='cron-close']")?.focus({preventScroll:true});return;
  }
  if(action==="cron-details"){openCronDetails(tid);return;}
  if(action==="cron-details-close"){closeCronDetails();return;}
