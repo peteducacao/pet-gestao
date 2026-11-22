@@ -466,8 +466,12 @@ assert.equal(document.querySelectorAll(".assignee-group-heading").length,0,"Sem 
 assert.ok(document.querySelector(".detail-visualization select[data-filter='navigateDemands']"),"Filtro no detalhe");
 assert.ok(document.querySelector(".detail-review-full"),"Texto para revisão na última seção, em toda largura");
 
-assert.ok(document.querySelector(".activity-history .history-chevron"),"Histórico tem seta de expansão");
-assert.equal(document.querySelector(".activity-history").hasAttribute("open"),false,"Histórico começa recolhido");
+assert.ok(document.querySelector('[data-do="history-open"]'),"Histórico tem botão lateral.");
+assert.ok(document.querySelector("#history-drawer")?.hidden,"Gaveta começa fechada.");
+document.querySelector('[data-do="history-open"]').click();await wait();
+assert.equal(document.querySelector("#history-drawer")?.hidden,false,"Clique abre o histórico.");
+document.querySelector('.history-drawer-close').click();await wait();
+assert.equal(document.querySelector("#history-drawer")?.hidden,true,"Fechar não ocupa a página.");
 const statusSelect=document.querySelector('select[data-detail-status]');
 assert.ok(statusSelect,"Status é seletor");
 assert.equal(statusSelect.value,"atrasada","Demanda vencida aparece atrasada");
