@@ -1704,6 +1704,30 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       if(match&&method==="DELETE"){
         ensure(user);await db.prepare("DELETE FROM meetings WHERE id=?").bind(match[1]).run();return answer({ok:true});
       }
+      // Painel Admin: uso real do arquivo D1, sem expor segredos da conta Cloudflare.
+      if(path==="/api/v1/admin/storage"&&method==="GET"){
+        ensure(user,true);
+        const usage=await db.prepare(
+          "SELECT COUNT(*) AS total, "+
+          "COALESCE(SUM(CASE WHEN status='ready' THEN 1 ELSE 0 END),0) AS ready_count, "+
+          "COALESCE(SUM(CASE WHEN status='ready' THEN size_bytes ELSE 0 END),0) AS ready_bytes, "+
+          "COALESCE(SUM(CASE WHEN status='uploading' THEN 1 ELSE 0 END),0) AS pending_count, "+
+          "COALESCE(SUM(CASE WHEN status='uploading' THEN size_bytes ELSE 0 END),0) AS pending_bytes "+
+          "FROM task_attachments"
+        ).all();
+        const files=usage.results?.[0]||{};
+        const measured=Number(usage.meta?.size_after);
+        // size_after é fornecido pela própria execução do D1, não é soma estimada dos anexos.
+        const databaseBytes=Number.isFinite(measured)&&measured>=0&&usage.meta?.size_after!=null?measured:null;
+        return answer({
+          checkedAt:now(),
+          database:{bytes:databaseBytes,source:databaseBytes===null?"unavailable":"d1_query_metadata"},
+          photos:{count:Number(files.ready_count||0),bytes:Number(files.ready_bytes||0),
+            uploadingCount:Number(files.pending_count||0),uploadingBytes:Number(files.pending_bytes||0)},
+          referenceLimits:{freePerDatabaseBytes:500000000,paidPerDatabaseBytes:10000000000},
+          accountWideUsageAvailable:false,dailyReadWriteQuotaAvailable:false
+        });
+      }
       if(path==="/api/v1/mail/status"&&method==="GET"){
         ensure(user,true);
         return answer(await mailBridgeStatus(env));
