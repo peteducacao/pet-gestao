@@ -1285,11 +1285,11 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(cloudStorageReads>beforeRefresh,"Botão Atualizar realmente consulta novamente o Cloudflare");
  await page.locator("#admin-cloud-storage .admin-cloud-numbers").waitFor();
  await page.setViewportSize({width:390,height:844});
- const overflow=await page.locator("#admin-cloud-storage").evaluate(node=>{
+ const cloudStorageGeometry=await page.locator("#admin-cloud-storage").evaluate(node=>{
   const box=node.getBoundingClientRect();
   return {boxRight:box.right,screen:innerWidth,pageWidth:document.documentElement.scrollWidth};
  });
- assert.ok(overflow.pageWidth<=overflow.screen+1&&overflow.boxRight<=overflow.screen+1,
+ assert.ok(cloudStorageGeometry.pageWidth<=cloudStorageGeometry.screen+1&&cloudStorageGeometry.boxRight<=cloudStorageGeometry.screen+1,
   "Painel de armazenamento não pode criar rolagem horizontal no celular");
  await page.setViewportSize({width:1420,height:900});
  await page.locator('[data-do="admin-signout"]').evaluate(el=>el.click());
