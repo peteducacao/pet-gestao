@@ -1711,14 +1711,21 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.locator(".chron-page--calendar-month").count(),0,
   "A visualização em lista não recebe o estilo compacto.");
  const listGeometry=await page.locator(".chron-page").evaluate(element=>{
-  const width=element.getBoundingClientRect().width;
-  const toolbar=element.querySelector(".chron-toolbar").getBoundingClientRect().width;
-  return {page:width,toolbar};
+  const toolbar=element.querySelector(".chron-toolbar");
+  const rect=selector=>toolbar.querySelector(selector).getBoundingClientRect();
+  const source=rect(".chron-origin-picker"),year=rect(".chron-year-picker"),
+   actions=rect(".chron-view-actions");
+  const pageRect=element.getBoundingClientRect(),bar=toolbar.getBoundingClientRect();
+  return {page:pageRect.width,toolbar:bar.width,centerOffset:Math.abs((bar.left+bar.right)/2-(pageRect.left+pageRect.right)/2),
+   sourceToYear:year.left-source.right,yearToActions:actions.left-year.right};
  });
  assert.ok(listGeometry.page>desktopChron.pageWidth+65,
   "A lista recupera a largura original, sem estreitamento indevido: "+JSON.stringify({listGeometry,desktopChron}));
- assert.ok(Math.abs(listGeometry.toolbar-listGeometry.page)<10,
-  "A barra de filtros volta a ocupar a largura da lista: "+JSON.stringify(listGeometry));
+ assert.ok(listGeometry.toolbar<listGeometry.page-180&&listGeometry.centerOffset<15,
+  "Barra de filtros compacta e centralizada: "+JSON.stringify(listGeometry));
+ assert.ok(listGeometry.sourceToYear>=0&&listGeometry.sourceToYear<=18&&
+  listGeometry.yearToActions>=0&&listGeometry.yearToActions<=18,
+  "Controles próximos uns dos outros, sem espaço vazio: "+JSON.stringify(listGeometry));
  await page.setViewportSize({width:1420,height:900});
  const pastCard=page.locator(".chron-card").filter({hasText:"Evento passado"});
  assert.equal(await pastCard.locator(".chron-date--done").count(),1,"Evento passado fica verde automaticamente.");
