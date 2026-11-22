@@ -154,8 +154,34 @@ async function loginAs(person){
 try{
  await page.goto(origin+"/#/demandas",{waitUntil:"domcontentloaded"});
  await page.locator(".demand-activity-title").first().waitFor({timeout:10000});
- // Teste prioritário: reproduz Excluir dentro dos detalhes antes dos demais fluxos.
+ // Regressão mobile: os quatro indicadores da Visão geral ficam em duas linhas com dois cartões.
+ const previousViewport=page.viewportSize();
+ await page.goto(origin+"/#/inicio");
+ await page.locator(".stat-grid.stat-grid-refined .stat").first().waitFor({state:"visible"});
+ for(const width of [320,360,390,414]){
+  await page.setViewportSize({width,height:780});
+  const metrics=await page.locator(".stat-grid.stat-grid-refined").evaluate(grid=>{
+   const cards=[...grid.querySelectorAll(".stat")];
+   const r=el=>{const b=el.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width}};
+   const container=r(grid);
+   return {columns:getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length,
+    boxes:cards.map(r),grid:container,scrollWidth:document.documentElement.scrollWidth,
+    viewport:window.innerWidth};
+  });
+  assert.equal(metrics.boxes.length,4,"Os quatro indicadores continuam visíveis.");
+  assert.equal(metrics.columns,2,"Quatro indicadores em duas colunas no celular "+width+"px.");
+  assert.ok(Math.abs(metrics.boxes[0].top-metrics.boxes[1].top)<3&&
+   Math.abs(metrics.boxes[2].top-metrics.boxes[3].top)<3&&
+   metrics.boxes[2].top>metrics.boxes[0].bottom-1,
+   "Visão geral organizada em duas linhas: "+JSON.stringify(metrics));
+  assert.ok(metrics.boxes.every(b=>b.width>115&&b.right<=metrics.grid.right+2),
+   "Indicadores cabem nos dois lados sem cortes: "+JSON.stringify(metrics));
+  assert.ok(metrics.scrollWidth<=metrics.viewport+2,
+   "Indicadores não causam rolagem horizontal em "+width+"px: "+JSON.stringify(metrics));
+ }
+ await page.setViewportSize(previousViewport);
  await page.goto(origin+"/#/cronograma");
+ // Teste prioritário: reproduz Excluir dentro dos detalhes antes dos demais fluxos.
  await page.locator('[data-do="cron-details"][data-id="evento-cron-1"]').waitFor({state:"visible",timeout:10000});
  await page.locator('[data-do="cron-details"][data-id="evento-cron-1"]').click();
  await page.locator(".chron-detail-overlay").waitFor({state:"visible"});
