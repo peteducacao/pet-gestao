@@ -133,7 +133,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     const members=(await db.prepare("SELECT commission_id,user_id FROM commission_members").all()).results;
     const privateView=!!user&&user.role!=="usuario"&&!user.must_change_password;
     const rawTasks=user?(await db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT 1000").all()).results:[];
-    const attachments=privateView&&["petiano","admin"].includes(user.role)?(await db.prepare(
+    const attachments=privateView?(await db.prepare(
       "SELECT id,task_id,filename,mime_type,size_bytes,created_at,created_by FROM task_attachments WHERE status='ready' ORDER BY created_at"
     ).all()).results:[];
     const attachmentsByTask=Object.create(null);
@@ -1411,10 +1411,10 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
       const attachPath=path.match(/^\/api\/v1\/tasks\/([^/]+)\/attachments(?:\/([^/]+)(?:\/(chunks\/([0-9]+)|complete|download))?)?$/);
       if(attachPath){
         ensure(user);
-        // Anexos privados: somente PETianos(as) e Administração autenticados.
-        // Tutoria e visitantes não recebem metadados nem podem baixar ou enviar.
-        if(!["petiano","admin"].includes(user.role_override||user.role))
-          fail("Os anexos das demandas são exclusivos dos(as) PETianos(as) e da Administração.",403);
+        // Tutoria e Administração possuem as mesmas permissões operacionais dos(as) PETianos(as).
+        // Usuários de visualização e visitantes não acessam os arquivos privados.
+        if(!["petiano","tutor","admin"].includes(user.role_override||user.role))
+          fail("Os anexos das demandas exigem acesso PETiano(a), Tutoria ou Administração.",403);
         const taskId=attachPath[1],fileId=attachPath[2],action=attachPath[3]||"";
         const task=await readTask(db,taskId);
         if(!fileId&&method==="GET")return answer({attachments:await attachmentMetadata(db,taskId)});
