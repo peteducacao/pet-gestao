@@ -28,7 +28,8 @@ const apkFile=path.join(root,"downloads","PET-Gestao.apk");
 assert.ok(fs.existsSync(apkFile),"APK não foi incluído no site.");
 const apk=fs.readFileSync(apkFile);
 assert.ok(apk.length>10000 && apk.subarray(0,4).equals(Buffer.from([0x50,0x4B,0x03,0x04])),"Arquivo Android inválido.");
-assert.match(sw,/pet-gestao-public-shell-v20261121-perfil-mobile-v9/);
+assert.match(sw,/pet-gestao-public-shell-v[0-9a-z-]+/,"O cache público deve ter versão.");
+assert.doesNotMatch(sw,/CACHE_NAME="pet-gestao-public-shell-v20261121-perfil-mobile-v9"/,"Cache antigo desativado.");
 assert.ok(!sw.includes('"/api/'),"A API não deve ser armazenada no cache.");
 
 const icons=manifest.icons.filter(icon=>icon.type==="image/png");
