@@ -4779,12 +4779,12 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 
 /* Cronograma PET: agenda enxuta, horários, estados por contorno e tipo de demanda. */
 #screen .chron-page{max-width:1140px;display:grid;gap:17px}
-#screen .chron-toolbar{display:flex;align-items:end;gap:11px;flex-wrap:wrap;padding:12px 14px;background:#fff;border:1px solid #eee7f6;border-radius:15px;box-shadow:0 3px 15px #3f19590a}
+#screen .chron-toolbar{display:flex;align-items:end;justify-content:center;gap:10px;flex-wrap:wrap;width:fit-content;max-width:100%;box-sizing:border-box;margin-inline:auto;padding:11px 13px;background:#fff;border:1px solid #eee7f6;border-radius:15px;box-shadow:0 3px 15px #3f19590a}
 #screen .chron-toolbar label{display:grid;gap:5px;color:#635474;font-size:11px;font-weight:750;min-width:0}
 #screen .chron-toolbar .select{min-height:40px;border-color:#e1d7ec;border-radius:10px;background:#fbfaff;color:#3b2b54;font-size:13px}
-#screen .chron-origin-picker{flex:1 1 148px;max-width:245px}
-#screen .chron-year-picker{flex:0 1 116px}
-#screen .chron-view-actions{display:flex;align-items:center;gap:7px;margin-left:auto;flex-wrap:wrap}
+#screen .chron-origin-picker{flex:0 0 205px;max-width:205px}
+#screen .chron-year-picker{flex:0 0 102px;max-width:102px}
+#screen .chron-view-actions{display:flex;align-items:center;gap:7px;margin-left:0;flex:0 0 auto;flex-wrap:nowrap}
 #screen .chron-view-actions .button{min-height:39px;font-size:12px;border:1px solid #e4dced}
 #screen .chron-month-nav{display:flex;align-items:center;justify-content:space-between;gap:13px;padding:5px 5px 0}
 #screen .chron-month-nav strong{font-size:18px;color:#35224e;letter-spacing:-.3px}
