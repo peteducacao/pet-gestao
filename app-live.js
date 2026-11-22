@@ -58,7 +58,7 @@ const previousToken=readSessionToken(tokenKey),previousAdminToken=readSessionTok
 let token=previousToken||previousAdminToken,data={tasks:[],users:[],committees:[],meetings:[],events:[],history:[],settings:{}},me=null,regularMe=null;
 if(!previousToken&&previousAdminToken)saveSessionToken(tokenKey,previousAdminToken,Boolean(localStorage.getItem(adminTokenKey)));
 forgetSessionToken(adminTokenKey);
-const state={presentationPrefs:null,presentationDraft:null,presentationLoading:false,pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,cronDetails:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportCommission:'todos',adminReportUser:'todos',adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,adminOverviewData:null,adminOverviewLoadedYear:null,adminOverviewLoading:false,adminOverviewError:'',reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
+const state={presentationPrefs:null,presentationDraft:null,presentationLoading:false,pushData:null,webPushData:null,webPushHere:false,noticePrefs:null,noticeDraft:null,noticeDirty:false,reminderItems:[],reminderLoadedFor:null,cronItems:[],cronLoadedYear:null,cronLoading:false,cronYear:current.getFullYear(),cronMonth:current.getMonth(),cronFilter:'cronograma',cronView:'lista',cronCalendarMode:'mes',cronSelectedDay:null,cronEditing:null,cronReminder:null,cronDetails:null,quickNavPrefs:null,quickNavDraft:null,adminReportView:'cronograma',adminReportYear:current.getFullYear(),adminReportCommission:'todos',adminReportUser:'todos',adminReportData:null,adminReportLoadedYear:null,adminReportLoading:false,adminOverviewData:null,adminOverviewLoadedYear:null,adminOverviewLoading:false,adminOverviewError:'',reminderLoading:false,reminderEditing:false,reminderRecurrence:"once",reminderSchedules:[],reminderDraft:null,templateChannel:"email",accountTab:"perfil",adminTab:"painel",adminMenuOpen:false,authTransition:false,commissionAction:null,mailItems:[],mailConnection:null,mailMonitorOpen:false,adminStorage:null,adminStorageLoading:false,adminStorageCheckedFor:null,adminStorageError:"",year:current.getFullYear(),month:current.getMonth(),week:0,mode:"mensal",committeeWeek:0,assignmentScope:"usuarios",selectedUsers:new Set(),selectedCommissions:new Set(),taskFormId:null,mailAudience:"todos",mailScheduled:false,selectedStatus:"pendente",mailFiles:[],taskFiles:[],statusFilter:"todas",conclusionKind:"todas",commissionStatusFilter:"todas",mineStatusFilter:"todas",meetingView:"todas",templateKind:"create",deadlineTemplateKind:"due_soon",templateDrafts:{},previousRoute:"#/inicio",archiveDeleteMode:false,archiveSelectedIds:new Set()};
 const routeNames={inicio:"Visão geral",demandas:"Demandas",cronograma:"Cronograma PET",comissoes:"Comissões","minhas-pendencias":"Minhas pendências","meus-lembretes":"Meus lembretes",atividade:"Atividade",registrar:"Registrar demanda",admin:"Administração",conta:"Meu perfil",login:"Entrar",cadastro:"Criar conta",esqueci:"Recuperar senha",redefinir:"Redefinir senha","confirmar-email":"Confirmar e-mail",reunioes:"Atas de Reunião",ajuda:"Ajuda"};
 let toastTimer,lastHash=location.hash||"#/inicio",firstBootstrap=true,lastStatusSnapshot="";
 let desktopInstallPrompt=null;
@@ -942,6 +942,7 @@ async function reload(){
     state.noticePrefs=null;state.noticeDraft=null;state.noticeDirty=false;
     state.reminderItems=[];state.reminderLoadedFor=null;state.reminderEditing=false;
     state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;state.presentationPrefs=null;state.presentationDraft=null;
+    state.adminStorage=null;state.adminStorageLoading=false;state.adminStorageCheckedFor=null;state.adminStorageError="";
    }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
@@ -3146,6 +3147,55 @@ function renderAdminReports(){
   (r?'<button class="button primary" type="button" data-do="admin-overview-pdf">'+ico("download")+' Exportar PDF geral</button>':"")+'</div>'+
   loading+(r?adminOverviewMetrics(r)+adminCommissionOverviewTable(r.commissions)+adminUserOverviewTable(r.users)+note:"")+'</section>';
 }
+// O D1 informa o tamanho real do arquivo em meta.size_after; não revela cota/uso da conta.
+function adminStorageBytes(value){
+ if(!Number.isFinite(Number(value))||value===null||value===undefined)return "Indisponível";
+ const bytes=Math.max(0,Number(value)),unit=bytes>=1000000000?1000000000:bytes>=1000000?1000000:bytes>=1000?1000:1;
+ return (unit===1?Math.round(bytes).toLocaleString("pt-BR"):
+   (bytes/unit).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1}))+
+  (unit===1000000000?" GB":unit===1000000?" MB":unit===1000?" KB":" bytes");
+}
+function renderAdminCloudStorage(){
+ const storage=state.adminStorage,measured=storage?.database?.bytes;
+ const size=Number.isFinite(measured)&&measured!==null&&measured!==undefined?Math.max(0,measured):null;
+ const photos=storage?.photos||{},loading=state.adminStorageLoading;
+ const references=[
+  ["Free (por banco)",500000000,"500 MB"],
+  ["Paid (por banco)",10000000000,"10 GB"]
+ ];
+ const bars=size===null?"":references.map(([name,max,label])=>{
+  const percent=Math.min(100,Math.max(0,size/max*100));
+  const shown=(size/max*100).toLocaleString("pt-BR",{maximumFractionDigits:2});
+  return '<div class="admin-cloud-meter"><div class="admin-cloud-meter-label"><span>'+esc(name)+'</span><strong>'+shown+'% de '+label+'</strong></div>'+
+   '<div class="admin-cloud-meter-track" role="progressbar" aria-label="Uso relativo ao limite '+esc(name)+'" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+percent.toFixed(2)+'"><span style="width:'+percent.toFixed(2)+'%"></span></div></div>';
+ }).join("");
+ return '<section class="admin-box admin-cloud-storage" aria-labelledby="admin-cloud-storage-title">'+
+  '<div class="admin-cloud-heading"><div><h2 id="admin-cloud-storage-title">'+ico("folder")+' Armazenamento Cloudflare</h2><p>Banco D1 do PET Gestão · leitura do uso atual</p></div>'+
+  '<button type="button" class="button ghost admin-cloud-refresh" data-do="admin-storage-refresh" '+(loading?'disabled':"")+'>'+ico("clock")+' '+(loading?"Atualizando...":"Atualizar")+'</button></div>'+
+  (state.adminStorageError?'<p class="admin-cloud-error" role="alert">'+esc(state.adminStorageError)+'</p>':"")+
+  (storage?'<div class="admin-cloud-numbers"><div><small>Banco de dados (arquivo D1)</small><strong>'+adminStorageBytes(size)+'</strong></div>'+
+   '<div><small>Fotos das demandas</small><strong>'+Number(photos.count||0).toLocaleString("pt-BR")+' foto(s)</strong><span>'+adminStorageBytes(photos.bytes||0)+' em arquivos originais</span></div></div>'+
+   (Number(photos.uploadingCount)>0?'<p class="admin-cloud-uploading">'+photos.uploadingCount+' arquivo(s) ainda em envio ('+adminStorageBytes(photos.uploadingBytes)+').</p>':"")+
+   '<p class="admin-cloud-date">Atualizado em '+esc(new Date(storage.checkedAt).toLocaleString("pt-BR"))+'</p>'+
+   (size===null?'<p class="admin-cloud-unavailable">O D1 não informou o tamanho total nesta consulta. Os dados das fotos continuam disponíveis.</p>':bars):
+   (!state.adminStorageError?'<p class="admin-cloud-wait">'+(loading?"Consultando armazenamento do D1...":"Ainda não há medição carregada.")+'</p>':""))+
+  '<p class="admin-cloud-note">As barras comparam este banco aos limites de referência Free e Paid — <strong>não</strong> identificam seu plano nem a cota restante da conta. Leituras e gravações diárias, outros bancos e custos ficam no <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">painel Cloudflare</a>. Fotos ocupam parte do banco, não são todo o armazenamento.</p>'+
+  '</section>';
+}
+async function loadAdminCloudStorage(force=false){
+ if(!isAdmin()||state.adminStorageLoading||(!force&&state.adminStorageCheckedFor===me?.id))return;
+ const owner=me?.id;
+ state.adminStorageLoading=true;state.adminStorageError="";
+ const update=()=>{const slot=$("#admin-cloud-storage");if(slot&&isAdmin()&&me?.id===owner)slot.innerHTML=renderAdminCloudStorage()};
+ update();
+ try{
+  const usage=await request("/admin/storage","GET",undefined,"admin");
+  if(!usage?.database||!usage?.photos)throw Error("O servidor não retornou as métricas do D1.");
+  if(me?.id===owner){state.adminStorage=usage;state.adminStorageCheckedFor=owner;}
+ }catch(error){
+  if(me?.id===owner){state.adminStorageError="Não foi possível consultar o D1: "+error.message;state.adminStorageCheckedFor=owner;}
+ }finally{state.adminStorageLoading=false;update();}
+}
 function renderAdmin(){
  const adminPart=routeParts().parts;
  if(adminPart.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(adminPart[0]))state.adminTab=adminPart[0];
@@ -3196,6 +3246,7 @@ function renderAdmin(){
  const metric=([name,value,iconName])=>'<div class="admin-metric"><span class="admin-metric-icon">'+ico(iconName)+'</span><strong '+(name==="E-mails"?'id="admin-mail-count"':"")+'>'+value+'</strong><span>'+name+'</span></div>';
  const recent=(data.history||[]).filter(x=>!me?.activityClearedAt||x.created_at>me.activityClearedAt).slice(0,4);
  const dashboard=state.adminTab==="painel"?'<div class="admin-metrics">'+stats.map(metric).join("")+'</div>'+
+ '<div id="admin-cloud-storage">'+renderAdminCloudStorage()+'</div>'+
  '<section class="admin-box"><h2>Ações rápidas</h2><div class="admin-shortcuts">'+
  
  '<a href="#/admin/comissoes">'+ico("users")+'<span>Gerenciar comissões</span></a>'+
@@ -3440,7 +3491,7 @@ function render(){
  if(page==="admin"&&isAdmin()&&!me?.mustChangePassword&&(!parts.length||(parts.length===1&&["painel","usuarios","comissoes","relatorios","emails","configuracoes"].includes(parts[0])))){
    if(state.adminTab==="usuarios")loadAdminUsers();
    if(state.adminTab==="emails"){renderMailRecipients();renderMailScheduling();updateMailScheduleButton();loadMailHistory();}
-   if(state.adminTab==="painel")loadMailHistory();
+   if(state.adminTab==="painel"){loadMailHistory();void loadAdminCloudStorage();}
    if(state.adminTab==="relatorios"){
      if(state.adminReportView==="cronograma"&&state.adminReportLoadedYear!==state.adminReportYear&&!state.adminReportLoading)void loadAdminAnnualReport();
      if(["todos","comissoes","usuarios"].includes(state.adminReportView)&&state.adminOverviewLoadedYear!==state.adminReportYear&&!state.adminOverviewLoading)void loadAdminOverview();
@@ -4067,6 +4118,7 @@ async function handleClick(e){
    },"admin"),"Aviso de prazo vencido salvo.");
    return;
  }
+ if(action==="admin-storage-refresh"){if(isAdmin())void loadAdminCloudStorage(true);return;}
  if(action==="admin-tab"){
   if(!isAdmin())return;
   state.adminTab=b.dataset.value;

@@ -19,6 +19,20 @@ await test("login único da Administração",async()=>{
  assert.equal(r.user.adminSession,true,"Admin autenticado pela entrada comum recebe escopo legítimo");
  assert.equal(good(await api("/auth/me")).user.adminSession,true);
 });
+await test("Armazenamento Cloudflare D1: métricas atuais restritas ao Admin",async()=>{
+ const response=good(await api("/admin/storage"));
+ assert.equal(typeof response.checkedAt,"string");
+ assert.equal(response.database.source, response.database.bytes===null?"unavailable":"d1_query_metadata");
+ assert.ok(response.database.bytes===null||
+  (Number.isFinite(response.database.bytes)&&response.database.bytes>=0),"Tamanho do banco não pode ser inventado");
+ assert.ok(Number.isInteger(response.photos.count)&&response.photos.count>=0);
+ assert.ok(Number.isFinite(response.photos.bytes)&&response.photos.bytes>=0);
+ assert.ok(Number.isInteger(response.photos.uploadingCount)&&response.photos.uploadingCount>=0);
+ assert.equal(response.referenceLimits.freePerDatabaseBytes,500000000);
+ assert.equal(response.referenceLimits.paidPerDatabaseBytes,10000000000);
+ assert.equal(response.accountWideUsageAvailable,false,"Não confundir uso de um D1 com conta inteira");
+ assert.equal(response.dailyReadWriteQuotaAvailable,false,"A API não conhece cotas diárias da conta");
+});
 await test("nascimento reservado ao titular e editável em contas antigas",async()=>{
  assert.equal((await api("/account/birthday","PUT",{birthDate:"2099-03-31"})).status,400,"Não aceitar nascimento futuro");
  assert.equal((await api("/account/birthday","PUT",{birthDate:"2000-02-31"})).status,400,"Não aceitar data impossível");
@@ -506,6 +520,7 @@ await test("ataques simulados: Tutoria não entra no Admin nem modifica credenci
   assert.equal(bootstrap.session.user.role,"tutor");
   assert.equal(bootstrap.session.user.adminSession,false);
   const forbidden=[
+   ["/admin/storage","GET"],
    ["/admin/users","GET"],
    ["/admin/users/"+id,"PATCH",{role:"admin",adminScope:true}],
    ["/admin/users/"+id+"/temporary-password","POST",{}],
