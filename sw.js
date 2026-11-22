@@ -1,5 +1,5 @@
 // Armazena somente arquivos estáticos públicos. Nunca armazena API, conta ou anexos.
-const CACHE_NAME="pet-gestao-public-shell-v20261121-dark-panel-v1";
+const CACHE_NAME="pet-gestao-public-shell-v20261122-restauracao-v1";
 const FILES=["./","./index.html","./styles.css","./live.css","./app-live.js",
  "./site.webmanifest","./assets/gestao-icon.svg","./assets/favicon.svg",
  "./assets/pet-gestao-180.png","./assets/pet-gestao-192.png","./assets/pet-gestao-512.png",
