@@ -28,7 +28,7 @@ let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:fal
 let personalMockItems=[];
 let quickNavMock={enabled:true,items:["inicio","cronograma","demandas","meus-lembretes","conta"]};
 let presentationMock={dashboard:{active:true,mine:true,overdue:true,completed:true,updates:true},
- profileTheme:"lavender",profileImage:null};
+ profileTheme:"lavender",profileImage:null,appearanceMode:"light"};
 let scheduleMock=[{id:"evento-cron-1",title:"Oficina de Fotografia",description:"Formação com fotógrafos",startDate:new Date().toISOString().slice(0,10),endDate:new Date().toISOString().slice(0,10),startTime:"14:00",endTime:"18:00",timeNote:null,location:"Sala do PET",completedAt:null,source:"manual"}];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
@@ -202,8 +202,24 @@ try{
  const birthdaySaved=page.waitForResponse(r=>r.url().endsWith("/account/birthday")&&r.request().method()==="PUT");
  await page.locator("#account-birthday-form button[type=submit]").click();await birthdaySaved;
  assert.equal(user.birthDate,"2001-05-14","Contas antigas podem informar aniversário.");
- await page.locator('[data-do="profile-open-appearance"]').click();
+ assert.equal(await page.locator('[data-do="profile-open-appearance"]').count(),0,"O perfil não exibe edição de fundo.");
+ assert.equal(await page.locator('#account-pane-perfil #account-photo-input').count(),0,"A edição de foto fica fora do perfil.");
+ await page.locator('[data-do="account-tab"][data-tab="painel"]').click();
  assert.ok(await page.locator(".profile-background-preview.theme-ocean").isVisible(),"Aparência salva aparece na prévia.");
+ assert.equal(await page.locator('#account-pane-painel #account-photo-input').count(),1,"Foto é editada apenas no painel.");
+ const modeSaved=page.waitForResponse(r=>r.url().endsWith("/user-presentation")&&r.request().method()==="PUT"&&r.request().postDataJSON()?.appearanceMode==="dark");
+ await page.locator('[data-do="appearance-mode"][data-mode="dark"]').click();await modeSaved;
+ assert.equal(presentationMock.appearanceMode,"dark","Modo escuro persiste.");
+ assert.equal(await page.locator("html").getAttribute("data-pet-mode"),"dark","Tema escuro aplicado ao documento inteiro.");
+ await page.goto(origin+"/#/inicio");
+ await page.locator(".stat-grid").waitFor({state:"visible"});
+ assert.equal(await page.locator("html").getAttribute("data-pet-mode"),"dark","Modo escuro restaurado no recarregamento.");
+ assert.equal(await page.locator(".stat-grid .stat svg use[href='#i-arrow']").count(),0,"Indicadores não têm setas decorativas.");
+ await page.goto(origin+"/#/conta");
+ await page.locator('[data-do="account-tab"][data-tab="painel"]').click();
+ const lightSaved=page.waitForResponse(r=>r.url().endsWith("/user-presentation")&&r.request().method()==="PUT"&&r.request().postDataJSON()?.appearanceMode==="light");
+ await page.locator('[data-do="appearance-mode"][data-mode="light"]').click();await lightSaved;
+ assert.equal(await page.locator("html").getAttribute("data-pet-mode"),"light","Modo claro restaurado.");
  // Central única: os sete tipos compartilham um botão de salvar por destinatário.
  await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
  await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
