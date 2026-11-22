@@ -1885,6 +1885,12 @@ await page.locator('a[data-route="reunioes"]').click();
   "Janela de edição deve aparecer dentro da tela, inclusive em celular.");
  assert.ok(chronEditGeometry.scrollHeight>chronEditGeometry.clientHeight,
   "Formulário alto deve ter rolagem interna em telas pequenas.");
+ const chronEditActionsGeometry=await page.locator(".chron-edit-overlay .chron-form-actions").evaluate(el=>{
+  const box=el.getBoundingClientRect();
+  return {top:box.top,bottom:box.bottom,vh:innerHeight};
+ });
+ assert.ok(chronEditActionsGeometry.top>=0&&chronEditActionsGeometry.bottom<=chronEditActionsGeometry.vh+1,
+  "Os botões Cancelar e Salvar devem permanecer acessíveis em um celular baixo.");
  await page.locator('#cron-form [name="title"]').fill("Rascunho a confirmar");
  await page.locator(".chron-edit-overlay .chron-form-actions [data-do='cron-close']").click();
  await page.locator("#notice-dialog [data-do='notice-confirm']").waitFor({state:"visible"});
