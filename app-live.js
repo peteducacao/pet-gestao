@@ -1472,7 +1472,7 @@ function renderCronograma(){
  '<div class="chron-empty">Nenhum registro neste mês para o filtro escolhido.</div>';
  return header("Organização","Cronograma PET","Atividades do PET organizadas por data, horário e local.",
  '<button type="button" class="button primary" data-do="cron-new">'+ico("plus")+' Nova atividade</button>')+
- '<div class="chron-page">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+cronDetailsDialog()+'</div>';
+ '<div class="chron-page'+(state.cronView==="calendario"&&state.cronCalendarMode!=="ano"?" chron-page--calendar-month":"")+'">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+cronDetailsDialog()+'</div>';
 }
 const COMMISSION_PRESET_ARTS=[
  ["videos","Vídeos"],["cards","Cards"],["imaginacao","ImaginAÇÃO"],
