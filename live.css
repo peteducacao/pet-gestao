@@ -5264,3 +5264,268 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  #screen .profile-commissions{padding:12px}
  #screen .profile-commission-chip{flex:1 1 100%}
 }
+
+
+/* Painel harmonizado e tema escuro PET Gestão v20261121 */
+/* Quatro indicadores alinhados, sem setas decorativas. */
+#screen .stat-grid.stat-grid-refined{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ justify-content:center;align-items:stretch;gap:14px;margin-bottom:24px;
+}
+#screen .stat-grid.stat-grid-refined[data-count="1"]{
+ grid-template-columns:minmax(0,430px);justify-content:center;
+}
+#screen .stat-grid.stat-grid-refined[data-count="2"]{
+ grid-template-columns:repeat(2,minmax(0,370px));justify-content:center;
+}
+#screen .stat-grid.stat-grid-refined[data-count="3"]{
+ grid-template-columns:repeat(3,minmax(0,350px));justify-content:center;
+}
+#screen .stat-grid.stat-grid-refined .stat{
+ min-height:113px;padding:18px 17px;gap:13px;border-radius:20px;
+ background:linear-gradient(133deg,#fff,#f9f6ff);
+ border:1px solid #ddd0f7;box-shadow:0 5px 20px rgba(49,28,105,.055);
+}
+#screen .stat-grid.stat-grid-refined .stat .stat-copy span{
+ color:#5b4d78;font-size:12px;font-weight:760;
+}
+#screen .stat-grid.stat-grid-refined .stat .stat-copy strong{
+ color:#21183b;font-size:29px;font-weight:850;line-height:1.15;
+}
+#screen .stat-grid.stat-grid-refined .stat-featured{
+ position:relative;overflow:hidden;
+ background:linear-gradient(128deg,#7540db,#5224a7 95%);
+ border-color:#7440d4;box-shadow:0 9px 25px rgba(88,40,176,.20);
+}
+#screen .stat-grid.stat-grid-refined .stat-featured::after{
+ content:"";position:absolute;right:-44px;bottom:-77px;width:140px;height:140px;
+ border-radius:50%;border:19px solid rgba(255,255,255,.07);pointer-events:none;
+}
+#screen .stat-grid.stat-grid-refined .stat-featured .stat-icon{
+ color:#fff;background:rgba(255,255,255,.16);
+}
+#screen .stat-grid.stat-grid-refined .stat-featured .stat-copy span,
+#screen .stat-grid.stat-grid-refined .stat-featured .stat-copy strong{
+ color:#fff;
+}
+#screen .stat-grid.stat-grid-refined .stat-copy,#screen .stat-grid.stat-grid-refined .stat-icon{
+ position:relative;z-index:1;
+}
+#screen .dashboard-grid .card{border-color:#e6ddf1;box-shadow:0 5px 23px rgba(45,28,85,.045)}
+#screen .dashboard-grid .empty{min-height:105px;padding:17px 14px}
+#screen .dashboard-grid .empty .empty-icon{width:42px;height:42px;margin-bottom:7px}
+#screen .dashboard-grid .empty h3{font-size:14px}
+
+/* Edição de foto exclusiva de Painel e aparência. */
+#screen .presentation-photo-tools{
+ display:flex;align-items:center;gap:14px;min-width:0;
+ border:1px solid #e6def0;border-radius:15px;
+ background:rgba(255,255,255,.74);padding:12px 14px;
+}
+#screen .presentation-photo-avatar{flex:none}
+#screen .presentation-photo-avatar .account-photo-preview{
+ width:66px;height:66px;flex-basis:66px;margin:0;
+}
+#screen .presentation-photo-actions{flex:1;min-width:0}
+#screen .presentation-photo-actions>strong{display:block;color:#37264a;font-size:14px}
+#screen .presentation-photo-actions p{font-size:11.5px;color:#7a6c88;margin:3px 0 10px;line-height:1.45}
+#screen .presentation-photo-buttons{display:flex;gap:8px;flex-wrap:wrap}
+#screen .presentation-photo-buttons .button{min-height:36px;padding:8px 12px;cursor:pointer}
+#screen .presentation-photo-buttons .account-photo-choose{position:relative}
+#screen .presentation-photo-buttons input[type=file]{
+ position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;
+}
+#screen .presentation-section-title:not(:has(.presentation-section-icon)){padding-left:1px}
+
+/* Botões claro/escuro acessíveis, com estado ativo visível. */
+#screen .appearance-mode-picker{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:10px;max-width:540px;
+}
+#screen .appearance-mode-option{
+ display:flex;align-items:center;justify-content:center;gap:12px;
+ min-height:54px;padding:11px 15px;border-radius:14px;
+ background:#fff;border:1px solid #ddd1ed;color:#59456f;
+ font-weight:850;font-size:13px;cursor:pointer;transition:border-color .16s,background .16s;
+}
+#screen .appearance-mode-option>span{font-size:22px;line-height:1}
+#screen .appearance-mode-option.is-active{
+ color:#6334b3;border:2px solid #8052d7;
+ background:#f2eaff;box-shadow:0 3px 12px rgba(78,35,137,.08);
+}
+#screen .appearance-mode-option:not(.is-active):hover{border-color:#9d7adf;background:#fbf9ff}
+#screen .appearance-mode-option:disabled{cursor:progress;opacity:.7}
+
+@media(max-width:1150px){
+ #screen .stat-grid.stat-grid-refined[data-count="3"],
+ #screen .stat-grid.stat-grid-refined[data-count="4"]{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+}
+@media(max-width:700px){
+ #screen .stat-grid.stat-grid-refined{gap:10px}
+ #screen .stat-grid.stat-grid-refined[data-count="2"]{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+ #screen .stat-grid.stat-grid-refined .stat{padding:14px 12px;min-height:94px}
+ #screen .stat-grid.stat-grid-refined .stat .stat-copy span{font-size:10.5px}
+ #screen .stat-grid.stat-grid-refined .stat .stat-copy strong{font-size:24px}
+ #screen .presentation-photo-tools{align-items:flex-start;padding:12px}
+}
+@media(max-width:480px){
+ #screen .stat-grid.stat-grid-refined[data-count="2"],
+ #screen .stat-grid.stat-grid-refined[data-count="3"],
+ #screen .stat-grid.stat-grid-refined[data-count="4"]{
+  grid-template-columns:minmax(0,1fr);
+ }
+ #screen .stat-grid.stat-grid-refined[data-count="1"]{
+  grid-template-columns:minmax(0,1fr);
+ }
+ #screen .stat-grid.stat-grid-refined .stat{min-height:89px}
+ #screen .presentation-photo-tools{gap:10px}
+ #screen .presentation-photo-avatar .account-photo-preview{width:54px;height:54px;flex-basis:54px}
+ #screen .appearance-mode-picker{gap:8px}
+ #screen .appearance-mode-option{min-height:48px;padding:9px 10px;gap:7px}
+}
+
+/* Dark mode sistêmico: cores reais, não inversão de tela/imagens. */
+html[data-pet-mode="dark"]{
+ color-scheme:dark;
+ --canvas:#120f1f;--white:#1e1a30;--ink:#f4f0ff;
+ --soft:#c2b9d4;--muted:#aba0c3;--line:#3b3452;
+ --primary:#a889ff;--primary-dark:#8d67ef;--primary-wash:#302447;
+ --violet-light:#262137;--shadow:0 8px 28px rgba(0,0,0,.16);
+}
+html[data-pet-mode="dark"] body{background:#120f1f;color:#f2eefb}
+html[data-pet-mode="dark"] :is(.sidebar,.topbar,.main-column,.content,.footer){
+ background-color:#120f1f;color:#efe8ff;border-color:#3c3451;
+}
+html[data-pet-mode="dark"] .sidebar{background:#191629}
+html[data-pet-mode="dark"] .topbar{background:#1a172b}
+html[data-pet-mode="dark"] .footer{color:#b7accb}
+html[data-pet-mode="dark"] :is(.brand,.sidebar-footer){border-color:#363049}
+html[data-pet-mode="dark"] :is(.brand-copy strong,.sidebar-footer strong,#current-page,.breadcrumb-current){color:#f4eefe}
+html[data-pet-mode="dark"] :is(.brand-copy small,.sidebar-footer small,.topbar-context,.nav-caption,.today-label){color:#b3a6ca}
+html[data-pet-mode="dark"] .nav-link{color:#c6badb}
+html[data-pet-mode="dark"] .nav-link:hover{background:#302549;color:#f6f0ff}
+html[data-pet-mode="dark"] .nav-link.active{background:#382757;color:#e6d8ff}
+html[data-pet-mode="dark"] :is(.profile-button,.icon-button){background:#242037;border-color:#40365b;color:#e5dafa}
+html[data-pet-mode="dark"] :is(.page-title,#screen .page-title){color:#faf6ff}
+html[data-pet-mode="dark"] :is(.page-subtitle,.page-header p){color:#b7accb}
+
+/* Superfícies e textos de todas as páginas. */
+html[data-pet-mode="dark"] #screen :is(
+ .card,.account-hub,.account-hub-main,.account-hub-sidebar,.account-hub-pane,
+ .account-setting-card,.account-channel-card,.account-download-card,
+ .presentation-settings-card,.presentation-option,.account-birthday-panel,
+ .profile-commissions,.profile-commission-chip,.account-danger-zone,
+ .account-email-management,.account-photo-editor,.reminder-list,
+ .reminder-list-row,.chron-card,.chron-reminder-panel,
+ .admin-panel,.admin-page,.admin-commission-item,.commission-filter-bar,
+ .commission-list-item,.commission-tile-v2,.demand-activity-card,
+ .demand-activity-card.status-pendente,.profile-commission-counter,
+ .account-push-panel,.presentation-photo-tools
+){
+ background:#211c34!important;border-color:#43385d!important;
+ color:#f3edff;box-shadow:0 6px 22px rgba(4,2,15,.10);
+}
+html[data-pet-mode="dark"] #screen :is(
+ .presentation-settings-card,.account-birthday-panel,.profile-commissions,.account-hub-pane,
+ .account-channel-card,.account-setting-card,.commission-filter-bar
+){background:#201b31!important}
+html[data-pet-mode="dark"] #screen :is(
+ .profile-commission-chip,.presentation-option,.reminder-list-row,.admin-commission-item,
+ .commission-list-item,.demand-activity-card,.presentation-theme-swatch,
+ .stat-grid.stat-grid-refined .stat:not(.stat-featured)
+){background:#29223e!important;border-color:#493b69!important;color:#f2ebff}
+html[data-pet-mode="dark"] #screen .stat-grid.stat-grid-refined .stat-featured{
+ background:linear-gradient(126deg,#7143cb,#472084 95%)!important;
+ border-color:#7950d4!important;
+}
+html[data-pet-mode="dark"] #screen .stat-grid.stat-grid-refined .stat-featured :is(span,strong){
+ color:#fff!important;
+}
+html[data-pet-mode="dark"] #screen :is(
+ h1,h2,h3,h4,.section-head h2,.account-pane-intro h2,
+ .presentation-section-title h3,.presentation-option-label strong,
+ .account-birthday-heading h3,.profile-commissions-heading h3,
+ .stat-grid.stat-grid-refined .stat-copy strong,.profile-commission-counter strong,
+ .reminder-list-info strong,.demand-activity-title,.commission-v2-copy h3,
+ .presentation-photo-actions>strong,.profile-commission-chip,
+ .admin-section-heading h2,.profile-identity h2
+){color:#f7f2ff}
+html[data-pet-mode="dark"] #screen :is(
+ p,small,.field-hint,.account-pane-intro p,.presentation-section-title p,
+ .presentation-option-label small,.account-birthday-heading p,.profile-commissions-subtitle,
+ .stat-grid.stat-grid-refined .stat-copy span,.profile-email,
+ .demand-activity-label,.profile-commission-counter span,
+ .presentation-photo-actions p,.commission-v2-members,.reminder-list-dates
+){color:#beb1d2}
+html[data-pet-mode="dark"] #screen :is(
+ .pill.soft,.profile-role-badge,.task-status,.notice-cell-switch,
+ .presentation-option-icon,.presentation-section-icon,.stat-icon.purple,
+ .profile-commission-avatar,.account-birthday-icon,.empty-icon,
+ .profile-commission-counter,.presentation-theme-swatch.selected
+){background:#38294f!important;border-color:#584475!important;color:#d6c4ff}
+html[data-pet-mode="dark"] #screen :is(
+ .button:not(.primary),.profile-customize-link,
+ .presentation-theme-swatch,.appearance-mode-option,.account-hub-nav-btn,
+ .commission-tile-menu>summary
+){background:#2b2440!important;color:#eadfff!important;border-color:#524367!important}
+html[data-pet-mode="dark"] #screen :is(
+ .button.primary,.appearance-mode-option.is-active
+){background:#7850dc!important;color:#fff!important;border-color:#9875eb!important}
+html[data-pet-mode="dark"] #screen :is(.button.primary:hover,.appearance-mode-option.is-active:hover){
+ background:#6740c3!important;
+}
+html[data-pet-mode="dark"] #screen :is(
+ .account-hub-nav-btn.is-active,.presentation-theme-swatch.selected
+){background:#3a295d!important;color:#e8ddff!important;border-color:#9166e9!important}
+html[data-pet-mode="dark"] #screen :is(
+ input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]),
+ select,textarea,[contenteditable="true"],.select,.visualization-select
+){background:#2a243d!important;border-color:#51436b!important;color:#f3ebff!important}
+html[data-pet-mode="dark"] #screen input::placeholder,
+html[data-pet-mode="dark"] #screen textarea::placeholder{color:#a396ba}
+html[data-pet-mode="dark"] #screen :is(label,legend,th,td){color:#e0d5f0}
+html[data-pet-mode="dark"] #screen :is(hr,.divider){border-color:#433858}
+html[data-pet-mode="dark"] #screen :is(.placeholder-row,.task-list-row){border-color:#403651}
+html[data-pet-mode="dark"] #screen :is(.empty,.empty.small,.status-note){
+ background:#242039;color:#c8bce0;border-color:#44365d;
+}
+html[data-pet-mode="dark"] #screen .commission-tile-link-v2{
+ background:linear-gradient(112deg,#29213c,#342748)!important;
+ color:#faf5ff;
+}
+html[data-pet-mode="dark"] #screen .commission-v2-copy :is(h3,.commission-v2-members){color:#f6efff}
+html[data-pet-mode="dark"] #screen .commission-v2-view{background:#443259;color:#f5edff}
+html[data-pet-mode="dark"] #screen .commission-tile-menu-items{
+ background:#29213e;border:1px solid #55416d;
+}
+html[data-pet-mode="dark"] #screen .dashboard-grid .demand-activity-date{
+ border-color:#504360;
+}
+html[data-pet-mode="dark"] #screen .dashboard-grid>.card:first-child>.section-head>.button{
+ background:#7851df!important;color:#fff!important;
+}
+
+/* Manter legíveis as cores/imagens escolhidas como fundo do perfil. */
+html[data-pet-mode="dark"] #screen .profile-hero:not(.theme-midnight) .profile-identity h2{
+ color:#281742;
+}
+html[data-pet-mode="dark"] #screen .profile-hero:not(.theme-midnight) .profile-email{color:#65577e}
+html[data-pet-mode="dark"] #screen .profile-hero:not(.theme-midnight) .profile-section-eyebrow{color:#704da2}
+html[data-pet-mode="dark"] #screen .profile-hero:not(.theme-midnight) .profile-hero-brand{color:#6b538f}
+html[data-pet-mode="dark"] #screen .profile-hero.theme-midnight :is(.profile-identity h2,.profile-email){color:#fff}
+html[data-pet-mode="dark"] #screen .profile-background-preview:not(.theme-midnight) :is(strong,small){
+ color:#322348;
+}
+html[data-pet-mode="dark"] #screen .profile-background-preview.theme-midnight :is(strong,small){
+ color:#fff;
+}
+html[data-pet-mode="dark"] #screen .presentation-photo-avatar .account-photo-preview{
+ background:#39264f;border-color:#554369;color:#e9dfff;
+}
+html[data-pet-mode="dark"] #screen .appearance-mode-option:not(.is-active):hover{
+ background:#3d3155!important;border-color:#9d7adf!important;
+}
