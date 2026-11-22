@@ -1610,10 +1610,12 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
           stage.dueAt&&stage.label!=="Evento"&&!stage.completedAt&&
           Number.isFinite(parseDue(stage.dueAt))&&parseDue(stage.dueAt)<Date.parse(stamp));
         if(!overdue)fail("Somente uma demanda atrasada pode ser encerrada como não concluída.",409);
-        const result=await db.prepare("UPDATE tasks SET archived_at=?,closure_outcome='nao_concluida',completed_late=0,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND archived_at IS NULL AND version=?")
-          .bind(stamp,user.id,stamp,old.id,old.version).run();
+        const [result]=await db.batch([
+          db.prepare("UPDATE tasks SET archived_at=?,closure_outcome='nao_concluida',completed_late=0,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND archived_at IS NULL AND version=?")
+            .bind(stamp,user.id,stamp,old.id,old.version),
+          db.prepare("DELETE FROM task_attachments WHERE task_id=? AND EXISTS (SELECT 1 FROM tasks WHERE id=? AND archived_at=?)").bind(old.id,old.id,stamp)
+        ]);
         if(!result.meta.changes)fail("Outra pessoa atualizou a demanda. Atualize e tente novamente.",409);
-        await db.prepare("DELETE FROM task_attachments WHERE task_id=?").bind(old.id).run();
         await audit(db,old.id,user,"Encerrou como não concluída","As conclusões individuais e coletivas já registradas foram preservadas.");
         return answer({ok:true,archived:true,closureOutcome:"nao_concluida"});
       }
@@ -1670,12 +1672,14 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         });
         await db.prepare("UPDATE email_queue SET status='cancelado',error_message='Participação concluída' WHERE task_id=? AND status IN ('pendente','falhou') AND kind IN ('due_soon','event_soon','event_today','overdue')").bind(old.id).run();
          await db.prepare("DELETE FROM deadline_notice_log WHERE task_id=?").bind(old.id).run();
-         const result=await db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,closure_outcome=?,completed_late=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?")
-          .bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,
-            finished?stamp:null,finished?"concluida":null,finished?(completedLate?1:0):null,
-            user.id,stamp,old.id,old.version).run();
+         const [result]=await db.batch([
+          db.prepare("UPDATE tasks SET commission_done=?,user_done=?,deadlines=?,status=?,archived_at=?,closure_outcome=?,completed_late=?,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND version=?")
+            .bind(JSON.stringify(done),JSON.stringify(userDone),JSON.stringify(stages),finished?"concluida":old.status,
+              finished?stamp:null,finished?"concluida":null,finished?(completedLate?1:0):null,
+              user.id,stamp,old.id,old.version),
+          db.prepare("DELETE FROM task_attachments WHERE task_id=? AND EXISTS (SELECT 1 FROM tasks WHERE id=? AND archived_at=?)").bind(old.id,old.id,stamp)
+        ]);
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
-        if(finished)await db.prepare("DELETE FROM task_attachments WHERE task_id=?").bind(old.id).run();
         const names=[];
         for(const id of changedUsers){const row=await db.prepare("SELECT name FROM users WHERE id=?").bind(id).first();names.push(row?.name||"Usuário");}
         for(const id of changedCommissions){const row=await db.prepare("SELECT name FROM commissions WHERE id=?").bind(id).first();names.push("Comissão "+(row?.name||id));}
