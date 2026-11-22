@@ -1704,9 +1704,22 @@ await page.locator('a[data-route="reunioes"]').click();
   "Altura dos dias deve ser compacta no desktop: "+JSON.stringify(desktopChron));
  assert.ok(desktopChron.toolbarWidth<desktopChron.pageWidth-35,
   "Filtros não devem criar faixa vazia enorme no desktop: "+JSON.stringify(desktopChron));
+ assert.equal(await page.locator(".chron-page--calendar-month").count(),1,
+  "O calendário mensal recebe o estilo compacto isolado.");
  await page.locator('[data-do="cron-view"][data-view="lista"]').click();
- await page.setViewportSize({width:1420,height:900});
  await page.locator(".chron-card").first().waitFor({timeout:10000});
+ assert.equal(await page.locator(".chron-page--calendar-month").count(),0,
+  "A visualização em lista não recebe o estilo compacto.");
+ const listGeometry=await page.locator(".chron-page").evaluate(element=>{
+  const width=element.getBoundingClientRect().width;
+  const toolbar=element.querySelector(".chron-toolbar").getBoundingClientRect().width;
+  return {page:width,toolbar};
+ });
+ assert.ok(listGeometry.page>desktopChron.pageWidth+65,
+  "A lista recupera a largura original, sem estreitamento indevido: "+JSON.stringify({listGeometry,desktopChron}));
+ assert.ok(Math.abs(listGeometry.toolbar-listGeometry.page)<10,
+  "A barra de filtros volta a ocupar a largura da lista: "+JSON.stringify(listGeometry));
+ await page.setViewportSize({width:1420,height:900});
  const pastCard=page.locator(".chron-card").filter({hasText:"Evento passado"});
  assert.equal(await pastCard.locator(".chron-date--done").count(),1,"Evento passado fica verde automaticamente.");
  assert.equal(await pastCard.locator('[data-do="cron-remind"]').count(),0,"Evento passado não exibe Lembrar.");
