@@ -4939,6 +4939,52 @@ function syncBrowserSession(){
  location.hash="#/inicio";
  reload();
 }
+// Menu mobile: bloqueia o conteúdo atrás e oferece rolagem por toque no WebView.
+let menuBackgroundScrollY=null;
+function toggleMobileSidebar(open){
+ const drawer=$("#sidebar"),overlay=$("#overlay");
+ if(!drawer||!overlay)return;
+ if(open){
+  if(menuBackgroundScrollY===null){
+   menuBackgroundScrollY=window.scrollY||document.documentElement.scrollTop||0;
+   document.body.style.setProperty("--pet-menu-background-offset",(-menuBackgroundScrollY)+"px");
+   document.documentElement.classList.add("pet-menu-open");
+   document.body.classList.add("pet-menu-open");
+  }
+  drawer.classList.add("open");
+  overlay.hidden=false;
+ }else{
+  drawer.classList.remove("open");
+  overlay.hidden=true;
+  if(menuBackgroundScrollY!==null){
+   const oldScrollY=menuBackgroundScrollY;
+   menuBackgroundScrollY=null;
+   document.documentElement.classList.remove("pet-menu-open");
+   document.body.classList.remove("pet-menu-open");
+   document.body.style.removeProperty("--pet-menu-background-offset");
+   window.scrollTo(0,oldScrollY);
+  }
+ }
+}
+function setupMobileDrawerTouchScroll(){
+ const drawer=$("#sidebar");if(!drawer)return;
+ let lastTouchY=null;
+ drawer.addEventListener("touchstart",event=>{
+  lastTouchY=drawer.classList.contains("open")&&event.touches.length===1
+   ?event.touches[0].clientY:null;
+ },{passive:true});
+ drawer.addEventListener("touchmove",event=>{
+  if(lastTouchY===null||!drawer.classList.contains("open")||event.touches.length!==1)return;
+  const nextY=event.touches[0].clientY;
+  const deltaY=lastTouchY-nextY;
+  lastTouchY=nextY;
+  if(event.cancelable)event.preventDefault();
+  drawer.scrollTop+=deltaY;
+ },{passive:false});
+ const reset=()=>{lastTouchY=null;};
+ drawer.addEventListener("touchend",reset,{passive:true});
+ drawer.addEventListener("touchcancel",reset,{passive:true});
+}
 function start(){
  if(hasStarted)return;
  hasStarted=true;
@@ -4947,9 +4993,10 @@ function start(){
  if(!location.hash)location.replace(location.pathname+location.search+"#/inicio");
  
  
- $("#open-menu")?.addEventListener("click",()=>{$("#sidebar").classList.add("open");$("#overlay").hidden=false});
- $("#close-menu")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
- $("#overlay")?.addEventListener("click",()=>{$("#sidebar").classList.remove("open");$("#overlay").hidden=true});
+ setupMobileDrawerTouchScroll();
+ $("#open-menu")?.addEventListener("click",()=>toggleMobileSidebar(true));
+ $("#close-menu")?.addEventListener("click",()=>toggleMobileSidebar(false));
+ $("#overlay")?.addEventListener("click",()=>toggleMobileSidebar(false));
  // Ao voltar pelo Android/Chrome, fechar primeiro qualquer detalhe aberto.
  // A janela possui sua própria entrada de histórico, mas mantém a URL do Cronograma.
  window.addEventListener("popstate",event=>{
@@ -4967,7 +5014,7 @@ function start(){
  window.addEventListener("hashchange",()=>{
    // Eventos duplicados para a mesma rota não devem fechar uma confirmação aberta.
    if(location.hash===lastHash)return;
-   $("#sidebar")?.classList.remove("open");$("#overlay").hidden=true;
+   toggleMobileSidebar(false);
    closeCommissionDialog();closeAuthMessage();closeNotice(false);closeFinishDialog();closeMailPreview();
    const destination=location.hash;
    if(destination!==lastHash&&(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges())){
