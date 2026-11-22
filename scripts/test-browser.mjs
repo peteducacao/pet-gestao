@@ -1704,8 +1704,9 @@ await page.locator('a[data-route="reunioes"]').click();
  });
  assert.ok(desktopChron.dayHeight>=45&&desktopChron.dayHeight<=75,
   "Altura dos dias deve ser compacta no desktop: "+JSON.stringify(desktopChron));
- assert.ok(desktopChron.toolbarWidth<desktopChron.pageWidth-35,
-  "Filtros não devem criar faixa vazia enorme no desktop: "+JSON.stringify(desktopChron));
+ assert.ok(desktopChron.toolbarWidth<=desktopChron.pageWidth+3&&
+  desktopChron.toolbarWidth>=desktopChron.pageWidth-12,
+  "No layout aprovado, a faixa acompanha a largura do calendário: "+JSON.stringify(desktopChron));
  assert.equal(await page.locator(".chron-page--calendar-month").count(),1,
   "O calendário mensal recebe o estilo compacto isolado.");
  await page.locator('[data-do="cron-view"][data-view="lista"]').click();
@@ -1721,7 +1722,8 @@ await page.locator('a[data-route="reunioes"]').click();
   return {page:pageRect.width,toolbar:bar.width,sourceWidth:source.width,yearWidth:year.width,
    centerOffset:Math.abs((bar.left+bar.right)/2-(pageRect.left+pageRect.right)/2),
    sourceToYear:year.left-source.right,actionGap:actions.left-year.right,
-   sourceTop:source.top,yearTop:year.top,actionsTop:actions.top};
+   sourceTop:source.top,yearTop:year.top,actionsTop:actions.top,
+   sourceBottom:source.bottom,yearBottom:year.bottom,actionsBottom:actions.bottom};
  });
  assert.ok(listGeometry.page>desktopChron.pageWidth+65,
   "A lista recupera a largura confortável de antes: "+JSON.stringify({listGeometry,desktopChron}));
@@ -1732,8 +1734,8 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(listGeometry.sourceToYear>=0&&listGeometry.sourceToYear<=18&&listGeometry.actionGap>=0,
   "Filtros mantêm espaçamentos coerentes: "+JSON.stringify(listGeometry));
  assert.ok(Math.abs(listGeometry.sourceTop-listGeometry.yearTop)<2&&
-  Math.abs(listGeometry.yearTop-listGeometry.actionsTop)<12,
-  "Botões e seletores na mesma linha: "+JSON.stringify(listGeometry));
+  Math.abs(listGeometry.yearBottom-listGeometry.actionsBottom)<6,
+  "Botões e seletores alinhados pela base: "+JSON.stringify(listGeometry));
  assert.equal(await page.locator('.chron-page--approved .chron-month-nav strong svg').count(),1,
   "Faixa mensal conserva ícone de calendário.");
  await page.setViewportSize({width:1420,height:900});
