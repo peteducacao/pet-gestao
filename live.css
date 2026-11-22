@@ -5609,7 +5609,16 @@ body.history-drawer-open{overflow:hidden}
 #screen .chron-approved-heading .chron-heading-icon svg{width:26px;height:26px}
 #screen .chron-approved-heading .page-title{margin-bottom:0}
 #screen .chron-approved-heading .page-subtitle{display:none}
-#screen .chron-approved-heading .page-actions{align-self:center}
+#screen .chron-approved-heading .page-actions{
+ display:flex;align-items:center;justify-content:flex-end;
+ flex-wrap:nowrap;gap:12px;align-self:center;margin:0;
+}
+#screen .chron-approved-heading .page-actions>.pet-context-help--actions{
+ display:inline-flex;align-items:center;flex:0 0 auto;
+}
+#screen .chron-approved-heading .page-actions>[data-do="cron-new"]{
+ flex:0 0 auto;
+}
 #screen .chron-page--approved{
  width:100%;max-width:1200px;margin-inline:auto;
  gap:14px;
@@ -5749,7 +5758,10 @@ body.history-drawer-open{overflow:hidden}
  #screen .chron-approved-heading{margin-bottom:16px;align-items:flex-start}
  #screen .chron-approved-heading>div:first-child{padding-left:0}
  #screen .chron-approved-heading .chron-heading-icon{display:none}
- #screen .chron-approved-heading .page-actions{align-self:auto}
+ #screen .chron-approved-heading .page-actions{
+  align-self:auto;justify-content:flex-start;
+  margin-top:12px;gap:9px;max-width:100%;
+ }
  #screen .chron-page--approved,
  #screen .chron-page--approved.chron-page--calendar-month{max-width:100%;gap:11px}
  #screen .chron-page--approved .chron-toolbar{
