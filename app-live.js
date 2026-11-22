@@ -720,7 +720,11 @@ let noticePromiseResolve=null,noticeReturnFocus=null,noticeAutoCloseTimer=null;
 function closeNotice(confirmed=false){
  if(noticeAutoCloseTimer){clearTimeout(noticeAutoCloseTimer);noticeAutoCloseTimer=null;}
  const layer=$("#notice-dialog");
- if(layer){layer.hidden=true;layer.innerHTML=""}
+ if(layer){
+  // Diálogos nativos entram na camada superior do navegador, acima de qualquer modal.
+  if(typeof layer.close==="function"&&layer.open)layer.close();
+  layer.hidden=true;layer.innerHTML="";
+ }
  document.body.classList.remove("notice-open");
  if(noticePromiseResolve){const resolve=noticePromiseResolve;noticePromiseResolve=null;resolve(Boolean(confirmed))}
  if(noticeReturnFocus?.isConnected)noticeReturnFocus.focus();
@@ -743,6 +747,10 @@ function showNotice(message,{title="",kind="info",confirm=false,danger=false,sec
  '<button class="button primary" type="button" data-do="notice-cancel">Fechar</button>')+
  '</div></section>';
  layer.hidden=false;document.body.classList.add("notice-open");
+ // showModal usa a "top layer" nativa, não a pilha CSS dos demais overlays.
+ // Em ambientes antigos ou simulados, mantém o fallback visual existente.
+ layer.oncancel=event=>{event.preventDefault();closeNotice(false);};
+ if(typeof layer.showModal==="function")layer.showModal();
  layer.querySelector(confirm?'[data-do="notice-confirm"]':'.notice-dialog-actions [data-do="notice-cancel"]')?.focus();
  // Avisos sem escolha desaparecem sozinhos após três segundos, sem contador.
  // Senhas temporárias e decisões que exigem confirmação não fecham automaticamente.
