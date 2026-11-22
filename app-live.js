@@ -1352,6 +1352,19 @@ function cronDetailsDialog(){
   '<div class="chron-detail-actions"><button type="button" class="button ghost" data-do="cron-edit" data-id="'+esc(entry.id)+'">'+ico("edit")+' Editar atividade</button>'+
   '<button type="button" class="button ghost chron-delete-detail" data-do="cron-delete" data-id="'+esc(entry.id)+'">'+ico("trash")+' Excluir</button></div></section></div>';
 }
+// Compara o formulário atual com o conteúdo ao abrir o editor.
+function cronEditorSnapshot(form=$("#cron-form")){
+ return form?JSON.stringify(userFields(form)):"";
+}
+function rememberCronEditor(){
+ const form=$("#cron-form");
+ if(form)form.dataset.initialSnapshot=cronEditorSnapshot(form);
+}
+function hasUnsavedCronChanges(){
+ const form=$("#cron-form");
+ return Boolean(form&&state.cronEditing&&form.dataset.initialSnapshot!==undefined&&
+  cronEditorSnapshot(form)!==form.dataset.initialSnapshot);
+}
 function cronEditor(){
  const editing=state.cronEditing;
  if(!editing)return "";
@@ -3768,12 +3781,18 @@ async function handleClick(e){
   }finally{if(b.isConnected)b.disabled=false}
   return;
  }
- if(action==="cron-new"){state.cronEditing="new";state.cronReminder=null;state.cronDetails=null;render();$("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return}
- if(action==="cron-close"){state.cronEditing=null;render();return}
+ if(action==="cron-new"){state.cronEditing="new";state.cronReminder=null;state.cronDetails=null;render();rememberCronEditor();$("#cron-form")?.scrollIntoView({block:"start",behavior:"smooth"});return}
+ if(action==="cron-close"){
+  if(hasUnsavedCronChanges()&&!await askConfirm("Deseja sair sem salvar as alterações desta atividade? Os dados editados serão perdidos.",{
+   title:"Alterações não salvas",kind:"warning",
+   cancelLabel:"Continuar editando",confirmLabel:"Sair sem salvar"
+  }))return;
+  state.cronEditing=null;render();return;
+ }
  if(action==="cron-edit"){
   if(!(state.cronItems||[]).some(x=>x.id===tid))return setToast("Atividade não encontrada.");
   if(state.cronDetails&&history.state?.petCronDetails)history.back();
-  state.cronEditing=tid;state.cronReminder=null;state.cronDetails=null;render();
+  state.cronEditing=tid;state.cronReminder=null;state.cronDetails=null;render();rememberCronEditor();
   $(".chron-editor-dialog [data-do='cron-close']")?.focus({preventScroll:true});return;
  }
  if(action==="cron-details"){openCronDetails(tid);return;}
@@ -4601,6 +4620,13 @@ async function handleSubmit(e){
   const fields=userFields(form),eventId=form.dataset.id;
   const payload={title:fields.title,description:fields.description||"",startDate:fields.startDate,endDate:fields.endDate,
    startTime:fields.startTime||null,endTime:fields.endTime||null,timeNote:fields.timeNote||null,location:fields.location||""};
+  const confirmed=await askConfirm(eventId?
+   'Salvar as alterações na atividade "'+String(fields.title||"").trim()+'"?':
+   'Cadastrar a atividade "'+String(fields.title||"").trim()+'" no Cronograma?',{
+    title:eventId?"Confirmar alterações":"Confirmar nova atividade",
+    cancelLabel:"Continuar editando",confirmLabel:eventId?"Salvar alterações":"Cadastrar atividade"
+   });
+  if(!confirmed)return;
   const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
   try{
    await request("/schedule"+(eventId?"/"+id(eventId):""),eventId?"PUT":"POST",payload);
@@ -5074,6 +5100,12 @@ function start(){
    else if(!$("#commission-dialog")?.hidden){e.preventDefault();closeCommissionDialog()}
     else if(!$("#finish-dialog")?.hidden){e.preventDefault();closeFinishDialog()}
    else if(state.cronDetails){e.preventDefault();closeCronDetails()}
+   else if(state.cronEditing){e.preventDefault();void (async()=>{
+    if(hasUnsavedCronChanges()&&!await askConfirm("Deseja sair sem salvar as alterações desta atividade? Os dados editados serão perdidos.",{
+     title:"Alterações não salvas",kind:"warning",cancelLabel:"Continuar editando",confirmLabel:"Sair sem salvar"
+    }))return;
+    state.cronEditing=null;render();
+   })();}
    else if(state.cronReminder){e.preventDefault();state.cronReminder=null;render()}
  }});
 
