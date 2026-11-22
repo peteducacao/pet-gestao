@@ -25,8 +25,10 @@ const starts=html.match(/id="startup-loading"/g)||[];
 assert.equal(starts.length,1,"Deve existir apenas uma tela de abertura.");
 assert.match(app,/finally\{document\.documentElement\.classList\.remove\("pet-booting"\)\}/,
  "A tela deve sumir mesmo após falha do bootstrap.");
-assert.match(sw,/CACHE_NAME="pet-gestao-public-shell-v20261121-perfil-mobile-v9"/,
- "A nova versão precisa substituir o cache PWA anterior.");
+assert.match(sw,/CACHE_NAME="pet-gestao-public-shell-v[0-9a-z-]+"/,
+ "O cache PWA precisa ser versionado.");
+assert.doesNotMatch(sw,/CACHE_NAME="pet-gestao-public-shell-v20261121-perfil-mobile-v9"/,
+ "O cache anterior do aplicativo não pode continuar ativo.");
 assert.match(sw,/\.\/index\.html/,"O index deve ficar disponível no cache offline.");
 const openingTags=html.match(/<svg\b/g)||[];
 const closingTags=html.match(/<\/svg>/g)||[];
