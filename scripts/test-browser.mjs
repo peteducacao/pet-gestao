@@ -411,6 +411,9 @@ try{
  }
  await page.setViewportSize({width:1420,height:900});
  await page.goto(origin+"/#/demandas");
+ // A etapa Postagem pode cair no mês seguinte; selecionar o período do próprio cenário.
+ await page.locator('select[data-filter="year"]').selectOption(postingDate.slice(0,4));
+ await page.locator('select[data-filter="month"]').selectOption(String(Number(postingDate.slice(5,7))-1));
  const oneCommittee=page.locator(".demand-activity-card").filter({hasText:"Atividade exclusiva da comissão"});
  await oneCommittee.waitFor({state:"visible",timeout:10000});
  assert.equal(await oneCommittee.locator(".demand-card-single.demand-card-committee").count(),1,"Comissão única visível");
