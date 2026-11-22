@@ -4844,6 +4844,43 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
 #screen .chron-calendar-day b.done{background:#31a36b}
 #screen .chron-calendar-day b.demand{background:#438de0}
 #screen .chron-calendar-day.active b{outline:1px solid #fff}
+
+/* Desktop: calendário mensal realmente compacto e controles sem faixa vazia. */
+@media(min-width:801px){
+ #screen .chron-page{
+  width:100%;max-width:920px;
+  margin-inline:auto;gap:13px;
+ }
+ #screen .chron-toolbar{
+  box-sizing:border-box;display:flex;
+  width:fit-content;max-width:100%;margin-inline:auto;
+  align-items:end;justify-content:center;
+  gap:10px;padding:11px 13px;
+ }
+ #screen .chron-origin-picker{
+  flex:0 0 205px;max-width:205px;
+ }
+ #screen .chron-year-picker{
+  flex:0 0 102px;max-width:102px;
+ }
+ #screen .chron-view-actions{
+  flex:0 1 auto;margin-left:0;flex-wrap:nowrap;gap:8px;
+ }
+ #screen .chron-month-nav{padding:2px 2px 0}
+ #screen .chron-calendar{padding:14px}
+ #screen .chron-weekdays{margin-bottom:7px}
+ #screen .chron-days{grid-auto-rows:64px;gap:5px}
+ #screen .chron-calendar-day{
+  width:100%;height:64px;min-height:64px;aspect-ratio:auto;
+  border-radius:9px;font-size:13px;
+ }
+}
+/* Em janelas menores, os controles quebram linha sem espalhar os botões. */
+@media(min-width:801px) and (max-width:1050px){
+ #screen .chron-toolbar{justify-content:flex-start}
+ #screen .chron-origin-picker{flex:0 1 195px}
+ #screen .chron-year-picker{flex:0 1 98px}
+}
 #screen .chron-day-caption{font-size:14px;font-weight:850;color:#4a375f}
 #screen .chron-year-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
 #screen .chron-year-month{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:18px 15px;border:1px solid #e9ddf3;border-radius:14px;background:#fff;color:#4d3a63;cursor:pointer;text-align:left}
