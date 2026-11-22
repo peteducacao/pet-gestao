@@ -1107,11 +1107,6 @@ function renderPresentationSettings(){
  ];
  return '<div class="account-pane-intro"><span class="profile-section-eyebrow">PERSONALIZAÇÃO</span>'+
   '<h2>Painel e aparência</h2><p>Escolha o que aparece na sua Visão geral e personalize a identificação. As preferências acompanham sua conta.</p></div>'+
-  '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("grid")+'</span><div><h3>Indicadores da Visão geral</h3><p>Ative apenas o que deseja acompanhar. Os cartões se reorganizam automaticamente.</p></div></div>'+
-  '<div class="presentation-options">'+entries.map(([key,label,desc,iconName])=>
-   '<label class="presentation-option"><span class="presentation-option-icon">'+ico(iconName)+'</span>'+
-   '<span class="presentation-option-label"><strong>'+label+'</strong><small>'+desc+'</small></span>'+
-   '<input type="checkbox" data-presentation-key="'+key+'" '+(p.dashboard?.[key]?"checked":"")+' aria-label="Exibir '+label+' no painel"></label>').join("")+'</div></section>'+
   '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("image")+'</span><div><h3>Fundo da identificação</h3><p>Escolha uma cor ou utilize uma fotografia. Seu nome e sua foto continuam legíveis.</p></div></div>'+
   '<div class="profile-background-preview profile-hero theme-'+profileThemeClass(p)+'"'+profileBackgroundStyle(p)+'>'+
   '<span class="profile-section-eyebrow">IDENTIFICAÇÃO</span><strong>'+esc(me?.name||"Meu perfil")+'</strong><small>PET EDUCAÇÃO · UFS</small></div>'+
@@ -1122,6 +1117,11 @@ function renderPresentationSettings(){
   '<input id="profile-background-upload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Enviar imagem para fundo do perfil"></label>'+
   (p.profileImage?'<button type="button" class="button ghost" data-do="presentation-remove-photo">'+ico("trash")+' Remover imagem</button>':"")+
   '</div><p class="field-hint">Imagem comprimida automaticamente para até 150 KB. A personalização afeta apenas o seu perfil.</p></section>'+
+  '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("grid")+'</span><div><h3>Indicadores da Visão geral</h3><p>Ative apenas o que deseja acompanhar. Os cartões se reorganizam automaticamente.</p></div></div>'+
+  '<div class="presentation-options">'+entries.map(([key,label,desc,iconName])=>
+   '<label class="presentation-option"><span class="presentation-option-icon">'+ico(iconName)+'</span>'+
+   '<span class="presentation-option-label"><strong>'+label+'</strong><small>'+desc+'</small></span>'+
+   '<input type="checkbox" data-presentation-key="'+key+'" '+(p.dashboard?.[key]?"checked":"")+' aria-label="Exibir '+label+' no painel"></label>').join("")+'</div></section>'+
   '<div class="presentation-save-row"><button type="button" class="button primary" data-do="presentation-save">'+ico("check")+' Salvar preferências</button>'+
   '<span>Essas opções não alteram demandas ou notificações.</span></div>';
 }
