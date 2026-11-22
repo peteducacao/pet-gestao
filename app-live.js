@@ -2327,7 +2327,7 @@ function taskFilePendingList(){
 function taskFileForm(t){
  if(!canSeeTaskPhotos())return "";
  return '<section class="task-files-section"><h3>'+ico("folder")+' Fotos da demanda</h3>'+
- '<p class="field-hint task-file-help">Anexe até 20 fotos (JPG, PNG ou WebP, até 25 MB cada). Mantemos a qualidade original, sem recortes ou compactação. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail.</p>'+
+ '<p class="field-hint task-file-help">Anexe até 20 fotos (JPG, PNG ou WebP, até 25 MB cada). Mantemos a qualidade original, sem recortes ou compactação. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail. Ao encerrar a demanda, os arquivos são excluídos definitivamente.</p>'+
  ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Fotos armazenadas</h4>'+taskFileList(t)+'</div>':"")+
  '<div class="task-file-picker"><span class="task-file-picker-label">Selecionar fotos</span><button type="button" class="task-file-picker-button" data-do="task-file-choose">Escolher arquivos</button></div><input id="task-file-input" class="task-file-native-input" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple aria-label="Escolher fotos da demanda">'+
  '<div id="task-file-selection" role="status" aria-live="polite">'+taskFilePendingList()+'</div>'+
@@ -2337,7 +2337,7 @@ function taskFileDetail(t){
  if(!canSeeTaskPhotos())return "";
  const count=(t.attachments||[]).length;
  return '<section class="card card-pad detail-accent-card task-detail-files"><h2 class="detail-card-heading">'+ico("folder")+' Fotos da demanda <span class="pill soft">'+count+'</span></h2>'+
- (count?taskFileList(t,true):'<p class="field-hint">Ainda não há arquivos armazenados.</p>')+
+ (count?taskFileList(t,true):'<p class="field-hint">'+(t.archivedAt?'As fotos foram removidas automaticamente ao encerrar esta demanda.':'Ainda não há arquivos armazenados.')+'</p>')+
  (!t.archivedAt?'<p class="field-hint">Para acrescentar arquivos, selecione Editar demanda.</p>':"")+'</section>';
 }
 async function uploadTaskFile(taskId,file,progress){
