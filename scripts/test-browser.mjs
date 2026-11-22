@@ -1276,7 +1276,8 @@ await page.locator('a[data-route="reunioes"]').click();
   "Painel principal deve ocultar os indicadores da aba Armazenamento");
  assert.equal(await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').count(),1,
   "Armazenamento possui entrada própria no menu administrativo");
- await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').click();
+ await page.locator('.admin-shortcuts a[href="#/admin/armazenamento"]').waitFor({state:"visible",timeout:10000});
+ await page.locator('.admin-shortcuts a[href="#/admin/armazenamento"]').click();
  await page.waitForURL("**/#/admin/armazenamento");
  await page.locator(".admin-page h1").getByText("Armazenamento").waitFor({state:"visible",timeout:10000});
  await page.locator("#admin-cloud-storage .admin-cloud-numbers").waitFor({state:"visible",timeout:10000});
@@ -1295,6 +1296,13 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator("#admin-cloud-storage").isVisible(),true,
   "Armazenamento aparece no celular na aba própria");
+ await page.locator(".admin-open-menu").click();
+ await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').waitFor({state:"visible",timeout:4000});
+ await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').click();
+ await page.waitForURL("**/#/admin/armazenamento");
+ await page.locator(".admin-sidebar.open").waitFor({state:"hidden",timeout:5000});
+ assert.equal(await page.locator("#admin-cloud-storage").isVisible(),true,
+  "Armazenamento continua visível após escolher sua aba no menu mobile");
  const cloudStorageGeometry=await page.locator("#admin-cloud-storage").evaluate(node=>{
   const box=node.getBoundingClientRect();
   return {boxRight:box.right,screen:innerWidth,pageWidth:document.documentElement.scrollWidth};
