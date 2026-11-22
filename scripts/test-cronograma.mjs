@@ -27,7 +27,18 @@ assert.ok(classified.find(x=>x.id==="terminada").completedAt,"Evento passado con
 assert.equal(classified.find(x=>x.id==="futura").completedAt,null,"Evento futuro não é concluído por marcação manual antiga.");
 scheduleRows=[];
 const valid={title:"Oficina de fotografia",description:"Formação",startDate:"2026-12-12",endDate:"2026-12-12",startTime:"14:00",endTime:"18:00",location:"Sala do PET"};
-await assert.rejects(api.saveSchedule(db,user,{...valid,startTime:"14:00",endTime:null}),/início e término/);
+const minimal={title:"Atividade com apenas nome e data",startDate:"2026-12-12"};
+assert.ok((await api.saveSchedule(db,user,minimal)).id,"Criar evento apenas com nome e início deve funcionar");
+const minimalInsert=calls.filter(x=>x.sql.startsWith("INSERT INTO schedule_entries")).at(-1);
+assert.equal(minimalInsert.args[4],"2026-12-12","Sem término, a API usa a data inicial como término técnico");
+assert.equal(minimalInsert.args[5],null,"Horário inicial não é obrigatório");
+assert.equal(minimalInsert.args[6],null,"Horário final não é obrigatório");
+assert.ok((await api.saveSchedule(db,user,{...minimal,startTime:"14:00"})).id,
+ "Apenas o horário inicial é aceito");
+assert.ok((await api.saveSchedule(db,user,{...minimal,endTime:"17:00"})).id,
+ "Apenas o horário final é aceito");
+await assert.rejects(api.saveSchedule(db,user,{...valid,title:""}),/nome da atividade/);
+await assert.rejects(api.saveSchedule(db,user,{...valid,startDate:""}),/período válido/);
 await assert.rejects(api.saveSchedule(db,user,{...valid,startTime:"19:00",endTime:"18:00"}),/término deve/);
 await assert.rejects(api.saveSchedule(db,user,{...valid,startDate:"2026-02-30"}),/período válido/);
 await assert.rejects(api.saveSchedule(db,noRole,valid),/Somente PETianos/);
