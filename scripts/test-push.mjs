@@ -15,6 +15,7 @@ const anotherUser={id:"outro-integrante",must_change_password:0};
 const deviceId="69a2f37e-0c6b-45f7-8a1f-6e8d314b72c9";
 const token="fake_fcm_"+("a".repeat(128));
 const devices=new Map(),notices=new Set(),preferences=new Map();
+const activeSession="a".repeat(64),activeSessions=new Set([activeSession]);
 let oauthRequests=0,deliveryRequests=0;
 const db={
  prepare(statement){
@@ -24,7 +25,7 @@ const db={
      async all(){
       if(statement.startsWith("SELECT s.* FROM web_push_subscriptions s"))return {results:[]};
       if(statement.startsWith("SELECT d.user_id,d.token,d.device_id"))
-       return {results:[...devices.values()].filter(d=>params.includes(d.user_id)).map(d=>({
+       return {results:[...devices.values()].filter(d=>activeSessions.has(d.session_hash)&&params.slice(1).includes(d.user_id)).map(d=>({
         ...d,new_demands:1,deadlines:1,overdue:1
        }))};
       throw Error("Consulta all inesperada: "+statement);
@@ -36,8 +37,8 @@ const db={
       }
       if(statement.startsWith("SELECT new_demands,deadlines,overdue FROM push_preferences"))
        return preferences.get(params[0])||null;
-      if(statement.startsWith("SELECT count(*) AS total FROM push_devices"))
-       return {total:[...devices.values()].filter(d=>d.user_id===params[0]).length};
+      if(statement.startsWith("SELECT COUNT(*) AS total FROM push_devices d JOIN sessions"))
+       return {total:[...devices.values()].filter(d=>d.user_id===params[0]&&activeSessions.has(d.session_hash)).length};
       throw Error("Consulta inesperada: "+statement);
      },
      async run(){
@@ -46,7 +47,7 @@ const db={
        return {meta:{changes:1}};
       }
       if(statement.startsWith("INSERT INTO push_devices")){
-       devices.set(params[0],{device_id:params[0],user_id:params[1],token:params[2]});
+       devices.set(params[0],{device_id:params[0],user_id:params[1],token:params[2],session_hash:params[5]});
        return {meta:{changes:1}};
       }
       if(statement.startsWith("DELETE FROM push_devices WHERE user_id=? AND device_id=?")){
@@ -112,7 +113,7 @@ try{
    {newDemands:true,deadlines:true,overdue:true});
  await assert.rejects(()=>registerPushDevice(db,user,{deviceId:"nada",token}),/Identificador Android inválido/);
  await assert.rejects(()=>registerPushDevice(db,user,{deviceId,token:"invalido"}),/Token Android inválido/);
- await registerPushDevice(db,user,{deviceId,token});
+ await registerPushDevice(db,user,{deviceId,token},activeSession);
  assert.equal((await getPushPreferences(db,user)).registeredDevices,1);
 
  await assert.rejects(()=>sendPushTest(env,user,{deviceId:"identificador-com-problema"}),
@@ -143,6 +144,10 @@ try{
  await unregisterPushDevice(db,anotherUser,{deviceId});
  assert.equal((await getPushPreferences(db,user)).registeredDevices,1,
   "Outra conta não pode desvincular o aparelho");
+ activeSessions.delete(activeSession);
+ assert.equal((await getPushPreferences(db,user)).registeredDevices,0,
+  "Sessão encerrada não pode permanecer cadastrada para push");
+ activeSessions.add(activeSession);
  await unregisterPushDevice(db,user,{deviceId});
  assert.equal((await getPushPreferences(db,user)).registeredDevices,0);
  console.log("Firebase push (local): UUID Android válido, registro, isolamento, envio, deduplicação e preferências OK.");
