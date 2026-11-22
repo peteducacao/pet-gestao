@@ -2000,7 +2000,7 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.waitForFunction(()=>[...document.querySelectorAll(".chron-card-top strong")].some(x=>x.textContent==="Atividade apenas com nome e data"));
  await page.locator('[data-do="cron-delete"][data-id="'+minimalCreated.id+'"]').click();
  await page.locator('#notice-dialog [data-do="notice-confirm"]').click();
- await page.waitForFunction(()=>!document.querySelector('[data-do="cron-delete"][data-id="'+minimalCreated.id+'"]'));
+ await page.waitForFunction(id=>!document.querySelector('[data-do="cron-delete"][data-id="'+id+'"]'),minimalCreated.id);
  await page.goto(origin+"/#/conta");
  await page.locator('[data-do="account-tab"][data-tab="atalhos"]').click();
  await page.locator("#quicknav-enabled").waitFor();
