@@ -5916,3 +5916,31 @@ body.history-drawer-open{overflow:hidden}
     z-index: 105;
   }
 }
+
+/* Cronograma: ao editar uma atividade existente, formulário centralizado na tela.
+   Nova atividade continua no fluxo normal da página. */
+#screen .chron-edit-overlay {
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  background: rgba(24, 14, 47, .72);
+}
+#screen .chron-edit-overlay .chron-editor-dialog {
+  box-sizing: border-box;
+  width: min(600px, 100%);
+  max-width: 100%;
+  max-height: calc(100dvh - 24px);
+  min-height: 0;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(20, 9, 51, .28);
+}
+@media (max-width: 600px) {
+  #screen .chron-edit-overlay .chron-editor-dialog {
+    width: 100%;
+    padding: 18px 15px;
+    border-radius: 16px;
+  }
+}
