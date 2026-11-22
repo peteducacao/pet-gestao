@@ -723,6 +723,7 @@ function closeNotice(confirmed=false){
  if(layer){
   // Diálogos nativos entram na camada superior do navegador, acima de qualquer modal.
   if(typeof layer.close==="function"&&layer.open)layer.close();
+  else layer.removeAttribute("open");
   layer.hidden=true;layer.innerHTML="";
  }
  document.body.classList.remove("notice-open");
@@ -751,6 +752,7 @@ function showNotice(message,{title="",kind="info",confirm=false,danger=false,sec
  // Em ambientes antigos ou simulados, mantém o fallback visual existente.
  layer.oncancel=event=>{event.preventDefault();closeNotice(false);};
  if(typeof layer.showModal==="function")layer.showModal();
+ else layer.setAttribute("open","");
  layer.querySelector(confirm?'[data-do="notice-confirm"]':'.notice-dialog-actions [data-do="notice-cancel"]')?.focus();
  // Avisos sem escolha desaparecem sozinhos após três segundos, sem contador.
  // Senhas temporárias e decisões que exigem confirmação não fecham automaticamente.
