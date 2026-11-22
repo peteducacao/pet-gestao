@@ -1873,7 +1873,8 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator(".chron-edit-overlay .chron-editor-dialog").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator(".chron-edit-overlay [role='dialog']").count(),1,
   "Editar atividade abre diálogo na tela, não formulário no topo do cronograma.");
- await page.setViewportSize({width:390,height:690});
+ // Testar altura realmente curta: num celular alto o formulário cabe sem rolagem.
+ await page.setViewportSize({width:390,height:480});
  const chronEditGeometry=await page.locator(".chron-editor-dialog").evaluate(el=>{
   const box=el.getBoundingClientRect();
   return {top:box.top,bottom:box.bottom,left:box.left,right:box.right,
