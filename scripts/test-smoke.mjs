@@ -35,17 +35,11 @@ await test("painel e fundo persistem por usuário sem alterar demandas",async()=
  assert.equal(initial.dashboard.active,true);
  assert.equal(initial.dashboard.updates,true);
  const changed={dashboard:{active:true,mine:false,overdue:false,completed:true,updates:false},
-  profileTheme:"ocean",profileImage:null,appearanceMode:"dark"};
+  profileTheme:"ocean",profileImage:null};
  assert.deepEqual(good(await api("/user-presentation","PUT",changed)).dashboard,changed.dashboard);
  assert.equal(good(await api("/user-presentation")).profileTheme,"ocean");
  assert.deepEqual(good(await api("/user-presentation")).dashboard,changed.dashboard);
- assert.equal(good(await api("/user-presentation")).appearanceMode,"dark","Modo escuro é salvo na conta.");
- assert.equal((await api("/user-presentation","PUT",{...changed,appearanceMode:"invalid"})).status,400,"Não aceitar modos desconhecidos.");
- const legacy={...changed};delete legacy.appearanceMode;
- good(await api("/user-presentation","PUT",legacy));
- assert.equal(good(await api("/user-presentation")).appearanceMode,"dark","Cliente antigo não apaga a preferência.");
- good(await api("/user-presentation","PUT",{...changed,appearanceMode:"light"}));
- assert.equal(good(await api("/user-presentation")).appearanceMode,"light","Voltar ao claro funciona.");
+ assert.equal(Object.hasOwn(good(await api("/user-presentation")),"appearanceMode"),false,"Sistema não apresenta escolha de tema global.");
 });
 await test("avisos começam desligados e só ativam após Salvar todas",async()=>{
  const before=good(await api("/notification-preferences")).preferences;
