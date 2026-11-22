@@ -1689,6 +1689,24 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.goto(origin+"/#/cronograma");
  await page.reload({waitUntil:"domcontentloaded"}); // Recarregar bootstrap após adicionar fixture ao mock.
  await page.locator("#cron-source").waitFor({state:"visible",timeout:10000});
+ // O botão Ajuda pertence ao mesmo grupo de ações que Nova atividade, sem ficar solto.
+ const helpWithNew=page.locator(".chron-approved-heading .page-actions");
+ assert.equal(await helpWithNew.locator(".pet-context-help--actions").count(),1,
+  "Ajuda deve ficar junto de Nova atividade no cabeçalho do Cronograma.");
+ assert.equal(await helpWithNew.locator('[data-do="cron-new"]').count(),1,
+  "Nova atividade permanece no mesmo grupo.");
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:860});
+  const pos=await helpWithNew.evaluate(group=>{
+   const help=group.querySelector(".pet-context-trigger").getBoundingClientRect(),
+    newButton=group.querySelector('[data-do="cron-new"]').getBoundingClientRect();
+   return {gap:newButton.left-help.right,centerOffset:Math.abs((help.top+help.bottom)/2-(newButton.top+newButton.bottom)/2),
+    helpRight:help.right,buttonLeft:newButton.left,viewport:innerWidth,buttonRight:newButton.right};
+  });
+  assert.ok(pos.gap>=0&&pos.gap<=20&&pos.centerOffset<=4&&pos.buttonRight<=width,
+   "Ajuda alinhada imediatamente antes de Nova atividade em "+width+": "+JSON.stringify(pos));
+ }
+ await page.setViewportSize({width:1440,height:900});
  assert.equal(await page.locator("#cron-source").inputValue(),"cronograma","Filtro inicial é Cronograma.");
  assert.equal(await page.locator("#cron-source option").count(),3,"Filtro usa apenas um seletor.");
  assert.equal(await page.locator('.chron-page--approved .chron-view-option').count(),2,"Lista e Calendário estão lado a lado.");
