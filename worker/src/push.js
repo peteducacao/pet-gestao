@@ -14,7 +14,7 @@ const preferencesFor=row=>({
 });
 export async function getPushPreferences(db,user){
  const row=await db.prepare("SELECT new_demands,deadlines,overdue FROM push_preferences WHERE user_id=?").bind(user.id).first();
- const devices=await db.prepare("SELECT count(*) AS total FROM push_devices WHERE user_id=?").bind(user.id).first();
+ const devices=await db.prepare("SELECT COUNT(*) AS total FROM push_devices d JOIN sessions s ON s.token_hash=d.session_hash AND s.user_id=d.user_id WHERE d.user_id=? AND s.expires_at>?").bind(user.id,now()).first();
  return {preferences:preferencesFor(row),registeredDevices:Number(devices?.total||0)};
 }
 export async function savePushPreferences(db,user,payload){
@@ -30,7 +30,7 @@ export async function savePushPreferences(db,user,payload){
    .bind(user.id,prefs.newDemands?1:0,prefs.deadlines?1:0,prefs.overdue?1:0,now()).run();
  return getPushPreferences(db,user);
 }
-export async function registerPushDevice(db,user,payload){
+export async function registerPushDevice(db,user,payload,sessionHash=null){
  const token=String(payload.token||"").trim(), deviceId=String(payload.deviceId||"").trim();
  if(!/^[A-Za-z0-9:_-]{40,4096}$/.test(token))reject("Token Android inválido.");
  if(!/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(deviceId))reject("Identificador Android inválido.");
@@ -40,7 +40,7 @@ export async function registerPushDevice(db,user,payload){
  // entrar com outro usuário substitui o vínculo anterior.
  await db.batch([
   db.prepare("DELETE FROM push_devices WHERE device_id=? OR token=?").bind(deviceId,token),
-  db.prepare("INSERT INTO push_devices(device_id,user_id,token,created_at,updated_at) VALUES(?,?,?,?,?)").bind(deviceId,user.id,token,stamp,stamp)
+  db.prepare("INSERT INTO push_devices(device_id,user_id,token,created_at,updated_at,session_hash) VALUES(?,?,?,?,?,?)").bind(deviceId,user.id,token,stamp,stamp,sessionHash)
  ]);
  return {ok:true,deviceId};
 }
@@ -106,8 +106,9 @@ async function devicesFor(db,userIds,preference){
  const holders=list.map(()=>"?").join(",");
  const rows=(await db.prepare("SELECT d.user_id,d.token,d.device_id,"+
   "COALESCE(p.new_demands,1) AS new_demands,COALESCE(p.deadlines,1) AS deadlines,COALESCE(p.overdue,1) AS overdue "+
-  "FROM push_devices d LEFT JOIN push_preferences p ON p.user_id=d.user_id "+
-  "WHERE d.user_id IN ("+holders+") LIMIT 300").bind(...list).all()).results;
+  "FROM push_devices d JOIN sessions s ON s.token_hash=d.session_hash AND s.user_id=d.user_id "+
+  "LEFT JOIN push_preferences p ON p.user_id=d.user_id "+
+  "WHERE s.expires_at>? AND d.user_id IN ("+holders+") LIMIT 300").bind(now(),...list).all()).results;
  const column=preference==="newDemands"?"new_demands":preference==="overdue"?"overdue":"deadlines";
  return preference?rows.filter(x=>Number(x[column])===1):rows;
 }

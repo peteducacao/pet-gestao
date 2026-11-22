@@ -5816,3 +5816,13 @@ body.history-drawer-open{overflow:hidden}
  #screen .chron-page--approved .chron-year-picker{flex:0 1 88px}
  #screen .chron-page--approved .chron-view-option{font-size:11.5px}
 }
+
+/* Logout diretamente no perfil e seletor de fotos sem overlay invisível. */
+#screen .profile-logout-row{display:flex;justify-content:flex-end;min-width:0;margin:12px 0 18px}
+#screen .profile-logout-row .account-logout-button{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:46px;padding:10px 17px;background:#fff6f9;color:#843052;border:1px solid #e9c7d4;border-radius:12px;font-weight:750;cursor:pointer}
+#screen .profile-logout-row .account-logout-button:hover,#screen .profile-logout-row .account-logout-button:focus-visible{background:#ffeaf1;border-color:#dbaabd}
+#screen .profile-logout-row .account-logout-button svg{height:18px;width:18px}
+#screen .task-file-native-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;overflow:hidden!important;clip-path:inset(50%)!important;pointer-events:none!important}
+#screen .task-form-refined .task-file-picker .task-file-picker-button{pointer-events:auto;cursor:pointer;border:0;font-family:inherit}
+#screen .task-file-selected-count{font-size:13px;color:#5c379f;font-weight:750;margin:12px 0 10px}
+@media(max-width:570px){#screen .profile-logout-row .account-logout-button{width:100%}}
