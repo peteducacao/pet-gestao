@@ -296,7 +296,7 @@ await test("senha com quantidade livre de caracteres no cadastro e alteração",
   token=original;
  }
 });
-await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)",async()=>{
+await test("fotos privadas: PETianos(as) e Administração; bloqueio para Tutoria e visitantes",async()=>{
  const adminToken=token,person=good(await api("/admin/users")).users.find(x=>x.email==="teste-usuario@pet.local");
  assert.ok(person);
  const taskId=good(await api("/tasks","POST",{
@@ -316,8 +316,11 @@ await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)
   token="";
   assert.equal((await api(prefix)).status,401,"Visitante não vê as fotos");
   token=adminToken;
-  assert.equal((await api(prefix)).status,403,"Admin não vê fotos");
-  assert.equal((await api(prefix,"POST",{name:"secreto.jpg",size:60,mimeType:"image/jpeg"})).status,403);
+  assert.equal(good(await api(prefix)).attachments.length,0,"Admin pode consultar fotos");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,0,
+   "Admin recebe o campo de anexos no bootstrap");
+  const adminUpload=good(await api(prefix,"POST",{name:"teste-admin.jpg",size:8,mimeType:"image/jpeg"}),201);
+  good(await api(prefix+"/"+adminUpload.id,"DELETE",{}));
   token=good(await api("/auth/login","POST",{
    email:"teste-usuario@pet.local",password:"SenhaPessoaSegura123!"
   })).token;
@@ -351,6 +354,14 @@ await test("fotos privadas: várias imagens e nenhum documento, só PETianos(as)
   good(await api(prefix+"/"+pngMeta.id+"/complete","POST",{}));
   assert.equal(good(await api(prefix)).attachments.length,3,"É possível armazenar várias fotos JPG e PNG");
   assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,3);
+  token=adminToken;
+  assert.equal(good(await api(prefix)).attachments.length,3,"Admin pode consultar anexos enviados por PETianos(as)");
+  assert.equal(good(await api("/bootstrap")).tasks.find(t=>t.id===taskId).attachments.length,3,
+   "Bootstrap administrativo inclui os anexos");
+  const adminDownload=await fetch(base+prefix+"/"+pngMeta.id+"/download",{headers:{Authorization:"Bearer "+token}});
+  assert.equal(adminDownload.status,200,"Admin pode baixar o anexo");
+  assert.deepEqual(new Uint8Array(await adminDownload.arrayBuffer()),imagePng);
+  token=petToken;
   const pngDownload=await fetch(base+prefix+"/"+pngMeta.id+"/download",{headers:{Authorization:"Bearer "+token}});
   assert.equal(pngDownload.status,200);
   assert.equal(pngDownload.headers.get("content-type"),"image/png","Mantém tipo PNG");
