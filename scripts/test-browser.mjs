@@ -1280,9 +1280,10 @@ await page.locator('a[data-route="reunioes"]').click();
   "Referências Free e Paid são comparativas e não presumem o plano ativo");
  const beforeRefresh=cloudStorageReads;
  await page.locator('[data-do="admin-storage-refresh"]').click();
- await page.waitForFunction(()=>document.querySelector("#admin-cloud-storage .admin-cloud-numbers")!==null);
- await page.waitForTimeout(120);
+ for(let retry=0;retry<30&&cloudStorageReads<=beforeRefresh;retry++)
+  await page.waitForTimeout(50);
  assert.ok(cloudStorageReads>beforeRefresh,"Botão Atualizar realmente consulta novamente o Cloudflare");
+ await page.locator("#admin-cloud-storage .admin-cloud-numbers").waitFor();
  await page.setViewportSize({width:390,height:844});
  const overflow=await page.locator("#admin-cloud-storage").evaluate(node=>{
   const box=node.getBoundingClientRect();
