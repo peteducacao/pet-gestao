@@ -5944,3 +5944,25 @@ body.history-drawer-open{overflow:hidden}
     border-radius: 16px;
   }
 }
+
+/* No modal de edição do Cronograma, ações sempre acessíveis enquanto o formulário rola. */
+#screen .chron-edit-overlay .chron-form-actions {
+  position: sticky;
+  bottom: -1px;
+  z-index: 3;
+  background: #fff;
+  border-top: 1px solid #ece4f5;
+  padding: 12px 0 max(4px, env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 14px rgba(255,255,255,.95);
+}
+@media (max-width: 600px) {
+  #screen .chron-edit-overlay .chron-form-actions {
+    justify-content: stretch;
+    gap: 8px;
+  }
+  #screen .chron-edit-overlay .chron-form-actions > .button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 46px;
+  }
+}
