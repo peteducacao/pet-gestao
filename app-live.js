@@ -884,11 +884,11 @@ async function loadWebPushState(){
  const userId=me?.id;
  if(!userId||me.mustChangePassword){state.webPushData=null;state.webPushHere=false;return}
  try{
+  const subscription=await desktopSubscription();
+  const own=subscription?await request("/web-push/check","POST",{endpoint:subscription.endpoint}):{connected:false};
   const status=await request("/web-push/status");
   if(me?.id!==userId)return;
   state.webPushData=status;
-  const subscription=await desktopSubscription();
-  const own=subscription?await request("/web-push/check","POST",{endpoint:subscription.endpoint}):{connected:false};
   if(me?.id!==userId)return;
   state.webPushHere=!!own.connected&&window.Notification?.permission==="granted";
   if(routeParts().page==="conta"&&state.accountTab==="notificacoes")render();
@@ -2268,13 +2268,12 @@ function refreshDeadlineMode(previousScope=null,previousSingle=null){
  host.innerHTML=renderDeadlineSettings(currentRows);
 }
 
-const TASK_FILE_MAX=25*1024*1024,TASK_FILES_MAX=8,TASK_FILES_TOTAL_MAX=8*TASK_FILE_MAX;
+const TASK_FILE_MAX=25*1024*1024,TASK_FILES_MAX=20,TASK_FILES_TOTAL_MAX=20*TASK_FILE_MAX;
 const TASK_PHOTO_TARGET=350*1024; // Somente para transformações opcionais; anexos preservam o arquivo original.
 const TASK_PHOTO_MIMES=new Set(["image/jpeg","image/png","image/webp"]);
 const pendingPhotoUrls=new WeakMap();
 function pendingPhotoUrl(file){
- if(!pendingPhotoUrls.has(file))pendingPhotoUrls.set(file,URL.createObjectURL(file));
- return pendingPhotoUrls.get(file);
+ try{if(!pendingPhotoUrls.has(file))pendingPhotoUrls.set(file,URL.createObjectURL(file));return pendingPhotoUrls.get(file)}catch{return "";}
 }
 function releasePendingPhoto(file){const url=pendingPhotoUrls.get(file);if(url){URL.revokeObjectURL(url);pendingPhotoUrls.delete(file)}}
 
@@ -2318,7 +2317,7 @@ function taskFileList(t,remove=false){
  '</div>').join("");
 }
 function taskFilePendingList(){
- return state.taskFiles.length?state.taskFiles.map((file,i)=>'<div class="task-attachment-item">'+
+ return state.taskFiles.length?'<p class="task-file-selected-count">'+state.taskFiles.length+' foto(s) selecionada(s) para salvar</p>'+state.taskFiles.map((file,i)=>'<div class="task-attachment-item">'+
  '<button type="button" class="task-file-art task-file-art-preview" data-do="task-photo-preview-local" data-index="'+i+'" aria-label="Pré-visualizar '+esc(file.name)+'" title="Clique para ampliar a foto"><img src="'+esc(pendingPhotoUrl(file))+'" alt=""></button>'+
  '<span class="task-file-info"><strong>'+esc(file.name)+'</strong><small>'+fileSize(file.size)+' · Enviar ao salvar</small></span>'+
  '<button type="button" class="button ghost" data-do="task-photo-preview-local" data-index="'+i+'">Ver prévia</button>'+
@@ -2328,10 +2327,10 @@ function taskFilePendingList(){
 function taskFileForm(t){
  if(!canSeeTaskPhotos())return "";
  return '<section class="task-files-section"><h3>'+ico("folder")+' Fotos da demanda</h3>'+
- '<p class="field-hint task-file-help">Anexe até 8 fotos (JPG, PNG ou WebP, até 25 MB cada). Mantemos a qualidade original, sem recortes ou compactação. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail.</p>'+
+ '<p class="field-hint task-file-help">Anexe até 20 fotos (JPG, PNG ou WebP, até 25 MB cada). Mantemos a qualidade original, sem recortes ou compactação. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail.</p>'+
  ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Fotos armazenadas</h4>'+taskFileList(t)+'</div>':"")+
- '<label class="task-file-picker"><span class="task-file-picker-label">Selecionar fotos</span><span class="task-file-picker-button" aria-hidden="true">Escolher arquivos</span><input id="task-file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="Escolher fotos da demanda"></label>'+
- '<div id="task-file-selection">'+taskFilePendingList()+'</div>'+
+ '<div class="task-file-picker"><span class="task-file-picker-label">Selecionar fotos</span><button type="button" class="task-file-picker-button" data-do="task-file-choose">Escolher arquivos</button></div><input id="task-file-input" class="task-file-native-input" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple aria-label="Escolher fotos da demanda">'+
+ '<div id="task-file-selection" role="status" aria-live="polite">'+taskFilePendingList()+'</div>'+
  '<p class="field-hint task-file-progress" id="task-file-progress" role="status" aria-live="polite" hidden></p></section>';
 }
 function taskFileDetail(t){
@@ -2857,6 +2856,7 @@ function renderAccount(){
   '<div class="account-profile-info">'+profilePhoto+
   '<div class="profile-identity"><h2>'+esc(me.name)+'</h2><p class="profile-email">'+esc(me.email)+'</p>'+
   '<span class="profile-role-badge">'+ico("user")+' '+esc(me.role==="tutor"?"Tutor(a)":me.role==="petiano"?"PETiano(a)":me.role==="usuario"?"Usuário":"Administração")+'</span></div></div></div>'+
+  '<div class="profile-logout-row"><button class="button ghost account-logout-button" type="button" data-do="logout">'+ico("logout")+' <span>Sair da conta</span></button></div>'+
   (me.role==="admin"&&!me.adminSession&&!me.mustChangePassword?
     '<section class="account-admin-activation" role="status"><div><strong>Seu cargo Administração está disponível</strong><p>Confirme sua senha para liberar o painel administrativo nesta sessão.</p></div>'+
     '<a href="#/admin/painel" class="button primary">'+ico("settings")+' Ativar Administração</a></section>':"")+
@@ -3486,7 +3486,7 @@ async function saveTask(form){
  if(picked.some(x=>!x.size||x.size>TASK_FILE_MAX||!TASK_PHOTO_MIMES.has(x.type)))return setToast("Use fotos originais JPG, PNG ou WebP com até 25 MB cada.");
  if(existing.length+picked.length>TASK_FILES_MAX||
     picked.reduce((total,x)=>total+x.size,existing.reduce((total,x)=>total+x.size,0))>TASK_FILES_TOTAL_MAX)
-   return setToast("A demanda aceita até 8 fotos de 25 MB cada.");
+   return setToast("A demanda aceita até 20 fotos de 25 MB cada.");
  const notify=(!previous||safeRich(previous.captionText||"")!==f.captionText)?
   await askNotification({users,commissions}):false;
  const body={title:f.title,description:f.description,captionText:f.captionText,deadlines:stages,assigneeIds:users,commissionIds:commissions,assignmentScope:state.assignmentScope,overviewVisible,notify};
@@ -4280,17 +4280,14 @@ async function handleClick(e){
    cancelLabel:"Continuar conectado",
    confirmLabel:"Sim, sair da conta"
   }))return;
-  // Desvincular este dispositivo ANTES de revogar a sessão, sem afetar outros aparelhos.
-  if(androidPush)try{await request("/push/unregister","POST",{deviceId:androidPush.deviceId})}catch{}
-  // Remover apenas a inscrição deste navegador antes de encerrar a sessão.
+  // Desvincular inscrições push e revogar a sessão numa única operação do servidor.
+  if(pushRegisterPromise)await pushRegisterPromise.catch(()=>{});
   const browserSubscription=await desktopSubscription().catch(()=>null);
-  if(browserSubscription){
-   try{await request("/web-push/unsubscribe","POST",{endpoint:browserSubscription.endpoint})}catch{}
-   try{await browserSubscription.unsubscribe()}catch{}
-  }
+  try{await request("/auth/logout","POST",{deviceId:androidPush?.deviceId||"",endpoint:browserSubscription?.endpoint||""},"user")}
+  catch(err){return setToast("Não foi possível sair com segurança: "+err.message+". Tente novamente.");}
+  if(browserSubscription)try{await browserSubscription.unsubscribe()}catch{}
   state.webPushHere=false;state.webPushData=null;
   registeredPushFor="";state.pushData=null;
-  try{await request("/auth/logout","POST",{},"user")}catch{}
   token="";me=null;regularMe=null;
   forgetSessionToken(tokenKey);forgetSessionToken(adminTokenKey);publishSessionChange();
   await reload();location.hash="#/inicio";return;
@@ -4406,6 +4403,7 @@ async function handleClick(e){
    await saveAndReload(()=>request("/account/photo","DELETE"),"Foto de perfil removida.");
    return;
  }
+ if(action==="task-file-choose"){$("#task-file-input")?.click();return;}
  if(action==="task-file-unselect"){
    const [removed]=state.taskFiles.splice(Number(b.dataset.index),1);
    if(removed)releasePendingPhoto(removed);
@@ -4832,17 +4830,20 @@ async function handleChange(e){
    const images=Array.from(t.files||[]);t.value="";
    const saved=data.tasks.find(x=>x.id===state.taskFormId)?.attachments||[];
    for(const image of images){
-     if(saved.length+state.taskFiles.length>=TASK_FILES_MAX){setToast("Limite de 8 fotos por demanda.");break}
+     if(saved.length+state.taskFiles.length>=TASK_FILES_MAX){setToast("Limite de 20 fotos por demanda.");break}
      try{
-       if(!TASK_PHOTO_MIMES.has(image.type)||!(/\.(jpe?g|png|webp)$/i.test(image.name)))throw Error("Use JPG, PNG ou WebP.");
+       const extension=image.name.split(".").pop()?.toLowerCase();
+       const validMime={"jpg":"image/jpeg","jpeg":"image/jpeg","png":"image/png","webp":"image/webp"}[extension];
+       if(!validMime||(image.type&&image.type!==validMime))throw Error("Use JPG, PNG ou WebP.");
        if(!image.size||image.size>TASK_FILE_MAX)throw Error("A foto original deve ter até 25 MB.");
        const total=[...saved,...state.taskFiles].reduce((n,f)=>n+(f.size||0),0);
-       if(total+image.size>TASK_FILES_TOTAL_MAX){setToast("Limite de 8 fotos de até 25 MB por demanda.");break}
+       if(total+image.size>TASK_FILES_TOTAL_MAX){setToast("Limite de 20 fotos de até 25 MB por demanda.");break}
        if(state.taskFiles.some(f=>f.name===image.name&&f.size===image.size&&f.lastModified===image.lastModified))continue;
-       state.taskFiles.push(image);
+       state.taskFiles.push(image.type?image:new File([image],image.name,{type:validMime,lastModified:image.lastModified}));
      }catch(e){setToast(image.name+": "+e.message)}
    }
    const host=$("#task-file-selection");if(host)host.innerHTML=taskFilePendingList();
+   if(images.length&&state.taskFiles.length)setToast(state.taskFiles.length+" foto(s) selecionada(s) para enviar ao salvar.");
    return;
  }
  if(t.id==="mail-file-input"){for(const file of t.files){if(file.size>10*1024*1024){setToast("O arquivo "+file.name+" excede 10 MB.");continue}state.mailFiles.push(file)}renderMailScheduling();return}
