@@ -21,11 +21,8 @@ function validate(input,old=null){
  if(!title)fail("Informe o nome da atividade.");
  if(!dateValid(startDate)||!dateValid(endDate)||endDate<startDate)fail("Informe um período válido.");
  if((startTime&&!timeValid(startTime))||(endTime&&!timeValid(endTime)))fail("Horário inválido.");
- if((startTime&&!endTime)||(!startTime&&endTime)){
-  // A importação do Word contém horários sem hora final; não obrigar a inventá-la na edição.
-  if(!old?.time_note||!timeNote)fail("Selecione os horários de início e término.");
- }
- if(!startTime&&!endTime&&!timeNote)fail("Selecione o início e o término da atividade.");
+ // Horários são independentes e opcionais, inclusive em atividades importadas.
+ // Quando a data de término é omitida, a atividade ocorre apenas na data inicial.
  if(startTime&&endTime&&startDate===endDate&&endTime<=startTime)fail("O término deve ser após o início.");
  return {title,description,location,startDate,endDate,startTime,endTime,timeNote};
 }
