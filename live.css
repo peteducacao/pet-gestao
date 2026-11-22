@@ -5859,28 +5859,36 @@ body.history-drawer-open{overflow:hidden}
  #screen .admin-cloud-numbers strong{font-size:19px}
 }
 
-/* Mobile: menu lateral rolável acima da navegação rápida (2026-11-22). */
+/* Mobile: o drawer inteiro rola, mesmo dentro do PWA Android. */
 @media (max-width: 680px) {
-  /* A barra de atalhos tinha z-index 85 e cobria o fim do menu (z-index 30). */
+  /* Rolagem no próprio painel elimina dependência de overflow em flex children. */
   .app-shell > #sidebar.sidebar {
-    height: 100vh;
-    height: 100dvh;
-    max-height: 100dvh;
+    top: 0;
+    bottom: 0;
+    height: auto;
+    max-height: none;
     min-height: 0;
-    z-index: 110;
-  }
-  .app-shell > #sidebar .brand {
-    flex-shrink: 0;
-  }
-  .app-shell > #sidebar .sidebar-menu {
-    flex: 1 1 auto;
-    min-height: 0;
+    display: block;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     touch-action: pan-y;
-    padding-bottom: calc(36px + env(safe-area-inset-bottom));
+    z-index: 110;
+  }
+  .app-shell > #sidebar .brand {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    min-height: 91px;
+  }
+  .app-shell > #sidebar .sidebar-menu {
+    display: block;
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
   }
   .app-shell > #overlay.mobile-overlay:not([hidden]) {
     z-index: 105;
