@@ -233,11 +233,12 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
     await db.prepare("INSERT INTO email_queue (id,creator_id,kind,recipient_emails,subject,body,scheduled_at,status,created_at,task_id) VALUES(?,?,?,?,?,?,?,'pendente',?,?)").bind(id,creatorId,kind,JSON.stringify(unique(emails)),subject,message,when||stamp,stamp,taskId).run();
     return id;
   }
-  // Parabéns pessoais: 09h00 de Sergipe (UTC-3), uma vez por ano e canal.
+  // Parabéns pessoais a partir de 09h00 de Sergipe (UTC-3), uma vez por ano e canal.
+  // Reavaliar até o fim do dia: cadastros ou alterações após as 09h não perdem o envio.
   // Apenas usuários que informaram sua data e ativaram os canais recebem.
   async function queueBirthdayGreetings(env){
     const local=new Date(Date.now()-3*3600000).toISOString();
-    if(Number(local.slice(11,13))!==9)return;
+    if(Number(local.slice(11,13))<9)return;
     const year=Number(local.slice(0,4)),day=local.slice(5,10);
     const leap=year%4===0&&(year%100!==0||year%400===0);
     // 29/02 é celebrado em 28/02 nos anos sem 29.
