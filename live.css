@@ -4930,6 +4930,8 @@ body.admin-ui-active #admin-users .admin-user-results-heading .admin-user-result
  .pet-quicknav-link.active{background:#f5eefd;color:#693db0}
  body:has(.pet-quickbar:not([hidden])) .content{padding-bottom:calc(100px + env(safe-area-inset-bottom))!important}
  body:has(.pet-quickbar:not([hidden])) .footer{padding-bottom:calc(70px + env(safe-area-inset-bottom))!important}
+ /* No celular os controles continuam fluidos, sem apertar os seletores. */
+ #screen .chron-toolbar{width:100%;margin-inline:0;justify-content:flex-start}
  #screen .chron-view-actions{margin-left:0;flex:1 1 100%}
  #screen .chron-view-actions .button{flex:1}
  #screen .chron-origin-picker{flex:1 1 170px;max-width:none}
