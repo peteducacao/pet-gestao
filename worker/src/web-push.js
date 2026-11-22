@@ -61,14 +61,15 @@ export async function webPushPublicKey(db){
 export async function webPushStatus(db,user){
  const [prefs,devices]=await Promise.all([
   db.prepare("SELECT new_demands,deadlines,overdue FROM web_push_preferences WHERE user_id=?").bind(user.id).first(),
-  db.prepare("SELECT platform,COUNT(*) AS total FROM web_push_subscriptions WHERE user_id=? GROUP BY platform").bind(user.id).all()
+  db.prepare("SELECT p.platform,COUNT(*) AS total FROM web_push_subscriptions p JOIN sessions s ON s.token_hash=p.session_hash AND s.user_id=p.user_id WHERE p.user_id=? AND s.expires_at>? GROUP BY p.platform").bind(user.id,stamp()).all()
  ]);
  return {preferences:preferencesFor(prefs),registeredComputers:Number(devices?.results?.find(x=>x.platform==="pc")?.total||0),registeredIphones:Number(devices?.results?.find(x=>x.platform==="ios")?.total||0)};
 }
-export async function webPushCheck(db,user,payload){
+export async function webPushCheck(db,user,payload,sessionHash=null){
  const endpoint=String(payload?.endpoint||"");
  if(!endpointAllowed(endpoint))return {connected:false};
  const row=await db.prepare("SELECT id FROM web_push_subscriptions WHERE user_id=? AND endpoint=?").bind(user.id,endpoint).first();
+ if(row&&sessionHash)await db.prepare("UPDATE web_push_subscriptions SET session_hash=?,updated_at=? WHERE id=? AND user_id=?").bind(sessionHash,stamp(),row.id,user.id).run();
  return {connected:!!row};
 }
 export async function webPushSavePreferences(db,user,payload){
@@ -84,7 +85,7 @@ export async function webPushSavePreferences(db,user,payload){
   .bind(user.id,Number(prefs.newDemands),Number(prefs.deadlines),Number(prefs.overdue),stamp()).run();
  return webPushStatus(db,user);
 }
-export async function webPushSubscribe(db,user,payload){
+export async function webPushSubscribe(db,user,payload,sessionHash=null){
  if(user.must_change_password)fail("Altere sua senha temporária antes de ativar os avisos.",403);
  const sub=checkSubscription(payload);
  const platform=payload?.platform==="ios"?"ios":payload?.platform===undefined||payload?.platform==="pc"?"pc":null;
@@ -93,8 +94,8 @@ export async function webPushSubscribe(db,user,payload){
  if(platform==="ios"&&!new URL(sub.endpoint).hostname.toLowerCase().endsWith(".push.apple.com"))
   fail("O iPhone não forneceu um endpoint de notificações Apple.");
  // O navegador pertence apenas à conta atualmente ativa: evita vazamento entre logins.
- await db.prepare("INSERT INTO web_push_subscriptions(id,user_id,endpoint,p256dh,auth,platform,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth,platform=excluded.platform,updated_at=excluded.updated_at")
-  .bind(crypto.randomUUID(),user.id,sub.endpoint,sub.p256dh,sub.auth,platform,stamp(),stamp()).run();
+ await db.prepare("INSERT INTO web_push_subscriptions(id,user_id,endpoint,p256dh,auth,platform,created_at,updated_at,session_hash) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth,platform=excluded.platform,updated_at=excluded.updated_at,session_hash=excluded.session_hash")
+  .bind(crypto.randomUUID(),user.id,sub.endpoint,sub.p256dh,sub.auth,platform,stamp(),stamp(),sessionHash).run();
  return {ok:true};
 }
 export async function webPushUnsubscribe(db,user,payload){
@@ -179,8 +180,8 @@ export async function notifyBrowserUsers(env,userIds,message,preference,dedupe,p
  if(!members.length)return 0;
  const column=preference==="newDemands"?"new_demands":preference==="overdue"?"overdue":"deadlines";
  const clause=platform==="pc"&&preference?" AND COALESCE(p."+column+",1)=1":"";
- const rows=(await env.DB.prepare("SELECT s.* FROM web_push_subscriptions s LEFT JOIN web_push_preferences p ON p.user_id=s.user_id WHERE s.platform=? AND s.user_id IN ("+
-  members.map(()=>"?").join(",")+")"+clause+" LIMIT 300").bind(platform,...members).all()).results;
+ const rows=(await env.DB.prepare("SELECT s.* FROM web_push_subscriptions s JOIN sessions active ON active.token_hash=s.session_hash AND active.user_id=s.user_id LEFT JOIN web_push_preferences p ON p.user_id=s.user_id WHERE active.expires_at>? AND s.platform=? AND s.user_id IN ("+
+  members.map(()=>"?").join(",")+")"+clause+" LIMIT 300").bind(stamp(),platform,...members).all()).results;
  let delivered=0;
  for(const sub of rows){
   let key=null;
