@@ -5589,3 +5589,218 @@ body.history-drawer-open{overflow:hidden}
  #screen .history-drawer-panel .activity-history.revision-list{padding:12px 17px 25px!important}
 }
 
+
+
+
+/* Cronograma PET — proposta visual aprovada: layout exclusivo da página. */
+#screen .chron-approved-heading{
+ width:100%;max-width:1200px;margin:0 auto 19px;
+ align-items:center;gap:14px;
+}
+#screen .chron-approved-heading>div:first-child{
+ position:relative;min-width:0;padding-left:61px;
+}
+#screen .chron-approved-heading .chron-heading-icon{
+ position:absolute;top:1px;left:0;display:grid;place-items:center;
+ width:48px;height:48px;border-radius:14px;
+ color:#6536b6;background:linear-gradient(145deg,#f7efff,#eee0ff);
+ border:1px solid #e4d4fa;
+}
+#screen .chron-approved-heading .chron-heading-icon svg{width:26px;height:26px}
+#screen .chron-approved-heading .page-title{margin-bottom:0}
+#screen .chron-approved-heading .page-subtitle{display:none}
+#screen .chron-approved-heading .page-actions{align-self:center}
+#screen .chron-page--approved{
+ width:100%;max-width:1200px;margin-inline:auto;
+ gap:14px;
+}
+#screen .chron-page--approved.chron-page--calendar-month{
+ max-width:960px;
+}
+#screen .chron-page--approved .chron-toolbar{
+ box-sizing:border-box;
+ display:flex;align-items:flex-end;justify-content:flex-start;
+ flex-wrap:wrap;column-gap:13px;row-gap:10px;
+ width:100%;max-width:100%;margin:0;
+ padding:15px 18px;
+ border-radius:16px;border:1px solid #e5d9f2;
+ background:linear-gradient(125deg,#fff,#fdfaff);
+ box-shadow:0 5px 19px rgba(49,28,91,.05);
+}
+#screen .chron-page--approved .chron-toolbar label{
+ gap:5px;font-size:11.5px;font-weight:800;color:#5c4777;
+ min-width:0;
+}
+#screen .chron-page--approved .chron-origin-picker{
+ flex:0 1 275px;max-width:275px;
+}
+#screen .chron-page--approved .chron-year-picker{
+ flex:0 0 138px;max-width:138px;
+}
+#screen .chron-page--approved .chron-toolbar .select{
+ width:100%;min-height:43px;
+ padding:9px 37px 9px 13px;
+ background-color:#faf7ff;border:1px solid #d9c8ed;
+ border-radius:11px;color:#291e3d;font-size:13px;
+}
+#screen .chron-page--approved .chron-view-actions{
+ display:flex;align-items:center;justify-content:flex-end;
+ flex:0 1 auto;gap:9px;margin-left:auto;min-width:0;
+ flex-wrap:wrap;
+}
+#screen .chron-page--approved .chron-view-option{
+ display:inline-flex;align-items:center;justify-content:center;
+ min-width:130px;min-height:43px;padding:10px 14px;
+ font-weight:800;font-size:12.5px;color:#43305e;
+ background:#fff;border:1px solid #d9c8ed;border-radius:10px;
+ box-shadow:none;
+}
+#screen .chron-page--approved .chron-view-option.is-active{
+ border-color:#6832b8;color:#fff;
+ background:linear-gradient(125deg,#743ac7,#5924aa);
+ box-shadow:0 5px 13px rgba(90,35,172,.14);
+}
+#screen .chron-page--approved .chron-view-option svg{
+ width:17px;height:17px;
+}
+#screen .chron-page--approved .chron-annual-toggle{
+ min-height:40px;padding:8px 12px;border-color:#d9c8ed;
+}
+#screen .chron-page--approved .chron-month-nav{
+ min-height:62px;display:flex;align-items:center;
+ margin:1px 0 0;padding:9px 15px;gap:12px;
+ background:linear-gradient(95deg,#f3e7ff,#ecd9fb,#f4e9ff);
+ border:1px solid #e7d6f6;border-radius:16px;
+}
+#screen .chron-page--approved .chron-month-nav strong{
+ display:flex;align-items:center;justify-content:center;
+ gap:10px;min-width:0;
+ font-size:19px;letter-spacing:-.45px;color:#27163f;
+}
+#screen .chron-page--approved .chron-month-nav strong svg{
+ width:21px;height:21px;color:#7042b4;
+}
+#screen .chron-page--approved .chron-month-nav button{
+ width:39px;height:39px;flex:0 0 39px;
+ border-radius:11px;background:rgba(255,255,255,.88);
+ border:1px solid #decaf2;color:#713ab8;
+ box-shadow:0 2px 7px rgba(73,33,117,.055);
+}
+#screen .chron-page--approved .chron-cards{gap:11px}
+#screen .chron-page--approved .chron-card{
+ position:relative;display:flex;align-items:center;min-height:105px;
+ padding:15px 18px;gap:17px;
+ border:1px solid #e0d3f0;border-radius:17px;
+ background:#fff;
+ box-shadow:0 4px 15px rgba(55,34,94,.055);
+}
+#screen .chron-page--approved .chron-card--demand{border-left:4px solid #498bd5}
+#screen .chron-page--approved .chron-card:has(.chron-actions){padding-right:65px}
+#screen .chron-page--approved .chron-card:has(.chron-remind){padding-right:185px}
+#screen .chron-page--approved .chron-date{
+ width:70px;height:78px;flex:0 0 70px;
+ border-radius:15px;
+}
+#screen .chron-page--approved .chron-card-content{
+ flex:1;min-width:0;display:flex;flex-wrap:wrap;
+ align-items:center;column-gap:14px;row-gap:5px;
+}
+#screen .chron-page--approved .chron-card-top{
+ display:flex;flex:0 0 100%;min-width:0;
+ gap:8px;align-items:center;margin:0;
+}
+#screen .chron-page--approved .chron-card-top>strong,
+#screen .chron-page--approved .chron-card-top>.chron-demand-title{
+ color:#24183a;font-size:15px;line-height:1.35;font-weight:850;
+}
+#screen .chron-page--approved .chron-meta{
+ display:inline-flex;gap:7px;align-items:center;
+ font-size:12px;line-height:1.35;color:#635574;
+}
+#screen .chron-page--approved .chron-meta svg{margin-top:0;color:#774abb}
+#screen .chron-page--approved .chron-desc{
+ flex:0 0 100%;font-size:12px;line-height:1.45;
+ margin:2px 0 0;
+}
+#screen .chron-page--approved .chron-card .chron-actions{
+ position:absolute;right:17px;top:50%;
+ transform:translateY(-50%);
+ display:flex;align-items:center;justify-content:flex-end;
+ gap:7px;padding:0;margin:0;z-index:2;
+}
+#screen .chron-page--approved .chron-card .chron-remind{
+ margin:0;padding:7px 9px;
+}
+#screen .chron-page--approved .chron-card .chron-icon-action{
+ width:36px;height:36px;min-width:36px;min-height:36px;
+ padding:7px;border-radius:11px;
+ background:#f4ebff;border-color:#e5d4fb;color:#6a3db1;
+}
+#screen .chron-page--approved .chron-card .chron-icon-action:hover{
+ background:#e9d8ff;
+}
+@media(min-width:801px) and (max-width:1180px){
+ #screen .chron-page--approved .chron-toolbar{column-gap:10px;padding:13px}
+ #screen .chron-page--approved .chron-origin-picker{flex:0 1 235px}
+ #screen .chron-page--approved .chron-year-picker{flex:0 0 112px}
+ #screen .chron-page--approved .chron-view-option{min-width:110px;padding:9px 10px}
+}
+@media(max-width:800px){
+ #screen .chron-approved-heading{margin-bottom:16px;align-items:flex-start}
+ #screen .chron-approved-heading>div:first-child{padding-left:0}
+ #screen .chron-approved-heading .chron-heading-icon{display:none}
+ #screen .chron-approved-heading .page-actions{align-self:auto}
+ #screen .chron-page--approved,
+ #screen .chron-page--approved.chron-page--calendar-month{max-width:100%;gap:11px}
+ #screen .chron-page--approved .chron-toolbar{
+  gap:9px;padding:11px 12px;width:100%;justify-content:flex-start;
+ }
+ #screen .chron-page--approved .chron-origin-picker{
+  flex:1 1 155px;max-width:none;
+ }
+ #screen .chron-page--approved .chron-year-picker{
+  flex:0 1 100px;max-width:110px;
+ }
+ #screen .chron-page--approved .chron-view-actions{
+  flex:1 1 100%;margin:0;justify-content:stretch;gap:7px;
+ }
+ #screen .chron-page--approved .chron-view-option{
+  flex:1 1 0;min-width:0;min-height:41px;
+ }
+ #screen .chron-page--approved .chron-annual-toggle{flex:1 1 100%}
+ #screen .chron-page--approved .chron-month-nav{
+  min-height:54px;padding:7px 9px;
+ }
+ #screen .chron-page--approved .chron-month-nav strong{font-size:16px;gap:6px}
+ #screen .chron-page--approved .chron-month-nav strong svg{width:17px;height:17px}
+ #screen .chron-page--approved .chron-month-nav button{
+  width:34px;height:34px;flex-basis:34px;
+ }
+ #screen .chron-page--approved .chron-card,
+ #screen .chron-page--approved .chron-card:has(.chron-actions),
+ #screen .chron-page--approved .chron-card:has(.chron-remind){
+  align-items:flex-start;min-height:0;padding:13px 12px;gap:10px;
+ }
+ #screen .chron-page--approved .chron-date{
+  width:53px;height:60px;flex-basis:53px;border-radius:12px;
+ }
+ #screen .chron-page--approved .chron-card-content{
+  display:grid;gap:6px;min-width:0;
+ }
+ #screen .chron-page--approved .chron-card-top{display:flex;flex:initial}
+ #screen .chron-page--approved .chron-card-top>strong{font-size:13.5px}
+ #screen .chron-page--approved .chron-meta{
+  font-size:11.5px;line-height:1.4;
+ }
+ #screen .chron-page--approved .chron-desc{font-size:11.5px}
+ #screen .chron-page--approved .chron-card .chron-actions{
+  position:relative;inset:auto;transform:none;
+  margin-top:5px;justify-content:flex-start;flex-wrap:wrap;
+ }
+}
+@media(max-width:390px){
+ #screen .chron-page--approved .chron-toolbar{padding:10px}
+ #screen .chron-page--approved .chron-origin-picker{flex:1 1 135px}
+ #screen .chron-page--approved .chron-year-picker{flex:0 1 88px}
+ #screen .chron-page--approved .chron-view-option{font-size:11.5px}
+}
