@@ -733,7 +733,7 @@ await page.locator("#collective-event-day").waitFor({state:"attached"}); // Camp
   "Seletor e instruções de fotos não podem ser cortados no celular");
  await page.setViewportSize({width:1420,height:900});
  assert.equal(await page.locator("#task-file-input").getAttribute("multiple"),"");
- assert.equal(await page.locator("#task-file-input").getAttribute("accept"),"image/jpeg,image/png,image/webp",
+ assert.equal(await page.locator("#task-file-input").getAttribute("accept"),"image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp",
   "Seleção somente dos formatos originais que o servidor preserva");
  const png=await page.evaluate(()=>{
   const canvas=document.createElement("canvas");canvas.width=32;canvas.height=32;
