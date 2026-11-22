@@ -5423,7 +5423,13 @@ body.admin-ui-active .admin-users-guides[open]>summary::after{
  display:grid;grid-template-columns:minmax(0,1fr);
  min-width:0;align-items:start;
 }
-#screen .activity-detail-page .activity-detail-layout{padding-right:0}
+#screen .activity-detail-page .activity-detail-layout{
+ padding-right:0;max-width:1140px;width:100%;margin-left:auto;margin-right:auto;
+}
+#screen .activity-detail-page>.page-header,
+#screen .activity-detail-page>.detail-visualization{
+ max-width:1140px;margin-left:auto;margin-right:auto;
+}
 #screen .history-edge-trigger{
  position:fixed;top:50%;right:0;transform:translateY(-50%);
  z-index:190;display:flex;align-items:center;gap:8px;
