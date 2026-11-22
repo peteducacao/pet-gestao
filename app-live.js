@@ -530,7 +530,7 @@ const nameFor=key=>data.users.find(u=>String(u.id)===String(key))?.name||"";
 // responsáveis individuais a partir da lista de integrantes de uma comissão.
 // PETianos(as), Tutoria e Administração compartilham a área comum.
 const canWrite=()=>Boolean(me&&!me.mustChangePassword&&["petiano","tutor","admin"].includes(me.role));
-const canSeeTaskPhotos=()=>Boolean(me&&!me.mustChangePassword&&me.role==="petiano");
+const canSeeTaskPhotos=()=>Boolean(me&&!me.mustChangePassword&&["petiano","admin"].includes(me.role));
 const hasAdminRole=u=>Boolean(u&&u.role==="admin");
 // O Worker valida o cargo e a origem da sessão; a interface apenas apresenta permissões.
 const adminRole=u=>Boolean(hasAdminRole(u)&&u.adminSession===true);
@@ -2327,7 +2327,7 @@ function taskFilePendingList(){
 function taskFileForm(t){
  if(!canSeeTaskPhotos())return "";
  return '<section class="task-files-section"><h3>'+ico("folder")+' Fotos da demanda</h3>'+
- '<p class="field-hint task-file-help">Anexe até 20 fotos (JPG, PNG ou WebP, até 25 MB cada). Mantemos a qualidade original, sem recortes ou compactação. Somente PETianos(as) podem acessar; as fotos não são enviadas por e-mail. Ao encerrar a demanda, os arquivos são excluídos definitivamente.</p>'+
+ '<p class="field-hint task-file-help">Anexe até 20 fotos (JPG, PNG ou WebP, até 25 MB cada). Mantemos a qualidade original, sem recortes ou compactação. Somente PETianos(as) e Administração podem acessar; as fotos não são enviadas por e-mail. Ao encerrar a demanda, os arquivos são excluídos definitivamente.</p>'+
  ((t?.attachments||[]).length?'<div class="task-stored-files"><h4>Fotos armazenadas</h4>'+taskFileList(t)+'</div>':"")+
  '<div class="task-file-picker"><span class="task-file-picker-label">Selecionar fotos</span><button type="button" class="task-file-picker-button" data-do="task-file-choose">Escolher arquivos</button></div><input id="task-file-input" class="task-file-native-input" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple aria-label="Escolher fotos da demanda">'+
  '<div id="task-file-selection" role="status" aria-live="polite">'+taskFilePendingList()+'</div>'+
@@ -2394,7 +2394,7 @@ function closeTaskPhoto(){
  if(taskPhotoObjectUrl){URL.revokeObjectURL(taskPhotoObjectUrl);taskPhotoObjectUrl=null}
 }
 async function viewTaskPhoto(taskId,fileId,name){
- if(!canSeeTaskPhotos())throw Error("Somente PETianos(as) podem visualizar fotos das demandas.");
+ if(!canSeeTaskPhotos())throw Error("Somente PETianos(as) e Administração podem visualizar fotos das demandas.");
  if((localStorage.getItem(sessionRevisionKey)||"")!==localSessionRevision)throw Error("Sua sessão foi alterada em outra aba.");
  const response=await fetch(API+"/api/v1/tasks/"+id(taskId)+"/attachments/"+id(fileId)+"/download",{
   cache:"no-store",headers:{Authorization:"Bearer "+token}
@@ -4826,7 +4826,7 @@ async function handleChange(e){
    return;
  }
  if(t.id==="task-file-input"){
-   if(!canSeeTaskPhotos())return setToast("Somente PETianos(as) podem anexar fotos às demandas.");
+   if(!canSeeTaskPhotos())return setToast("Somente PETianos(as) e Administração podem anexar fotos às demandas.");
    const images=Array.from(t.files||[]);t.value="";
    const saved=data.tasks.find(x=>x.id===state.taskFormId)?.attachments||[];
    for(const image of images){

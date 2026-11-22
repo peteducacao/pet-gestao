@@ -1243,6 +1243,15 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.equal(await page.evaluate(()=>localStorage.getItem("pet-gestao:session-token")),"admin-token","Admin usa o mesmo token do login comum");
  await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  assert.equal(await page.locator("#admin-link").isVisible(),true,"Somente a Administração visualiza Painel Admin");
+ // Regressão: formulário de anexos e detalhes não desaparecem para a Administração.
+ await page.goto(origin+"/#/registrar/t1");
+ await page.locator("#task-file-input").waitFor({state:"attached",timeout:10000});
+ assert.equal(await page.locator(".task-file-picker-button").isVisible(),true,
+  "Admin vê o botão de anexar fotos ao editar demanda");
+ assert.ok((await page.locator(".task-file-help").innerText()).includes("20 fotos"),
+  "Admin vê o limite de 20 fotos, sem compressão");
+ await page.goto(origin+"/#/atividade/t1");
+ await page.locator(".task-detail-files").waitFor({state:"visible",timeout:10000});
  // Recarregar confirma que a sessão persistida mantém a conta Admin conectada.
  await page.reload({waitUntil:"domcontentloaded"});
  await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
