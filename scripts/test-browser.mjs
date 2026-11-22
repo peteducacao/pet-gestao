@@ -1269,8 +1269,16 @@ await page.locator('a[data-route="reunioes"]').click();
  // Recarregar confirma que a sessão persistida mantém a conta Admin conectada.
  await page.reload({waitUntil:"domcontentloaded"});
  await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
- // Voltar ao PET Gestão usa uma transição e preserva a identidade Admin.
+ // A seção Cloudflare saiu do Painel e deve aparecer apenas na aba Armazenamento.
  await page.goto(origin+"/#/admin/painel");
+ await page.locator(".admin-metrics").waitFor({state:"visible",timeout:10000});
+ assert.equal(await page.locator("#admin-cloud-storage").count(),0,
+  "Painel principal não deve repetir indicadores de armazenamento");
+ assert.equal(await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').count(),1,
+  "Armazenamento possui entrada própria no menu administrativo");
+ await page.locator('.admin-sidebar a[href="#/admin/armazenamento"]').click();
+ await page.waitForURL("**/#/admin/armazenamento");
+ await page.locator(".admin-page h1").getByText("Armazenamento").waitFor({state:"visible",timeout:10000});
  await page.locator("#admin-cloud-storage .admin-cloud-numbers").waitFor({state:"visible",timeout:10000});
  assert.ok((await page.locator("#admin-cloud-storage").innerText()).includes("24,8 MB"),
   "Admin apresenta o tamanho real retornado pelo D1, não uma estimativa");
@@ -1285,6 +1293,8 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(cloudStorageReads>beforeRefresh,"Botão Atualizar realmente consulta novamente o Cloudflare");
  await page.locator("#admin-cloud-storage .admin-cloud-numbers").waitFor();
  await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.locator("#admin-cloud-storage").isVisible(),true,
+  "Armazenamento aparece no celular na aba própria");
  const cloudStorageGeometry=await page.locator("#admin-cloud-storage").evaluate(node=>{
   const box=node.getBoundingClientRect();
   return {boxRight:box.right,screen:innerWidth,pageWidth:document.documentElement.scrollWidth};
