@@ -3345,13 +3345,21 @@ function compactContextHelp(root){
   popup.append(popupHead,body);
   help.append(trigger,popup);
   if(placement==="page"){
-   const eyebrow=wrap.parentElement?.querySelector(":scope > .eyebrow");
-   if(eyebrow){
-    const kicker=document.createElement("div");
-    kicker.className="pet-context-kicker";
-    eyebrow.before(kicker);
-    kicker.append(eyebrow,help);
-   }else wrap.append(help);
+   // No Cronograma, Ajuda pertence às ações do cabeçalho, junto de Nova atividade.
+   // Nas demais páginas, a posição contextual anterior permanece inalterada.
+   const cronActions=wrap.closest(".chron-approved-heading")?.querySelector(":scope > .page-actions");
+   if(cronActions){
+    cronActions.prepend(help);
+    help.classList.add("pet-context-help--actions");
+   }else{
+    const eyebrow=wrap.parentElement?.querySelector(":scope > .eyebrow");
+    if(eyebrow){
+     const kicker=document.createElement("div");
+     kicker.className="pet-context-kicker";
+     eyebrow.before(kicker);
+     kicker.append(eyebrow,help);
+    }else wrap.append(help);
+   }
   }else wrap.append(help);
   help.addEventListener("toggle",()=>{
    if(!help.open)return;
