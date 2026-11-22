@@ -5858,3 +5858,31 @@ body.history-drawer-open{overflow:hidden}
  #screen .admin-cloud-numbers>div{padding:12px}
  #screen .admin-cloud-numbers strong{font-size:19px}
 }
+
+/* Mobile: menu lateral rolável acima da navegação rápida (2026-11-22). */
+@media (max-width: 680px) {
+  /* A barra de atalhos tinha z-index 85 e cobria o fim do menu (z-index 30). */
+  .app-shell > #sidebar.sidebar {
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    z-index: 110;
+  }
+  .app-shell > #sidebar .brand {
+    flex-shrink: 0;
+  }
+  .app-shell > #sidebar .sidebar-menu {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    padding-bottom: calc(36px + env(safe-area-inset-bottom));
+  }
+  .app-shell > #overlay.mobile-overlay:not([hidden]) {
+    z-index: 105;
+  }
+}
