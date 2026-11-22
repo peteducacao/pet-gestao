@@ -2581,8 +2581,8 @@ function renderHistory(t){
    '<div class="revision-copy"><strong>'+esc(h.action||"Alteração")+'</strong>'+
    '<span>'+esc(h.actor_name||"Responsável não identificado")+'</span><small>'+textDate(h.created_at)+(time?' · '+time:"")+'</small></div></div>';
  }).join(""):'<p class="history-empty">Nenhuma alteração registrada.</p>';
- return '<button type="button" class="history-edge-trigger" data-do="history-open" aria-controls="history-drawer" aria-haspopup="dialog" title="Abrir histórico de alterações">'+
-  ico("clock")+'<span>Histórico</span><span class="history-edge-count">'+history.length+'</span></button>'+
+ return '<button type="button" class="history-edge-trigger" data-do="history-open" aria-label="Abrir histórico de alterações" aria-controls="history-drawer" aria-haspopup="dialog" title="Abrir histórico de alterações">'+
+  ico("chevron-left")+'</button>'+
   '<div class="history-drawer" id="history-drawer" hidden>'+
   '<button type="button" class="history-drawer-backdrop" data-do="history-close" tabindex="-1" aria-label="Fechar histórico"></button>'+
   '<aside class="history-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="history-drawer-title" tabindex="-1">'+
