@@ -933,7 +933,6 @@ async function reload(){
     state.cronItems=[];state.cronLoadedYear=null;state.cronEditing=null;state.quickNavPrefs=null;state.quickNavDraft=null;state.presentationPrefs=null;state.presentationDraft=null;
    }
    if(token&&!me){token="";forgetSessionToken(tokenKey)}
-   if(!me)applyAppearanceMode("light");
    if(firstBootstrap){firstBootstrap=false;try{const saved=JSON.parse(localStorage.getItem("pet-gestao:period")||"{}");if(b.settings?.autoMonth===false){state.year=Number(saved.year)||state.year;state.month=Number.isInteger(saved.month)?saved.month:state.month}if(b.settings?.autoWeek===false)state.week=Number(saved.week)||0;else state.week=weekFor(current)}catch{state.week=weekFor(current)}}
 
  }catch(e){
@@ -1017,7 +1016,7 @@ function cardPeoplePicker(values,kind){
  '<summary aria-label="'+esc(category)+': '+names.length+' nomes. Abrir lista">'+
  ico(icon)+'<span class="demand-picker-first">'+esc(names[0])+'</span>'+
  '<span class="demand-picker-count">+'+(names.length-1)+'</span>'+
- '<span class="demand-picker-arrow" aria-hidden="true">⌄</span></summary>'+
+ '<span class="demand-picker-arrow" aria-hidden="true"></span></summary>'+
  '<div class="demand-card-picker-popover"><strong>'+category+'</strong>'+
  '<ul>'+names.map(name=>'<li>'+esc(name)+'</li>').join("")+'</ul></div></details>';
 }
@@ -1074,13 +1073,7 @@ const PRESENTATION_THEMES=[
  ["lavender","Lilás"],["ocean","Azul"],["forest","Verde"],
  ["sunset","Rosa"],["midnight","Noturno"],["neutral","Neutro"]
 ];
-const presentationDefault=()=>({dashboard:{...PRESENTATION_DASHBOARD_DEFAULT},profileTheme:"lavender",profileImage:null,appearanceMode:"light"});
-function applyAppearanceMode(mode){
- const dark=mode==="dark";
- document.documentElement.dataset.petMode=dark?"dark":"light";
- const meta=document.querySelector('meta[name="theme-color"]');
- if(meta)meta.content=dark?"#151124":"#6400A8";
-}
+const presentationDefault=()=>({dashboard:{...PRESENTATION_DASHBOARD_DEFAULT},profileTheme:"lavender",profileImage:null,});
 function accountPhotoPreview(){
  if(me?.profilePhoto)return '<button type="button" class="account-photo-preview account-photo-preview-clickable" data-do="person-photo-open" data-person-id="'+esc(me.id)+'" aria-label="Ampliar minha foto de perfil" title="Clique para ampliar"><img src="'+esc(me.profilePhoto)+'" alt="Minha foto de perfil"></button>';
  return '<div class="account-photo-preview"><span aria-label="Sem foto de perfil">'+esc((me?.name||"P").trim().charAt(0).toUpperCase())+'</span></div>';
@@ -1095,7 +1088,7 @@ function profileThemeClass(prefs=state.presentationPrefs){
 const profileBackgroundStyle=prefs=>profileThemeClass(prefs)==="photo"&&prefs?.profileImage?
  ' style="--profile-photo:url('+esc(prefs.profileImage)+')"':"";
 async function loadPresentationPrefs(){
- if(!me||me.mustChangePassword){state.presentationPrefs=null;state.presentationDraft=null;applyAppearanceMode("light");return}
+ if(!me||me.mustChangePassword){state.presentationPrefs=null;state.presentationDraft=null;return}
  if(state.presentationLoading)return;
  const account=me.id;state.presentationLoading=true;
  try{
@@ -1103,7 +1096,6 @@ async function loadPresentationPrefs(){
   if(me?.id!==account)return;
   state.presentationPrefs=r;
   state.presentationDraft=JSON.parse(JSON.stringify(r));
-  applyAppearanceMode(r.appearanceMode);
   if(["inicio","conta"].includes(routeParts().page))render();
  }catch(error){console.warn("PET Gestão: personalização indisponível:",error.message)}
  finally{state.presentationLoading=false}
@@ -1134,11 +1126,6 @@ function renderPresentationSettings(){
   '<input id="profile-background-upload" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Enviar imagem para fundo do perfil"></label>'+
   (p.profileImage?'<button type="button" class="button ghost" data-do="presentation-remove-photo">'+ico("trash")+' Remover imagem</button>':"")+
   '</div><p class="field-hint">Imagem comprimida automaticamente para até 150 KB. A personalização afeta apenas o seu perfil.</p></section>'+
-  '<section class="presentation-settings-card appearance-mode-panel"><div class="presentation-section-title"><div><h3>Modo de exibição</h3><p>Alterne entre o visual claro e o escuro. A escolha vale para todo o site e fica salva na sua conta.</p></div></div>'+
-  '<div class="appearance-mode-picker" role="group" aria-label="Modo de exibição">'+
-  [["light","Claro","☀"],["dark","Escuro","☾"]].map(([mode,label,symbol])=>
-   '<button type="button" class="appearance-mode-option '+((p.appearanceMode||"light")===mode?"is-active":"")+'" data-do="appearance-mode" data-mode="'+mode+'" aria-pressed="'+((p.appearanceMode||"light")===mode)+'" '+(state.appearanceSwitching?"disabled":"")+'><span aria-hidden="true">'+symbol+'</span>'+label+'</button>').join("")+
-  '</div></section>'+
   '<section class="presentation-settings-card"><div class="presentation-section-title"><span class="presentation-section-icon">'+ico("grid")+'</span><div><h3>Indicadores da Visão geral</h3><p>Ative apenas o que deseja acompanhar. Os cartões se reorganizam automaticamente.</p></div></div>'+
   '<div class="presentation-options">'+entries.map(([key,label,desc,iconName])=>
    '<label class="presentation-option"><span class="presentation-option-icon">'+ico(iconName)+'</span>'+
@@ -1631,7 +1618,7 @@ function commissionHelp(){
   '<div class="section-head"><div><h2 id="commission-help-title">'+ico("info")+' Ajuda sobre comissões</h2>'+
   '<p>Entenda os responsáveis, o andamento e as opções disponíveis.</p></div></div>'+
   '<div class="commission-help-list">'+topics.map(([q,a])=>
-   '<details class="commission-help-item"><summary>'+esc(q)+'<span aria-hidden="true">⌄</span></summary>'+
+   '<details class="commission-help-item"><summary>'+esc(q)+'<span class="help-expand-symbol" aria-hidden="true"></span></summary>'+
    '<p>'+esc(a)+'</p></details>').join("")+'</div></section>';
 }
 
@@ -1662,7 +1649,7 @@ function renderHelp(){
  ]]
  ];
  const group=([heading,entries])=>'<section class="card card-pad help-section"><h2>'+esc(heading)+'</h2><div class="commission-help-list">'+
-  entries.map(([q,a])=>'<details class="commission-help-item"><summary>'+esc(q)+'<span aria-hidden="true">⌄</span></summary><p>'+esc(a)+'</p></details>').join("")+'</div></section>';
+  entries.map(([q,a])=>'<details class="commission-help-item"><summary>'+esc(q)+'<span class="help-expand-symbol" aria-hidden="true"></span></summary><p>'+esc(a)+'</p></details>').join("")+'</div></section>';
  return header("Orientações","Ajuda","Encontre respostas sobre as funcionalidades do PET Gestão.")+
   '<div class="help-page">'+sections.map(group).join("")+commissionHelp()+
   (isAdmin()?'<section class="card card-pad help-section"><h2>Administração</h2><p>O Painel Admin é reservado à gestão de usuários, vagas das comissões, configurações e e-mails. Demandas e atas ficam na área Organização.</p></section>':"")+'</div>';
@@ -2452,7 +2439,7 @@ function renderTaskForm(routeId){
  '<details class="task-form-section task-form-review-section" '+(t?'open':'')+'>'+
  '<summary class="task-form-review-summary"><span class="task-form-section-icon" aria-hidden="true">'+ico("list")+'</span>'+
  '<span class="task-form-review-summary-copy"><strong>Texto para revisão (opcional)</strong><small>Adicione um texto para revisão da tutoria.</small></span>'+
- '<span class="task-form-review-chevron" aria-hidden="true">⌄</span></summary>'+
+ '<span class="task-form-review-chevron" aria-hidden="true"></span></summary>'+
  '<div class="task-form-review-content">'+(t?lastReviewEdit(t):"")+richEditor("captionText",t?.captionText||"")+'</div></details>'+
  taskFileForm(t)+
  (t?"":'<div class="form-actions task-form-save-actions"><button type="submit" class="button primary">'+ico("check")+' Salvar demanda</button></div>')+
@@ -2587,18 +2574,22 @@ function renderAssignees(t){
 }
 function renderHistory(t){
  const history=historyFor(t.id);
- return '<details class="card card-pad activity-history" '+(history.length?'open':"")+'><summary aria-label="Expandir ou recolher histórico de alterações">'+
- '<span class="activity-history-heading"><span class="history-title-icon" aria-hidden="true">'+ico("clock")+'</span><strong>Histórico de alterações</strong><span class="history-counter">'+history.length+'</span></span>'+
- '<span class="history-toggle"><span class="history-toggle-caption">Ver registros</span><svg class="history-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary>'+
- '<div class="revision-list">'+
- (history.length?history.map(h=>{
+ const revisions=history.length?history.map(h=>{
   const [iconName,kind]=historySymbol(h.action);
   const stamp=dt(h.created_at),time=stamp?stamp.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
   return '<div class="revision-entry"><span class="revision-symbol revision-symbol-'+kind+'" aria-hidden="true">'+ico(iconName)+'</span>'+
-  '<div class="revision-copy"><strong>'+esc(h.action||"Alteração")+'</strong>'+
-  '<span>'+esc(h.actor_name||"Responsável não identificado")+'</span><small>'+textDate(h.created_at)+(time?' · '+time:"")+'</small></div></div>';
- }).join(""):'<p class="history-empty">Nenhuma alteração registrada.</p>')+
- '</div></details>';
+   '<div class="revision-copy"><strong>'+esc(h.action||"Alteração")+'</strong>'+
+   '<span>'+esc(h.actor_name||"Responsável não identificado")+'</span><small>'+textDate(h.created_at)+(time?' · '+time:"")+'</small></div></div>';
+ }).join(""):'<p class="history-empty">Nenhuma alteração registrada.</p>';
+ return '<button type="button" class="history-edge-trigger" data-do="history-open" aria-controls="history-drawer" aria-haspopup="dialog" title="Abrir histórico de alterações">'+
+  ico("clock")+'<span>Histórico</span><span class="history-edge-count">'+history.length+'</span></button>'+
+  '<div class="history-drawer" id="history-drawer" hidden>'+
+  '<button type="button" class="history-drawer-backdrop" data-do="history-close" tabindex="-1" aria-label="Fechar histórico"></button>'+
+  '<aside class="history-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="history-drawer-title" tabindex="-1">'+
+  '<div class="history-drawer-header"><div><span class="profile-section-eyebrow">REGISTROS</span><h2 id="history-drawer-title">Histórico de alterações <span class="history-counter">'+history.length+'</span></h2>'+
+  '<p>Acompanhe o que mudou nesta demanda.</p></div>'+
+  '<button type="button" class="history-drawer-close" data-do="history-close" aria-label="Fechar histórico">'+ico("close")+'</button></div>'+
+  '<div class="activity-history revision-list">'+revisions+'</div></aside></div>';
 }
 function detailStatusSelector(t,status){
  if(t.archivedAt)return '<span class="task-status task-status-'+taskStatus(t)+' detail-status-final">'+
@@ -2619,14 +2610,13 @@ function activitySections(t,readOnly=false){
  '<div class="detail-panel-content">'+ids.map(cid=>'<div class="commission-progress-row"><strong>'+esc(committee(cid)?.name||"Comissão")+'</strong>'+
  '<span class="task-status task-status-'+taskStatus(t,cid)+'">'+statusLabel[taskStatus(t,cid)]+'</span></div>').join("")+'</div></details>':"";
  return '<div class="activity-detail-layout">'+
-  '<div class="activity-detail-top"><div class="stack detail-left-column">'+deadlineFacts(t)+renderAssignees(t)+commissionProgress+'</div>'+
-  '<div class="stack detail-history-column">'+renderHistory(t)+'</div></div>'+taskFileDetail(t)+
+  '<div class="activity-detail-top"><div class="stack detail-left-column">'+deadlineFacts(t)+renderAssignees(t)+commissionProgress+'</div></div>'+taskFileDetail(t)+
   '<section class="card card-pad detail-accent-card detail-review-full">'+
    '<div class="detail-review-heading"><h2 class="detail-card-heading"><span class="detail-heading-icon" aria-hidden="true">'+ico("list")+'</span>Texto para revisão</h2>'+
    '<button type="button" class="button ghost detail-review-copy" data-do="copy-review-text">'+ico("copy")+' Copiar tudo</button></div>'+
    lastReviewEdit(t)+
    '<div class="saved-activity-text">'+safeRich(t.captionText||"Nenhum texto registrado.")+'</div>'+
-  '</section></div>';
+  '</section></div>'+renderHistory(t);
 }
 function detailVisualization(){
  return '<div class="detail-visualization">'+visualizationSelect("navigateDemands","todas")+'</div>';
@@ -3385,6 +3375,7 @@ function compactContextHelp(root){
 }
 
 function render(){
+ document.body.classList.remove("history-drawer-open");
  nav();const {page,parts}=routeParts(),root=$("#screen");if(!root)return;
  document.body.classList.toggle("admin-ui-active",page==="admin"&&isAdmin()&&!me?.mustChangePassword);
  if(!allowPage(page)){location.hash=me?"#/inicio":"#/login";if(me)setToast("Seu perfil possui acesso somente para visualização.");return}
@@ -3635,6 +3626,18 @@ async function handleClick(e){
  const b=e.target.closest("[data-do]");if(!b||b.disabled)return;
  e.preventDefault();
  const action=b.dataset.do,tid=b.dataset.id;
+ if(action==="history-open"){
+  const layer=$("#history-drawer");
+  if(!layer)return;
+  layer.hidden=false;document.body.classList.add("history-drawer-open");
+  layer.querySelector(".history-drawer-close")?.focus();return;
+ }
+ if(action==="history-close"){
+  const layer=$("#history-drawer");
+  if(layer)layer.hidden=true;
+  document.body.classList.remove("history-drawer-open");
+  document.querySelector(".history-edge-trigger")?.focus();return;
+ }
  if(action==="admin-overview-pdf"){
    const r=state.adminOverviewData;
    if(!isAdmin()||!r||r.year!==state.adminReportYear)return setToast("Relatório geral indisponível.");
@@ -3819,31 +3822,6 @@ async function handleClick(e){
   $("#account-pane-painel h2")?.scrollIntoView({block:"nearest",behavior:"smooth"});
   return;
  }
- if(action==="appearance-mode"){
-  if(!me||!state.presentationPrefs||state.appearanceSwitching)return;
-  const mode=b.dataset.mode;
-  if(!["light","dark"].includes(mode))return;
-  const previous=state.presentationPrefs.appearanceMode||"light";
-  if(mode===previous)return;
-  const account=me.id;
-  state.appearanceSwitching=true;
-  if(state.presentationDraft)state.presentationDraft.appearanceMode=mode;
-  applyAppearanceMode(mode);render();
-  try{
-   // Salvar somente a aparência publicada: não aplicar outras edições ainda pendentes.
-   const saved=await request("/user-presentation","PUT",{...state.presentationPrefs,appearanceMode:mode});
-   if(me?.id!==account)return;
-   state.presentationPrefs=saved;
-   if(state.presentationDraft)state.presentationDraft.appearanceMode=saved.appearanceMode;
-   setToast(mode==="dark"?"Modo escuro ativado.":"Modo claro ativado.");
-  }catch(error){
-   if(me?.id===account){
-    if(state.presentationDraft)state.presentationDraft.appearanceMode=previous;
-    applyAppearanceMode(previous);setToast("Não foi possível salvar o modo de exibição: "+error.message);
-   }
-  }finally{state.appearanceSwitching=false;if(me?.id===account)render()}
-  return;
- }
  if(action==="presentation-theme"){
   if(!state.presentationDraft)state.presentationDraft=presentationDefault();
   const theme=b.dataset.theme;
@@ -3864,7 +3842,6 @@ async function handleClick(e){
    const saved=await request("/user-presentation","PUT",state.presentationDraft);
    state.presentationPrefs=saved;
    state.presentationDraft=JSON.parse(JSON.stringify(saved));
-   applyAppearanceMode(saved.appearanceMode);
    render();setToast("Aparência e indicadores salvos na sua conta.");
   }finally{if(b.isConnected)b.disabled=false}
   return;
@@ -4955,6 +4932,7 @@ function start(){
    if(hasUnsavedTaskChanges()||hasUnsavedMeetingChanges()){e.preventDefault();e.returnValue="";}
  });
  window.addEventListener("keydown",e=>{if(e.key==="Escape"){
+   if(!$("#history-drawer")?.hidden){e.preventDefault();$("#history-drawer").hidden=true;document.body.classList.remove("history-drawer-open");$(".history-edge-trigger")?.focus();return}
    if($("#commission-preset-gallery")){e.preventDefault();closeCommissionPresetGallery();return}
    if(commissionImageEditor){e.preventDefault();closeCommissionImageEditor();return}
    if($("#task-photo-modal")){e.preventDefault();closeTaskPhoto();return}
