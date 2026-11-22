@@ -1458,9 +1458,11 @@ function renderCronograma(){
  const y=state.cronYear,m=state.cronMonth,items=cronVisible();
  const loaded=state.cronLoadedYear===y;
  const monthActions='<div class="chron-month-nav"><button type="button" data-do="cron-prev" aria-label="Mês anterior">'+ico("chevron-left")+'</button>'+
- '<strong>'+MONTHS[m]+' de '+y+'</strong><button type="button" data-do="cron-next" aria-label="Próximo mês">'+ico("chevron-right")+'</button></div>';
- const toggle='<div class="chron-view-actions"><button class="button ghost" type="button" data-do="cron-view" data-view="'+(state.cronView==="lista"?"calendario":"lista")+'">'+ico("calendar")+' '+(state.cronView==="lista"?"Ver calendário":"Ver lista")+'</button>'+
- (state.cronView==="calendario"?'<button class="button ghost" type="button" data-do="cron-calendar-mode">'+(state.cronCalendarMode==="ano"?"Ver mês":"Ver ano inteiro")+'</button>':"")+'</div>';
+ '<strong>'+ico("calendar")+MONTHS[m]+' de '+y+'</strong><button type="button" data-do="cron-next" aria-label="Próximo mês">'+ico("chevron-right")+'</button></div>';
+ const toggle='<div class="chron-view-actions" role="group" aria-label="Visualização do Cronograma">'+
+ '<button class="button chron-view-option '+(state.cronView==="lista"?"is-active":"")+'" type="button" data-do="cron-view" data-view="lista" aria-pressed="'+(state.cronView==="lista")+'">'+ico("list")+' Lista</button>'+
+ '<button class="button chron-view-option '+(state.cronView==="calendario"?"is-active":"")+'" type="button" data-do="cron-view" data-view="calendario" aria-pressed="'+(state.cronView==="calendario")+'">'+ico("calendar")+' Calendário</button>'+
+ (state.cronView==="calendario"?'<button class="button ghost chron-annual-toggle" type="button" data-do="cron-calendar-mode">'+(state.cronCalendarMode==="ano"?"Ver mês":"Ver ano inteiro")+'</button>':"")+'</div>';
  const filters='<div class="chron-toolbar"><label class="chron-origin-picker">Exibir<select class="select" id="cron-source">'+
  [["cronograma","Cronograma"],["demandas","Demandas"],["todos","Todos"]].map(([v,l])=>opt(v,l,state.cronFilter)).join("")+'</select></label>'+
  '<label class="chron-year-picker">Ano<select class="select" id="cron-year">'+Array.from({length:12},(_,i)=>current.getFullYear()-4+i).map(v=>opt(v,v,y)).join("")+'</select></label>'+
@@ -1470,9 +1472,12 @@ function renderCronograma(){
  state.cronView==="calendario"?cronCalendar(items):
  items.length?'<div class="chron-cards">'+items.map(cronCard).join("")+'</div>':
  '<div class="chron-empty">Nenhum registro neste mês para o filtro escolhido.</div>';
- return header("Organização","Cronograma PET","Atividades do PET organizadas por data, horário e local.",
- '<button type="button" class="button primary" data-do="cron-new">'+ico("plus")+' Nova atividade</button>')+
- '<div class="chron-page'+(state.cronView==="calendario"&&state.cronCalendarMode!=="ano"?" chron-page--calendar-month":"")+'">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+cronDetailsDialog()+'</div>';
+ const heading=header("Organização","Cronograma PET","Atividades do PET organizadas por data, horário e local.",
+ '<button type="button" class="button primary" data-do="cron-new">'+ico("plus")+' Nova atividade</button>')
+  .replace('class="page-header"','class="page-header chron-approved-heading"')
+  .replace('<div class="eyebrow">','<span class="chron-heading-icon" aria-hidden="true">'+ico("calendar")+'</span><div class="eyebrow">');
+ return heading+
+ '<div class="chron-page chron-page--approved'+(state.cronView==="lista"?" chron-page--approved-list":"")+(state.cronView==="calendario"&&state.cronCalendarMode!=="ano"?" chron-page--calendar-month":"")+'">'+filters+cronEditor()+monthActions+content+cronReminderDialog()+cronDetailsDialog()+'</div>';
 }
 const COMMISSION_PRESET_ARTS=[
  ["videos","Vídeos"],["cards","Cards"],["imaginacao","ImaginAÇÃO"],
