@@ -18,6 +18,7 @@ const p256dh=b64(await crypto.subtle.exportKey("raw",ua.publicKey));
 const auth=b64(crypto.getRandomValues(new Uint8Array(16)));
 let vapid=null;
 const subscriptions=new Map(),preferences=new Map(),logs=new Set();
+const activeSession="b".repeat(64),activeSessions=new Set([activeSession]);
 const db={
  prepare(sql){
   return {
@@ -39,11 +40,11 @@ const db={
       throw Error("Consulta inesperada: "+sql);
      },
      async all(){
-      if(sql.startsWith("SELECT platform,COUNT(*) AS total FROM web_push_subscriptions")){
-       return {results:["pc","ios"].map(platform=>({platform,total:[...subscriptions.values()].filter(x=>x.user_id===args[0]&&x.platform===platform).length}))};
+      if(sql.startsWith("SELECT p.platform,COUNT(*) AS total FROM web_push_subscriptions")){
+       return {results:["pc","ios"].map(platform=>({platform,total:[...subscriptions.values()].filter(x=>x.user_id===args[0]&&x.platform===platform&&activeSessions.has(x.session_hash)).length}))};
       }
       if(sql.startsWith("SELECT s.* FROM web_push_subscriptions s")){
-       return {results:[...subscriptions.values()].filter(x=>x.platform===args[0]&&args.slice(1).includes(x.user_id))};
+       return {results:[...subscriptions.values()].filter(x=>x.platform===args[1]&&args.slice(2).includes(x.user_id)&&activeSessions.has(x.session_hash))};
       }
       throw Error("Consulta all inesperada: "+sql);
      },
@@ -51,8 +52,11 @@ const db={
       if(sql.startsWith("INSERT OR IGNORE INTO web_push_vapid")){
        vapid??={public_key:args[0],private_key:args[1]};
       }else if(sql.startsWith("INSERT INTO web_push_subscriptions")){
-       subscriptions.set(args[2],{id:args[0],user_id:args[1],endpoint:args[2],p256dh:args[3],auth:args[4],platform:args[5]});
-      }else if(sql.startsWith("INSERT INTO web_push_preferences")){
+       subscriptions.set(args[2],{id:args[0],user_id:args[1],endpoint:args[2],p256dh:args[3],auth:args[4],platform:args[5],session_hash:args[8]});
+      }else if(sql.startsWith("UPDATE web_push_subscriptions SET session_hash=")){
+        const x=[...subscriptions.values()].find(x=>x.id===args[2]&&x.user_id===args[3]);
+        if(x)x.session_hash=args[0];
+       }else if(sql.startsWith("INSERT INTO web_push_preferences")){
        preferences.set(args[0],{new_demands:args[1],deadlines:args[2],overdue:args[3]});
       }else if(sql.startsWith("INSERT OR IGNORE INTO web_push_log")){
        if(logs.has(args[0]))return {meta:{changes:0}};
@@ -100,15 +104,15 @@ assert.equal((await webPushPublicKey(db)).publicKey,publicKey,"VAPID deve ser es
 assert.equal((await webPushStatus(db,user)).registeredComputers,0);
 await assert.rejects(()=>webPushSubscribe(db,user,{endpoint:"https://localhost/private",keys:{p256dh,auth}}),
  /reconhecido/);
-await webPushSubscribe(db,user,{endpoint,keys:{p256dh,auth}});
+await webPushSubscribe(db,user,{endpoint,keys:{p256dh,auth}},activeSession);
 assert.equal((await webPushStatus(db,user)).registeredComputers,1);
 assert.equal((await webPushStatus(db,user)).registeredIphones,0);
 await assert.rejects(()=>webPushSubscribe(db,user,{endpoint,keys:{p256dh,auth},platform:"ios"}),/Apple/);
 await assert.rejects(()=>webPushSubscribe(db,user,{endpoint:appleEndpoint,keys:{p256dh,auth},platform:"desconhecida"}),/dispositivo/);
-await webPushSubscribe(db,user,{endpoint:appleEndpoint,keys:{p256dh,auth},platform:"ios"});
+await webPushSubscribe(db,user,{endpoint:appleEndpoint,keys:{p256dh,auth},platform:"ios"},activeSession);
 assert.equal((await webPushStatus(db,user)).registeredIphones,1,"PWA iOS separado do PC");
-assert.equal((await webPushCheck(db,user,{endpoint})).connected,true);
-assert.equal((await webPushCheck(db,another,{endpoint})).connected,false);
+assert.equal((await webPushCheck(db,user,{endpoint},activeSession)).connected,true);
+assert.equal((await webPushCheck(db,another,{endpoint},activeSession)).connected,false);
 const {preferences:changed}=await webPushSavePreferences(db,user,{newDemands:false,deadlines:true,overdue:false});
 assert.deepEqual(changed,{newDemands:false,deadlines:true,overdue:false});
 let messages=0;
@@ -144,6 +148,10 @@ try{
  assert.equal(sentPC,1,"Canal de PC independente do iPhone");
  assert.equal(messages,4);
  await assert.rejects(()=>webPushTest({DB:db},user,{endpoint}),/Aguarde dois minutos/);
+  activeSessions.delete(activeSession);
+  assert.equal((await webPushStatus(db,user)).registeredComputers,0,"A sessão encerrada desativa as notificações do PC");
+  assert.equal(await notifyBrowserUsers({DB:db},[user.id],{title:"Teste",body:"Não enviar",kind:"personal"},null,"logged-out","pc"),0);
+  activeSessions.add(activeSession);
  await webPushUnsubscribe(db,another,{endpoint});
  assert.equal((await webPushStatus(db,user)).registeredComputers,1,"Não excluir inscrição de outra conta");
  await webPushUnsubscribe(db,user,{endpoint});
