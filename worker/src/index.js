@@ -411,7 +411,8 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         db.prepare("UPDATE tasks SET user_done=?,deadlines=?,status='concluida',archived_at=?,updated_at=?,version=version+1 WHERE id=? AND archived_at IS NULL AND version=?")
           .bind(JSON.stringify(done),JSON.stringify(completed),stamp,stamp,task.id,task.version),
         db.prepare("INSERT INTO task_history(id,task_id,actor_id,actor_name,action,details,created_at) SELECT ?,id,NULL,?,?,? ,? FROM tasks WHERE id=? AND version=? AND archived_at=?")
-          .bind(uid(),"PET Gestão — automático","Concluiu o evento coletivo para Todos(as)","Arquivamento automático após a data do evento (horário de Sergipe).",stamp,task.id,nextVersion,stamp)
+          .bind(uid(),"PET Gestão — automático","Concluiu o evento coletivo para Todos(as)","Arquivamento automático após a data do evento (horário de Sergipe).",stamp,task.id,nextVersion,stamp),
+        db.prepare("DELETE FROM task_attachments WHERE task_id=? AND EXISTS (SELECT 1 FROM tasks WHERE id=? AND archived_at=?)").bind(task.id,task.id,stamp)
       ]);
     }
   }
@@ -706,7 +707,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
   }
   // Binários privados no D1, em blocos de 256 KiB para respeitar 2 MB/linha.
   const ATTACH_CHUNK=262144,ATTACH_MAX_FILE=25*1024*1024;
-  const ATTACH_MAX_FILES=8,ATTACH_MAX_TASK_TOTAL=8*ATTACH_MAX_FILE;
+  const ATTACH_MAX_FILES=20,ATTACH_MAX_TASK_TOTAL=20*ATTACH_MAX_FILE;
   const publicAttachment=a=>({
     id:a.id,name:a.filename,mimeType:a.mime_type,size:a.size_bytes,
     createdAt:a.created_at,createdBy:a.created_by
@@ -747,7 +748,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         requireLogin(user);return answer(await savePushPreferences(db,user,await body(req)));
       }
       if(path==="/api/v1/push/register"&&method==="POST"){
-        requireLogin(user);return answer(await registerPushDevice(db,user,await body(req)));
+        requireLogin(user);return answer(await registerPushDevice(db,user,await body(req),await sha((req.headers.get("authorization")||"").slice(7))));
       }
       if(path==="/api/v1/push/unregister"&&method==="POST"){
         requireLogin(user);return answer(await unregisterPushDevice(db,user,await body(req)));
@@ -765,13 +766,13 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         requireLogin(user);return answer(await webPushStatus(db,user));
       }
       if(path==="/api/v1/web-push/check"&&method==="POST"){
-        requireLogin(user);return answer(await webPushCheck(db,user,await body(req)));
+        requireLogin(user);return answer(await webPushCheck(db,user,await body(req),await sha((req.headers.get("authorization")||"").slice(7))));
       }
       if(path==="/api/v1/web-push/preferences"&&method==="PUT"){
         requireLogin(user);return answer(await webPushSavePreferences(db,user,await body(req)));
       }
       if(path==="/api/v1/web-push/subscribe"&&method==="POST"){
-        requireLogin(user);return answer(await webPushSubscribe(db,user,await body(req)));
+        requireLogin(user);return answer(await webPushSubscribe(db,user,await body(req),await sha((req.headers.get("authorization")||"").slice(7))));
       }
       if(path==="/api/v1/web-push/unsubscribe"&&method==="POST"){
         requireLogin(user);return answer(await webPushUnsubscribe(db,user,await body(req)));
@@ -888,7 +889,17 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         return answer(await createSession(db,admin,b.rememberMe===true,true,b.browserId));
       }
       if(path==="/api/v1/auth/logout"&&method==="POST"){
-        if(user){const token=(req.headers.get("authorization")||"").slice(7);await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await sha(token)).run()}
+        if(user){
+           const payload=await body(req),sessionHash=await sha((req.headers.get("authorization")||"").slice(7));
+           const deviceId=/^[a-f0-9-]{36}$/i.test(String(payload.deviceId||""))?String(payload.deviceId):"";
+           const endpoint=String(payload.endpoint||"").slice(0,2500);
+           // Cancelar avisos da sessão no mesmo lote que revoga o login.
+           await db.batch([
+             db.prepare("DELETE FROM push_devices WHERE user_id=? AND (session_hash=? OR device_id=?)").bind(user.id,sessionHash,deviceId),
+             db.prepare("DELETE FROM web_push_subscriptions WHERE user_id=? AND (session_hash=? OR endpoint=?)").bind(user.id,sessionHash,endpoint),
+             db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(sessionHash)
+           ]);
+         }
         return answer({ok:true});
       }
       if(path==="/api/v1/auth/me"&&method==="GET"){requireLogin(user);return answer({user:{...userPublic(user),birthDate:user.birth_date||null}})}
@@ -1419,7 +1430,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
           const quota=await db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(size_bytes),0) AS total FROM task_attachments WHERE task_id=?")
             .bind(taskId).first();
           if(quota.n>=ATTACH_MAX_FILES||quota.total+size>ATTACH_MAX_TASK_TOTAL)
-            fail("Limite de 8 fotos ou 200 MB por demanda atingido.",413);
+            fail("Limite de 20 fotos de até 25 MB por demanda atingido.",413);
           const attachmentId=uid(),stamp=now(),count=Math.ceil(size/ATTACH_CHUNK);
           await db.prepare("INSERT INTO task_attachments(id,task_id,filename,mime_type,size_bytes,chunk_count,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
             .bind(attachmentId,taskId,name,mime||"application/octet-stream",size,count,user.id,stamp,stamp).run();
@@ -1602,6 +1613,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
         const result=await db.prepare("UPDATE tasks SET archived_at=?,closure_outcome='nao_concluida',completed_late=0,updated_by=?,updated_at=?,version=version+1 WHERE id=? AND archived_at IS NULL AND version=?")
           .bind(stamp,user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a demanda. Atualize e tente novamente.",409);
+        await db.prepare("DELETE FROM task_attachments WHERE task_id=?").bind(old.id).run();
         await audit(db,old.id,user,"Encerrou como não concluída","As conclusões individuais e coletivas já registradas foram preservadas.");
         return answer({ok:true,archived:true,closureOutcome:"nao_concluida"});
       }
@@ -1663,6 +1675,7 @@ import {webPushPublicKey,webPushStatus,webPushCheck,webPushSavePreferences,webPu
             finished?stamp:null,finished?"concluida":null,finished?(completedLate?1:0):null,
             user.id,stamp,old.id,old.version).run();
         if(!result.meta.changes)fail("Outra pessoa atualizou a atividade. Atualize e tente novamente.",409);
+        if(finished)await db.prepare("DELETE FROM task_attachments WHERE task_id=?").bind(old.id).run();
         const names=[];
         for(const id of changedUsers){const row=await db.prepare("SELECT name FROM users WHERE id=?").bind(id).first();names.push(row?.name||"Usuário");}
         for(const id of changedCommissions){const row=await db.prepare("SELECT name FROM commissions WHERE id=?").bind(id).first();names.push("Comissão "+(row?.name||id));}
