@@ -28,7 +28,7 @@ let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:fal
 let personalMockItems=[];
 let quickNavMock={enabled:true,items:["inicio","cronograma","demandas","meus-lembretes","conta"]};
 let presentationMock={dashboard:{active:true,mine:true,overdue:true,completed:true,updates:true},
- profileTheme:"lavender",profileImage:null,appearanceMode:"light"};
+ profileTheme:"lavender",profileImage:null};
 let scheduleMock=[{id:"evento-cron-1",title:"Oficina de Fotografia",description:"Formação com fotógrafos",startDate:new Date().toISOString().slice(0,10),endDate:new Date().toISOString().slice(0,10),startTime:"14:00",endTime:"18:00",timeNote:null,location:"Sala do PET",completedAt:null,source:"manual"}];
 await page.route("**/api/v1/**",async route=>{
  const req=route.request(),url=new URL(req.url()),p=url.pathname.replace("/api/v1",""),method=req.method(),adminMode=req.headers()["authorization"]?.includes("admin-token");
@@ -207,19 +207,16 @@ try{
  await page.locator('[data-do="account-tab"][data-tab="painel"]').click();
  assert.ok(await page.locator(".profile-background-preview.theme-ocean").isVisible(),"Aparência salva aparece na prévia.");
  assert.equal(await page.locator('#account-pane-painel #account-photo-input').count(),1,"Foto é editada apenas no painel.");
- const modeSaved=page.waitForResponse(r=>r.url().endsWith("/user-presentation")&&r.request().method()==="PUT"&&r.request().postDataJSON()?.appearanceMode==="dark");
- await page.locator('[data-do="appearance-mode"][data-mode="dark"]').click();await modeSaved;
- assert.equal(presentationMock.appearanceMode,"dark","Modo escuro persiste.");
- assert.equal(await page.locator("html").getAttribute("data-pet-mode"),"dark","Tema escuro aplicado ao documento inteiro.");
+ assert.equal(await page.locator('[data-do="appearance-mode"]').count(),0,"Tema claro/escuro foi retirado.");
+ assert.equal(await page.locator("html").getAttribute("data-pet-mode"),null,"Paleta original preservada.");
  await page.goto(origin+"/#/inicio");
  await page.locator(".stat-grid").waitFor({state:"visible"});
- assert.equal(await page.locator("html").getAttribute("data-pet-mode"),"dark","Modo escuro restaurado no recarregamento.");
  assert.equal(await page.locator(".stat-grid .stat svg use[href='#i-arrow']").count(),0,"Indicadores não têm setas decorativas.");
+ const metricsBox=await page.locator(".stat-grid").boundingBox();
+ const viewport=page.viewportSize();
+ assert.ok(Math.abs((metricsBox.x+metricsBox.width/2)-viewport.width/2)<100,"Indicadores centralizados no desktop.");
  await page.goto(origin+"/#/conta");
  await page.locator('[data-do="account-tab"][data-tab="painel"]').click();
- const lightSaved=page.waitForResponse(r=>r.url().endsWith("/user-presentation")&&r.request().method()==="PUT"&&r.request().postDataJSON()?.appearanceMode==="light");
- await page.locator('[data-do="appearance-mode"][data-mode="light"]').click();await lightSaved;
- assert.equal(await page.locator("html").getAttribute("data-pet-mode"),"light","Modo claro restaurado.");
  // Central única: os sete tipos compartilham um botão de salvar por destinatário.
  await page.locator('[data-do="account-tab"][data-tab="notificacoes"]').click();
  await page.locator('.notice-matrix tbody tr').first().waitFor({state:"visible",timeout:10000});
@@ -935,7 +932,7 @@ await page.locator('a[data-route="reunioes"]').click();
  const responsibilityFont=await page.locator(".stage-responsible").first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
  assert.ok(responsibilityFont>=13,"Informação de responsável deve ser legível");
 
- assert.equal(await page.locator(".activity-detail-top .detail-history-column .activity-history").count(),1);
+ assert.equal(await page.locator(".activity-detail-top .detail-history-column").count(),0,"Histórico não reserva mais uma coluna.");
  assert.equal(await page.locator(".detail-review-full").count(),1,"Texto para revisão fica abaixo das colunas");
  assert.equal(await page.locator(".assignee-group-heading").filter({hasText:"Comissões"}).count(),0,"Sem legenda roxa duplicada");
  assert.equal(await page.locator('select[data-filter="navigateDemands"]').count(),1,"Filtro de visualização na atividade");
@@ -950,12 +947,15 @@ await page.locator('a[data-route="reunioes"]').click();
  assert.ok(await page.locator(".revision-symbol svg").count()>0);
  assert.equal(await page.locator("#connection-label").count(),0);
  assert.equal(await page.locator('select[data-detail-status] option[value="concluir"]').textContent(),"Concluído");
- assert.equal(await page.locator(".activity-history").evaluate(x=>x.open),true,"Histórico exibido inicialmente na lateral");
- assert.equal(await page.locator(".revision-symbol").count(),2,"Registros aparecem com ícones");
- await page.locator(".activity-history summary").click();
- assert.equal(await page.locator(".activity-history").evaluate(x=>x.open),false,"Histórico recolhe");
- await page.locator(".activity-history summary").click();
- assert.equal(await page.locator(".activity-history").evaluate(x=>x.open),true,"Histórico pode reabrir");
+ assert.equal(await page.locator("#history-drawer").isHidden(),true,"Histórico não ocupa a página.");
+ await page.locator('[data-do="history-open"]').click();
+ assert.equal(await page.locator("#history-drawer").isVisible(),true,"Histórico aparece em gaveta lateral.");
+ assert.equal(await page.locator(".history-drawer .revision-symbol").count(),2,"Registros aparecem com ícones");
+ await page.keyboard.press("Escape");
+ assert.equal(await page.locator("#history-drawer").isHidden(),true,"Escape fecha a gaveta.");
+ await page.locator('[data-do="history-open"]').click();
+ await page.locator(".history-drawer-close").click();
+ assert.equal(await page.locator("#history-drawer").isHidden(),true,"Botão fecha a gaveta.");
  await page.locator("select[data-detail-status]").selectOption("concluir");
  assert.equal(await page.locator('#finish-dialog input[data-kind="commission"]').count(),1);
  await page.locator('[data-do="finish-close"]').last().click();
