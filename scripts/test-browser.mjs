@@ -23,6 +23,7 @@ const history=[{task_id:"t1",action:"Criou a demanda",actor_name:"Usuário de te
 const settings={autoMonth:true,autoWeek:true,notificationTemplates:{}};
  const bootstrap=adminMode=>({session:{user:adminMode?admin:user},users:[user,admin],committees,tasks,meetings,events:[],history,settings});
 const calls=[];
+let cloudStorageReads=0;
 const notificationKinds=["create","review","due_soon","overdue","event_soon","event_today","birthday"];
 let noticeMatrix=Object.fromEntries(notificationKinds.map(kind=>[kind,{email:false,android:false,pc:false}]));
 let personalMockItems=[];
@@ -77,6 +78,16 @@ await page.route("**/api/v1/**",async route=>{
  }
  else if(p==="/mail")result={items:[]};
  else if(p==="/mail/status")result={connected:true,message:"Teste isolado"};
+ else if(p==="/admin/storage"&&method==="GET"){
+  if(!adminMode){status=403;result={error:"Acesso exclusivo da Administração."};}
+  else{
+   cloudStorageReads++;
+   result={checkedAt:new Date().toISOString(),database:{bytes:24800000,source:"d1_query_metadata"},
+    photos:{count:6,bytes:5242880,uploadingCount:0,uploadingBytes:0},
+    referenceLimits:{freePerDatabaseBytes:500000000,paidPerDatabaseBytes:10000000000},
+    accountWideUsageAvailable:false,dailyReadWriteQuotaAvailable:false};
+  }
+ }
  else if(p==="/admin/commissions-batch"&&method==="PUT"){
    const newOrder=body.commissions.map((row,i)=>{
      const item=committees.find(c=>c.id===row.id);
@@ -1260,6 +1271,26 @@ await page.locator('a[data-route="reunioes"]').click();
  await page.locator("#admin-link").waitFor({state:"visible",timeout:10000});
  // Voltar ao PET Gestão usa uma transição e preserva a identidade Admin.
  await page.goto(origin+"/#/admin/painel");
+ await page.locator("#admin-cloud-storage .admin-cloud-numbers").waitFor({state:"visible",timeout:10000});
+ assert.ok((await page.locator("#admin-cloud-storage").innerText()).includes("24,8 MB"),
+  "Admin apresenta o tamanho real retornado pelo D1, não uma estimativa");
+ assert.ok((await page.locator("#admin-cloud-storage").innerText()).includes("6 foto(s)"),
+  "Admin mostra a quantidade de fotos em armazenamento");
+ assert.equal(await page.locator("#admin-cloud-storage .admin-cloud-meter").count(),2,
+  "Referências Free e Paid são comparativas e não presumem o plano ativo");
+ const beforeRefresh=cloudStorageReads;
+ await page.locator('[data-do="admin-storage-refresh"]').click();
+ await page.waitForFunction(()=>document.querySelector("#admin-cloud-storage .admin-cloud-numbers")!==null);
+ await page.waitForTimeout(120);
+ assert.ok(cloudStorageReads>beforeRefresh,"Botão Atualizar realmente consulta novamente o Cloudflare");
+ await page.setViewportSize({width:390,height:844});
+ const overflow=await page.locator("#admin-cloud-storage").evaluate(node=>{
+  const box=node.getBoundingClientRect();
+  return {boxRight:box.right,screen:innerWidth,pageWidth:document.documentElement.scrollWidth};
+ });
+ assert.ok(overflow.pageWidth<=overflow.screen+1&&overflow.boxRight<=overflow.screen+1,
+  "Painel de armazenamento não pode criar rolagem horizontal no celular");
+ await page.setViewportSize({width:1420,height:900});
  await page.locator('[data-do="admin-signout"]').evaluate(el=>el.click());
  await page.locator("#connecting-popup.returning-to-gestao").waitFor({state:"visible",timeout:2500});
  assert.ok((await page.locator(".connecting-message").innerText()).includes("Voltando ao PET Gestão"));
