@@ -31,6 +31,8 @@ O código de integração com Cloudflare D1 e Google Apps Script está preparado
 
 A conta Admin inicial é criada a partir dos segredos de Actions **ADMIN_EMAIL** e **ADMIN_INITIAL_PASSWORD**. Nunca colocar credenciais em JavaScript do navegador ou no histórico de commits.
 
+**Login independente do GitHub:** o acesso ao PET Gestão é feito por conta e senha validadas no Cloudflare Worker, com dados de autenticação no D1. Renovar um token pessoal do GitHub usado em outro painel não altera essas contas nem exige troca das senhas do PET Gestão. As credenciais de publicação do GitHub Actions, quando utilizadas, são configurações separadas do login do aplicativo.
+
 ## Implantação
 Veja **docs/IMPLEMENTACAO-2026-11-09.md**. Antes de declarar a implantação concluída, conferir o workflow e executar o checklist manual de autenticação, demandas e notificações.
 
